@@ -108,7 +108,6 @@ mod tests {
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
         assert_eq!(before, Some((&p1.timestamp, &p1)));
         assert_eq!(after, Some((&p1.timestamp, &p1)));
-
         // Exactly at last point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3000 });
         assert_eq!(before, Some((&p3.timestamp, &p3)));
