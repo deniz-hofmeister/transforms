@@ -1,4 +1,4 @@
-use crate::types::{Buffer, Transform};
+use crate::types::{Buffer, Point, Quaternion, Timestamp, Transform, Vector3};
 use std::collections::HashMap;
 
 pub struct Registry {
@@ -23,5 +23,27 @@ impl Registry {
             .entry(key)
             .or_insert_with(|| Buffer::new(self.max_age))
             .insert(t.transform);
+    }
+
+    pub fn get_transform(
+        &self,
+        source: &'static str,
+        target: &'static str,
+        timestamp: Timestamp,
+    ) -> Option<Transform> {
+        let key = format!("{}_{}", source, target);
+        let r = match self
+            .data
+            .get(&key)
+        {
+            Some(v) => v.get(&timestamp),
+            None => return None,
+        };
+
+        Some(Transform {
+            parent: source,
+            child: target,
+            transform: *r.unwrap(),
+        })
     }
 }

@@ -2,8 +2,9 @@
 mod tests {
     use transforms::types::{Point, Quaternion, Registry, Timestamp, Transform, Vector3};
 
+    #[test]
     fn test_transforms() {
-        let registry = Registry::new(u128::MAX);
+        let mut registry = Registry::new(u128::MAX);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -49,8 +50,16 @@ mod tests {
         registry.add(t_a_b);
         registry.add(t_a_c);
 
-        registry.get_transform("a", "b");
-        registry.get_transform("a", "c");
-        registry.get_transform("b", "c");
+        let r = registry
+            .get_transform(
+                "a",
+                "b",
+                t_a_b
+                    .transform
+                    .timestamp,
+            )
+            .unwrap();
+
+        let x = 2;
     }
 }
