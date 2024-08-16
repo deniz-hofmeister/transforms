@@ -2,9 +2,9 @@ use crate::types::Point;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Transform<'a> {
-    transform: Point,
-    parent: &'a str,
-    child: &'a str,
+    pub transform: Point,
+    pub parent: &'a str,
+    pub child: &'a str,
 }
 
 #[cfg(test)]

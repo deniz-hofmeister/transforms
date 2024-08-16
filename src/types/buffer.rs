@@ -12,10 +12,10 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new() -> Self {
+    pub fn new(max_age: u128) -> Self {
         Self {
             data: BTreeMap::new(),
-            max_age: 0,
+            max_age,
         }
     }
 
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn insert_and_get() {
-        let mut buffer = Buffer::new();
+        let mut buffer = Buffer::new(u128::MAX);
         let point = create_point(1000);
         buffer.insert(point.clone());
 
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn get_nearest() {
-        let mut buffer = Buffer::new();
+        let mut buffer = Buffer::new(u128::MAX);
         let p1 = create_point(1000);
         let p2 = create_point(2000);
         let p3 = create_point(3000);
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new();
+        let mut buffer = Buffer::new(u128::MAX);
         buffer.insert(create_point(1000));
         buffer.insert(create_point(2000));
         buffer.insert(create_point(3000));
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn empty_buffer() {
-        let buffer = Buffer::new();
+        let buffer = Buffer::new(u128::MAX);
         assert_eq!(buffer.get(&Timestamp { nanoseconds: 1000 }), None);
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new();
+        let mut buffer = Buffer::new(0);
         let point = create_point(1000);
         buffer.insert(point.clone());
 
@@ -198,8 +198,7 @@ mod tests {
 
     #[test]
     fn delete_expired() {
-        let mut buffer = Buffer::new();
-        buffer.max_age = 2_000_000_000;
+        let mut buffer = Buffer::new(2_000_000_000);
 
         let now = Timestamp::now();
         let old_point = create_point(now.nanoseconds - 3_000_000_000);
