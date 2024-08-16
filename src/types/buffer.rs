@@ -1,14 +1,21 @@
 use crate::types::{Point, Timestamp};
 use std::collections::BTreeMap;
 
+/// A time-ordered collection of `Point` objects.
+///
+/// The `Buffer` struct stores `Point` objects indexed by their `Timestamp`.
+/// It supports efficient insertion, retrieval, and cleanup of points based on their timestamps.
+/// The `max_age` field specifies the maximum age of points to retain, in nanoseconds.
 pub struct Buffer {
     data: BTreeMap<Timestamp, Point>,
+    max_age: u128,
 }
 
 impl Buffer {
     pub fn new() -> Self {
         Self {
             data: BTreeMap::new(),
+            max_age: 0,
         }
     }
 
@@ -50,12 +57,17 @@ impl Buffer {
         (before, after)
     }
 
-    pub fn delete_stale(
+    pub fn delete_before(
         &mut self,
-        expiry: Timestamp,
+        timestamp: Timestamp,
     ) {
         self.data
-            .retain(|&k, _| k >= expiry);
+            .retain(|&k, _| k >= timestamp);
+    }
+
+    pub fn delete_expired(&mut self) {
+        let timestamp_threshold = Timestamp::now() - self.max_age;
+        self.delete_before(timestamp_threshold);
     }
 }
 
@@ -133,13 +145,13 @@ mod tests {
     }
 
     #[test]
-    fn delete_stale() {
+    fn delete_before() {
         let mut buffer = Buffer::new();
         buffer.insert(create_point(1000));
         buffer.insert(create_point(2000));
         buffer.insert(create_point(3000));
 
-        buffer.delete_stale(Timestamp { nanoseconds: 2000 });
+        buffer.delete_before(Timestamp { nanoseconds: 2000 });
 
         assert_eq!(buffer.get(&Timestamp { nanoseconds: 1000 }), None);
         assert_eq!(
@@ -182,5 +194,23 @@ mod tests {
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
         assert_eq!(before, Some((&point.timestamp, &point)));
         assert_eq!(after, None);
+    }
+
+    #[test]
+    fn delete_expired() {
+        let mut buffer = Buffer::new();
+        buffer.max_age = 2_000_000_000;
+
+        let now = Timestamp::now();
+        let old_point = create_point(now.nanoseconds - 3_000_000_000);
+        let recent_point = create_point(now.nanoseconds - 1_000_000_000);
+
+        buffer.insert(old_point.clone());
+        buffer.insert(recent_point.clone());
+
+        buffer.delete_expired();
+
+        assert_eq!(buffer.get(&old_point.timestamp), None);
+        assert_eq!(buffer.get(&recent_point.timestamp), Some(&recent_point));
     }
 }
