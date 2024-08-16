@@ -12,19 +12,30 @@ impl Buffer {
         }
     }
 
-    pub fn insert(&mut self, point: Point) {
-        self.data.insert(point.timestamp, point);
+    pub fn insert(
+        &mut self,
+        point: Point,
+    ) {
+        self.data
+            .insert(point.timestamp, point);
     }
 
-    pub fn get(&self, timestamp: &Timestamp) -> Option<&Point> {
-        self.data.get(timestamp)
+    pub fn get(
+        &self,
+        timestamp: &Timestamp,
+    ) -> Option<&Point> {
+        self.data
+            .get(timestamp)
     }
 
     pub fn get_nearest(
         &self,
         timestamp: &Timestamp,
     ) -> (Option<(&Timestamp, &Point)>, Option<(&Timestamp, &Point)>) {
-        let before = self.data.range(..=timestamp).next_back();
+        let before = self
+            .data
+            .range(..=timestamp)
+            .next_back();
 
         if let Some((t, _)) = before {
             if t == timestamp {
@@ -32,12 +43,19 @@ impl Buffer {
             }
         }
 
-        let after = self.data.range(timestamp..).next();
+        let after = self
+            .data
+            .range(timestamp..)
+            .next();
         (before, after)
     }
 
-    pub fn delete_stale(&mut self, expiry: Timestamp) {
-        self.data.retain(|&k, _| k >= expiry);
+    pub fn delete_stale(
+        &mut self,
+        expiry: Timestamp,
+    ) {
+        self.data
+            .retain(|&k, _| k >= expiry);
     }
 }
 
