@@ -1,9 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use env_logger;
+    use log::debug;
     use transforms::types::{Point, Quaternion, Registry, Timestamp, Transform, Vector3};
 
     #[test]
     fn test_transforms() {
+        env_logger::init();
         let mut registry = Registry::new(u128::MAX);
 
         // Child frame B at x=1m without rotation
@@ -50,16 +53,14 @@ mod tests {
         registry.add(t_a_b);
         registry.add(t_a_c);
 
-        let r = registry
-            .get_transform(
-                "a",
-                "b",
-                t_a_b
-                    .transform
-                    .timestamp,
-            )
-            .unwrap();
+        let r = registry.get_transform(
+            "a",
+            "b",
+            t_a_b
+                .transform
+                .timestamp,
+        );
 
-        let x = 2;
+        debug!("{:?}", r);
     }
 }
