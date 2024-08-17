@@ -1,4 +1,4 @@
-use crate::types::{Buffer, Point, Quaternion, Timestamp, Transform, Vector3};
+use crate::types::{Buffer, Timestamp, Transform};
 use std::collections::HashMap;
 
 pub struct Registry {
@@ -25,10 +25,10 @@ impl Registry {
             .insert(t.transform);
     }
 
-    pub fn get_transform(
-        &self,
-        source: &'static str,
-        target: &'static str,
+    pub fn get_transform<'a>(
+        &'a self,
+        source: &'a str,
+        target: &'a str,
         timestamp: Timestamp,
     ) -> Option<Transform> {
         let key = format!("{}_{}", source, target);
