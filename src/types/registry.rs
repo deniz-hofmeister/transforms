@@ -30,20 +30,17 @@ impl Registry {
         source: &'a str,
         target: &'a str,
         timestamp: Timestamp,
-    ) -> Option<Transform> {
+    ) -> Option<Transform<'a>> {
         let key = format!("{}_{}", source, target);
-        let r = match self
+        let r = self
             .data
-            .get(&key)
-        {
-            Some(v) => v.get(&timestamp),
-            None => return None,
-        };
+            .get(&key)?
+            .get(&timestamp)?;
 
         Some(Transform {
             parent: source,
             child: target,
-            transform: *r.unwrap(),
+            transform: *r,
         })
     }
 }
