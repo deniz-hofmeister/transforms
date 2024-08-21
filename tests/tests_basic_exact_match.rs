@@ -5,7 +5,7 @@ mod tests {
     use transforms::types::{Point, Quaternion, Registry, Timestamp, Transform, Vector3};
 
     #[test]
-    fn test_transforms() {
+    fn test_basic_exact_match() {
         env_logger::init();
         let mut registry = Registry::new(u128::MAX);
 
@@ -62,5 +62,12 @@ mod tests {
         );
 
         debug!("{:?}", r);
+
+        assert!(r.is_some(), "Registry returned None, expected Some");
+        assert_eq!(
+            r.unwrap(),
+            t_a_b,
+            "Registry returned a transform that is different"
+        );
     }
 }
