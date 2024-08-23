@@ -1,10 +1,22 @@
 use crate::types::Point;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct Transform<'a> {
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct Transform {
     pub transform: Point,
-    pub parent: &'a str,
-    pub child: &'a str,
+    parent: Option<Weak<RefCell<Transform>>>,
+    children: RefCell<Vec<Rc<RefCell<Transform>>>>,
+}
+
+impl Transform {
+    fn new(transform: Point) -> Rc<Self> {
+        Rc::new(Transform {
+            transform,
+            parent: None,
+            children: RefCell::new(vec![]),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -36,10 +48,10 @@ mod test {
         let parent = "A";
         let child = "B";
 
-        let _t = Transform {
-            transform,
-            parent,
-            child,
-        };
+        // let _t = Transform {
+        //     transform,
+        //     parent,
+        //     child,
+        // };
     }
 }

@@ -10,7 +10,11 @@ pub struct Vector3 {
 impl Add for Vector3 {
     type Output = Self;
 
-    fn add(self, other: Self) -> Self::Output {
+    #[inline]
+    fn add(
+        self,
+        other: Self,
+    ) -> Self::Output {
         Self {
             x: self.x + other.x,
             y: self.y + other.y,
@@ -22,7 +26,11 @@ impl Add for Vector3 {
 impl Sub for Vector3 {
     type Output = Self;
 
-    fn sub(self, other: Self) -> Self::Output {
+    #[inline]
+    fn sub(
+        self,
+        other: Self,
+    ) -> Self::Output {
         Self {
             x: self.x - other.x,
             y: self.y - other.y,
@@ -34,7 +42,11 @@ impl Sub for Vector3 {
 impl Mul<f64> for Vector3 {
     type Output = Self;
 
-    fn mul(self, scalar: f64) -> Self::Output {
+    #[inline]
+    fn mul(
+        self,
+        scalar: f64,
+    ) -> Self::Output {
         Self {
             x: self.x * scalar,
             y: self.y * scalar,
@@ -46,7 +58,11 @@ impl Mul<f64> for Vector3 {
 impl Div<f64> for Vector3 {
     type Output = Self;
 
-    fn div(self, scalar: f64) -> Self::Output {
+    #[inline]
+    fn div(
+        self,
+        scalar: f64,
+    ) -> Self::Output {
         Self {
             x: self.x / scalar,
             y: self.y / scalar,
@@ -56,11 +72,19 @@ impl Div<f64> for Vector3 {
 }
 
 impl Vector3 {
-    pub fn dot(self, other: Self) -> f64 {
+    #[inline]
+    pub fn dot(
+        self,
+        other: Self,
+    ) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
-    pub fn cross(self, other: Self) -> Self {
+    #[inline]
+    pub fn cross(
+        self,
+        other: Self,
+    ) -> Self {
         Self {
             x: self.y * other.z - self.z * other.y,
             y: self.z * other.x - self.x * other.z,

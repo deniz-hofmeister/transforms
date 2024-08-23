@@ -20,6 +20,7 @@ pub enum QuaternionError {
 impl Quaternion {
     const EPSILON: f64 = 1e-9;
 
+    #[inline]
     pub fn conjugate(self) -> Quaternion {
         Quaternion {
             w: self.w,
@@ -29,6 +30,7 @@ impl Quaternion {
         }
     }
 
+    #[inline]
     pub fn normalize(self) -> Result<Quaternion, QuaternionError> {
         let norm = self.norm();
         if norm < Self::EPSILON {
@@ -37,14 +39,17 @@ impl Quaternion {
         Ok(self.scale(1.0 / norm))
     }
 
+    #[inline]
     pub fn norm(self) -> f64 {
         (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
+    #[inline]
     pub fn norm_squared(self) -> f64 {
         self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    #[inline]
     pub fn scale(
         self,
         factor: f64,
@@ -57,6 +62,7 @@ impl Quaternion {
         }
     }
 
+    #[inline]
     pub fn rotate_vector(
         self,
         v: (f64, f64, f64),
@@ -71,6 +77,7 @@ impl Quaternion {
         (q_res.x, q_res.y, q_res.z)
     }
 
+    #[inline]
     pub fn slerp(
         self,
         other: Quaternion,
@@ -96,6 +103,7 @@ impl Quaternion {
 impl Add for Quaternion {
     type Output = Quaternion;
 
+    #[inline]
     fn add(
         self,
         other: Quaternion,
@@ -112,6 +120,7 @@ impl Add for Quaternion {
 impl Sub for Quaternion {
     type Output = Quaternion;
 
+    #[inline]
     fn sub(
         self,
         other: Quaternion,
@@ -128,6 +137,7 @@ impl Sub for Quaternion {
 impl Mul for Quaternion {
     type Output = Quaternion;
 
+    #[inline]
     fn mul(
         self,
         other: Quaternion,
@@ -144,6 +154,7 @@ impl Mul for Quaternion {
 impl Div for Quaternion {
     type Output = Result<Quaternion, QuaternionError>;
 
+    #[inline]
     fn div(
         self,
         other: Quaternion,
