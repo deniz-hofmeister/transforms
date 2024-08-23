@@ -10,7 +10,7 @@ mod tests {
         let mut registry = Registry::new(u128::MAX);
 
         // Child frame B at x=1m without rotation
-        let t_a_b = Transform {
+        let t_a_b_0 = Transform {
             transform: Point {
                 position: Vector3 {
                     x: 1.,
@@ -23,7 +23,7 @@ mod tests {
                     y: 0.,
                     z: 0.,
                 },
-                timestamp: Timestamp::now(),
+                timestamp: Timestamp { nanoseconds: 0 },
             },
             parent: "a",
             child: "b",
@@ -31,7 +31,7 @@ mod tests {
 
         // Child frame C at y=1m with 90 degrees rotation around +Z
         let theta = std::f64::consts::PI / 2.0;
-        let t_a_c = Transform {
+        let t_a_b_1 = Transform {
             transform: Point {
                 position: Vector3 {
                     x: 0.,
@@ -44,28 +44,35 @@ mod tests {
                     y: 0.,
                     z: (theta / 2.0).sin(),
                 },
-                timestamp: Timestamp::now(),
+                timestamp: Timestamp {
+                    nanoseconds: 1_000_000,
+                },
             },
             parent: "a",
-            child: "c",
+            child: "b",
         };
 
-        registry.add(t_a_b);
-        registry.add(t_a_c);
+        registry.add(t_a_b_0);
+        registry.add(t_a_b_1);
 
         let middle_timestamp = Timestamp {
-            nanoseconds: (t_a_b
-                .transform
-                .timestamp
-                .nanoseconds
-                + t_a_c
-                    .transform
-                    .timestamp
-                    .nanoseconds)
+            nanoseconds: (t_a_b_0.transform.timestamp.nanoseconds
+                + t_a_b_1.transform.timestamp.nanoseconds)
                 / 2,
         };
 
-        let t_a_bc = t_a_b.clone();
+        let t_a_b_2 = Transform {
+            transform: Point {
+                position: (t_a_b_0.transform.position + t_a_b_1.transform.position) / 2.0,
+                orientation: (t_a_b_0
+                    .transform
+                    .orientation
+                    .slerp(t_a_b_1.transform.orientation, 0.5)),
+                timestamp: middle_timestamp,
+            },
+            parent: "a",
+            child: "b",
+        };
 
         let r = registry.get_transform("a", "b", middle_timestamp);
 
@@ -74,7 +81,7 @@ mod tests {
         assert!(r.is_some(), "Registry returned None, expected Some");
         assert_eq!(
             r.unwrap(),
-            t_a_bc,
+            t_a_b_2,
             "Registry returned a transform that is different"
         );
     }

@@ -19,7 +19,6 @@ pub enum QuaternionError {
 
 impl Quaternion {
     const EPSILON: f64 = 1e-9;
-    const PI: f64 = 3.14159265358979311599796346854;
 
     pub fn conjugate(self) -> Quaternion {
         Quaternion {
@@ -70,6 +69,27 @@ impl Quaternion {
         };
         let q_res = self.mul(q_vec).mul(self.conjugate());
         (q_res.x, q_res.y, q_res.z)
+    }
+
+    pub fn slerp(
+        self,
+        other: Quaternion,
+        t: f64,
+    ) -> Quaternion {
+        let dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
+
+        let dot = dot.clamp(-1.0, 1.0);
+        let theta = dot.acos();
+
+        if theta.abs() < Self::EPSILON {
+            return self.scale(1.0 - t) + other.scale(t);
+        }
+
+        let sin_theta = theta.sin();
+        let scale_self = ((1.0 - t) * theta).sin() / sin_theta;
+        let scale_other = (t * theta).sin() / sin_theta;
+
+        self.scale(scale_self) + other.scale(scale_other)
     }
 }
 
@@ -140,7 +160,8 @@ impl Div for Quaternion {
 mod test {
     use super::*;
     use approx::assert_relative_eq;
-    use std::format;
+    const PI: f64 = 3.14159265358979311599796346854;
+
     #[test]
     fn quaternion_creation() {
         let _q = Quaternion {
@@ -282,10 +303,10 @@ mod test {
     #[test]
     fn test_rotate_vector() {
         let q = Quaternion {
-            w: (Quaternion::PI / 4.0).cos(),
+            w: (PI / 4.0).cos(),
             x: 0.0,
             y: 0.0,
-            z: (Quaternion::PI / 4.0).sin(),
+            z: (PI / 4.0).sin(),
         };
         let v = (1.0, 0.0, 0.0);
         let rotated = q.rotate_vector(v);
@@ -434,5 +455,34 @@ mod test {
             q1,
             q2
         );
+    }
+
+    #[test]
+    fn test_slerp() {
+        let q1 = Quaternion {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let q2 = Quaternion {
+            w: 0.0,
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let t = 0.5;
+        let result = q1.slerp(q2, t);
+        let expected = Quaternion {
+            w: (0.5_f64).sqrt(),
+            x: (0.5_f64).sqrt(),
+            y: 0.0,
+            z: 0.0,
+        };
+
+        assert_relative_eq!(result.w, expected.w, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(result.x, expected.x, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(result.y, expected.y, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(result.z, expected.z, epsilon = Quaternion::EPSILON);
     }
 }
