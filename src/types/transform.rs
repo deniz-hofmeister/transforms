@@ -1,19 +1,29 @@
-use crate::types::Point;
+use crate::types::{Quaternion, Timestamp, Vector3};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone)]
 pub struct Transform {
-    pub transform: Point,
+    pub translation: Vector3,
+    pub rotation: Quaternion,
+    pub timestamp: Timestamp,
+    pub frame: String,
     parent: Option<Weak<RefCell<Transform>>>,
     children: RefCell<Vec<Rc<RefCell<Transform>>>>,
 }
 
 impl Transform {
-    fn new(transform: Point) -> Rc<Self> {
+    fn new(
+        translation: Vector3,
+        rotation: Quaternion,
+        timestamp: Timestamp,
+        parent: Option<Weak<RefCell<Transform>>>,
+    ) -> Rc<Self> {
         Rc::new(Transform {
-            transform,
-            parent: None,
+            translation,
+            rotation,
+            timestamp,
+            parent,
             children: RefCell::new(vec![]),
         })
     }
@@ -39,19 +49,9 @@ mod test {
         };
         let t = Timestamp::now();
 
-        let transform = Point {
-            position: v,
-            orientation: q,
-            timestamp: t,
-        };
-
         let parent = "A";
         let child = "B";
 
-        // let _t = Transform {
-        //     transform,
-        //     parent,
-        //     child,
-        // };
+        let _t = Transform::new(transform);
     }
 }

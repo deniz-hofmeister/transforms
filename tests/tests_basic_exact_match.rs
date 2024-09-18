@@ -50,16 +50,10 @@ mod tests {
             child: "c",
         };
 
-        registry.add(t_a_b);
-        registry.add(t_a_c);
+        registry.add_transform(t_a_b);
+        registry.add_transform(t_a_c);
 
-        let r = registry.get_transform(
-            "a",
-            "b",
-            t_a_b
-                .transform
-                .timestamp,
-        );
+        let r = registry.get_transform("a", "b", t_a_b.transform.timestamp);
 
         debug!("{:?}", r);
 

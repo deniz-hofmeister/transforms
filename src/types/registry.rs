@@ -14,7 +14,7 @@ impl Registry {
         }
     }
 
-    pub fn add(
+    pub fn add_transform(
         &mut self,
         t: Transform,
     ) {
@@ -30,12 +30,9 @@ impl Registry {
         source: &'a str,
         target: &'a str,
         timestamp: Timestamp,
-    ) -> Option<Transform<'a>> {
+    ) -> Option<Transform> {
         let key = format!("{}_{}", source, target);
-        let r = self
-            .data
-            .get(&key)?
-            .get(&timestamp)?;
+        let r = self.data.get(&key)?.get(&timestamp)?;
 
         Some(Transform {
             parent: source,

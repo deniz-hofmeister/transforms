@@ -52,8 +52,8 @@ mod tests {
             child: "b",
         };
 
-        registry.add(t_a_b_0);
-        registry.add(t_a_b_1);
+        registry.add_transform(t_a_b_0);
+        registry.add_transform(t_a_b_1);
 
         let middle_timestamp = Timestamp {
             nanoseconds: (t_a_b_0.transform.timestamp.nanoseconds
