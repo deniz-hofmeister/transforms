@@ -1,13 +1,14 @@
-use crate::types::{Point, Timestamp};
+use crate::types::{Timestamp, Transform};
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
-/// A time-ordered collection of `Point` objects.
+/// A time-ordered collection of `Transform` objects.
 ///
-/// The `Buffer` struct stores `Point` objects indexed by their `Timestamp`.
+/// The `Buffer` struct stores `Transform` objects indexed by their `Timestamp`.
 /// It supports efficient insertion, retrieval, and cleanup of points based on their timestamps.
 /// The `max_age` field specifies the maximum age of points to retain, in nanoseconds.
 pub struct Buffer {
-    data: BTreeMap<Timestamp, Point>,
+    data: BTreeMap<Timestamp, Rc<Transform>>,
     max_age: u128,
 }
 
@@ -21,28 +22,26 @@ impl Buffer {
 
     pub fn insert(
         &mut self,
-        point: Point,
+        transform: Rc<Transform>,
     ) {
-        self.data
-            .insert(point.timestamp, point);
+        self.data.insert(transform.timestamp, transform);
     }
 
     pub fn get(
         &self,
         timestamp: &Timestamp,
-    ) -> Option<&Point> {
-        self.data
-            .get(timestamp)
+    ) -> Option<&Transform> {
+        self.data.get(timestamp)
     }
 
     pub fn get_nearest(
         &self,
         timestamp: &Timestamp,
-    ) -> (Option<(&Timestamp, &Point)>, Option<(&Timestamp, &Point)>) {
-        let before = self
-            .data
-            .range(..=timestamp)
-            .next_back();
+    ) -> (
+        Option<(&Timestamp, &Transform)>,
+        Option<(&Timestamp, &Transform)>,
+    ) {
+        let before = self.data.range(..=timestamp).next_back();
 
         if let Some((t, _)) = before {
             if t == timestamp {
@@ -50,10 +49,7 @@ impl Buffer {
             }
         }
 
-        let after = self
-            .data
-            .range(timestamp..)
-            .next();
+        let after = self.data.range(timestamp..).next();
         (before, after)
     }
 
@@ -61,8 +57,7 @@ impl Buffer {
         &mut self,
         timestamp: Timestamp,
     ) {
-        self.data
-            .retain(|&k, _| k >= timestamp);
+        self.data.retain(|&k, _| k >= timestamp);
     }
 
     pub fn delete_expired(&mut self) {
@@ -74,41 +69,43 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Point, Quaternion, Timestamp, Vector3};
+    use crate::types::{Quaternion, Timestamp, Vector3};
+    use std::rc::Rc;
 
-    fn create_point(ns: u128) -> Point {
-        Point {
-            position: Vector3 {
-                x: 1.0,
-                y: 2.0,
-                z: 3.0,
-            },
-            orientation: Quaternion {
-                w: 1.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            timestamp: Timestamp { nanoseconds: ns },
-        }
+    fn create_transform(ns: u128) -> Rc<Transform> {
+        let translation = Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        let rotation = Quaternion {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let timestamp = Timestamp { nanoseconds: ns };
+        let frame = "map";
+        let parent = None;
+        Transform::new(translation, rotation, timestamp, frame, parent)
     }
 
     #[test]
     fn insert_and_get() {
         let mut buffer = Buffer::new(u128::MAX);
-        let point = create_point(1000);
-        buffer.insert(point.clone());
+        let transform = create_transform(1000);
+        buffer.insert(transform.clone());
 
-        assert_eq!(buffer.get(&point.timestamp), Some(&point));
+        assert_eq!(buffer.get(&transform.timestamp), Some(&transform));
         assert_eq!(buffer.get(&Timestamp { nanoseconds: 999 }), None);
     }
 
     #[test]
     fn get_nearest() {
         let mut buffer = Buffer::new(u128::MAX);
-        let p1 = create_point(1000);
-        let p2 = create_point(2000);
-        let p3 = create_point(3000);
+        let p1 = create_transform(1000);
+        let p2 = create_transform(2000);
+        let p3 = create_transform(3000);
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
@@ -147,20 +144,20 @@ mod tests {
     #[test]
     fn delete_before() {
         let mut buffer = Buffer::new(u128::MAX);
-        buffer.insert(create_point(1000));
-        buffer.insert(create_point(2000));
-        buffer.insert(create_point(3000));
+        buffer.insert(create_transform(1000));
+        buffer.insert(create_transform(2000));
+        buffer.insert(create_transform(3000));
 
         buffer.delete_before(Timestamp { nanoseconds: 2000 });
 
         assert_eq!(buffer.get(&Timestamp { nanoseconds: 1000 }), None);
         assert_eq!(
             buffer.get(&Timestamp { nanoseconds: 2000 }),
-            Some(&create_point(2000))
+            Some(&create_transform(2000))
         );
         assert_eq!(
             buffer.get(&Timestamp { nanoseconds: 3000 }),
-            Some(&create_point(3000))
+            Some(&create_transform(3000))
         );
     }
 
@@ -177,7 +174,7 @@ mod tests {
     #[test]
     fn single_point_buffer() {
         let mut buffer = Buffer::new(0);
-        let point = create_point(1000);
+        let point = create_transform(1000);
         buffer.insert(point.clone());
 
         // Before the point
@@ -201,8 +198,8 @@ mod tests {
         let mut buffer = Buffer::new(2_000_000_000);
 
         let now = Timestamp::now();
-        let old_point = create_point(now.nanoseconds - 3_000_000_000);
-        let recent_point = create_point(now.nanoseconds - 1_000_000_000);
+        let old_point = create_transform(now.nanoseconds - 3_000_000_000);
+        let recent_point = create_transform(now.nanoseconds - 1_000_000_000);
 
         buffer.insert(old_point.clone());
         buffer.insert(recent_point.clone());

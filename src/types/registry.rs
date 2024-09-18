@@ -18,11 +18,10 @@ impl Registry {
         &mut self,
         t: Transform,
     ) {
-        let key = format!("{}_{}", t.parent, t.child);
         self.data
-            .entry(key)
+            .entry(t.frame)
             .or_insert_with(|| Buffer::new(self.max_age))
-            .insert(t.transform);
+            .insert(t);
     }
 
     pub fn get_transform<'a>(
@@ -30,14 +29,8 @@ impl Registry {
         source: &'a str,
         target: &'a str,
         timestamp: Timestamp,
-    ) -> Option<Transform> {
+    ) -> Option<&Transform> {
         let key = format!("{}_{}", source, target);
-        let r = self.data.get(&key)?.get(&timestamp)?;
-
-        Some(Transform {
-            parent: source,
-            child: target,
-            transform: *r,
-        })
+        self.data.get(&key)?.get(&timestamp)
     }
 }

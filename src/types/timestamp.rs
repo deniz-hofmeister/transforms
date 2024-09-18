@@ -8,9 +8,7 @@ pub struct Timestamp {
 
 impl Timestamp {
     pub fn now() -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         Timestamp {
             nanoseconds: now.as_nanos(),
         }
@@ -29,9 +27,7 @@ impl Sub<u128> for Timestamp {
         other: u128,
     ) -> Self::Output {
         Timestamp {
-            nanoseconds: self
-                .nanoseconds
-                .saturating_sub(other),
+            nanoseconds: self.nanoseconds.saturating_sub(other),
         }
     }
 }

@@ -8,23 +8,25 @@ pub struct Transform {
     pub rotation: Quaternion,
     pub timestamp: Timestamp,
     pub frame: String,
-    parent: Option<Weak<RefCell<Transform>>>,
-    children: RefCell<Vec<Rc<RefCell<Transform>>>>,
+    pub parent: Option<Weak<RefCell<Transform>>>,
+    pub children: RefCell<Vec<Rc<RefCell<Transform>>>>,
 }
 
 impl Transform {
-    fn new(
+    pub fn new(
         translation: Vector3,
         rotation: Quaternion,
         timestamp: Timestamp,
+        frame: &str,
         parent: Option<Weak<RefCell<Transform>>>,
     ) -> Rc<Self> {
         Rc::new(Transform {
             translation,
             rotation,
             timestamp,
+            frame: frame.to_string(),
             parent,
-            children: RefCell::new(vec![]),
+            children: RefCell::new(Vec::new()),
         })
     }
 }
@@ -32,7 +34,6 @@ impl Transform {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::types::{Quaternion, Timestamp, Vector3};
 
     #[test]
     fn transform_creation() {
@@ -48,10 +49,9 @@ mod test {
             z: 0.0,
         };
         let t = Timestamp::now();
+        let f = "map";
+        let p = None;
 
-        let parent = "A";
-        let child = "B";
-
-        let _t = Transform::new(transform);
+        let _t = Transform::new(v, q, t, f, p);
     }
 }

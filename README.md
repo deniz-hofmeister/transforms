@@ -22,6 +22,15 @@ This library will only linearly interpolate between coordinate frames and timest
 #### No Extrapolation
 Extrapolation is potentially dangerous and/or unstable. One can argue that linear extrapolation or zero-order-hold extrapolation is still acceptable and perfectly fine to use. This system refuses to do it as it opens up the discussion of "How far of extrapolation should we allow?", "Let the user configure extrapolation..." and many other edge-case discussions that lead to unessecary complexity, discussion and behavior unpredicability. If you really want extrapolation, then you are free to publish a transform into the future and let this library "interpolate" within that.
 
+#### Once Reference Frames have been assigned children and/or parents, their relationships cannot be modified
+At the moment there is no intent for dynamic re-assigning of reference frames and transforms.
+
+#### Assume Reference Frames will live on for the entire lifetime of the process
+With exception of reference frames timing out in the buffer. When this happens, the transforms are lost.
+
+#### Reference Frame names have to be unique
+If you run into an issue regarding this, consider using prefixes to group your reference frames
+
 #### No 1-to-1 equivelance to ROS2's TF2 library
 This library is inspired by the TF2 library but makes no promise of matching its features, API or implementation. It's by inspiration only.
 
