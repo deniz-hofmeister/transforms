@@ -8,8 +8,9 @@ pub struct Transform {
     pub rotation: Quaternion,
     pub timestamp: Timestamp,
     pub frame: String,
-    pub parent: Option<Weak<RefCell<Transform>>>,
-    pub children: RefCell<Vec<Rc<RefCell<Transform>>>>,
+    pub parent: String,
+    _parent: Option<Weak<RefCell<Transform>>>,
+    _children: RefCell<Vec<Rc<RefCell<Transform>>>>,
 }
 
 impl Transform {

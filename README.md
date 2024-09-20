@@ -36,7 +36,9 @@ This library is inspired by the TF2 library but makes no promise of matching its
 
 ### Roadmap
 
-v0 Exploration of the domain, provide functionality, built for purpose
+v0.1 Exploration of the domain, provide functionality, built for purpose
+v0.2 In-process/monolithic system
+v0.3 IPC Pub/Sub + Request Server (Rust) 
 v1 Refactor for performance
 v2 Everything else...
 

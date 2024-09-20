@@ -1,5 +1,6 @@
 use crate::types::{Buffer, Timestamp, Transform};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct Registry {
     pub data: HashMap<String, Buffer>,
@@ -19,17 +20,17 @@ impl Registry {
         t: Transform,
     ) {
         self.data
-            .entry(t.frame)
+            .entry(t.frame.clone())
             .or_insert_with(|| Buffer::new(self.max_age))
-            .insert(t);
+            .insert(t.into());
     }
 
     pub fn get_transform<'a>(
-        &'a self,
+        &mut self,
         source: &'a str,
         target: &'a str,
         timestamp: Timestamp,
-    ) -> Option<&Transform> {
+    ) -> Option<&Rc<Transform>> {
         let key = format!("{}_{}", source, target);
         self.data.get(&key)?.get(&timestamp)
     }
