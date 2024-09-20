@@ -25,6 +25,33 @@ impl Transform {
             parent: parent.to_string(),
         }
     }
+
+    pub fn interpolate(
+        from: Transform,
+        to: Transform,
+        timestamp: Timestamp,
+    ) -> Transform {
+        assert!(from.timestamp.nanoseconds <= to.timestamp.nanoseconds);
+        assert!(from.timestamp.nanoseconds <= timestamp.nanoseconds);
+        assert!(timestamp.nanoseconds <= to.timestamp.nanoseconds);
+        assert_eq!(from.frame, to.frame);
+        assert_eq!(from.parent, to.parent);
+
+        let range = to.timestamp.nanoseconds - from.timestamp.nanoseconds;
+        if range == 0 {
+            return from;
+        }
+
+        let diff = timestamp.nanoseconds - from.timestamp.nanoseconds;
+        let ratio = diff as f64 / range as f64;
+        Transform {
+            translation: (1.0 - ratio) * from.translation + ratio * to.translation,
+            rotation: from.rotation.slerp(to.rotation, ratio),
+            timestamp,
+            frame: from.frame,
+            parent: from.parent,
+        }
+    }
 }
 
 #[cfg(test)]

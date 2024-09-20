@@ -65,12 +65,13 @@ mod tests {
 
         let r = registry.get_transform("a", "b", middle_timestamp);
 
-        debug!("{:?}", r);
+        debug!("Result: {:?}", r);
+        debug!("Expected: {:?}", t_a_b_2);
 
         assert!(r.is_some(), "Registry returned None, expected Some");
         assert_eq!(
             r.unwrap(),
-            &t_a_b_2,
+            t_a_b_2,
             "Registry returned a transform that is different"
         );
     }

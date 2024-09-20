@@ -56,7 +56,7 @@ mod tests {
         assert!(r.is_some(), "Registry returned None, expected Some");
         assert_eq!(
             r.unwrap(),
-            &t_a_b,
+            t_a_b,
             "Registry returned a transform that is different"
         );
     }

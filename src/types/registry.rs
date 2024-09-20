@@ -29,7 +29,16 @@ impl Registry {
         from: &'a str,
         to: &'a str,
         timestamp: Timestamp,
-    ) -> Option<&Transform> {
-        self.data.get(from)?.get(&timestamp)
+    ) -> Option<Transform> {
+        let (before, after) = self.data.get(from)?.get_nearest(&timestamp);
+        if before.is_none() || after.is_none() {
+            return None;
+        } else {
+            Some(Transform::interpolate(
+                before.unwrap().1.clone(),
+                after.unwrap().1.clone(),
+                timestamp,
+            ))
+        }
     }
 }
