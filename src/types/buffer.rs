@@ -29,6 +29,22 @@ impl Buffer {
     pub fn get(
         &self,
         timestamp: &Timestamp,
+    ) -> Option<Transform> {
+        let (before, after) = self.get_nearest(timestamp);
+        if before.is_none() || after.is_none() {
+            return None;
+        } else {
+            Some(Transform::interpolate(
+                before.unwrap().1.clone(),
+                after.unwrap().1.clone(),
+                timestamp.clone(),
+            ))
+        }
+    }
+
+    pub fn get_exact(
+        &self,
+        timestamp: &Timestamp,
     ) -> Option<&Transform> {
         self.data.get(timestamp)
     }
@@ -94,12 +110,12 @@ mod tests {
         let transform = create_transform(1000);
         buffer.insert(transform.clone());
 
-        let mut r = buffer.get(&transform.timestamp);
+        let mut r = buffer.get_exact(&transform.timestamp);
 
         assert!(r.is_some(), "transform not found");
         assert_eq!(r.unwrap(), &transform);
 
-        r = buffer.get(&Timestamp { nanoseconds: 999 });
+        r = buffer.get_exact(&Timestamp { nanoseconds: 999 });
         assert!(r.is_none(), "transform found, but shouldnt't have");
     }
 
@@ -154,15 +170,15 @@ mod tests {
 
         buffer.delete_before(Timestamp { nanoseconds: 2000 });
 
-        assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_none());
-        assert!(buffer.get(&Timestamp { nanoseconds: 2000 }).is_some());
-        assert!(buffer.get(&Timestamp { nanoseconds: 3000 }).is_some());
+        assert!(buffer.get_exact(&Timestamp { nanoseconds: 1000 }).is_none());
+        assert!(buffer.get_exact(&Timestamp { nanoseconds: 2000 }).is_some());
+        assert!(buffer.get_exact(&Timestamp { nanoseconds: 3000 }).is_some());
     }
 
     #[test]
     fn empty_buffer() {
         let buffer = Buffer::new(u128::MAX);
-        assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_none());
+        assert!(buffer.get_exact(&Timestamp { nanoseconds: 1000 }).is_none());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
         assert!(before.is_none());
@@ -204,7 +220,7 @@ mod tests {
 
         buffer.delete_expired();
 
-        assert!(buffer.get(&old_point.timestamp).is_none());
-        assert!(buffer.get(&recent_point.timestamp).is_some());
+        assert!(buffer.get_exact(&old_point.timestamp).is_none());
+        assert!(buffer.get_exact(&recent_point.timestamp).is_some());
     }
 }

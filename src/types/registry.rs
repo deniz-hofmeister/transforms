@@ -27,18 +27,9 @@ impl Registry {
     pub fn get_transform<'a>(
         &mut self,
         from: &'a str,
-        to: &'a str,
+        _to: &'a str,
         timestamp: Timestamp,
     ) -> Option<Transform> {
-        let (before, after) = self.data.get(from)?.get_nearest(&timestamp);
-        if before.is_none() || after.is_none() {
-            return None;
-        } else {
-            Some(Transform::interpolate(
-                before.unwrap().1.clone(),
-                after.unwrap().1.clone(),
-                timestamp,
-            ))
-        }
+        self.data.get(from)?.get(&timestamp)
     }
 }
