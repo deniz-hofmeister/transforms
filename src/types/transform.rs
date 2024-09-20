@@ -1,16 +1,12 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
     pub translation: Vector3,
     pub rotation: Quaternion,
     pub timestamp: Timestamp,
     pub frame: String,
     pub parent: String,
-    _parent: Option<Weak<RefCell<Transform>>>,
-    _children: RefCell<Vec<Rc<RefCell<Transform>>>>,
 }
 
 impl Transform {
@@ -19,16 +15,15 @@ impl Transform {
         rotation: Quaternion,
         timestamp: Timestamp,
         frame: &str,
-        parent: Option<Weak<RefCell<Transform>>>,
-    ) -> Rc<Self> {
-        Rc::new(Transform {
+        parent: &str,
+    ) -> Self {
+        Transform {
             translation,
             rotation,
             timestamp,
             frame: frame.to_string(),
-            parent,
-            children: RefCell::new(Vec::new()),
-        })
+            parent: parent.to_string(),
+        }
     }
 }
 
@@ -50,8 +45,8 @@ mod test {
             z: 0.0,
         };
         let t = Timestamp::now();
-        let f = "map";
-        let p = None;
+        let f = "base";
+        let p = "map";
 
         let _t = Transform::new(v, q, t, f, p);
     }

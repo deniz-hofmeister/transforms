@@ -2,7 +2,7 @@
 mod tests {
     use env_logger;
     use log::debug;
-    use transforms::types::{Point, Quaternion, Registry, Timestamp, Transform, Vector3};
+    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     #[test]
     fn test_basic_exact_match() {
@@ -24,7 +24,7 @@ mod tests {
             },
             Timestamp::now(),
             "b",
-            Some("a"),
+            "a",
         );
 
         // Child frame C at y=1m with 90 degrees rotation around +Z
@@ -42,21 +42,21 @@ mod tests {
                 z: (theta / 2.0).sin(),
             },
             Timestamp::now(),
+            "c",
             "a",
-            None,
         );
 
-        registry.add_transform(t_a_b);
-        registry.add_transform(t_a_c);
+        registry.add_transform(t_a_b.clone());
+        registry.add_transform(t_a_c.clone());
 
-        let r = registry.get_transform("a", "b", t_a_b.transform.timestamp);
+        let r = registry.get_transform("b", "a", t_a_b.timestamp);
 
         debug!("{:?}", r);
 
         assert!(r.is_some(), "Registry returned None, expected Some");
         assert_eq!(
             r.unwrap(),
-            t_a_b,
+            &t_a_b,
             "Registry returned a transform that is different"
         );
     }

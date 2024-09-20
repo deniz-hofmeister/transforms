@@ -1,6 +1,5 @@
 use crate::types::{Timestamp, Transform};
 use std::collections::BTreeMap;
-use std::rc::Rc;
 
 /// A time-ordered collection of `Transform` objects.
 ///
@@ -8,7 +7,7 @@ use std::rc::Rc;
 /// It supports efficient insertion, retrieval, and cleanup of points based on their timestamps.
 /// The `max_age` field specifies the maximum age of points to retain, in nanoseconds.
 pub struct Buffer {
-    data: BTreeMap<Timestamp, Rc<Transform>>,
+    data: BTreeMap<Timestamp, Transform>,
     max_age: u128,
 }
 
@@ -22,7 +21,7 @@ impl Buffer {
 
     pub fn insert(
         &mut self,
-        transform: Rc<Transform>,
+        transform: Transform,
     ) {
         self.data.insert(transform.timestamp, transform);
     }
@@ -30,7 +29,7 @@ impl Buffer {
     pub fn get(
         &self,
         timestamp: &Timestamp,
-    ) -> Option<&Rc<Transform>> {
+    ) -> Option<&Transform> {
         self.data.get(timestamp)
     }
 
@@ -38,8 +37,8 @@ impl Buffer {
         &self,
         timestamp: &Timestamp,
     ) -> (
-        Option<(&Timestamp, &Rc<Transform>)>,
-        Option<(&Timestamp, &Rc<Transform>)>,
+        Option<(&Timestamp, &Transform)>,
+        Option<(&Timestamp, &Transform)>,
     ) {
         let before = self.data.range(..=timestamp).next_back();
 
@@ -70,9 +69,8 @@ impl Buffer {
 mod tests {
     use super::*;
     use crate::types::{Quaternion, Timestamp, Vector3};
-    use std::rc::Rc;
 
-    fn create_transform(ns: u128) -> Rc<Transform> {
+    fn create_transform(ns: u128) -> Transform {
         let translation = Vector3 {
             x: 1.0,
             y: 2.0,
@@ -85,8 +83,8 @@ mod tests {
             z: 0.0,
         };
         let timestamp = Timestamp { nanoseconds: ns };
-        let frame = "map";
-        let parent = None;
+        let frame = "base";
+        let parent = "map";
         Transform::new(translation, rotation, timestamp, frame, parent)
     }
 
@@ -99,7 +97,7 @@ mod tests {
         let mut r = buffer.get(&transform.timestamp);
 
         assert!(r.is_some(), "transform not found");
-        assert!(Rc::ptr_eq(r.unwrap(), &transform));
+        assert_eq!(r.unwrap(), &transform);
 
         r = buffer.get(&Timestamp { nanoseconds: 999 });
         assert!(r.is_none(), "transform found, but shouldnt't have");
@@ -118,63 +116,33 @@ mod tests {
 
         // Exact match
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 2000 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p2.timestamp, Rc::as_ptr(&p2)))
-        );
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p2.timestamp, Rc::as_ptr(&p2)))
-        );
+        assert_eq!(before.unwrap(), ((&p2.timestamp, &p2)));
+        assert_eq!(after.unwrap(), ((&p2.timestamp, &p2)));
 
         // Between two points
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p1.timestamp, Rc::as_ptr(&p1)))
-        );
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p2.timestamp, Rc::as_ptr(&p2)))
-        );
+        assert_eq!(before.unwrap(), ((&p1.timestamp, &p1)));
+        assert_eq!(after.unwrap(), ((&p2.timestamp, &p2)));
 
         // Before first point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 500 });
-        assert!(before.is_none());
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p1.timestamp, Rc::as_ptr(&p1)))
-        );
+        assert_eq!(before, None);
+        assert_eq!(after.unwrap(), ((&p1.timestamp, &p1)));
 
         // After last point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3500 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p3.timestamp, Rc::as_ptr(&p3)))
-        );
-        assert!(after.is_none());
+        assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
+        assert_eq!(after, None);
 
         // Exactly at first point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p1.timestamp, Rc::as_ptr(&p1)))
-        );
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p1.timestamp, Rc::as_ptr(&p1)))
-        );
+        assert_eq!(before.unwrap(), (&p1.timestamp, &p1));
+        assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // Exactly at last point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3000 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p3.timestamp, Rc::as_ptr(&p3)))
-        );
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&p3.timestamp, Rc::as_ptr(&p3)))
-        );
+        assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
+        assert_eq!(after.unwrap(), (&p3.timestamp, &p3));
     }
 
     #[test]
@@ -210,28 +178,16 @@ mod tests {
         // Before the point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 500 });
         assert!(before.is_none());
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&point.timestamp, Rc::as_ptr(&point)))
-        );
+        assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
         // Exact match
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&point.timestamp, Rc::as_ptr(&point)))
-        );
-        assert_eq!(
-            after.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&point.timestamp, Rc::as_ptr(&point)))
-        );
+        assert_eq!(before.unwrap(), (&point.timestamp, &point));
+        assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
         // After the point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
-        assert_eq!(
-            before.map(|(ts, t)| (ts, Rc::as_ptr(t))),
-            Some((&point.timestamp, Rc::as_ptr(&point)))
-        );
+        assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert!(after.is_none());
     }
 
