@@ -43,17 +43,17 @@ impl Registry {
         let mut to_transforms_vec = VecDeque::<Transform>::new();
 
         loop {
-            let buffer = self.data.get(from);
-            if buffer.is_none() {
+            let frame_buffer = self.data.get(from);
+            if frame_buffer.is_none() {
                 break;
             };
 
-            let transf = buffer.unwrap().get(&timestamp);
-            if transf.is_none() {
+            let tf = frame_buffer.unwrap().get(&timestamp);
+            if tf.is_none() {
                 break;
             }
 
-            from_transforms_vec.push_back(transf.unwrap());
+            from_transforms_vec.push_back(tf.unwrap());
         }
 
         None

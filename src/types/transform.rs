@@ -65,7 +65,7 @@ impl Mul for Transform {
         other: Transform,
     ) -> Result<Transform> {
         if (self.timestamp - other.timestamp) > EPSILON {
-            Error
+            Error transform timestamps are not matching
         }
         let t = self.translation + other.translation;
         let r = self.rotation * other.rotation;
