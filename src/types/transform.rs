@@ -1,4 +1,6 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
+use core::ops::Mul;
+use std::{error::Error, f64::EPSILON};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
@@ -51,6 +53,29 @@ impl Transform {
             frame: from.frame,
             parent: from.parent,
         }
+    }
+}
+
+impl Mul for Transform {
+    type Output = Transform;
+
+    #[inline]
+    fn mul(
+        self,
+        other: Transform,
+    ) -> Result<Transform> {
+        if (self.timestamp - other.timestamp) > EPSILON {
+            Error
+        }
+        let t = self.translation + other.translation;
+        let r = self.rotation * other.rotation;
+        Ok(Transform {
+            translation: t,
+            rotation: r,
+            timestamp: (self.timestamp + other.timestamp) / 2.0,
+            frame: self.frame,
+            parent: self.parent,
+        })
     }
 }
 
