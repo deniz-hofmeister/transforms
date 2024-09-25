@@ -1,6 +1,9 @@
-use crate::types::{Quaternion, Timestamp, Vector3};
+use crate::types::{Duration, Quaternion, Timestamp, Vector3};
 use core::ops::Mul;
-use std::{error::Error, f64::EPSILON};
+use std::f64::EPSILON;
+
+mod error;
+use error::TransformError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
@@ -57,49 +60,44 @@ impl Transform {
 }
 
 impl Mul for Transform {
-    type Output = Transform;
+    type Output = Result<Transform, TransformError>;
 
     #[inline]
     fn mul(
         self,
-        other: Transform,
-    ) -> Result<Transform> {
-        if (self.timestamp - other.timestamp) > EPSILON {
-            Error transform timestamps are not matching
+        rhs: Transform,
+    ) -> Self::Output {
+        let duration = if self.timestamp > rhs.timestamp {
+            self.timestamp - rhs.timestamp
+        } else {
+            rhs.timestamp - self.timestamp
+        };
+
+        if duration.as_seconds() > 2 * EPSILON {
+            return Err(TransformError::TimestampMismatch(duration.as_seconds()));
         }
-        let t = self.translation + other.translation;
-        let r = self.rotation * other.rotation;
+
+        if self.frame == rhs.frame {
+            return Err(TransformError::SameFrameMultiplication);
+        }
+
+        if self.frame != rhs.parent && self.parent != rhs.frame {
+            return Err(TransformError::IncompatibleFrames);
+        }
+
+        let r = self.rotation * rhs.rotation;
+        let t = self.translation + self.rotation.rotate_vector(&rhs.translation);
+        let d = duration;
+
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: (self.timestamp + other.timestamp) / 2.0,
+            timestamp: self.timestamp + d / 2.0,
             frame: self.frame,
-            parent: self.parent,
+            parent: rhs.parent,
         })
     }
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn transform_creation() {
-        let v = Vector3 {
-            x: 1.0,
-            y: 2.0,
-            z: 3.0,
-        };
-        let q = Quaternion {
-            w: 1.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        };
-        let t = Timestamp::now();
-        let f = "base";
-        let p = "map";
-
-        let _t = Transform::new(v, q, t, f, p);
-    }
-}
+mod tests;

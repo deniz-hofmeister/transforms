@@ -1,15 +1,6 @@
-use crate::types::{Quaternion, Timestamp, Vector3};
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct Point {
-    pub position: Vector3,
-    pub orientation: Quaternion,
-    pub timestamp: Timestamp,
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
+    use crate::types::{Point, Quaternion, Timestamp, Vector3};
 
     #[test]
     fn point_creation() {

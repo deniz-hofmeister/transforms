@@ -1,4 +1,4 @@
-use std::ops::Sub;
+use core::ops::Sub;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]

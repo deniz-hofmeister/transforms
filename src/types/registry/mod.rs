@@ -1,13 +1,16 @@
 use crate::types::{Buffer, Timestamp, Transform};
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
+mod error;
+use crate::error::BufferError;
 
 pub struct Registry {
     pub data: HashMap<String, Buffer>,
-    pub max_age: u128,
+    pub max_age: f64,
 }
 
 impl Registry {
-    pub fn new(max_age: u128) -> Self {
+    pub fn new(max_age: f64) -> Self {
         Self {
             data: HashMap::new(),
             max_age,
@@ -17,11 +20,18 @@ impl Registry {
     pub fn add_transform(
         &mut self,
         t: Transform,
-    ) {
-        self.data
-            .entry(t.frame.clone())
-            .or_insert_with(|| Buffer::new(self.max_age))
-            .insert(t.into());
+    ) -> Result<(), BufferError> {
+        match self.data.entry(t.frame.clone()) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().insert(t);
+            }
+            Entry::Vacant(entry) => {
+                let buffer = Buffer::new(self.max_age)?;
+                let buffer = entry.insert(buffer);
+                buffer.insert(t);
+            }
+        }
+        Ok(())
     }
 
     pub fn get_transform<'a>(
@@ -59,3 +69,6 @@ impl Registry {
         None
     }
 }
+
+#[cfg(test)]
+mod tests;
