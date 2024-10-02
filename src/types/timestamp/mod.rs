@@ -19,8 +19,15 @@ impl Timestamp {
         }
     }
 
-    pub fn as_seconds(&self) -> f64 {
-        self.nanoseconds as f64 / 1_000_000_000.0
+    pub fn as_seconds(&self) -> Result<f64, TimestampError> {
+        let seconds = self.nanoseconds as f64 / 1_000_000_000.0;
+        let rounded = (seconds * 1_000_000_000.0).round() / 1_000_000_000.0;
+
+        if (seconds - rounded).abs() > f64::EPSILON {
+            Err(TimestampError::AccuracyLoss)
+        } else {
+            Ok(seconds)
+        }
     }
 
     pub fn as_milliseconds(&self) -> u128 {

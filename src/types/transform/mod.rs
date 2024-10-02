@@ -22,7 +22,8 @@ impl Transform {
     ) -> Result<Transform, TransformError> {
         if from.timestamp > to.timestamp || timestamp < from.timestamp || timestamp > to.timestamp {
             return Err(TransformError::TimestampMismatch(
-                (to.timestamp.nanoseconds - from.timestamp.nanoseconds) as f64 / 1e9,
+                to.timestamp.as_seconds()?,
+                from.timestamp.as_seconds()?,
             ));
         }
         if from.child != to.child || from.parent != to.parent {
@@ -80,7 +81,10 @@ impl Mul for Transform {
         };
 
         if duration.as_seconds()? > 2.0 * EPSILON {
-            return Err(TransformError::TimestampMismatch(duration.as_seconds()?));
+            return Err(TransformError::TimestampMismatch(
+                self.timestamp.as_seconds()?,
+                rhs.timestamp.as_seconds()?,
+            ));
         }
 
         if self.child == rhs.child {
@@ -99,8 +103,8 @@ impl Mul for Transform {
             translation: t,
             rotation: r,
             timestamp: (self.timestamp + d / 2.0)?,
-            child: self.child,
             parent: rhs.parent,
+            child: self.child,
         })
     }
 }

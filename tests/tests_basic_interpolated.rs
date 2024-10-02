@@ -26,7 +26,7 @@ mod tests {
             child: "b".to_string(),
         };
 
-        // Child frame C at y=1m with 90 degrees rotation around +Z
+        // Child frame B at y=1m with 90 degrees rotation around +Z
         let theta = std::f64::consts::PI / 2.0;
         let t_a_b_1 = Transform {
             translation: Vector3 {
@@ -43,8 +43,8 @@ mod tests {
             timestamp: Timestamp {
                 nanoseconds: 1_000_000,
             },
-            child: "a".to_string(),
-            parent: "b".to_string(),
+            parent: "a".to_string(),
+            child: "b".to_string(),
         };
 
         registry.add_transform(t_a_b_0.clone()).unwrap();
@@ -58,8 +58,8 @@ mod tests {
             translation: (t_a_b_0.translation + t_a_b_1.translation) / 2.0,
             rotation: (t_a_b_0.rotation.slerp(t_a_b_1.rotation, 0.5)),
             timestamp: middle_timestamp,
-            child: "b".to_string(),
             parent: "a".to_string(),
+            child: "b".to_string(),
         };
 
         let r = registry.get_transform("a", "b", middle_timestamp);

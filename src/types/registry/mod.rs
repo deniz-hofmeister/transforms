@@ -76,6 +76,10 @@ impl Registry {
             }
         }
 
+        if from_transforms_vec.is_empty() && to_transforms_vec.is_empty() {
+            return Err(TransformError::NotFound(from.to_string(), to.to_string()));
+        }
+
         if let Some(index) = from_transforms_vec.iter().position(|tf| {
             to_transforms_vec
                 .iter()
@@ -92,7 +96,13 @@ impl Registry {
             to_transforms_vec.truncate(index + 1);
         }
 
-        let mut final_transform = Transform::identity();
+        let mut final_transform: Transform;
+        if !from_transforms_vec.is_empty() {
+            final_transform = from_transforms_vec.pop_front().unwrap();
+        } else {
+            final_transform = to_transforms_vec.pop_back().unwrap();
+        }
+
         for transform in from_transforms_vec.iter() {
             final_transform = (final_transform * transform.clone())?;
         }
