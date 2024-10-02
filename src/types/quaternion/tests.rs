@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use crate::error::QuaternionError;
-    use crate::types::Quaternion;
+    use crate::types::{Quaternion, Vector3};
     use approx::assert_relative_eq;
     const PI: f64 = 3.14159265358979311599796346854;
 
@@ -152,13 +152,21 @@ mod test {
             y: 0.0,
             z: (PI / 4.0).sin(),
         };
-        let v = (1.0, 0.0, 0.0);
+        let v = Vector3 {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        };
         let rotated = q.rotate_vector(v);
-        let expected = (0.0, 1.0, 0.0);
+        let expected = Vector3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        };
 
-        assert_relative_eq!(rotated.0, expected.0, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(rotated.1, expected.1, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(rotated.2, expected.2, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(rotated.z, expected.x, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(rotated.y, expected.y, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(rotated.z, expected.z, epsilon = Quaternion::EPSILON);
     }
 
     #[test]

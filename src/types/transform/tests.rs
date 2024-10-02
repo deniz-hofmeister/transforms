@@ -4,21 +4,27 @@ mod test {
 
     #[test]
     fn transform_creation() {
-        let v = Vector3 {
+        let translation = Vector3 {
             x: 1.0,
             y: 2.0,
             z: 3.0,
         };
-        let q = Quaternion {
+        let rotation = Quaternion {
             w: 1.0,
             x: 0.0,
             y: 0.0,
             z: 0.0,
         };
-        let t = Timestamp::now();
-        let f = "base";
-        let p = "map";
+        let timestamp = Timestamp::now();
+        let parent = "map".to_string();
+        let child = "base".to_string();
 
-        let _t = Transform::new(v, q, t, f, p);
+        let _t = Transform {
+            translation,
+            rotation,
+            timestamp,
+            parent,
+            child,
+        };
     }
 }

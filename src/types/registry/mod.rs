@@ -21,7 +21,7 @@ impl Registry {
         &mut self,
         t: Transform,
     ) -> Result<(), BufferError> {
-        match self.data.entry(t.frame.clone()) {
+        match self.data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(t);
             }
@@ -47,25 +47,44 @@ impl Registry {
         // 2b. if not, find out if the final parent, is the same parent, if so, create parent
         // 2c. if not, exit
         // 3. Assemble transforms
-        let mut from_iterator = Some(from.clone());
-        let mut to_iterator = Some(to.clone());
+
         let mut from_transforms_vec = VecDeque::<Transform>::new();
-        let mut to_transforms_vec = VecDeque::<Transform>::new();
-
+        let mut frame = from.to_string();
         loop {
-            let frame_buffer = self.data.get(from);
-            if frame_buffer.is_none() {
-                break;
-            };
-
-            let tf = frame_buffer.unwrap().get(&timestamp);
-            if tf.is_none() {
+            if let Some(frame_buffer) = self.data.get(&frame) {
+                if let Ok(tf) = frame_buffer.get(&timestamp) {
+                    from_transforms_vec.push_back(tf.clone());
+                    frame = tf.parent.clone();
+                    if frame == to {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            } else {
                 break;
             }
-
-            from_transforms_vec.push_back(tf.unwrap());
         }
 
+        let mut to_transforms_vec = VecDeque::<Transform>::new();
+        let mut frame = to.to_string();
+        loop {
+            if let Some(frame_buffer) = self.data.get(&frame) {
+                if let Ok(tf) = frame_buffer.get(&timestamp) {
+                    to_transforms_vec.push_back(tf.clone());
+                    frame = tf.parent.clone();
+                    if frame == from {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        // TODO: Implement the rest of the function
         None
     }
 }

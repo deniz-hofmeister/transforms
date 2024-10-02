@@ -1,61 +1,48 @@
-use crate::types::{Duration, Quaternion, Timestamp, Vector3};
+use crate::types::{Quaternion, Timestamp, Vector3};
 use core::ops::Mul;
 use std::f64::EPSILON;
 
 mod error;
-use error::TransformError;
+pub use error::TransformError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
     pub translation: Vector3,
     pub rotation: Quaternion,
     pub timestamp: Timestamp,
-    pub frame: String,
     pub parent: String,
+    pub child: String,
 }
 
 impl Transform {
-    pub fn new(
-        translation: Vector3,
-        rotation: Quaternion,
-        timestamp: Timestamp,
-        frame: &str,
-        parent: &str,
-    ) -> Self {
-        Transform {
-            translation,
-            rotation,
-            timestamp,
-            frame: frame.to_string(),
-            parent: parent.to_string(),
-        }
-    }
-
     pub fn interpolate(
         from: Transform,
         to: Transform,
         timestamp: Timestamp,
-    ) -> Transform {
-        assert!(from.timestamp.nanoseconds <= to.timestamp.nanoseconds);
-        assert!(from.timestamp.nanoseconds <= timestamp.nanoseconds);
-        assert!(timestamp.nanoseconds <= to.timestamp.nanoseconds);
-        assert_eq!(from.frame, to.frame);
-        assert_eq!(from.parent, to.parent);
+    ) -> Result<Transform, TransformError> {
+        if from.timestamp > to.timestamp || timestamp < from.timestamp || timestamp > to.timestamp {
+            return Err(TransformError::TimestampMismatch(
+                (to.timestamp.nanoseconds - from.timestamp.nanoseconds) as f64 / 1e9,
+            ));
+        }
+        if from.child != to.child || from.parent != to.parent {
+            return Err(TransformError::IncompatibleFrames);
+        }
 
         let range = to.timestamp.nanoseconds - from.timestamp.nanoseconds;
         if range == 0 {
-            return from;
+            return Ok(from);
         }
 
         let diff = timestamp.nanoseconds - from.timestamp.nanoseconds;
         let ratio = diff as f64 / range as f64;
-        Transform {
+        Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
             rotation: from.rotation.slerp(to.rotation, ratio),
             timestamp,
-            frame: from.frame,
+            child: from.child,
             parent: from.parent,
-        }
+        })
     }
 }
 
@@ -68,33 +55,48 @@ impl Mul for Transform {
         rhs: Transform,
     ) -> Self::Output {
         let duration = if self.timestamp > rhs.timestamp {
-            self.timestamp - rhs.timestamp
+            (self.timestamp - rhs.timestamp)?
         } else {
-            rhs.timestamp - self.timestamp
+            (rhs.timestamp - self.timestamp)?
         };
 
-        if duration.as_seconds() > 2 * EPSILON {
-            return Err(TransformError::TimestampMismatch(duration.as_seconds()));
+        if duration.as_seconds()? > 2.0 * EPSILON {
+            return Err(TransformError::TimestampMismatch(duration.as_seconds()?));
         }
 
-        if self.frame == rhs.frame {
+        if self.child == rhs.child {
             return Err(TransformError::SameFrameMultiplication);
         }
 
-        if self.frame != rhs.parent && self.parent != rhs.frame {
+        if self.child != rhs.parent && self.parent != rhs.child {
             return Err(TransformError::IncompatibleFrames);
         }
 
         let r = self.rotation * rhs.rotation;
-        let t = self.translation + self.rotation.rotate_vector(&rhs.translation);
+        let t = self.rotation.rotate_vector(rhs.translation) + self.translation;
         let d = duration;
 
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: self.timestamp + d / 2.0,
-            frame: self.frame,
+            timestamp: (self.timestamp + d / 2.0)?,
+            child: self.child,
             parent: rhs.parent,
+        })
+    }
+}
+
+impl Transform {
+    pub fn inverse(&self) -> Result<Transform, TransformError> {
+        let inverse_rotation = self.rotation.conjugate();
+        let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
+
+        Ok(Transform {
+            translation: inverse_translation,
+            rotation: inverse_rotation,
+            timestamp: self.timestamp,
+            parent: self.child.clone(),
+            child: self.parent.clone(),
         })
     }
 }

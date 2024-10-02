@@ -15,14 +15,20 @@ mod tests {
             z: 0.0,
         };
         let timestamp = Timestamp { nanoseconds: ns };
-        let frame = "base";
-        let parent = "map";
-        Transform::new(translation, rotation, timestamp, frame, parent)
+        let parent = "map".to_string();
+        let child = "base".to_string();
+        Transform {
+            translation,
+            rotation,
+            timestamp,
+            parent,
+            child,
+        }
     }
 
     #[test]
     fn insert_and_get() {
-        let mut buffer = Buffer::new(u128::MAX);
+        let mut buffer = Buffer::new(f64::MAX).unwrap();
         let transform = create_transform(1000);
         buffer.insert(transform.clone());
 
@@ -37,7 +43,7 @@ mod tests {
 
     #[test]
     fn get_nearest() {
-        let mut buffer = Buffer::new(u128::MAX);
+        let mut buffer = Buffer::new(f64::MAX).unwrap();
         let p1 = create_transform(1000);
         let p2 = create_transform(2000);
         let p3 = create_transform(3000);
@@ -79,7 +85,7 @@ mod tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(u128::MAX);
+        let mut buffer = Buffer::new(f64::MAX).unwrap();
         buffer.insert(create_transform(1000));
         buffer.insert(create_transform(2000));
         buffer.insert(create_transform(3000));
@@ -93,7 +99,7 @@ mod tests {
 
     #[test]
     fn empty_buffer() {
-        let buffer = Buffer::new(u128::MAX);
+        let buffer = Buffer::new(f64::MAX).unwrap();
         assert!(buffer.get_exact(&Timestamp { nanoseconds: 1000 }).is_none());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
@@ -103,7 +109,7 @@ mod tests {
 
     #[test]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new(0);
+        let mut buffer = Buffer::new(f64::MAX).unwrap();
         let point = create_transform(1000);
         buffer.insert(point.clone());
 
@@ -125,7 +131,7 @@ mod tests {
 
     #[test]
     fn delete_expired() {
-        let mut buffer = Buffer::new(2_000_000_000);
+        let mut buffer = Buffer::new(2.0).unwrap();
 
         let now = Timestamp::now();
         let old_point = create_transform(now.nanoseconds - 3_000_000_000);

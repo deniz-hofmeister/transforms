@@ -1,3 +1,4 @@
+use crate::types::Vector3;
 use core::ops::{Add, Div, Mul, Sub};
 pub mod error;
 pub use error::QuaternionError;
@@ -58,16 +59,20 @@ impl Quaternion {
     #[inline]
     pub fn rotate_vector(
         self,
-        v: (f64, f64, f64),
-    ) -> (f64, f64, f64) {
+        v: Vector3,
+    ) -> Vector3 {
         let q_vec = Quaternion {
             w: 0.0,
-            x: v.0,
-            y: v.1,
-            z: v.2,
+            x: v.x,
+            y: v.y,
+            z: v.z,
         };
         let q_res = self.mul(q_vec).mul(self.conjugate());
-        (q_res.x, q_res.y, q_res.z)
+        Vector3 {
+            x: q_res.x,
+            y: q_res.y,
+            z: q_res.z,
+        }
     }
 
     #[inline]

@@ -10,8 +10,8 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(max_age: f64) -> Result<Self, BufferError> {
-        if max_age <= 0.0 || max_age > i128::MAX as f64 {
-            return Err(BufferError::MaxAgeInvalid(max_age, i128::MAX));
+        if max_age <= 0.0 || max_age > f64::MAX {
+            return Err(BufferError::MaxAgeInvalid(max_age, f64::MAX));
         }
 
         Ok(Self {
@@ -30,16 +30,16 @@ impl Buffer {
     pub fn get(
         &self,
         timestamp: &Timestamp,
-    ) -> Option<Transform> {
+    ) -> Result<Transform, BufferError> {
         let (before, after) = self.get_nearest(timestamp);
-        if before.is_none() || after.is_none() {
-            return None;
-        } else {
-            Some(Transform::interpolate(
-                before.unwrap().1.clone(),
-                after.unwrap().1.clone(),
+
+        match (before, after) {
+            (Some(before), Some(after)) => Ok(Transform::interpolate(
+                before.1.clone(),
+                after.1.clone(),
                 timestamp.clone(),
-            ))
+            )?),
+            _ => Err(BufferError::NoTransformAvailable),
         }
     }
 
@@ -74,7 +74,7 @@ impl Buffer {
             - Duration {
                 nanoseconds: (self.max_age * 1e9) as i128,
             };
-        self.delete_before(timestamp_threshold);
+        self.delete_before(timestamp_threshold.unwrap());
     }
 
     pub fn delete_before(
