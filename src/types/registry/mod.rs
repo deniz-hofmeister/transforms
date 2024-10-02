@@ -2,7 +2,7 @@ use crate::types::{Buffer, Timestamp, Transform};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
-use crate::error::BufferError;
+use crate::error::{BufferError, TransformError};
 
 pub struct Registry {
     pub data: HashMap<String, Buffer>,
@@ -39,15 +39,7 @@ impl Registry {
         from: &'a str,
         to: &'a str,
         timestamp: Timestamp,
-    ) -> Option<Transform> {
-        //TODO: Finish this.
-        // 1. Iterate upwards the transform tree until parents don't exist
-        // 2. find out if both the to-tree and the from-tree mention the same parents anywhere in
-        //    the list.
-        // 2b. if not, find out if the final parent, is the same parent, if so, create parent
-        // 2c. if not, exit
-        // 3. Assemble transforms
-
+    ) -> Result<Transform, TransformError> {
         let mut from_transforms_vec = VecDeque::<Transform>::new();
         let mut frame = from.to_string();
         loop {
@@ -84,8 +76,32 @@ impl Registry {
             }
         }
 
-        // TODO: Implement the rest of the function
-        None
+        if let Some(index) = from_transforms_vec.iter().position(|tf| {
+            to_transforms_vec
+                .iter()
+                .any(|to_tf| to_tf.parent == tf.parent)
+        }) {
+            from_transforms_vec.truncate(index + 1);
+        }
+
+        if let Some(index) = to_transforms_vec.iter().position(|tf| {
+            from_transforms_vec
+                .iter()
+                .any(|to_tf| to_tf.parent == tf.parent)
+        }) {
+            to_transforms_vec.truncate(index + 1);
+        }
+
+        let mut final_transform = Transform::identity();
+        for transform in from_transforms_vec.iter() {
+            final_transform = (final_transform * transform.clone())?;
+        }
+
+        for transform in to_transforms_vec.iter().rev() {
+            final_transform = (final_transform * transform.inverse()?)?;
+        }
+
+        Ok(final_transform)
     }
 }
 

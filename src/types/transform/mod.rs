@@ -44,6 +44,25 @@ impl Transform {
             parent: from.parent,
         })
     }
+
+    pub fn identity() -> Self {
+        Transform {
+            translation: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            timestamp: Timestamp { nanoseconds: 0 },
+            parent: "".to_string(),
+            child: "".to_string(),
+        }
+    }
 }
 
 impl Mul for Transform {

@@ -8,4 +8,5 @@ log = "*"
 thiserror = "*"
 
 [dev-dependencies]
+env_logger = "*"
 approx = "*"

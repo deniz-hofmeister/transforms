@@ -5,6 +5,7 @@ mod tests {
 
     #[test]
     fn test_basic_exact_match() {
+        env_logger::init();
         let mut registry = Registry::new(f64::MAX);
 
         // Child frame B at x=1m without rotation
@@ -51,7 +52,7 @@ mod tests {
 
         debug!("{:?}", r);
 
-        assert!(r.is_some(), "Registry returned None, expected Some");
+        assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
             r.unwrap(),
             t_a_b,

@@ -5,6 +5,7 @@ mod tests {
 
     #[test]
     fn test_transforms() {
+        env_logger::init();
         let mut registry = Registry::new(f64::MAX);
 
         // Child frame B at x=1m without rotation
@@ -66,7 +67,7 @@ mod tests {
         debug!("Result: {:?}", r);
         debug!("Expected: {:?}", t_a_b_2);
 
-        assert!(r.is_some(), "Registry returned None, expected Some");
+        assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
             r.unwrap(),
             t_a_b_2,
