@@ -130,8 +130,9 @@ impl PartialEq for Transform {
         &self,
         other: &Self,
     ) -> bool {
-        self.translation.abs_diff_eq(&other.translation, 1e-9)
-            && self.rotation.abs_diff_eq(&other.rotation, 1e-9)
+        self.translation
+            .abs_diff_eq(&other.translation, f64::EPSILON)
+            && self.rotation.abs_diff_eq(&other.rotation, f64::EPSILON)
             && self.timestamp == other.timestamp
             && self.parent == other.parent
             && self.child == other.child

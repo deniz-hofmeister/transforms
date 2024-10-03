@@ -110,7 +110,6 @@ impl Vector3 {
         }
     }
 }
-
 impl AbsDiffEq for Vector3 {
     type Epsilon = f64;
 

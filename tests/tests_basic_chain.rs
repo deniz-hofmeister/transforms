@@ -7,6 +7,7 @@ mod tests {
     fn test_basic_exact_match() {
         env_logger::init();
         let mut registry = Registry::new(f64::MAX);
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -21,45 +22,50 @@ mod tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp::now(),
+            timestamp: t,
             parent: "a".to_string(),
             child: "b".to_string(),
         };
 
         // Child frame C at y=1m with 90 degrees rotation around +Z
-        let theta = std::f64::consts::PI / 2.0;
-        let t_a_c = Transform {
+        let t_b_c = Transform {
             translation: Vector3 {
                 x: 0.,
                 y: 1.,
                 z: 0.,
             },
             rotation: Quaternion {
-                w: (theta / 2.0).cos(),
+                w: 1.,
                 x: 0.,
                 y: 0.,
-                z: (theta / 2.0).sin(),
+                z: 0.,
             },
-            timestamp: Timestamp::now(),
-            parent: "a".to_string(),
+            timestamp: t,
+            parent: "b".to_string(),
             child: "c".to_string(),
         };
 
         registry.add_transform(t_a_b.clone()).unwrap();
-        registry.add_transform(t_a_c.clone()).unwrap();
+        registry.add_transform(t_b_c.clone()).unwrap();
 
-        let r = registry.get_transform("a", "b", t_a_b.timestamp);
+        let t_a_c = Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 1.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t,
+            parent: "a".to_string(),
+            child: "c".to_string(),
+        };
 
-        debug!("{:?}", r);
-
-        assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_b,
-            "Registry returned a transform that is different"
-        );
-
-        let r = registry.get_transform("a", "c", t_a_c.timestamp);
+        let r = registry.get_transform("a", "c", t_a_b.timestamp);
 
         debug!("{:?}", r);
 
