@@ -1,9 +1,10 @@
 use crate::types::Vector3;
 use core::ops::{Add, Div, Mul, Sub};
 pub mod error;
+use approx::AbsDiffEq;
 pub use error::QuaternionError;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialOrd)]
 pub struct Quaternion {
     pub w: f64,
     pub x: f64,
@@ -12,8 +13,6 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
-    const EPSILON: f64 = 1e-9;
-
     #[inline]
     pub fn conjugate(self) -> Quaternion {
         Quaternion {
@@ -27,7 +26,7 @@ impl Quaternion {
     #[inline]
     pub fn normalize(self) -> Result<Quaternion, QuaternionError> {
         let norm = self.norm();
-        if norm < Self::EPSILON {
+        if norm < f64::EPSILON {
             return Err(QuaternionError::ZeroLengthNormalization);
         }
         Ok(self.scale(1.0 / norm))
@@ -86,7 +85,7 @@ impl Quaternion {
         let dot = dot.clamp(-1.0, 1.0);
         let theta = dot.acos();
 
-        if theta.abs() < Self::EPSILON {
+        if theta.abs() < f64::EPSILON {
             return self.scale(1.0 - t) + other.scale(t);
         }
 
@@ -158,10 +157,38 @@ impl Div for Quaternion {
         other: Quaternion,
     ) -> Result<Quaternion, QuaternionError> {
         let norm_sq = other.norm_squared();
-        if norm_sq < Quaternion::EPSILON {
+        if norm_sq < f64::EPSILON {
             return Err(QuaternionError::DivisionByZero);
         }
         Ok(self.mul(other.conjugate()).scale(1.0 / norm_sq))
+    }
+}
+
+impl PartialEq for Quaternion {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.abs_diff_eq(other, f64::EPSILON)
+    }
+}
+
+impl AbsDiffEq for Quaternion {
+    type Epsilon = f64;
+
+    fn default_epsilon() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    fn abs_diff_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+    ) -> bool {
+        f64::abs_diff_eq(&self.w, &other.w, epsilon)
+            && f64::abs_diff_eq(&self.x, &other.x, epsilon)
+            && f64::abs_diff_eq(&self.y, &other.y, epsilon)
+            && f64::abs_diff_eq(&self.z, &other.z, epsilon)
     }
 }
 

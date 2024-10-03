@@ -34,84 +34,98 @@ impl Registry {
         Ok(())
     }
 
-    pub fn get_transform<'a>(
-        &mut self,
-        from: &'a str,
-        to: &'a str,
+    pub fn get_transform(
+        &self,
+        from: &str,
+        to: &str,
         timestamp: Timestamp,
     ) -> Result<Transform, TransformError> {
-        let mut from_transforms_vec = VecDeque::<Transform>::new();
-        let mut frame = from.to_string();
-        loop {
-            if let Some(frame_buffer) = self.data.get(&frame) {
-                if let Ok(tf) = frame_buffer.get(&timestamp) {
-                    from_transforms_vec.push_back(tf.clone());
-                    frame = tf.parent.clone();
-                    if frame == to {
-                        break;
+        let from_chain = self.get_transform_chain(from, to, timestamp);
+        let to_chain = self.get_transform_chain(to, from, timestamp);
+
+        match (from_chain, to_chain) {
+            (Ok(mut from_chain), Ok(mut to_chain)) => {
+                Self::find_common_parent(&mut from_chain, &mut to_chain);
+                Self::combine_transforms(from_chain, to_chain)
+            }
+            (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
+            (Err(_), Ok(to_chain)) => Self::combine_transforms(VecDeque::new(), to_chain),
+            (Err(_), Err(_)) => Err(TransformError::NotFound(from.to_string(), to.to_string())),
+        }
+    }
+
+    fn get_transform_chain(
+        &self,
+        from: &str,
+        to: &str,
+        timestamp: Timestamp,
+    ) -> Result<VecDeque<Transform>, TransformError> {
+        let mut transforms = VecDeque::new();
+        let mut current_frame = from.to_string();
+
+        while let Some(frame_buffer) = self.data.get(&current_frame) {
+            match frame_buffer.get(&timestamp) {
+                Ok(tf) => {
+                    transforms.push_back(tf.clone());
+                    current_frame = tf.parent.clone();
+                    if current_frame == to {
+                        return Ok(transforms);
                     }
-                } else {
-                    break;
                 }
-            } else {
-                break;
+                Err(_) => break,
             }
         }
 
-        let mut to_transforms_vec = VecDeque::<Transform>::new();
-        let mut frame = to.to_string();
-        loop {
-            if let Some(frame_buffer) = self.data.get(&frame) {
-                if let Ok(tf) = frame_buffer.get(&timestamp) {
-                    to_transforms_vec.push_back(tf.clone());
-                    frame = tf.parent.clone();
-                    if frame == from {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        if from_transforms_vec.is_empty() && to_transforms_vec.is_empty() {
-            return Err(TransformError::NotFound(from.to_string(), to.to_string()));
-        }
-
-        if let Some(index) = from_transforms_vec.iter().position(|tf| {
-            to_transforms_vec
-                .iter()
-                .any(|to_tf| to_tf.parent == tf.parent)
-        }) {
-            from_transforms_vec.truncate(index + 1);
-        }
-
-        if let Some(index) = to_transforms_vec.iter().position(|tf| {
-            from_transforms_vec
-                .iter()
-                .any(|to_tf| to_tf.parent == tf.parent)
-        }) {
-            to_transforms_vec.truncate(index + 1);
-        }
-
-        let mut final_transform: Transform;
-        if !from_transforms_vec.is_empty() {
-            final_transform = from_transforms_vec.pop_front().unwrap();
+        if transforms.is_empty() {
+            Err(TransformError::NotFound(from.to_string(), to.to_string()))
         } else {
-            final_transform = to_transforms_vec.pop_back().unwrap();
+            Ok(transforms)
+        }
+    }
+
+    fn find_common_parent(
+        from_chain: &mut VecDeque<Transform>,
+        to_chain: &mut VecDeque<Transform>,
+    ) {
+        if let Some(index) = from_chain
+            .iter()
+            .position(|tf| to_chain.iter().any(|to_tf| to_tf.parent == tf.parent))
+        {
+            from_chain.truncate(index + 1);
         }
 
-        for transform in from_transforms_vec.iter() {
-            final_transform = (final_transform * transform.clone())?;
+        if let Some(index) = to_chain
+            .iter()
+            .position(|tf| from_chain.iter().any(|from_tf| from_tf.parent == tf.parent))
+        {
+            to_chain.truncate(index + 1);
         }
+    }
 
-        for transform in to_transforms_vec.iter().rev() {
+    fn combine_transforms(
+        mut from_chain: VecDeque<Transform>,
+        mut to_chain: VecDeque<Transform>,
+    ) -> Result<Transform, TransformError> {
+        let mut final_transform = if let Some(transform) = from_chain.pop_front() {
+            transform
+        } else if let Some(transform) = to_chain.pop_back() {
+            transform.inverse()?
+        } else {
+            return Err(TransformError::NotFound(
+                "from".to_string(),
+                "to".to_string(),
+            ));
+        };
+
+        for transform in to_chain.into_iter() {
             final_transform = (final_transform * transform.inverse()?)?;
         }
 
-        Ok(final_transform)
+        for transform in from_chain.into_iter().rev() {
+            final_transform = (final_transform * transform)?;
+        }
+
+        Ok(final_transform.inverse()?)
     }
 }
 

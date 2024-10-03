@@ -17,29 +17,6 @@ impl Timestamp {
     pub fn as_seconds(&self) -> f64 {
         self.nanoseconds as f64 / 1_000_000_000.0
     }
-
-    pub fn as_milliseconds(&self) -> u128 {
-        self.nanoseconds / 1_000_000
-    }
-
-    pub fn as_nanoseconds(&self) -> u128 {
-        self.nanoseconds
-    }
-
-    pub fn from_seconds(seconds: f64) -> Self {
-        let nanoseconds = (seconds * 1_000_000_000.0).round() as u128;
-        Timestamp { nanoseconds }
-    }
-
-    pub fn from_milliseconds(milliseconds: u64) -> Self {
-        Timestamp {
-            nanoseconds: u128::from(milliseconds) * 1_000_000,
-        }
-    }
-
-    pub fn from_nanoseconds(nanoseconds: u128) -> Self {
-        Timestamp { nanoseconds }
-    }
 }
 
 impl Sub<u128> for Timestamp {

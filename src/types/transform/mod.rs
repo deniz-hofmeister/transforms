@@ -1,11 +1,12 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
+use approx::AbsDiffEq;
 use core::ops::Mul;
 use std::f64::EPSILON;
 
 mod error;
 pub use error::TransformError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Transform {
     pub translation: Vector3,
     pub rotation: Quaternion,
@@ -123,6 +124,21 @@ impl Transform {
         })
     }
 }
+
+impl PartialEq for Transform {
+    fn eq(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.translation.abs_diff_eq(&other.translation, 1e-9)
+            && self.rotation.abs_diff_eq(&other.rotation, 1e-9)
+            && self.timestamp == other.timestamp
+            && self.parent == other.parent
+            && self.child == other.child
+    }
+}
+
+impl Eq for Transform {}
 
 #[cfg(test)]
 mod tests;

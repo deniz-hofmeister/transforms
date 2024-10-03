@@ -1,5 +1,6 @@
 use core::ops::{Add, Div, Mul, Sub};
 mod error;
+use approx::{AbsDiffEq, RelativeEq};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vector3 {
@@ -107,6 +108,41 @@ impl Vector3 {
             y: self.z * other.x - self.x * other.z,
             z: self.x * other.y - self.y * other.x,
         }
+    }
+}
+
+impl AbsDiffEq for Vector3 {
+    type Epsilon = f64;
+
+    fn default_epsilon() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    fn abs_diff_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+    ) -> bool {
+        f64::abs_diff_eq(&self.x, &other.x, epsilon)
+            && f64::abs_diff_eq(&self.y, &other.y, epsilon)
+            && f64::abs_diff_eq(&self.z, &other.z, epsilon)
+    }
+}
+
+impl RelativeEq for Vector3 {
+    fn default_max_relative() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        f64::relative_eq(&self.x, &other.x, epsilon, max_relative)
+            && f64::relative_eq(&self.y, &other.y, epsilon, max_relative)
+            && f64::relative_eq(&self.z, &other.z, epsilon, max_relative)
     }
 }
 

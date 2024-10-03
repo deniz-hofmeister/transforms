@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 log = "*"
 thiserror = "*"
+approx = "*"
 
 [dev-dependencies]
 env_logger = "*"
-approx = "*"

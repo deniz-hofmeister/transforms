@@ -56,7 +56,7 @@ mod test {
         );
         let normalized = result.unwrap();
         assert!(
-            (normalized.norm() - 1.0).abs() < Quaternion::EPSILON,
+            (normalized.norm() - 1.0).abs() < f64::EPSILON,
             "Normalized quaternion {:?} does not have norm 1. Got: {}",
             normalized,
             normalized.norm()
@@ -164,9 +164,9 @@ mod test {
             z: 0.0,
         };
 
-        assert_relative_eq!(rotated.z, expected.x, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(rotated.y, expected.y, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(rotated.z, expected.z, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(rotated.z, expected.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.y, expected.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.z, expected.z, epsilon = f64::EPSILON);
     }
 
     #[test]
@@ -332,9 +332,9 @@ mod test {
             z: 0.0,
         };
 
-        assert_relative_eq!(result.w, expected.w, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(result.x, expected.x, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(result.y, expected.y, epsilon = Quaternion::EPSILON);
-        assert_relative_eq!(result.z, expected.z, epsilon = Quaternion::EPSILON);
+        assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.z, expected.z, epsilon = f64::EPSILON);
     }
 }
