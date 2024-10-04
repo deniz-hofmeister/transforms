@@ -2,6 +2,8 @@
 name = "transforms"
 version = "0.1.0"
 edition = "2021"
+description = "A transform library to track reference frames and provide transforms between them."
+license = "MIT"
 
 [dependencies]
 log = "*"
