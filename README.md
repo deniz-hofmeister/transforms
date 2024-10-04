@@ -45,12 +45,12 @@ The known issues that will be fixed in future releases:
 
 ### Roadmap
 
-v0.1 Exploration of the domain, provide functionality, built for purpose
-v0.2 In-process/monolithic system
-v0.3 Feature: IPC Pub/Sub + Request Server (Rust) 
-v0.4 Feature: ROS2 / tf2 bridge
-v1 Refactor for performance
-v2 Everything else...
+- v0.1 Exploration of the domain, provide functionality, built for purpose
+- v0.2 In-process/monolithic system
+- v0.3 Feature: IPC Pub/Sub + Request Server (Rust) 
+- v0.4 Feature: ROS2 / tf2 bridge
+- v1 Refactor for performance
+- v2 Everything else...
 
 
 ### Note
