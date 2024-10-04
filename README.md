@@ -10,7 +10,11 @@ The robotics field needs coordinate frame transforms, for example for lidar data
 
 This library draws inspiration from ROS2 and the TF2 package. 
 
-### Requirements
+### Usage
+
+Usage is best defined by the registry struct under src/types/registry/mod.rs. This is the main API of the system. For examples of usage, see the tests of the registry under src/types/registry/tests.rs. Please note that the returned transforms are the transforms for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. Pa = Tab^-1 * Pb.
+
+### Notes
 It is a requirement that the point's timestamp falls within or exactly on the timestamps of known reference frames. For instance, given two reference frames R1 and R2 with known transforms at T=0 and T=10 each, then transformations are possible for points with timestamps in the range T=[0,10], inclusive. Linear interpolation is used for timestamps between known transforms. This approach ensures accurate transformations within the defined time range.
 
 ### Limitations
@@ -34,14 +38,20 @@ If you run into an issue regarding this, consider using prefixes to group your r
 #### No 1-to-1 equivelance to ROS2's TF2 library
 This library is inspired by the TF2 library but makes no promise of matching its features, API or implementation. It's by inspiration only.
 
+### Known Issues
+The known issues that will be fixed in future releases: 
+- Circular reference check, currently a circular reference will cause an infinite loop. Don't create one. 
+- ... to be determined
+
 ### Roadmap
 
 v0.1 Exploration of the domain, provide functionality, built for purpose
 v0.2 In-process/monolithic system
-v0.3 IPC Pub/Sub + Request Server (Rust) 
+v0.3 Feature: IPC Pub/Sub + Request Server (Rust) 
+v0.4 Feature: ROS2 / tf2 bridge
 v1 Refactor for performance
 v2 Everything else...
 
 
 ### Note
-Everything said above is up for change
+Everything said above is up for change and this crate is still very much a WIP.
