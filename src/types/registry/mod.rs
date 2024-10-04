@@ -43,17 +43,13 @@ impl Registry {
         let from_chain = self.get_transform_chain(from, to, timestamp);
         let mut to_chain = self.get_transform_chain(to, from, timestamp);
 
-        if to_chain.is_ok() {
-            let mut to_chain_reverse_inverted = VecDeque::<Transform>::new();
-            for item in to_chain.unwrap().iter() {
-                to_chain_reverse_inverted.push_front(item.inverse()?)
-            }
-            to_chain = Ok(to_chain_reverse_inverted);
+        if let Ok(chain) = to_chain.as_mut() {
+            Self::reverse_and_invert_transforms(chain)?;
         }
 
         match (from_chain, to_chain) {
             (Ok(mut from_chain), Ok(mut to_chain)) => {
-                Self::find_common_parent(&mut from_chain, &mut to_chain);
+                Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
                 Self::combine_transforms(from_chain, to_chain)
             }
             (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
@@ -91,7 +87,7 @@ impl Registry {
         }
     }
 
-    fn find_common_parent(
+    fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
     ) {
@@ -130,6 +126,19 @@ impl Registry {
         }
 
         Ok(final_transform.inverse()?)
+    }
+
+    fn reverse_and_invert_transforms(
+        chain: &mut VecDeque<Transform>
+    ) -> Result<(), TransformError> {
+        let reversed_and_inverted = chain
+            .iter()
+            .rev()
+            .map(|item| item.inverse())
+            .collect::<Result<VecDeque<Transform>, TransformError>>()?;
+
+        *chain = reversed_and_inverted;
+        Ok(())
     }
 }
 
