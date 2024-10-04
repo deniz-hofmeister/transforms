@@ -1,9 +1,10 @@
 [package]
 name = "transforms"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
+repository = "https://github.com/dHofmeister/transforms"
 
 [dependencies]
 log = "0.4.22"
