@@ -41,7 +41,15 @@ impl Registry {
         timestamp: Timestamp,
     ) -> Result<Transform, TransformError> {
         let from_chain = self.get_transform_chain(from, to, timestamp);
-        let to_chain = self.get_transform_chain(to, from, timestamp);
+        let mut to_chain = self.get_transform_chain(to, from, timestamp);
+
+        if to_chain.is_ok() {
+            let mut to_chain_reverse_inverted = VecDeque::<Transform>::new();
+            for item in to_chain.unwrap().iter() {
+                to_chain_reverse_inverted.push_front(item.inverse()?)
+            }
+            to_chain = Ok(to_chain_reverse_inverted);
+        }
 
         match (from_chain, to_chain) {
             (Ok(mut from_chain), Ok(mut to_chain)) => {
@@ -106,23 +114,19 @@ impl Registry {
         mut from_chain: VecDeque<Transform>,
         mut to_chain: VecDeque<Transform>,
     ) -> Result<Transform, TransformError> {
-        let mut final_transform = if let Some(transform) = from_chain.pop_front() {
-            transform
-        } else if let Some(transform) = to_chain.pop_back() {
-            transform.inverse()?
-        } else {
+        from_chain.append(&mut to_chain);
+
+        if from_chain.is_empty() {
             return Err(TransformError::NotFound(
                 "from".to_string(),
                 "to".to_string(),
             ));
-        };
-
-        for transform in to_chain.into_iter() {
-            final_transform = (final_transform * transform.inverse()?)?;
         }
 
-        for transform in from_chain.into_iter().rev() {
-            final_transform = (final_transform * transform)?;
+        let mut final_transform = from_chain.pop_front().unwrap();
+
+        for transform in from_chain.into_iter() {
+            final_transform = (transform * final_transform)?;
         }
 
         Ok(final_transform.inverse()?)

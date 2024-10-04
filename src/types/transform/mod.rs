@@ -1,7 +1,6 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
 use approx::AbsDiffEq;
 use core::ops::Mul;
-use std::f64::EPSILON;
 
 mod error;
 pub use error::TransformError;
@@ -81,7 +80,7 @@ impl Mul for Transform {
             (rhs.timestamp - self.timestamp)?
         };
 
-        if duration.as_seconds()? > 2.0 * EPSILON {
+        if duration.as_seconds()? > 2.0 * f64::EPSILON {
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.as_seconds()?,
                 rhs.timestamp.as_seconds()?,
@@ -104,8 +103,8 @@ impl Mul for Transform {
             translation: t,
             rotation: r,
             timestamp: (self.timestamp + d / 2.0)?,
-            parent: rhs.parent,
-            child: self.child,
+            parent: self.parent,
+            child: rhs.child,
         })
     }
 }
