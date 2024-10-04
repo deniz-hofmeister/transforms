@@ -17,6 +17,45 @@ This library draws inspiration from ROS2 and the TF2 package.
 
 Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transforms are the transforms for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pa = Tab^-1 * Pb```.
 
+1 - Create a registry, this will store all the reference frames and track the timelines. 
+```Rust
+let mut registry = Registry::new(f64::MAX);
+```
+
+2 - Create a transform
+```Rust
+ let t = Timestamp::now();
+
+ // Child frame B at x=1m without rotation
+ let t_a_b = Transform {
+     translation: Vector3 {
+         x: 1.,
+         y: 0.,
+         z: 0.,
+     },
+     rotation: Quaternion {
+         w: 1.,
+         x: 0.,
+         y: 0.,
+         z: 0.,
+     },
+     timestamp: t,
+     parent: "a".to_string(),
+     child: "b".to_string(),
+ };
+```
+
+3 - Register the transform
+```Rust 
+registry.add_transform(t_a_b.clone());
+```
+
+4 - Request the transform
+```Rust
+let r = registry.get_transform("a", "b", t_a_b.timestamp);
+```
+
+
 ## Notes
 It is a requirement that the point's timestamp falls within or exactly on the timestamps of known reference frames. For instance, given two reference frames R1 and R2 with known transforms at T=0 and T=10 each, then transformations are possible for points with timestamps in the range T=[0,10], inclusive. Linear interpolation is used for timestamps between known transforms. This approach ensures accurate transformations within the defined time range.
 
@@ -44,6 +83,7 @@ This library is inspired by the TF2 library but makes no promise of matching its
 ## Known Issues
 The known issues that will be fixed in future releases: 
 - Circular reference check, currently a circular reference will cause an infinite loop. Don't create one. 
+- No auto delete of expired transforms. ```Buffer::delete_expired()``` is not called automatically. 
 - No static transforms, currently static transforms have to be re-published constantly. This will be fixed in a future update.
 - ... to be determined
 
