@@ -6,9 +6,9 @@ description = "A transform library to track reference frames and provide transfo
 license = "MIT"
 
 [dependencies]
-log = "*"
-thiserror = "*"
-approx = "*"
+log = "0.4.22"
+thiserror = "1.0.64"
+approx = "0.5.1"
 
 [dev-dependencies]
-env_logger = "*"
+env_logger = "0.11.5"
