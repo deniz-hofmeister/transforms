@@ -1,5 +1,5 @@
 # Transforms
-[![Transforms](https://github.com/dHofmeister/transforms/actions/workflows/transforms.yml/badge.svg)](https://github.com/dHofmeister/transforms/actions/workflows/transforms.yml)
+[![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
 
 ⚠️ WORK IN PROGRESS ⚠️
 
