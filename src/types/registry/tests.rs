@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_basic_chain_linear() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
         let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
@@ -81,7 +81,7 @@ mod tests {
     #[test]
     fn test_basic_chain_rotation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
         let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn test_basic_exact_match() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_basic_interpolation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
 
         // Child frame B at x=1m without rotation
         let t_a_b_0 = Transform {
@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn test_basic_chained_interpolation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
 
         // Child frame B at t=0, x=1m without rotation
         let t_a_b_0 = Transform {
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn test_basic_common_parent_elimination() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::MAX);
+        let mut registry = Registry::new(f64::INFINITY);
 
         // Child frame C at t=0, x=1m without rotation
         let t_b_c = Transform {

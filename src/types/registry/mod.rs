@@ -112,16 +112,19 @@ impl Registry {
     ) -> Result<Transform, TransformError> {
         from_chain.append(&mut to_chain);
 
-        if from_chain.is_empty() {
-            return Err(TransformError::NotFound(
-                "from".to_string(),
-                "to".to_string(),
-            ));
-        }
+        let mut iter = from_chain.into_iter();
 
-        let mut final_transform = from_chain.pop_front().unwrap();
+        let mut final_transform = match iter.next() {
+            Some(transform) => transform,
+            None => {
+                return Err(TransformError::NotFound(
+                    "from".to_string(),
+                    "to".to_string(),
+                ));
+            }
+        };
 
-        for transform in from_chain.into_iter() {
+        for transform in iter {
             final_transform = (transform * final_transform)?;
         }
 

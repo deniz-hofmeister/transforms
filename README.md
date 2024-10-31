@@ -19,7 +19,7 @@ Usage is best defined by the registry struct under ```src/types/registry/mod.rs`
 
 1 - Create a registry, this will store all the reference frames and track the timelines. 
 ```Rust
-let mut registry = Registry::new(f64::MAX);
+let mut registry = Registry::new(f64::INFINITY);
 ```
 
 2 - Create a transform
