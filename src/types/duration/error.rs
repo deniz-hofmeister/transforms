@@ -7,4 +7,7 @@ pub enum DurationError {
 
     #[error("Conversion to seconds lost accuracy")]
     AccuracyLoss,
+
+    #[error("Division by zero")]
+    DivisionByZero,
 }

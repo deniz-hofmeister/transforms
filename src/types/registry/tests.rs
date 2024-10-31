@@ -430,4 +430,86 @@ mod tests {
             "Registry returned a transform that is different"
         );
     }
+
+    #[test]
+    fn test_basic_common_parent_elimination() {
+        let _ = env_logger::try_init();
+        let mut registry = Registry::new(f64::MAX);
+
+        // Child frame C at t=0, x=1m without rotation
+        let t_b_c = Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: Timestamp { nanoseconds: 0 },
+            parent: "b".to_string(),
+            child: "c".to_string(),
+        };
+
+        // Child frame D at t=0, x=2m without rotation
+        let t_b_d = Transform {
+            translation: Vector3 {
+                x: 2.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: Timestamp { nanoseconds: 0 },
+            parent: "b".to_string(),
+            child: "d".to_string(),
+        };
+
+        // Child frame B at t=0, y=1m without rotation
+        let t_a_b = Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 1.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: Timestamp { nanoseconds: 0 },
+            parent: "a".to_string(),
+            child: "b".to_string(),
+        };
+
+        registry.add_transform(t_a_b).unwrap();
+        registry.add_transform(t_b_c).unwrap();
+        registry.add_transform(t_b_d).unwrap();
+
+        let from_chain = registry.get_transform_chain("c", "d", Timestamp { nanoseconds: 0 });
+        let mut to_chain = registry.get_transform_chain("d", "c", Timestamp { nanoseconds: 0 });
+
+        if let Ok(chain) = to_chain.as_mut() {
+            Registry::reverse_and_invert_transforms(chain).unwrap();
+        }
+
+        assert!(from_chain.is_ok());
+        assert!(to_chain.is_ok());
+
+        let mut from = from_chain.unwrap();
+        let mut to = to_chain.unwrap();
+
+        Registry::truncate_at_common_parent(&mut from, &mut to);
+        let result = Registry::combine_transforms(from, to);
+
+        debug!("{:?}", result);
+    }
 }

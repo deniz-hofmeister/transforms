@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use crate::types::{Buffer, Quaternion, Timestamp, Transform, Vector3};
 
     fn create_transform(ns: u128) -> Transform {
@@ -27,23 +29,52 @@ mod tests {
     }
 
     #[test]
+    fn new_negative_err() {
+        let buffer = Buffer::new(-1.0);
+        assert!(matches!(buffer, Err(_)));
+    }
+
+    #[test]
+    fn new_infinite_ok() {
+        let buffer = Buffer::new(f64::INFINITY);
+        assert!(matches!(buffer, Ok(_)));
+    }
+
+    #[test]
+    fn new_normal() {
+        let buffer = Buffer::new(5.0);
+        assert!(matches!(buffer, Ok(_)));
+    }
+    #[test]
+    fn new_max_age() {
+        let buffer = Buffer::new(5.0).unwrap();
+        assert_eq!(buffer.max_age, 5_000_000_000);
+    }
+
+    #[test]
+    fn new_infinite() {
+        let buffer = Buffer::new(f64::INFINITY).unwrap();
+        assert_eq!(buffer.max_age, u128::MAX);
+    }
+
+    #[test]
     fn insert_and_get() {
-        let mut buffer = Buffer::new(f64::MAX).unwrap();
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
         let transform = create_transform(1000);
         buffer.insert(transform.clone());
 
-        let mut r = buffer.get_exact(&transform.timestamp);
+        let mut r = buffer.get(&transform.timestamp);
 
-        assert!(r.is_some(), "transform not found");
-        assert_eq!(r.unwrap(), &transform);
+        assert!(r.is_ok(), "transform not found");
+        assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get_exact(&Timestamp { nanoseconds: 999 });
-        assert!(r.is_none(), "transform found, but shouldnt't have");
+        r = buffer.get(&Timestamp { nanoseconds: 999 });
+        assert!(r.is_err(), "transform found, but shouldnt't have");
     }
 
     #[test]
     fn get_nearest() {
-        let mut buffer = Buffer::new(f64::MAX).unwrap();
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
         let p1 = create_transform(1000);
         let p2 = create_transform(2000);
         let p3 = create_transform(3000);
@@ -85,22 +116,26 @@ mod tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(f64::MAX).unwrap();
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
         buffer.insert(create_transform(1000));
         buffer.insert(create_transform(2000));
         buffer.insert(create_transform(3000));
 
         buffer.delete_before(Timestamp { nanoseconds: 2000 });
 
-        assert!(buffer.get_exact(&Timestamp { nanoseconds: 1000 }).is_none());
-        assert!(buffer.get_exact(&Timestamp { nanoseconds: 2000 }).is_some());
-        assert!(buffer.get_exact(&Timestamp { nanoseconds: 3000 }).is_some());
+        let get_1000 = buffer.get(&Timestamp { nanoseconds: 1000 });
+        let get_2000 = buffer.get(&Timestamp { nanoseconds: 2000 });
+        let get_3000 = buffer.get(&Timestamp { nanoseconds: 3000 });
+
+        assert!(get_1000.is_err());
+        assert!(get_2000.is_ok());
+        assert!(get_3000.is_ok());
     }
 
     #[test]
     fn empty_buffer() {
-        let buffer = Buffer::new(f64::MAX).unwrap();
-        assert!(buffer.get_exact(&Timestamp { nanoseconds: 1000 }).is_none());
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
+        assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
         assert!(before.is_none());
@@ -109,7 +144,7 @@ mod tests {
 
     #[test]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new(f64::MAX).unwrap();
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
         let point = create_transform(1000);
         buffer.insert(point.clone());
 
@@ -140,9 +175,7 @@ mod tests {
         buffer.insert(old_point.clone());
         buffer.insert(recent_point.clone());
 
-        buffer.delete_expired();
-
-        assert!(buffer.get_exact(&old_point.timestamp).is_none());
-        assert!(buffer.get_exact(&recent_point.timestamp).is_some());
+        assert!(buffer.get(&old_point.timestamp).is_err());
+        assert!(buffer.get(&recent_point.timestamp).is_ok());
     }
 }

@@ -39,7 +39,7 @@ impl Timestamp {
     }
 
     pub fn from_seconds(seconds: f64) -> Self {
-        let nanoseconds = (seconds * 1_000_000_000.0).round() as u128;
+        let nanoseconds = (seconds * 1_000_000_000.0) as u128;
         Timestamp { nanoseconds }
     }
 
@@ -62,18 +62,11 @@ impl Sub<Timestamp> for Timestamp {
         other: Timestamp,
     ) -> Self::Output {
         match self.nanoseconds.cmp(&other.nanoseconds) {
-            Ordering::Less => Err(TimestampError::NegativeDuration),
+            Ordering::Less => Err(TimestampError::DurationUnderflow),
             Ordering::Equal => Ok(Duration { nanoseconds: 0 }),
-            Ordering::Greater => {
-                let diff = self.nanoseconds - other.nanoseconds;
-                if diff > i128::MAX as u128 {
-                    Err(TimestampError::DurationOverflow)
-                } else {
-                    Ok(Duration {
-                        nanoseconds: diff as i128,
-                    })
-                }
-            }
+            Ordering::Greater => Ok(Duration {
+                nanoseconds: self.nanoseconds - other.nanoseconds,
+            }),
         }
     }
 }
@@ -85,28 +78,12 @@ impl Add<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        match rhs.nanoseconds.cmp(&0) {
-            Ordering::Less => {
-                let abs_duration = rhs.nanoseconds.abs() as u128;
-                if abs_duration > self.nanoseconds {
-                    Err(TimestampError::DurationOverflow)
-                } else {
-                    Ok(Timestamp {
-                        nanoseconds: self.nanoseconds - abs_duration,
-                    })
-                }
-            }
-            Ordering::Equal => Ok(self),
-            Ordering::Greater => {
-                let duration_u128 = rhs.nanoseconds as u128;
-                self.nanoseconds
-                    .checked_add(duration_u128)
-                    .map(|result| Timestamp {
-                        nanoseconds: result,
-                    })
-                    .ok_or(TimestampError::DurationOverflow)
-            }
-        }
+        self.nanoseconds
+            .checked_add(rhs.nanoseconds)
+            .map(|result| Timestamp {
+                nanoseconds: result,
+            })
+            .ok_or(TimestampError::DurationOverflow)
     }
 }
 
@@ -117,28 +94,12 @@ impl Sub<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        match rhs.nanoseconds.cmp(&0) {
-            Ordering::Less => {
-                let abs_duration = rhs.nanoseconds.abs() as u128;
-                self.nanoseconds
-                    .checked_add(abs_duration)
-                    .map(|result| Timestamp {
-                        nanoseconds: result,
-                    })
-                    .ok_or(TimestampError::DurationOverflow)
-            }
-            Ordering::Equal => Ok(self),
-            Ordering::Greater => {
-                let duration_u128 = rhs.nanoseconds as u128;
-                if duration_u128 > self.nanoseconds {
-                    Err(TimestampError::DurationOverflow)
-                } else {
-                    Ok(Timestamp {
-                        nanoseconds: self.nanoseconds - duration_u128,
-                    })
-                }
-            }
-        }
+        self.nanoseconds
+            .checked_sub(rhs.nanoseconds)
+            .map(|result| Timestamp {
+                nanoseconds: result,
+            })
+            .ok_or(TimestampError::DurationUnderflow)
     }
 }
 

@@ -35,7 +35,7 @@ impl Registry {
     }
 
     pub fn get_transform(
-        &self,
+        &mut self,
         from: &str,
         to: &str,
         timestamp: Timestamp,
@@ -59,7 +59,7 @@ impl Registry {
     }
 
     fn get_transform_chain(
-        &self,
+        &mut self,
         from: &str,
         to: &str,
         timestamp: Timestamp,
@@ -67,7 +67,7 @@ impl Registry {
         let mut transforms = VecDeque::new();
         let mut current_frame = from.to_string();
 
-        while let Some(frame_buffer) = self.data.get(&current_frame) {
+        while let Some(frame_buffer) = self.data.get_mut(&current_frame) {
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());

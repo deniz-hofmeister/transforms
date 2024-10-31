@@ -102,7 +102,7 @@ impl Mul for Transform {
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: (self.timestamp + d / 2.0)?,
+            timestamp: (self.timestamp + (d / 2.0)?)?,
             parent: self.parent,
             child: rhs.child,
         })

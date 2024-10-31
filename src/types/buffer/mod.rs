@@ -1,22 +1,30 @@
 use crate::types::{Duration, Timestamp, Transform};
+use core::f64;
 use std::collections::BTreeMap;
 mod error;
 pub use error::BufferError;
 
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
-    max_age: f64,
+    max_age: u128,
 }
 
 impl Buffer {
     pub fn new(max_age: f64) -> Result<Self, BufferError> {
-        if max_age <= 0.0 || max_age > f64::MAX {
-            return Err(BufferError::MaxAgeInvalid(max_age, f64::MAX));
+        if max_age <= 0.0 {
+            return Err(BufferError::MaxAgeInvalid(max_age, f64::INFINITY));
+        }
+
+        if max_age == f64::INFINITY {
+            return Ok(Self {
+                data: BTreeMap::new(),
+                max_age: u128::MAX,
+            });
         }
 
         Ok(Self {
             data: BTreeMap::new(),
-            max_age,
+            max_age: (max_age * 1e9) as u128,
         })
     }
 
@@ -28,9 +36,11 @@ impl Buffer {
     }
 
     pub fn get(
-        &self,
+        &mut self,
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
+        self.delete_expired();
+
         let (before, after) = self.get_nearest(timestamp);
 
         match (before, after) {
@@ -43,14 +53,7 @@ impl Buffer {
         }
     }
 
-    pub fn get_exact(
-        &self,
-        timestamp: &Timestamp,
-    ) -> Option<&Transform> {
-        self.data.get(timestamp)
-    }
-
-    pub fn get_nearest(
+    fn get_nearest(
         &self,
         timestamp: &Timestamp,
     ) -> (
@@ -69,15 +72,18 @@ impl Buffer {
         (before, after)
     }
 
-    pub fn delete_expired(&mut self) {
+    fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now()
             - Duration {
-                nanoseconds: (self.max_age * 1e9) as i128,
+                nanoseconds: self.max_age,
             };
-        self.delete_before(timestamp_threshold.unwrap());
+        match timestamp_threshold {
+            Ok(t) => self.delete_before(t),
+            Err(_) => {}
+        }
     }
 
-    pub fn delete_before(
+    fn delete_before(
         &mut self,
         timestamp: Timestamp,
     ) {

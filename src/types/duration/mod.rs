@@ -7,7 +7,7 @@ use crate::error::TimestampError;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Default)]
 pub struct Duration {
-    pub nanoseconds: i128,
+    pub nanoseconds: u128,
 }
 
 impl Add<Timestamp> for Duration {
@@ -33,15 +33,21 @@ impl Sub<Timestamp> for Duration {
 }
 
 impl Div<f64> for Duration {
-    type Output = Duration;
+    type Output = Result<Duration, DurationError>;
 
     fn div(
         self,
         rhs: f64,
     ) -> Self::Output {
-        Duration {
-            nanoseconds: (self.nanoseconds as f64 / rhs).round() as i128,
+        if rhs == 0.0 {
+            return Err(DurationError::DivisionByZero);
         }
+
+        let result = self.nanoseconds as f64 / rhs;
+
+        Ok(Duration {
+            nanoseconds: result as u128,
+        })
     }
 }
 
