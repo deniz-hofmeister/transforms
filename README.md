@@ -67,34 +67,27 @@ This library will only linearly interpolate between coordinate frames and timest
 
 ### No Extrapolation
 Extrapolation is potentially dangerous and/or unstable. One can argue that linear extrapolation or zero-order-hold extrapolation is still acceptable and perfectly fine to use. This system refuses to do it as it opens up the discussion of "How far of extrapolation should we allow?", "Let the user configure extrapolation..." and many other edge-case discussions that lead to unessecary complexity, discussion and behavior unpredicability. If you really want extrapolation, then you are free to publish a transform into the future and let this library "interpolate" within that.
-
-### Once Reference Frames have been assigned children and/or parents, their relationships cannot be modified
-At the moment there is no intent for dynamic re-assigning of reference frames and transforms.
-
-### Assume Reference Frames will live on for the entire lifetime of the process
-With exception of reference frames timing out in the buffer. When this happens, the transforms are lost.
-
-### Reference Frame names have to be unique
+### Reference Frame names have to be unique within the whole transform tree
 If you run into an issue regarding this, consider using prefixes to group your reference frames
 
-### No 1-to-1 equivelance to ROS2's TF2 library
+### No direct 1-to-1 equivelance to ROS2's TF2 library
 This library is inspired by the TF2 library but makes no promise of matching its features, API or implementation. It's by inspiration only.
 
 ## Known Issues
 The known issues that will be fixed in future releases: 
 - Circular reference check, currently a circular reference will cause an infinite loop. Don't create one. 
-- No auto delete of expired transforms. ```Buffer::delete_expired()``` is not called automatically. 
 - No static transforms, currently static transforms have to be re-published constantly. This will be fixed in a future update.
 - ... to be determined
 
 ## Roadmap
 
 - v0.1 Exploration of the domain, provide functionality, built for purpose
-- v0.2 In-process/monolithic system
-- v0.3 Feature: IPC Pub/Sub + Request Server (Rust) 
+- v0.2 Feature: Usability in an In-process/monolithic system (Rust)
+- v0.3 Feature: IPC Pub/Sub + Request Server (Rust), likely [iceoryx2](https://github.com/eclipse-iceoryx/iceoryx2) as provider
 - v0.4 Feature: ROS2 / tf2 bridge
-- v1 Refactor for performance
-- v2 Everything else...
+- v0.x Lock-in feature set
+- v0.y: Internal refactor for reasons a/b/c
+- v1.0 Release (Breaking refactor & release to lock-in API)
 
 
 ## Note
