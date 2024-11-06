@@ -16,7 +16,7 @@ mod test {
     }
 
     #[test]
-    fn test_conjugate() {
+    fn conjugate() {
         let q = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -40,7 +40,7 @@ mod test {
     }
 
     #[test]
-    fn test_normalize() {
+    fn normalize() {
         let q = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -64,7 +64,7 @@ mod test {
     }
 
     #[test]
-    fn test_normalize_zero_length() {
+    fn normalize_zero_length() {
         let q = Quaternion {
             w: 0.0,
             x: 0.0,
@@ -81,7 +81,7 @@ mod test {
     }
 
     #[test]
-    fn test_norm() {
+    fn norm() {
         let q = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -100,7 +100,7 @@ mod test {
     }
 
     #[test]
-    fn test_norm_squared() {
+    fn norm_squared() {
         let q = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -119,7 +119,7 @@ mod test {
     }
 
     #[test]
-    fn test_scale() {
+    fn scale() {
         let q = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -145,7 +145,7 @@ mod test {
     }
 
     #[test]
-    fn test_rotate_vector() {
+    fn rotate_vector() {
         let q = Quaternion {
             w: (PI / 4.0).cos(),
             x: 0.0,
@@ -170,7 +170,7 @@ mod test {
     }
 
     #[test]
-    fn test_add() {
+    fn add() {
         let q1 = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -201,7 +201,7 @@ mod test {
     }
 
     #[test]
-    fn test_sub() {
+    fn sub() {
         let q1 = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -232,7 +232,7 @@ mod test {
     }
 
     #[test]
-    fn test_mul() {
+    fn mul() {
         let q1 = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -263,7 +263,7 @@ mod test {
     }
 
     #[test]
-    fn test_div() {
+    fn div() {
         let q1 = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -287,7 +287,7 @@ mod test {
     }
 
     #[test]
-    fn test_div_by_zero() {
+    fn div_by_zero() {
         let q1 = Quaternion {
             w: 1.0,
             x: 2.0,
@@ -310,7 +310,7 @@ mod test {
     }
 
     #[test]
-    fn test_slerp() {
+    fn slerp() {
         let q1 = Quaternion {
             w: 1.0,
             x: 0.0,

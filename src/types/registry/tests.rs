@@ -4,7 +4,7 @@ mod tests {
     use log::debug;
 
     #[test]
-    fn test_basic_chain_linear() {
+    fn basic_chain_linear() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
         let t = Timestamp::now();
@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_chain_rotation() {
+    fn basic_chain_rotation() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
         let t = Timestamp::now();
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_exact_match() {
+    fn basic_exact_match() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
 
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_interpolation() {
+    fn basic_interpolation() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
 
@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_chained_interpolation() {
+    fn basic_chained_interpolation() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
 
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn test_basic_common_parent_elimination() {
+    fn basic_common_parent_elimination() {
         let _ = env_logger::try_init();
         let mut registry = Registry::new(f64::INFINITY);
 

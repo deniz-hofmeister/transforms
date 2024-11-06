@@ -3,7 +3,7 @@ mod tests {
     use crate::types::Vector3;
 
     #[test]
-    fn test_add() {
+    fn add() {
         let v1 = Vector3 {
             x: 1.0,
             y: 2.0,
@@ -31,7 +31,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sub() {
+    fn sub() {
         let v1 = Vector3 {
             x: 4.0,
             y: 5.0,
@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mul_scalar() {
+    fn mul_scalar() {
         let v = Vector3 {
             x: 1.0,
             y: 2.0,
@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn test_div_scalar() {
+    fn div_scalar() {
         let v = Vector3 {
             x: 2.0,
             y: 4.0,
@@ -107,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dot_product() {
+    fn dot_product() {
         let v1 = Vector3 {
             x: 1.0,
             y: 2.0,
@@ -131,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cross_product() {
+    fn cross_product() {
         let v1 = Vector3 {
             x: 1.0,
             y: 2.0,
