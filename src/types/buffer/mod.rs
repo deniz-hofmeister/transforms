@@ -7,6 +7,7 @@ pub use error::BufferError;
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
     max_age: u128,
+    is_static: bool,
 }
 
 impl Buffer {
@@ -19,12 +20,14 @@ impl Buffer {
             return Ok(Self {
                 data: BTreeMap::new(),
                 max_age: u128::MAX,
+                is_static: false,
             });
         }
 
         Ok(Self {
             data: BTreeMap::new(),
             max_age: (max_age * 1e9) as u128,
+            is_static: false,
         })
     }
 
@@ -32,6 +35,7 @@ impl Buffer {
         &mut self,
         transform: Transform,
     ) {
+        self.is_static = transform.timestamp.nanoseconds == 0;
         self.data.insert(transform.timestamp, transform);
     }
 
@@ -39,8 +43,14 @@ impl Buffer {
         &mut self,
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
-        self.delete_expired();
+        if self.is_static {
+            match self.data.get(&Timestamp { nanoseconds: 0 }) {
+                Some(tf) => return Ok(tf.clone()),
+                None => return Err(BufferError::NoTransformAvailable),
+            }
+        };
 
+        self.delete_expired();
         let (before, after) = self.get_nearest(timestamp);
 
         match (before, after) {

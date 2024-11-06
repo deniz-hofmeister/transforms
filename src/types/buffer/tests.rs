@@ -70,6 +70,24 @@ mod tests {
 
         r = buffer.get(&Timestamp { nanoseconds: 999 });
         assert!(r.is_err(), "transform found, but shouldnt't have");
+
+        r = buffer.get(&Timestamp { nanoseconds: 1001 });
+        assert!(r.is_err(), "transform found, but shouldnt't have");
+    }
+
+    #[test]
+    fn insert_and_get_static() {
+        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
+        let transform = create_transform(0);
+        buffer.insert(transform.clone());
+
+        let mut r = buffer.get(&Timestamp { nanoseconds: 1 });
+
+        assert!(r.is_ok(), "transform not found");
+        assert_eq!(r.unwrap(), transform);
+
+        r = buffer.get(&Timestamp { nanoseconds: 2 });
+        assert!(r.is_ok(), "transform not found");
     }
 
     #[test]
