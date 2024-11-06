@@ -76,7 +76,6 @@ This library is inspired by the TF2 library but makes no promise of matching its
 ## Known Issues
 The known issues that will be fixed in future releases: 
 - Circular reference check, currently a circular reference will cause an infinite loop. Don't create one. 
-- No static transforms, currently static transforms have to be re-published constantly. This will be fixed in a future update.
 - ... to be determined
 
 ## Roadmap

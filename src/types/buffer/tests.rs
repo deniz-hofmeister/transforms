@@ -88,6 +88,7 @@ mod tests {
 
         r = buffer.get(&Timestamp { nanoseconds: 2 });
         assert!(r.is_ok(), "transform not found");
+        assert_eq!(r.unwrap(), transform);
     }
 
     #[test]
