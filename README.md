@@ -18,12 +18,12 @@ This library draws inspiration from ROS2 and the TF2 package.
 Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transforms are the transforms for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pa = Tab^-1 * Pb```.
 
 1 - Create a registry, this will store all the reference frames and track the timelines. 
-```Rust
+```rust
 let mut registry = Registry::new(f64::INFINITY);
 ```
 
 2 - Create a transform
-```Rust
+```rust
  let t = Timestamp::now();
 
  // Child frame B at x=1m without rotation
@@ -46,12 +46,12 @@ let mut registry = Registry::new(f64::INFINITY);
 ```
 
 3 - Register the transform
-```Rust 
+```rust 
 registry.add_transform(t_a_b.clone());
 ```
 
 4 - Request the transform
-```Rust
+```rust
 let r = registry.get_transform("a", "b", t_a_b.timestamp);
 ```
 
