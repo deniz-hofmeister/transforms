@@ -2,7 +2,7 @@
 mod test {
     use core::f64;
 
-    use crate::error::QuaternionError;
+    use crate::errors::QuaternionError;
     use crate::types::{Quaternion, Vector3};
     use approx::assert_relative_eq;
 

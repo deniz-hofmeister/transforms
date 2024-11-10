@@ -2,7 +2,7 @@ use crate::types::{Buffer, Timestamp, Transform};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
-use crate::error::{BufferError, TransformError};
+use crate::errors::{BufferError, TransformError};
 
 pub struct Registry {
     pub data: HashMap<String, Buffer>,

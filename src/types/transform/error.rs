@@ -1,4 +1,4 @@
-use crate::error::{DurationError, TimestampError};
+use crate::errors::{DurationError, TimestampError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

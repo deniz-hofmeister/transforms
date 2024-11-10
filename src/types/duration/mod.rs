@@ -3,7 +3,7 @@ use core::ops::{Add, Div, Sub};
 mod error;
 pub use error::DurationError;
 
-use crate::error::TimestampError;
+use crate::errors::TimestampError;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Default)]
 pub struct Duration {

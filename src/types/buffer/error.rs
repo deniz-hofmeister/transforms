@@ -1,4 +1,4 @@
-use crate::error::TransformError;
+use crate::errors::TransformError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
