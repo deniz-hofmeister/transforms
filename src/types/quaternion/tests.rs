@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod test {
+    use core::f64;
+
     use crate::error::QuaternionError;
     use crate::types::{Quaternion, Vector3};
     use approx::assert_relative_eq;
-    const PI: f64 = 3.14159265358979311599796346854;
 
     #[test]
     fn quaternion_creation() {
@@ -147,10 +148,10 @@ mod test {
     #[test]
     fn rotate_vector() {
         let q = Quaternion {
-            w: (PI / 4.0).cos(),
+            w: (f64::consts::PI / 4.0).cos(),
             x: 0.0,
             y: 0.0,
-            z: (PI / 4.0).sin(),
+            z: (f64::consts::PI / 4.0).sin(),
         };
         let v = Vector3 {
             x: 1.0,
