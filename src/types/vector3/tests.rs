@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod vector3_tests {
     use crate::types::Vector3;
 
     #[test]

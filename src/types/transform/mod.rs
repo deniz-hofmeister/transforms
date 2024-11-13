@@ -110,7 +110,7 @@ impl Mul for Transform {
 }
 
 impl Transform {
-    pub fn inverse(&self) -> Result<Transform, TransformError> {
+    pub fn inverse(&self) -> Result<Self, TransformError> {
         let inverse_rotation = self.rotation.conjugate();
         let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
 

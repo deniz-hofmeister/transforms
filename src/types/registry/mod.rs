@@ -128,7 +128,7 @@ impl Registry {
             final_transform = (transform * final_transform)?;
         }
 
-        Ok(final_transform.inverse()?)
+        final_transform.inverse()
     }
 
     fn reverse_and_invert_transforms(

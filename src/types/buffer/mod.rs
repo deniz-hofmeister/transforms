@@ -4,6 +4,10 @@ use std::collections::BTreeMap;
 mod error;
 pub use error::BufferError;
 
+type NearestTransforms<'a> = (
+    Option<(&'a Timestamp, &'a Transform)>,
+    Option<(&'a Timestamp, &'a Transform)>,
+);
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
     max_age: u128,
@@ -57,7 +61,7 @@ impl Buffer {
             (Some(before), Some(after)) => Ok(Transform::interpolate(
                 before.1.clone(),
                 after.1.clone(),
-                timestamp.clone(),
+                *timestamp,
             )?),
             _ => Err(BufferError::NoTransformAvailable),
         }
@@ -66,10 +70,7 @@ impl Buffer {
     fn get_nearest(
         &self,
         timestamp: &Timestamp,
-    ) -> (
-        Option<(&Timestamp, &Transform)>,
-        Option<(&Timestamp, &Transform)>,
-    ) {
+    ) -> NearestTransforms {
         let before = self.data.range(..=timestamp).next_back();
 
         if let Some((t, _)) = before {
@@ -87,9 +88,8 @@ impl Buffer {
             - Duration {
                 nanoseconds: self.max_age,
             };
-        match timestamp_threshold {
-            Ok(t) => self.delete_before(t),
-            Err(_) => {}
+        if let Ok(t) = timestamp_threshold {
+            self.delete_before(t)
         }
     }
 

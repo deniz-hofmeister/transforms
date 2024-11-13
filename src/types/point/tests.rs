@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test {
+mod point_tests {
     use crate::types::{Point, Quaternion, Timestamp, Vector3};
 
     #[test]

@@ -1,19 +1,19 @@
 [package]
 name = "transforms"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
 repository = "https://github.com/dHofmeister/transforms"
 
 [features]
-tf2-bridge = ["dep:r2r"] 
+tf2-bridge = ["dep:ros2-client"] 
 
 [dependencies]
 log = "0.4.22"
 thiserror = "1.0.64"
 approx = "0.5.1"
-r2r = { version = "0.9.3", optional = true }
+ros2-client = { version = "0.7.5", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11.5"

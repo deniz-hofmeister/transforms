@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod registry_tests {
     use crate::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
     use log::debug;
 

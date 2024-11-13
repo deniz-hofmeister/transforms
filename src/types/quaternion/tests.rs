@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test {
+mod quaternion_tests {
     use core::f64;
 
     use crate::errors::QuaternionError;

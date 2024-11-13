@@ -33,7 +33,7 @@ impl Sub<u128> for Timestamp {
 }
 
 #[cfg(test)]
-mod test {
+mod timestamp_tests {
     use super::*;
 
     #[test]

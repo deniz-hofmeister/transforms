@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod buffer_tests {
     use core::f64;
 
     use crate::types::{Buffer, Quaternion, Timestamp, Transform, Vector3};
@@ -31,19 +31,19 @@ mod tests {
     #[test]
     fn new_negative_err() {
         let buffer = Buffer::new(-1.0);
-        assert!(matches!(buffer, Err(_)));
+        assert!(buffer.is_err());
     }
 
     #[test]
     fn new_infinite_ok() {
         let buffer = Buffer::new(f64::INFINITY);
-        assert!(matches!(buffer, Ok(_)));
+        assert!(buffer.is_ok());
     }
 
     #[test]
     fn new_normal() {
         let buffer = Buffer::new(5.0);
-        assert!(matches!(buffer, Ok(_)));
+        assert!(buffer.is_ok());
     }
     #[test]
     fn new_max_age() {
@@ -104,18 +104,18 @@ mod tests {
 
         // Exact match
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 2000 });
-        assert_eq!(before.unwrap(), ((&p2.timestamp, &p2)));
-        assert_eq!(after.unwrap(), ((&p2.timestamp, &p2)));
+        assert_eq!(before.unwrap(), (&p2.timestamp, &p2));
+        assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Between two points
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
-        assert_eq!(before.unwrap(), ((&p1.timestamp, &p1)));
-        assert_eq!(after.unwrap(), ((&p2.timestamp, &p2)));
+        assert_eq!(before.unwrap(), (&p1.timestamp, &p1));
+        assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Before first point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 500 });
         assert_eq!(before, None);
-        assert_eq!(after.unwrap(), ((&p1.timestamp, &p1)));
+        assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // After last point
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3500 });

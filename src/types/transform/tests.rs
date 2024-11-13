@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test {
+mod transform_tests {
     use crate::types::{Quaternion, Timestamp, Transform, Vector3};
 
     #[test]
