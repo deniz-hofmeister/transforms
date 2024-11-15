@@ -6,15 +6,10 @@ description = "A transform library to track reference frames and provide transfo
 license = "MIT"
 repository = "https://github.com/dHofmeister/transforms"
 
-#[features]
-#tf2-bridge = ["dep:ros2-client"] 
-
 [dependencies]
 log = "0.4.22"
 thiserror = "1.0.64"
 approx = "0.5.1"
-ros2-client = "0.7.5"
-#ros2-client = { version = "0.7.5", optional = true }
 
 [dev-dependencies]
 env_logger = "0.11.5"
