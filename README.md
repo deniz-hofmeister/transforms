@@ -15,9 +15,9 @@ This library draws inspiration from ROS2 and the TF2 package.
 
 ## Usage
 
-Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transforms are the transforms for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pa = Tab^-1 * Pb```.
+Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transform (Tab) is the transform for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pb = Tab^-1 * Pa```.
 
-1 - Create a registry, this will store all the reference frames and track the timelines. 
+1 - Create a registry, this will store all the reference frames and track the timelines. The input argument dictates how long the buffer holds on to old data.
 ```rust
 let mut registry = Registry::new(f64::INFINITY);
 ```
