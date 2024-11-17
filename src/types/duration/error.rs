@@ -10,4 +10,7 @@ pub enum DurationError {
 
     #[error("Division by zero")]
     DivisionByZero,
+
+    #[error("{0}")]
+    InvalidInput(String),
 }

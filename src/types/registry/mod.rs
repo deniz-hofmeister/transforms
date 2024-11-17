@@ -1,4 +1,4 @@
-use crate::types::{Buffer, Timestamp, Transform};
+use crate::types::{Buffer, Duration, Timestamp, Transform};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
@@ -6,14 +6,14 @@ use crate::errors::{BufferError, TransformError};
 
 pub struct Registry {
     pub data: HashMap<String, Buffer>,
-    pub max_age: f64,
+    pub ttl: Duration,
 }
 
 impl Registry {
-    pub fn new(max_age: f64) -> Self {
+    pub fn new(d: Duration) -> Self {
         Self {
             data: HashMap::new(),
-            max_age,
+            ttl: d,
         }
     }
 
@@ -26,7 +26,7 @@ impl Registry {
                 entry.get_mut().insert(t);
             }
             Entry::Vacant(entry) => {
-                let buffer = Buffer::new(self.max_age)?;
+                let buffer = Buffer::new(self.ttl);
                 let buffer = entry.insert(buffer);
                 buffer.insert(t);
             }

@@ -18,6 +18,9 @@ impl Timestamp {
             nanoseconds: now.as_nanos(),
         }
     }
+    pub fn zero() -> Self {
+        Timestamp { nanoseconds: 0 }
+    }
 
     pub fn as_seconds(&self) -> Result<f64, TimestampError> {
         let seconds = self.nanoseconds as f64 / 1_000_000_000.0;

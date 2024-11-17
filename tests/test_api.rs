@@ -1,10 +1,11 @@
 use log::debug;
-use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
 
 #[test]
 fn test_chain_sync() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(f64::INFINITY);
+    let mut registry = Registry::new(Duration::try_from(10.0).unwrap());
+    let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {
@@ -19,7 +20,7 @@ fn test_chain_sync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp { nanoseconds: 0 },
+        timestamp: t,
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -37,9 +38,7 @@ fn test_chain_sync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 1_000_000,
-        },
+        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -56,9 +55,7 @@ fn test_chain_sync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 500_000,
-        },
+        timestamp: (t + Duration::try_from(0.5).unwrap()).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -76,9 +73,7 @@ fn test_chain_sync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 1_500_000,
-        },
+        timestamp: (t + Duration::try_from(1.5).unwrap()).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -88,10 +83,7 @@ fn test_chain_sync() {
     registry.add_transform(t_b_c_0.clone()).unwrap();
     registry.add_transform(t_b_c_1.clone()).unwrap();
 
-    let middle_timestamp = Timestamp {
-        nanoseconds: 750_000,
-    };
-
+    let middle_timestamp = (t + Duration::try_from(0.75).unwrap()).unwrap();
     let t_a_c = Transform {
         translation: Vector3 {
             x: 1.75,
@@ -125,7 +117,8 @@ fn test_chain_sync() {
 #[test]
 fn test_chain_desync() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(f64::INFINITY);
+    let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+    let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {
@@ -140,7 +133,7 @@ fn test_chain_desync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp { nanoseconds: 0 },
+        timestamp: t,
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -158,12 +151,11 @@ fn test_chain_desync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 1_000_000,
-        },
+        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
+
     // Child frame C at t=0, y=1m without rotation
     let t_b_c_0 = Transform {
         translation: Vector3 {
@@ -177,9 +169,7 @@ fn test_chain_desync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 2_000_000,
-        },
+        timestamp: (t + Duration::try_from(2.0).unwrap()).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -197,9 +187,7 @@ fn test_chain_desync() {
             y: 0.,
             z: 0.,
         },
-        timestamp: Timestamp {
-            nanoseconds: 3_000_000,
-        },
+        timestamp: (t + Duration::try_from(3.0).unwrap()).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -209,11 +197,7 @@ fn test_chain_desync() {
     registry.add_transform(t_b_c_0.clone()).unwrap();
     registry.add_transform(t_b_c_1.clone()).unwrap();
 
-    let middle_timestamp = Timestamp {
-        nanoseconds: 1_000_000,
-    };
-
-    let r = registry.get_transform("a", "c", middle_timestamp);
+    let r = registry.get_transform("a", "c", t);
 
     debug!("Result: {:?}", r);
 

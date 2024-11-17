@@ -1,10 +1,8 @@
 #[cfg(test)]
 mod buffer_tests {
-    use core::f64;
+    use crate::types::{Buffer, Duration, Quaternion, Timestamp, Transform, Vector3};
 
-    use crate::types::{Buffer, Quaternion, Timestamp, Transform, Vector3};
-
-    fn create_transform(ns: u128) -> Transform {
+    fn create_transform(t: Timestamp) -> Transform {
         let translation = Vector3 {
             x: 1.0,
             y: 2.0,
@@ -16,7 +14,7 @@ mod buffer_tests {
             y: 0.0,
             z: 0.0,
         };
-        let timestamp = Timestamp { nanoseconds: ns };
+        let timestamp = t;
         let parent = "map".to_string();
         let child = "base".to_string();
         Transform {
@@ -29,38 +27,10 @@ mod buffer_tests {
     }
 
     #[test]
-    fn new_negative_err() {
-        let buffer = Buffer::new(-1.0);
-        assert!(buffer.is_err());
-    }
-
-    #[test]
-    fn new_infinite_ok() {
-        let buffer = Buffer::new(f64::INFINITY);
-        assert!(buffer.is_ok());
-    }
-
-    #[test]
-    fn new_normal() {
-        let buffer = Buffer::new(5.0);
-        assert!(buffer.is_ok());
-    }
-    #[test]
-    fn new_max_age() {
-        let buffer = Buffer::new(5.0).unwrap();
-        assert_eq!(buffer.max_age, 5_000_000_000);
-    }
-
-    #[test]
-    fn new_infinite() {
-        let buffer = Buffer::new(f64::INFINITY).unwrap();
-        assert_eq!(buffer.max_age, u128::MAX);
-    }
-
-    #[test]
     fn insert_and_get() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
-        let transform = create_transform(1000);
+        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::now();
+        let transform = create_transform(t);
         buffer.insert(transform.clone());
 
         let mut r = buffer.get(&transform.timestamp);
@@ -68,92 +38,105 @@ mod buffer_tests {
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&Timestamp { nanoseconds: 999 });
+        r = buffer.get(&(transform.timestamp + Duration::try_from(1.0).unwrap()).unwrap());
         assert!(r.is_err(), "transform found, but shouldnt't have");
 
-        r = buffer.get(&Timestamp { nanoseconds: 1001 });
+        r = buffer.get(&(transform.timestamp - Duration::try_from(1.0).unwrap()).unwrap());
         assert!(r.is_err(), "transform found, but shouldnt't have");
     }
 
     #[test]
     fn insert_and_get_static() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
-        let transform = create_transform(0);
+        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::zero();
+        let transform = create_transform(t);
+
         buffer.insert(transform.clone());
 
-        let mut r = buffer.get(&Timestamp { nanoseconds: 1 });
+        let mut r = buffer.get(&(transform.timestamp + Duration::try_from(1.0).unwrap()).unwrap());
 
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&Timestamp { nanoseconds: 2 });
+        r = buffer.get(&(transform.timestamp + Duration::try_from(2.0).unwrap()).unwrap());
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
     }
 
     #[test]
     fn get_nearest() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
-        let p1 = create_transform(1000);
-        let p2 = create_transform(2000);
-        let p3 = create_transform(3000);
+        let mut buffer = Buffer::new(Duration::try_from(10.0).unwrap());
+        let t = Timestamp::now();
+
+        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
+        let p2 = create_transform((t - Duration::try_from(1.0).unwrap()).unwrap());
+        let p3 = create_transform(t);
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
         buffer.insert(p3.clone());
 
         // Exact match
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 2000 });
+        let (before, after) = buffer.get_nearest(&p2.timestamp);
         assert_eq!(before.unwrap(), (&p2.timestamp, &p2));
         assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Between two points
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
+        let p_mid = (p1.timestamp + Duration::try_from(0.5).unwrap()).unwrap();
+        let (before, after) = buffer.get_nearest(&p_mid);
         assert_eq!(before.unwrap(), (&p1.timestamp, &p1));
         assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Before first point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 500 });
+        let p_0 = (p1.timestamp - Duration::try_from(1.0).unwrap()).unwrap();
+        let (before, after) = buffer.get_nearest(&p_0);
         assert_eq!(before, None);
         assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // After last point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3500 });
+        let p_4 = (p3.timestamp + Duration::try_from(1.0).unwrap()).unwrap();
+        let (before, after) = buffer.get_nearest(&p_4);
         assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
         assert_eq!(after, None);
 
         // Exactly at first point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
+        let (before, after) = buffer.get_nearest(&p1.timestamp);
         assert_eq!(before.unwrap(), (&p1.timestamp, &p1));
         assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // Exactly at last point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 3000 });
+        let (before, after) = buffer.get_nearest(&p3.timestamp);
         assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
         assert_eq!(after.unwrap(), (&p3.timestamp, &p3));
     }
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
-        buffer.insert(create_transform(1000));
-        buffer.insert(create_transform(2000));
-        buffer.insert(create_transform(3000));
+        let mut buffer = Buffer::new(Duration::try_from(10.0).unwrap());
+        let t = Timestamp::now();
 
-        buffer.delete_before(Timestamp { nanoseconds: 2000 });
+        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
+        let p2 = create_transform((t - Duration::try_from(1.0).unwrap()).unwrap());
+        let p3 = create_transform(t);
 
-        let get_1000 = buffer.get(&Timestamp { nanoseconds: 1000 });
-        let get_2000 = buffer.get(&Timestamp { nanoseconds: 2000 });
-        let get_3000 = buffer.get(&Timestamp { nanoseconds: 3000 });
+        buffer.insert(p1.clone());
+        buffer.insert(p2.clone());
+        buffer.insert(p3.clone());
 
-        assert!(get_1000.is_err());
-        assert!(get_2000.is_ok());
-        assert!(get_3000.is_ok());
+        buffer.delete_before((t - Duration::try_from(1.0).unwrap()).unwrap());
+
+        let get_1 = buffer.get(&(t - Duration::try_from(2.0).unwrap()).unwrap());
+        let get_2 = buffer.get(&(t - Duration::try_from(1.0).unwrap()).unwrap());
+        let get_3 = buffer.get(&t);
+
+        assert!(get_1.is_err());
+        assert!(get_2.is_ok());
+        assert!(get_3.is_ok());
     }
 
     #[test]
     fn empty_buffer() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
+        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
         assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
@@ -163,38 +146,39 @@ mod buffer_tests {
 
     #[test]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new(f64::INFINITY).unwrap();
-        let point = create_transform(1000);
+        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::now();
+        let point = create_transform(t);
         buffer.insert(point.clone());
 
         // Before the point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 500 });
+        let (before, after) = buffer.get_nearest(&(t - Duration::try_from(1.0).unwrap()).unwrap());
         assert!(before.is_none());
         assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
         // Exact match
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
+        let (before, after) = buffer.get_nearest(&t);
         assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
         // After the point
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1500 });
+        let (before, after) = buffer.get_nearest(&(t + Duration::try_from(1.0).unwrap()).unwrap());
         assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert!(after.is_none());
     }
 
     #[test]
     fn delete_expired() {
-        let mut buffer = Buffer::new(2.0).unwrap();
+        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
 
-        let now = Timestamp::now();
-        let old_point = create_transform(now.nanoseconds - 3_000_000_000);
-        let recent_point = create_transform(now.nanoseconds - 1_000_000_000);
+        let t = Timestamp::now();
+        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
+        let p2 = create_transform(t);
 
-        buffer.insert(old_point.clone());
-        buffer.insert(recent_point.clone());
+        buffer.insert(p1.clone());
+        buffer.insert(p2.clone());
 
-        assert!(buffer.get(&old_point.timestamp).is_err());
-        assert!(buffer.get(&recent_point.timestamp).is_ok());
+        assert!(buffer.get(&p1.timestamp).is_err());
+        assert!(buffer.get(&p2.timestamp).is_ok());
     }
 }

@@ -1,5 +1,4 @@
 use crate::types::{Duration, Timestamp, Transform};
-use core::f64;
 use std::collections::BTreeMap;
 mod error;
 pub use error::BufferError;
@@ -8,31 +7,20 @@ type NearestTransforms<'a> = (
     Option<(&'a Timestamp, &'a Transform)>,
     Option<(&'a Timestamp, &'a Transform)>,
 );
+
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
-    max_age: u128,
+    ttl: u128,
     is_static: bool,
 }
 
 impl Buffer {
-    pub fn new(max_age: f64) -> Result<Self, BufferError> {
-        if max_age <= 0.0 {
-            return Err(BufferError::MaxAgeInvalid(max_age, f64::INFINITY));
-        }
-
-        if max_age == f64::INFINITY {
-            return Ok(Self {
-                data: BTreeMap::new(),
-                max_age: u128::MAX,
-                is_static: false,
-            });
-        }
-
-        Ok(Self {
+    pub fn new(ttl: Duration) -> Self {
+        Self {
             data: BTreeMap::new(),
-            max_age: (max_age * 1e9) as u128,
+            ttl: ttl.nanoseconds,
             is_static: false,
-        })
+        }
     }
 
     pub fn insert(
@@ -86,7 +74,7 @@ impl Buffer {
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now()
             - Duration {
-                nanoseconds: self.max_age,
+                nanoseconds: self.ttl,
             };
         if let Ok(t) = timestamp_threshold {
             self.delete_before(t)

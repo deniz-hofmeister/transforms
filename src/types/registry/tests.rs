@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod registry_tests {
-    use crate::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    use crate::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
     use log::debug;
 
     #[test]
     fn basic_chain_linear() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
         let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
@@ -81,7 +81,7 @@ mod registry_tests {
     #[test]
     fn basic_chain_rotation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
         let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
@@ -175,7 +175,7 @@ mod registry_tests {
     #[test]
     fn basic_exact_match() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -243,7 +243,8 @@ mod registry_tests {
     #[test]
     fn basic_interpolation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b_0 = Transform {
@@ -258,7 +259,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "a".to_string(),
             child: "b".to_string(),
         };
@@ -277,9 +278,7 @@ mod registry_tests {
                 y: 0.,
                 z: (theta / 2.0).sin(),
             },
-            timestamp: Timestamp {
-                nanoseconds: 1_000_000,
-            },
+            timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
             parent: "a".to_string(),
             child: "b".to_string(),
         };
@@ -315,7 +314,8 @@ mod registry_tests {
     #[test]
     fn basic_chained_interpolation() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::now();
 
         // Child frame B at t=0, x=1m without rotation
         let t_a_b_0 = Transform {
@@ -330,7 +330,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "a".to_string(),
             child: "b".to_string(),
         };
@@ -348,9 +348,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp {
-                nanoseconds: 1_000_000,
-            },
+            timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
             parent: "a".to_string(),
             child: "b".to_string(),
         };
@@ -367,7 +365,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "b".to_string(),
             child: "c".to_string(),
         };
@@ -385,9 +383,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp {
-                nanoseconds: 1_000_000,
-            },
+            timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
             parent: "b".to_string(),
             child: "c".to_string(),
         };
@@ -434,7 +430,8 @@ mod registry_tests {
     #[test]
     fn basic_common_parent_elimination() {
         let _ = env_logger::try_init();
-        let mut registry = Registry::new(f64::INFINITY);
+        let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+        let t = Timestamp::now();
 
         // Child frame C at t=0, x=1m without rotation
         let t_b_c = Transform {
@@ -449,7 +446,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "b".to_string(),
             child: "c".to_string(),
         };
@@ -467,7 +464,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "b".to_string(),
             child: "d".to_string(),
         };
@@ -485,7 +482,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: t,
             parent: "a".to_string(),
             child: "b".to_string(),
         };
@@ -494,8 +491,8 @@ mod registry_tests {
         registry.add_transform(t_b_c).unwrap();
         registry.add_transform(t_b_d).unwrap();
 
-        let from_chain = registry.get_transform_chain("c", "d", Timestamp { nanoseconds: 0 });
-        let mut to_chain = registry.get_transform_chain("d", "c", Timestamp { nanoseconds: 0 });
+        let from_chain = registry.get_transform_chain("c", "d", t);
+        let mut to_chain = registry.get_transform_chain("d", "c", t);
 
         if let Ok(chain) = to_chain.as_mut() {
             Registry::reverse_and_invert_transforms(chain).unwrap();

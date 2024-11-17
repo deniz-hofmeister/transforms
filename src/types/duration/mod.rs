@@ -2,12 +2,55 @@ use crate::types::Timestamp;
 use core::ops::{Add, Div, Sub};
 mod error;
 pub use error::DurationError;
+use std::time::Duration as StdDuration;
 
 use crate::errors::TimestampError;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Default)]
 pub struct Duration {
     pub nanoseconds: u128,
+}
+
+impl From<StdDuration> for Duration {
+    fn from(d: StdDuration) -> Self {
+        Self {
+            nanoseconds: d.as_nanos(),
+        }
+    }
+}
+
+impl TryFrom<f64> for Duration {
+    type Error = DurationError;
+
+    fn try_from(seconds: f64) -> Result<Self, Self::Error> {
+        if !seconds.is_finite() {
+            return Err(DurationError::InvalidInput(
+                "Duration must be finite".into(),
+            ));
+        }
+
+        if seconds < 0.0 {
+            return Err(DurationError::InvalidInput(
+                "Duration cannot be negative".into(),
+            ));
+        }
+
+        let nanos = seconds * 1e9;
+        if nanos > u128::MAX as f64 {
+            return Err(DurationError::DurationOverflow);
+        }
+
+        // Check for accuracy loss
+        let nanos_u128 = nanos as u128;
+        let back_to_seconds = nanos_u128 as f64 / 1e9;
+        if (back_to_seconds - seconds).abs() > 1e-9 {
+            return Err(DurationError::AccuracyLoss);
+        }
+
+        Ok(Self {
+            nanoseconds: nanos_u128,
+        })
+    }
 }
 
 impl Add<Timestamp> for Duration {
