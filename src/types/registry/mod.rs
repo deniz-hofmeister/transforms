@@ -4,44 +4,119 @@ use std::collections::{HashMap, VecDeque};
 mod error;
 use crate::errors::{BufferError, TransformError};
 
-pub struct Registry {
-    pub data: HashMap<String, Buffer>,
-    pub ttl: Duration,
+#[cfg(feature = "async")]
+mod async_impl {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::{Mutex, Notify};
+
+    pub struct Registry {
+        pub data: Arc<Mutex<HashMap<String, Buffer>>>,
+        ttl: Duration,
+        notify: Arc<Notify>,
+    }
+
+    impl Registry {
+        pub fn new(ttl: Duration) -> Self {
+            Self {
+                data: Arc::new(Mutex::new(HashMap::new())),
+                ttl,
+                notify: Arc::new(Notify::new()),
+            }
+        }
+
+        pub async fn add_transform(
+            &self,
+            t: Transform,
+        ) -> Result<(), BufferError> {
+            {
+                let mut data = self.data.lock().await;
+                match data.entry(t.child.clone()) {
+                    Entry::Occupied(mut entry) => {
+                        entry.get_mut().insert(t);
+                    }
+                    Entry::Vacant(entry) => {
+                        let buffer = Buffer::new(self.ttl);
+                        let buffer = entry.insert(buffer);
+                        buffer.insert(t);
+                    }
+                }
+            }
+            self.notify.notify_waiters();
+            Ok(())
+        }
+
+        pub async fn get_transform(
+            &mut self,
+            from: &str,
+            to: &str,
+            timestamp: Timestamp,
+        ) -> Result<Transform, TransformError> {
+            let data = Arc::clone(&self.data);
+            let mut d = data.lock().await;
+            self.process_transform(from, to, timestamp, &mut *d)
+        }
+    }
 }
 
+#[cfg(not(feature = "async"))]
+mod sync_impl {
+    pub struct Registry {
+        pub data: HashMap<String, Buffer>,
+        ttl: Duration,
+    }
+
+    impl Registry {
+        pub fn new(d: Duration) -> Self {
+            Self {
+                data: HashMap::new(),
+                ttl: d,
+            }
+        }
+
+        pub fn add_transform(
+            &mut self,
+            t: Transform,
+        ) -> Result<(), BufferError> {
+            match self.data.entry(t.child.clone()) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().insert(t);
+                }
+                Entry::Vacant(entry) => {
+                    let buffer = Buffer::new(self.ttl);
+                    let buffer = entry.insert(buffer);
+                    buffer.insert(t);
+                }
+            }
+            Ok(())
+        }
+
+        pub fn get_transform(
+            &mut self,
+            from: &str,
+            to: &str,
+            timestamp: Timestamp,
+        ) -> Result<Transform, TransformError> {
+            self.process_transform(from, to, timestamp, &self.data)
+        }
+    }
+}
+
+#[cfg(feature = "async")]
+pub use async_impl::Registry;
+#[cfg(not(feature = "async"))]
+pub use sync_impl::Registry;
+
 impl Registry {
-    pub fn new(d: Duration) -> Self {
-        Self {
-            data: HashMap::new(),
-            ttl: d,
-        }
-    }
-
-    pub fn add_transform(
-        &mut self,
-        t: Transform,
-    ) -> Result<(), BufferError> {
-        match self.data.entry(t.child.clone()) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().insert(t);
-            }
-            Entry::Vacant(entry) => {
-                let buffer = Buffer::new(self.ttl);
-                let buffer = entry.insert(buffer);
-                buffer.insert(t);
-            }
-        }
-        Ok(())
-    }
-
-    pub fn get_transform(
+    pub fn process_transform(
         &mut self,
         from: &str,
         to: &str,
         timestamp: Timestamp,
+        data: &mut HashMap<String, Buffer>,
     ) -> Result<Transform, TransformError> {
-        let from_chain = self.get_transform_chain(from, to, timestamp);
-        let mut to_chain = self.get_transform_chain(to, from, timestamp);
+        let from_chain = self.get_transform_chain(from, to, timestamp, data);
+        let mut to_chain = self.get_transform_chain(to, from, timestamp, data);
 
         if let Ok(chain) = to_chain.as_mut() {
             Self::reverse_and_invert_transforms(chain)?;
@@ -63,11 +138,12 @@ impl Registry {
         from: &str,
         to: &str,
         timestamp: Timestamp,
+        data: &mut HashMap<String, Buffer>,
     ) -> Result<VecDeque<Transform>, TransformError> {
         let mut transforms = VecDeque::new();
         let mut current_frame = from.to_string();
 
-        while let Some(frame_buffer) = self.data.get_mut(&current_frame) {
+        while let Some(frame_buffer) = data.get_mut(&current_frame) {
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());

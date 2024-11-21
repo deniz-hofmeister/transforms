@@ -30,6 +30,7 @@ async fn main() {
     let ttl = std::time::Duration::from_secs(10);
     let registry = Arc::new(Mutex::new(Registry::new(ttl.into())));
 
+    // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
     let writer = tokio::spawn(async move {
         loop {
@@ -44,20 +45,21 @@ async fn main() {
         }
     });
 
+    // Reader task - uses await_transform to wait for transforms
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
+        info!("Running reader");
         loop {
             let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
             let mut r = registry_reader.lock().await;
-            let result = r.get_transform("a", "b", time);
-            match result {
-                Ok(tf) => info!("Found transform: {:?}", tf),
-                Err(e) => error!("Transform not found: {:?}", e),
+            match r.await_transform("a", "b", time).await {
+                Ok(tf) => info!("Found transform through await: {:?}", tf),
+                Err(e) => error!("Error waiting for transform: {:?}", e),
             }
             drop(r);
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
 
+    // Run both tasks
     let _ = tokio::join!(writer, reader);
 }
