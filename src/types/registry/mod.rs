@@ -5,6 +5,12 @@ mod error;
 use crate::errors::{BufferError, TransformError};
 
 #[cfg(feature = "async")]
+pub use async_impl::Registry;
+
+#[cfg(not(feature = "async"))]
+pub use sync_impl::Registry;
+
+#[cfg(feature = "async")]
 mod async_impl {
     use super::*;
     use std::sync::Arc;
@@ -46,6 +52,22 @@ mod async_impl {
             Ok(())
         }
 
+        pub async fn await_transform(
+            &mut self,
+            from: &str,
+            to: &str,
+            timestamp: Timestamp,
+        ) -> Result<Transform, TransformError> {
+            loop {
+                {
+                    if let Ok(transform) = self.get_transform(from, to, timestamp).await {
+                        return Ok(transform);
+                    }
+                }
+                self.notify.notified().await;
+            }
+        }
+
         pub async fn get_transform(
             &mut self,
             from: &str,
@@ -54,13 +76,14 @@ mod async_impl {
         ) -> Result<Transform, TransformError> {
             let data = Arc::clone(&self.data);
             let mut d = data.lock().await;
-            self.process_transform(from, to, timestamp, &mut *d)
+            Self::process_transform(from, to, timestamp, &mut d)
         }
     }
 }
 
 #[cfg(not(feature = "async"))]
 mod sync_impl {
+    use super::*;
     pub struct Registry {
         pub data: HashMap<String, Buffer>,
         ttl: Duration,
@@ -97,26 +120,20 @@ mod sync_impl {
             to: &str,
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
-            self.process_transform(from, to, timestamp, &self.data)
+            Self::process_transform(from, to, timestamp, &mut self.data)
         }
     }
 }
 
-#[cfg(feature = "async")]
-pub use async_impl::Registry;
-#[cfg(not(feature = "async"))]
-pub use sync_impl::Registry;
-
 impl Registry {
     pub fn process_transform(
-        &mut self,
         from: &str,
         to: &str,
         timestamp: Timestamp,
         data: &mut HashMap<String, Buffer>,
     ) -> Result<Transform, TransformError> {
-        let from_chain = self.get_transform_chain(from, to, timestamp, data);
-        let mut to_chain = self.get_transform_chain(to, from, timestamp, data);
+        let from_chain = Self::get_transform_chain(from, to, timestamp, data);
+        let mut to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
         if let Ok(chain) = to_chain.as_mut() {
             Self::reverse_and_invert_transforms(chain)?;
@@ -134,7 +151,6 @@ impl Registry {
     }
 
     fn get_transform_chain(
-        &mut self,
         from: &str,
         to: &str,
         timestamp: Timestamp,

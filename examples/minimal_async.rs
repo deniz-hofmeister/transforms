@@ -1,6 +1,5 @@
 use log::{error, info};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
 
 /// Dummy transform generator
@@ -28,35 +27,31 @@ async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
     let ttl = std::time::Duration::from_secs(10);
-    let registry = Arc::new(Mutex::new(Registry::new(ttl.into())));
+    let mut registry = Arc::new(Registry::new(ttl.into()));
 
     // Writer task - generates and adds transforms
-    let registry_writer = registry.clone();
+    let mut registry_writer = registry.clone();
     let writer = tokio::spawn(async move {
         loop {
             let time = Timestamp::now();
             let t = generate_transform(time);
-            let mut r = registry_writer.lock().await;
-            if let Err(e) = r.add_transform(t.clone()) {
+            if let Err(e) = registry_writer.add_transform(t.clone()).await {
                 error!("Error adding transform: {:?}", e);
             }
-            drop(r);
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
 
     // Reader task - uses await_transform to wait for transforms
-    let registry_reader = registry.clone();
+    let mut registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
         info!("Running reader");
         loop {
             let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
-            let mut r = registry_reader.lock().await;
-            match r.await_transform("a", "b", time).await {
+            match registry_reader.await_transform("a", "b", time).await {
                 Ok(tf) => info!("Found transform through await: {:?}", tf),
                 Err(e) => error!("Error waiting for transform: {:?}", e),
             }
-            drop(r);
         }
     });
 
