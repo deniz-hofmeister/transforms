@@ -3,7 +3,6 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
 use crate::errors::{BufferError, TransformError};
-use log::debug;
 
 #[cfg(feature = "async")]
 pub use async_impl::Registry;
@@ -12,7 +11,7 @@ pub use async_impl::Registry;
 pub use sync_impl::Registry;
 
 #[cfg(feature = "async")]
-mod async_impl {
+pub mod async_impl {
     use super::*;
     use tokio::sync::{Mutex, Notify};
 
@@ -39,11 +38,9 @@ mod async_impl {
                 let mut data = self.data.lock().await;
                 match data.entry(t.child.clone()) {
                     Entry::Occupied(mut entry) => {
-                        debug!("Buffer found, adding transform.");
                         entry.get_mut().insert(t);
                     }
                     Entry::Vacant(entry) => {
-                        debug!("No buffer found for this parent-child, creating new buffer.");
                         let buffer = Buffer::new(self.ttl);
                         let buffer = entry.insert(buffer);
                         buffer.insert(t);
@@ -81,7 +78,7 @@ mod async_impl {
 }
 
 #[cfg(not(feature = "async"))]
-mod sync_impl {
+pub mod sync_impl {
     use super::*;
     pub struct Registry {
         pub data: HashMap<String, Buffer>,

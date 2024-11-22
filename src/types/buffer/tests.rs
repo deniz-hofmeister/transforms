@@ -136,7 +136,7 @@ mod buffer_tests {
 
     #[test]
     fn empty_buffer() {
-        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let buffer = Buffer::new(Duration::try_from(1.0).unwrap());
         assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });

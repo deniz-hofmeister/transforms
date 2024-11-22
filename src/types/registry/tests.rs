@@ -1,9 +1,9 @@
+#[cfg(not(feature = "async"))]
 #[cfg(test)]
 mod registry_tests {
     use crate::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
     use log::debug;
 
-    #[cfg(not(feature = "async"))]
     mod sync_tests {
         use super::*;
 

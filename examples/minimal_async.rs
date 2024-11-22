@@ -1,5 +1,5 @@
 #[cfg(feature = "async")]
-mod minimal_async {
+mod async_minimal {
     pub use log::{error, info};
     pub use std::sync::Arc;
     pub use std::time::Duration;
@@ -27,7 +27,7 @@ mod minimal_async {
 }
 
 #[cfg(feature = "async")]
-use minimal_async::*;
+use async_minimal::*;
 
 #[cfg(feature = "async")]
 #[tokio::main]
@@ -66,6 +66,7 @@ async fn main() {
 
     let _ = tokio::join!(writer, reader);
 }
+
 #[cfg(not(feature = "async"))]
 fn main() {
     panic!(

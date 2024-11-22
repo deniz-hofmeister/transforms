@@ -1,10 +1,13 @@
+#[cfg(all(test, feature = "async"))]
 use log::debug;
+#[cfg(all(test, feature = "async"))]
 use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
 
-#[test]
-fn test_chain_sync() {
+#[cfg(all(test, feature = "async"))]
+#[tokio::test]
+async fn test_chain_sync() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(Duration::try_from(10.0).unwrap());
+    let registry = Registry::new(Duration::try_from(10.0).unwrap());
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -78,10 +81,10 @@ fn test_chain_sync() {
         child: "c".to_string(),
     };
 
-    registry.add_transform(t_a_b_0.clone()).unwrap();
-    registry.add_transform(t_a_b_1.clone()).unwrap();
-    registry.add_transform(t_b_c_0.clone()).unwrap();
-    registry.add_transform(t_b_c_1.clone()).unwrap();
+    registry.add_transform(t_a_b_0.clone()).await.unwrap();
+    registry.add_transform(t_a_b_1.clone()).await.unwrap();
+    registry.add_transform(t_b_c_0.clone()).await.unwrap();
+    registry.add_transform(t_b_c_1.clone()).await.unwrap();
 
     let middle_timestamp = (t + Duration::try_from(0.75).unwrap()).unwrap();
     let t_a_c = Transform {
@@ -101,7 +104,7 @@ fn test_chain_sync() {
         child: "c".to_string(),
     };
 
-    let r = registry.get_transform("a", "c", middle_timestamp);
+    let r = registry.get_transform("a", "c", middle_timestamp).await;
 
     debug!("Result: {:?}", r);
     debug!("Expected: {:?}", t_a_c);
@@ -114,10 +117,11 @@ fn test_chain_sync() {
     );
 }
 
-#[test]
-fn test_chain_desync() {
+#[cfg(all(test, feature = "async"))]
+#[tokio::test]
+async fn test_chain_desync() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+    let registry = Registry::new(Duration::try_from(1.0).unwrap());
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -192,12 +196,12 @@ fn test_chain_desync() {
         child: "c".to_string(),
     };
 
-    registry.add_transform(t_a_b_0.clone()).unwrap();
-    registry.add_transform(t_a_b_1.clone()).unwrap();
-    registry.add_transform(t_b_c_0.clone()).unwrap();
-    registry.add_transform(t_b_c_1.clone()).unwrap();
+    registry.add_transform(t_a_b_0.clone()).await.unwrap();
+    registry.add_transform(t_a_b_1.clone()).await.unwrap();
+    registry.add_transform(t_b_c_0.clone()).await.unwrap();
+    registry.add_transform(t_b_c_1.clone()).await.unwrap();
 
-    let r = registry.get_transform("a", "c", t);
+    let r = registry.get_transform("a", "c", t).await;
 
     debug!("Result: {:?}", r);
 
