@@ -19,18 +19,18 @@ Usage is best defined by the registry struct under ```src/types/registry/mod.rs`
 For example usage see the two included examples. They provide an example usage for a sync and a tokio-based async version of the library. 
 
 The recommended usage is to use the ```async``` version. This allows one to efficiently await for incoming transforms using the notify() system and does not require any polling.
-```rust
+```bash
  cargo run --example minimal_async --features async
 ```
 
 For a barebones usage of the library one can opt for the ```sync``` version of the library.
-```rust
+```bash
  cargo run --example minimal_sync
 ```
 
 ## Installation
 In your project run:
-```rust 
+```bash 
 cargo add transforms --features async
 ```
 
