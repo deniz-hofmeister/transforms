@@ -1,35 +1,28 @@
-#[cfg(not(feature = "async"))]
-mod sync_minimal {
-    pub use log::{error, info};
-    pub use std::sync::Arc;
-    pub use tokio::sync::Mutex;
-    pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+pub use log::{error, info};
+pub use std::sync::Arc;
+pub use tokio::sync::Mutex;
+pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
 
-    // Dummy transform generator
-    pub fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds().unwrap().sin();
-        let y = t.as_seconds().unwrap().cos();
-        let z = 0.;
+// Dummy transform generator
+pub fn generate_transform(t: Timestamp) -> Transform {
+    let x = t.as_seconds().unwrap().sin();
+    let y = t.as_seconds().unwrap().cos();
+    let z = 0.;
 
-        Transform {
-            translation: Vector3 { x, y, z },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            parent: "a".into(),
-            child: "b".into(),
-            timestamp: t,
-        }
+    Transform {
+        translation: Vector3 { x, y, z },
+        rotation: Quaternion {
+            w: 1.,
+            x: 0.,
+            y: 0.,
+            z: 0.,
+        },
+        parent: "a".into(),
+        child: "b".into(),
+        timestamp: t,
     }
 }
 
-#[cfg(not(feature = "async"))]
-use sync_minimal::*;
-
-#[cfg(not(feature = "async"))]
 #[tokio::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -76,11 +69,4 @@ async fn main() {
     });
 
     let _ = tokio::join!(writer, reader);
-}
-
-#[cfg(feature = "async")]
-fn main() {
-    panic!(
-        "This example requires the 'async' feature to be disabled. Please run with: cargo run --example sync_polling"
-    );
 }

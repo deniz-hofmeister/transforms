@@ -1,34 +1,27 @@
-#[cfg(not(feature = "async"))]
-mod sync_minimal {
-    pub use log::{error, info};
-    pub use std::time::Duration;
-    pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+pub use log::{error, info};
+pub use std::time::Duration;
+pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
-    // Dummy transform generator
-    pub fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds().unwrap().sin();
-        let y = t.as_seconds().unwrap().cos();
-        let z = 0.;
+// Dummy transform generator
+pub fn generate_transform(t: Timestamp) -> Transform {
+    let x = t.as_seconds().unwrap().sin();
+    let y = t.as_seconds().unwrap().cos();
+    let z = 0.;
 
-        Transform {
-            translation: Vector3 { x, y, z },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            parent: "a".into(),
-            child: "b".into(),
-            timestamp: t,
-        }
+    Transform {
+        translation: Vector3 { x, y, z },
+        rotation: Quaternion {
+            w: 1.,
+            x: 0.,
+            y: 0.,
+            z: 0.,
+        },
+        parent: "a".into(),
+        child: "b".into(),
+        timestamp: t,
     }
 }
 
-#[cfg(not(feature = "async"))]
-use sync_minimal::*;
-
-#[cfg(not(feature = "async"))]
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
@@ -60,11 +53,4 @@ fn main() {
         Ok(tf) => info!("Found transform: {:?}", tf),
         Err(e) => error!("Transform not found: {:?}", e),
     }
-}
-
-#[cfg(feature = "async")]
-fn main() {
-    panic!(
-        "This example requires the 'async' feature to be disabled. Please run with: cargo run --example sync_minimal"
-    );
 }
