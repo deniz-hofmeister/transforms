@@ -5,7 +5,7 @@ mod async_minimal {
     pub use std::time::Duration;
     pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
-    /// Dummy transform generator
+    // Dummy transform generator
     pub fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds().unwrap().sin();
         let y = t.as_seconds().unwrap().cos();
@@ -34,6 +34,8 @@ use async_minimal::*;
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
+    // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
+    // 10 seconds will be flushed. Mutex is not needed as mutex is managed internally.
     let ttl = Duration::from_secs(10);
     let registry = Arc::new(Registry::new(ttl.into()));
 
@@ -42,8 +44,11 @@ async fn main() {
     let writer = tokio::spawn(async move {
         info!("Writer adding new transform");
         loop {
+            // Create a transform
             let time = Timestamp::now();
             let t = generate_transform(time);
+
+            // Add the transform and catch potential errors
             if let Err(e) = registry_writer.add_transform(t.clone()).await {
                 error!("Error adding transform: {:?}", e);
             }
@@ -56,7 +61,10 @@ async fn main() {
     let reader = tokio::spawn(async move {
         info!("Reader waiting for a new transform");
         loop {
+            // Request a transform in the future, therefore forcing it to wait.
             let time = (Timestamp::now() + Duration::from_secs(1).into()).unwrap();
+
+            // Wait for the transform to become available
             match registry_reader.await_transform("a", "b", time).await {
                 Ok(tf) => info!("Found transform through await: {:?}", tf),
                 Err(e) => error!("Error waiting for transform: {:?}", e),

@@ -36,16 +36,7 @@ pub mod async_impl {
         ) -> Result<(), BufferError> {
             {
                 let mut data = self.data.lock().await;
-                match data.entry(t.child.clone()) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().insert(t);
-                    }
-                    Entry::Vacant(entry) => {
-                        let buffer = Buffer::new(self.ttl);
-                        let buffer = entry.insert(buffer);
-                        buffer.insert(t);
-                    }
-                }
+                Self::process_add_transform(t, &mut data, self.ttl)?;
             }
             self.notify.notify_waiters();
             Ok(())
@@ -72,7 +63,7 @@ pub mod async_impl {
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
             let mut d = self.data.lock().await;
-            Self::process_transform(from, to, timestamp, &mut d)
+            Self::process_get_transform(from, to, timestamp, &mut d)
         }
     }
 }
@@ -97,17 +88,7 @@ pub mod sync_impl {
             &mut self,
             t: Transform,
         ) -> Result<(), BufferError> {
-            match self.data.entry(t.child.clone()) {
-                Entry::Occupied(mut entry) => {
-                    entry.get_mut().insert(t);
-                }
-                Entry::Vacant(entry) => {
-                    let buffer = Buffer::new(self.ttl);
-                    let buffer = entry.insert(buffer);
-                    buffer.insert(t);
-                }
-            }
-            Ok(())
+            Self::process_add_transform(t, &mut self.data, self.ttl)
         }
 
         pub fn get_transform(
@@ -116,13 +97,31 @@ pub mod sync_impl {
             to: &str,
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
-            Self::process_transform(from, to, timestamp, &mut self.data)
+            Self::process_get_transform(from, to, timestamp, &mut self.data)
         }
     }
 }
 
 impl Registry {
-    pub fn process_transform(
+    fn process_add_transform(
+        t: Transform,
+        data: &mut HashMap<String, Buffer>,
+        ttl: Duration,
+    ) -> Result<(), BufferError> {
+        match data.entry(t.child.clone()) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().insert(t);
+            }
+            Entry::Vacant(entry) => {
+                let buffer = Buffer::new(ttl);
+                let buffer = entry.insert(buffer);
+                buffer.insert(t);
+            }
+        }
+        Ok(())
+    }
+
+    fn process_get_transform(
         from: &str,
         to: &str,
         timestamp: Timestamp,
