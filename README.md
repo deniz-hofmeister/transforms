@@ -15,44 +15,24 @@ This library draws inspiration from ROS2 and the TF2 package.
 
 Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transform (Tab) is the transform for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pb = Tab^-1 * Pa```.
 
-1 - Create a registry, this will store all the reference frames and track the timelines. The input argument dictates how long the buffer holds on to old data.
+## Examples
+For example usage see the two included examples. They provide an example usage for a sync and a tokio-based async version of the library. 
+
+The recommended usage is to use the ```async``` version. This allows one to efficiently await for incoming transforms using the notify() system and does not require any polling.
 ```rust
-let mut registry = Registry::new(f64::INFINITY);
+ cargo run --example minimal_async --features async
 ```
 
-2 - Create a transform
+For a barebones usage of the library one can opt for the ```sync``` version of the library.
 ```rust
- let t = Timestamp::now();
-
- // Child frame B at x=1m without rotation
- let t_a_b = Transform {
-     translation: Vector3 {
-         x: 1.,
-         y: 0.,
-         z: 0.,
-     },
-     rotation: Quaternion {
-         w: 1.,
-         x: 0.,
-         y: 0.,
-         z: 0.,
-     },
-     timestamp: t,
-     parent: "a".to_string(),
-     child: "b".to_string(),
- };
+ cargo run --example minimal_sync
 ```
 
-3 - Register the transform
+## Installation
+In your project run:
 ```rust 
-registry.add_transform(t_a_b.clone());
+cargo add transforms --features async
 ```
-
-4 - Request the transform
-```rust
-let r = registry.get_transform("a", "b", t_a_b.timestamp);
-```
-
 
 ## Notes
 It is a requirement that the point's timestamp falls within or exactly on the timestamps of known reference frames. For instance, given two reference frames R1 and R2 with known transforms at T=0 and T=10 each, then transformations are possible for points with timestamps in the range T=[0,10], inclusive. Linear interpolation is used for timestamps between known transforms. This approach ensures accurate transformations within the defined time range.

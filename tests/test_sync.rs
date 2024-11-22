@@ -5,7 +5,7 @@ use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Ve
 
 #[cfg(not(feature = "async"))]
 #[test]
-fn test_chain_sync() {
+fn test_sync_matching_tree() {
     let _ = env_logger::try_init();
     let mut registry = Registry::new(Duration::try_from(10.0).unwrap());
     let t = Timestamp::now();
@@ -119,7 +119,7 @@ fn test_chain_sync() {
 
 #[cfg(not(feature = "async"))]
 #[test]
-fn test_chain_desync() {
+fn test_sync_non_matching_tree() {
     let _ = env_logger::try_init();
     let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
     let t = Timestamp::now();

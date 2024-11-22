@@ -5,7 +5,7 @@ use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Ve
 
 #[cfg(all(test, feature = "async"))]
 #[tokio::test]
-async fn test_chain_sync() {
+async fn test_async_matching_tree() {
     let _ = env_logger::try_init();
     let registry = Registry::new(Duration::try_from(10.0).unwrap());
     let t = Timestamp::now();
@@ -119,7 +119,7 @@ async fn test_chain_sync() {
 
 #[cfg(all(test, feature = "async"))]
 #[tokio::test]
-async fn test_chain_desync() {
+async fn test_async_non_matching_tree() {
     let _ = env_logger::try_init();
     let registry = Registry::new(Duration::try_from(1.0).unwrap());
     let t = Timestamp::now();
