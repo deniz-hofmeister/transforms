@@ -20,19 +20,27 @@ For example usage see the two included examples. They provide an example usage f
 
 The recommended usage is to use the ```async``` version. This allows one to efficiently await for incoming transforms using the notify() system and does not require any polling.
 ```rust
- cargo run --example minimal_async --features async
+ cargo run --example async_await --features async
 ```
 
 For a barebones usage of the library one can opt for the ```sync``` version of the library.
 ```rust
- cargo run --example minimal_sync
+ cargo run --example sync_minimal
 ```
-
+or
+```rust
+ cargo run --example sync_polling
+```
 ## Installation
 In your project run:
 ```rust 
 cargo add transforms --features async
 ```
+or
+```rust 
+cargo add transforms
+```
+
 
 ## Notes
 It is a requirement that the point's timestamp falls within or exactly on the timestamps of known reference frames. For instance, given two reference frames R1 and R2 with known transforms at T=0 and T=10 each, then transformations are possible for points with timestamps in the range T=[0,10], inclusive. Linear interpolation is used for timestamps between known transforms. This approach ensures accurate transformations within the defined time range.
