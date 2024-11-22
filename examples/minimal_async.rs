@@ -2,7 +2,8 @@
 mod minimal_async {
     pub use log::{error, info};
     pub use std::sync::Arc;
-    pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+    pub use std::time::Duration;
+    pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     /// Dummy transform generator
     pub fn generate_transform(t: Timestamp) -> Transform {
@@ -31,41 +32,38 @@ use minimal_async::*;
 #[cfg(feature = "async")]
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    let ttl = std::time::Duration::from_secs(10);
+    let ttl = Duration::from_secs(10);
     let registry = Arc::new(Registry::new(ttl.into()));
 
     // Writer task - generates and adds transforms
     let registry_writer = Arc::clone(&registry);
     let writer = tokio::spawn(async move {
+        info!("Writer adding new transform");
         loop {
             let time = Timestamp::now();
             let t = generate_transform(time);
-            info!("Adding new transform");
             if let Err(e) = registry_writer.add_transform(t.clone()).await {
                 error!("Error adding transform: {:?}", e);
             }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });
 
     // Reader task - uses await_transform to wait for transforms
     let registry_reader = Arc::clone(&registry);
     let reader = tokio::spawn(async move {
-        info!("Running reader");
+        info!("Reader waiting for a new transform");
         loop {
-            let time = (Timestamp::now() + Duration::try_from(1.0).unwrap()).unwrap();
-            info!("Reading new transform");
+            let time = (Timestamp::now() + Duration::from_secs(1).into()).unwrap();
             match registry_reader.await_transform("a", "b", time).await {
                 Ok(tf) => info!("Found transform through await: {:?}", tf),
                 Err(e) => error!("Error waiting for transform: {:?}", e),
             }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
 
-    // Run both tasks
     let _ = tokio::join!(writer, reader);
 }
 #[cfg(not(feature = "async"))]

@@ -61,21 +61,9 @@ mod async_impl {
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
             loop {
-                {
-                    debug!(
-                        "Looking up transform {:?}-{:?} at {:?}",
-                        from, to, timestamp.nanoseconds
-                    );
-                    match self.get_transform(from, to, timestamp).await {
-                        Ok(transform) => {
-                            return Ok(transform);
-                        }
-                        Err(e) => {
-                            debug!("Error retrieving transform: {:?}", e);
-                        }
-                    }
+                if let Ok(transform) = self.get_transform(from, to, timestamp).await {
+                    return Ok(transform);
                 }
-                debug!("Waiting for notify");
                 self.notify.notified().await;
             }
         }

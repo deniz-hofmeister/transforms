@@ -25,7 +25,7 @@ fn generate_transform(t: Timestamp) -> Transform {
 
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     let ttl = std::time::Duration::from_secs(10);
     let registry = Arc::new(Mutex::new(Registry::new(ttl.into())));
