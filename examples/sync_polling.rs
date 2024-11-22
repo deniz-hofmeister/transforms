@@ -81,6 +81,6 @@ async fn main() {
 #[cfg(feature = "async")]
 fn main() {
     panic!(
-        "This example requires the 'async' feature to be disabled. Please run with: cargo run --example minimal_sync"
+        "This example requires the 'async' feature to be disabled. Please run with: cargo run --example sync_polling"
     );
 }
