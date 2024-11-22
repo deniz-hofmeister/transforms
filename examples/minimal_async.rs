@@ -22,19 +22,21 @@ fn generate_transform(t: Timestamp) -> Transform {
     }
 }
 
+#[cfg(feature = "async")]
 #[tokio::main]
 async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
     let ttl = std::time::Duration::from_secs(10);
-    let mut registry = Arc::new(Registry::new(ttl.into()));
+    let registry = Arc::new(Registry::new(ttl.into()));
 
     // Writer task - generates and adds transforms
-    let mut registry_writer = registry.clone();
+    let registry_writer = Arc::clone(&registry);
     let writer = tokio::spawn(async move {
         loop {
-            let time = Timestamp::now();
+            let time = Timestamp::zero();
             let t = generate_transform(time);
+            info!("Adding new transform");
             if let Err(e) = registry_writer.add_transform(t.clone()).await {
                 error!("Error adding transform: {:?}", e);
             }
@@ -43,18 +45,28 @@ async fn main() {
     });
 
     // Reader task - uses await_transform to wait for transforms
-    let mut registry_reader = registry.clone();
+    let registry_reader = Arc::clone(&registry);
     let reader = tokio::spawn(async move {
         info!("Running reader");
         loop {
-            let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
+            // let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
+            let time = Timestamp::zero();
+            info!("Reading new transform");
             match registry_reader.await_transform("a", "b", time).await {
                 Ok(tf) => info!("Found transform through await: {:?}", tf),
                 Err(e) => error!("Error waiting for transform: {:?}", e),
             }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
     });
 
     // Run both tasks
     let _ = tokio::join!(writer, reader);
+}
+
+#[cfg(not(feature = "async"))]
+fn main() {
+    panic!(
+        "This example requires the 'async' feature. Please run with: cargo run --example async --features async"
+    );
 }

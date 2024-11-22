@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
 use crate::errors::{BufferError, TransformError};
+use log::{debug, error, info};
 
 #[cfg(feature = "async")]
 pub use async_impl::Registry;
@@ -13,21 +14,20 @@ pub use sync_impl::Registry;
 #[cfg(feature = "async")]
 mod async_impl {
     use super::*;
-    use std::sync::Arc;
     use tokio::sync::{Mutex, Notify};
 
     pub struct Registry {
-        pub data: Arc<Mutex<HashMap<String, Buffer>>>,
+        pub data: Mutex<HashMap<String, Buffer>>,
         ttl: Duration,
-        notify: Arc<Notify>,
+        notify: Notify,
     }
 
     impl Registry {
         pub fn new(ttl: Duration) -> Self {
             Self {
-                data: Arc::new(Mutex::new(HashMap::new())),
+                data: Mutex::new(HashMap::new()),
                 ttl,
-                notify: Arc::new(Notify::new()),
+                notify: Notify::new(),
             }
         }
 
@@ -39,9 +39,11 @@ mod async_impl {
                 let mut data = self.data.lock().await;
                 match data.entry(t.child.clone()) {
                     Entry::Occupied(mut entry) => {
+                        debug!("Buffer found, adding transform.");
                         entry.get_mut().insert(t);
                     }
                     Entry::Vacant(entry) => {
+                        debug!("No buffer found for this parent-child, creating new buffer.");
                         let buffer = Buffer::new(self.ttl);
                         let buffer = entry.insert(buffer);
                         buffer.insert(t);
@@ -53,29 +55,38 @@ mod async_impl {
         }
 
         pub async fn await_transform(
-            &mut self,
+            &self,
             from: &str,
             to: &str,
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
             loop {
                 {
-                    if let Ok(transform) = self.get_transform(from, to, timestamp).await {
-                        return Ok(transform);
+                    debug!(
+                        "Looking up transform {:?}-{:?} at {:?}",
+                        from, to, timestamp.nanoseconds
+                    );
+                    match self.get_transform(from, to, timestamp).await {
+                        Ok(transform) => {
+                            return Ok(transform);
+                        }
+                        Err(e) => {
+                            error!("Error retrieving transform: {:?}", e);
+                        }
                     }
                 }
+                info!("Waiting for notify");
                 self.notify.notified().await;
             }
         }
 
         pub async fn get_transform(
-            &mut self,
+            &self,
             from: &str,
             to: &str,
             timestamp: Timestamp,
         ) -> Result<Transform, TransformError> {
-            let data = Arc::clone(&self.data);
-            let mut d = data.lock().await;
+            let mut d = self.data.lock().await;
             Self::process_transform(from, to, timestamp, &mut d)
         }
     }
@@ -154,12 +165,12 @@ impl Registry {
         from: &str,
         to: &str,
         timestamp: Timestamp,
-        data: &mut HashMap<String, Buffer>,
+        data: &HashMap<String, Buffer>, // Use an immutable reference
     ) -> Result<VecDeque<Transform>, TransformError> {
         let mut transforms = VecDeque::new();
         let mut current_frame = from.to_string();
 
-        while let Some(frame_buffer) = data.get_mut(&current_frame) {
+        while let Some(frame_buffer) = data.get(&current_frame) {
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());
@@ -178,7 +189,6 @@ impl Registry {
             Ok(transforms)
         }
     }
-
     fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
