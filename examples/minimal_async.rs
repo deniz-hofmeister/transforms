@@ -1,26 +1,32 @@
-use log::{error, info};
-use std::sync::Arc;
-use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+#[cfg(feature = "async")]
+mod minimal_async {
+    pub use log::{error, info};
+    pub use std::sync::Arc;
+    pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
 
-/// Dummy transform generator
-fn generate_transform(t: Timestamp) -> Transform {
-    let x = t.as_seconds().unwrap().sin();
-    let y = t.as_seconds().unwrap().cos();
-    let z = 0.;
+    /// Dummy transform generator
+    pub fn generate_transform(t: Timestamp) -> Transform {
+        let x = t.as_seconds().unwrap().sin();
+        let y = t.as_seconds().unwrap().cos();
+        let z = 0.;
 
-    Transform {
-        translation: Vector3 { x, y, z },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
-        parent: "a".into(),
-        child: "b".into(),
-        timestamp: t,
+        Transform {
+            translation: Vector3 { x, y, z },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            parent: "a".into(),
+            child: "b".into(),
+            timestamp: t,
+        }
     }
 }
+
+#[cfg(feature = "async")]
+use minimal_async::*;
 
 #[cfg(feature = "async")]
 #[tokio::main]
@@ -34,7 +40,7 @@ async fn main() {
     let registry_writer = Arc::clone(&registry);
     let writer = tokio::spawn(async move {
         loop {
-            let time = Timestamp::zero();
+            let time = Timestamp::now();
             let t = generate_transform(time);
             info!("Adding new transform");
             if let Err(e) = registry_writer.add_transform(t.clone()).await {
@@ -49,8 +55,7 @@ async fn main() {
     let reader = tokio::spawn(async move {
         info!("Running reader");
         loop {
-            // let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
-            let time = Timestamp::zero();
+            let time = (Timestamp::now() + Duration::try_from(1.0).unwrap()).unwrap();
             info!("Reading new transform");
             match registry_reader.await_transform("a", "b", time).await {
                 Ok(tf) => info!("Found transform through await: {:?}", tf),
@@ -63,10 +68,9 @@ async fn main() {
     // Run both tasks
     let _ = tokio::join!(writer, reader);
 }
-
 #[cfg(not(feature = "async"))]
 fn main() {
     panic!(
-        "This example requires the 'async' feature. Please run with: cargo run --example async --features async"
+        "This example requires the 'async' feature. Please run with: cargo run --example minimal_async --features async"
     );
 }

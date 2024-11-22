@@ -3,7 +3,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 mod error;
 use crate::errors::{BufferError, TransformError};
-use log::{debug, error, info};
+use log::debug;
 
 #[cfg(feature = "async")]
 pub use async_impl::Registry;
@@ -71,11 +71,11 @@ mod async_impl {
                             return Ok(transform);
                         }
                         Err(e) => {
-                            error!("Error retrieving transform: {:?}", e);
+                            debug!("Error retrieving transform: {:?}", e);
                         }
                     }
                 }
-                info!("Waiting for notify");
+                debug!("Waiting for notify");
                 self.notify.notified().await;
             }
         }
