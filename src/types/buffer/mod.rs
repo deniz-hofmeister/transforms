@@ -29,10 +29,14 @@ impl Buffer {
     ) {
         self.is_static = transform.timestamp.nanoseconds == 0;
         self.data.insert(transform.timestamp, transform);
+
+        if !self.is_static {
+            self.delete_expired();
+        };
     }
 
     pub fn get(
-        &mut self,
+        &self,
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
         if self.is_static {
@@ -42,7 +46,6 @@ impl Buffer {
             }
         };
 
-        self.delete_expired();
         let (before, after) = self.get_nearest(timestamp);
 
         match (before, after) {
