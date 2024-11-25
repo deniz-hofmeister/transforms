@@ -24,9 +24,9 @@ pub fn generate_transform(t: Timestamp) -> Transform {
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
+
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed.
-
     let ttl = Duration::from_secs(10);
     let mut registry = Registry::new(ttl.into());
 
