@@ -80,15 +80,8 @@ impl Buffer {
                 nanoseconds: self.ttl,
             };
         if let Ok(t) = timestamp_threshold {
-            self.delete_before(t)
+            self.data.retain(|&k, _| k >= t);
         }
-    }
-
-    fn delete_before(
-        &mut self,
-        timestamp: Timestamp,
-    ) {
-        self.data.retain(|&k, _| k >= timestamp);
     }
 }
 

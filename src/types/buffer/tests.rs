@@ -112,7 +112,7 @@ mod buffer_tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(Duration::try_from(10.0).unwrap());
+        let mut buffer = Buffer::new(Duration::try_from(1.5).unwrap());
         let t = Timestamp::now();
 
         let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
@@ -122,8 +122,6 @@ mod buffer_tests {
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
         buffer.insert(p3.clone());
-
-        buffer.delete_before((t - Duration::try_from(1.0).unwrap()).unwrap());
 
         let get_1 = buffer.get(&(t - Duration::try_from(2.0).unwrap()).unwrap());
         let get_2 = buffer.get(&(t - Duration::try_from(1.0).unwrap()).unwrap());
