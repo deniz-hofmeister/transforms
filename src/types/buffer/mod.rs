@@ -8,6 +8,19 @@ type NearestTransforms<'a> = (
     Option<(&'a Timestamp, &'a Transform)>,
 );
 
+/// A buffer that stores transforms ordered by timestamps.
+///
+/// The `Buffer` struct is designed to manage a collection of transforms,
+/// each associated with a timestamp. It uses a binary tree to efficiently
+/// store and retrieve transforms based on their timestamps.
+///
+/// # Fields
+///
+/// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
+/// - `ttl`: A `u128` that defines the time-to-live for each entry, determining how long
+///   entries remain valid.
+/// - `is_static`: A boolean flag that, when set to true, converts the buffer to a static
+///   lookup if a timestamp with nanoseconds set to zero is supplied. Any
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
     ttl: u128,
@@ -58,8 +71,8 @@ impl Buffer {
     /// #       z: 0.0,
     /// #   };
     /// # let timestamp = Timestamp::now();
-    /// # let parent = "map".to_string();
-    /// # let child = "base".to_string();
+    /// # let parent = "a".to_string();
+    /// # let child = "b".to_string();
     ///
     /// let transform = Transform {
     ///       translation,
@@ -149,6 +162,11 @@ impl Buffer {
         }
     }
 
+    /// Retrieves the nearest transforms before and after the given timestamp.
+    ///
+    /// This function returns a tuple containing the nearest transform before
+    /// and the nearest transform after the specified timestamp. If the exact
+    /// timestamp exists, both elements of the tuple will be the same.
     fn get_nearest(
         &self,
         timestamp: &Timestamp,
@@ -165,6 +183,11 @@ impl Buffer {
         (before, after)
     }
 
+    /// Removes expired transforms from the buffer based on the TTL.
+    ///
+    /// This function deletes all transforms from the buffer that have a
+    /// timestamp older than the current time minus the time-to-live (TTL)
+    /// duration.
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now()
             - Duration {
