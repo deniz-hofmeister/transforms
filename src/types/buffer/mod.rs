@@ -15,6 +15,18 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    /// Creates a new buffer with the specified time-to-live(TTL).
+    /// Entries older than the TTL will automatically be removed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    /// # use transforms::types::Buffer;
+    ///
+    /// let ttl = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(ttl.into());
+    /// ```
     pub fn new(ttl: Duration) -> Self {
         Self {
             data: BTreeMap::new(),
@@ -23,6 +35,42 @@ impl Buffer {
         }
     }
 
+    /// Adds a transform to the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
+    ///
+    /// let ttl = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(ttl.into());
+    ///
+    /// # let translation = Vector3 {
+    /// #       x: 1.0,
+    /// #       y: 2.0,
+    /// #       z: 3.0,
+    /// #   };
+    /// # let rotation = Quaternion {
+    /// #       w: 1.0,
+    /// #       x: 0.0,
+    /// #       y: 0.0,
+    /// #       z: 0.0,
+    /// #   };
+    /// # let timestamp = Timestamp::now();
+    /// # let parent = "map".to_string();
+    /// # let child = "base".to_string();
+    ///
+    /// let transform = Transform {
+    ///       translation,
+    ///       rotation,
+    ///       timestamp,
+    ///       parent,
+    ///       child,
+    ///   };
+    ///
+    /// buffer.insert(transform);
+    /// ```
     pub fn insert(
         &mut self,
         transform: Transform,
@@ -35,6 +83,49 @@ impl Buffer {
         };
     }
 
+    /// Retrieves a transform from the buffer at the specified timestamp.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
+    /// # use transforms::errors::BufferError;
+    ///
+    /// let ttl = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(ttl.into());
+    ///
+    /// # let translation = Vector3 {
+    /// #       x: 1.0,
+    /// #       y: 2.0,
+    /// #       z: 3.0,
+    /// #   };
+    /// # let rotation = Quaternion {
+    /// #       w: 1.0,
+    /// #       x: 0.0,
+    /// #       y: 0.0,
+    /// #       z: 0.0,
+    /// #   };
+    /// # let timestamp = Timestamp::now();
+    /// # let parent = "map".to_string();
+    /// # let child = "base".to_string();
+    /// #
+    /// # let transform = Transform {
+    /// #       translation,
+    /// #       rotation,
+    /// #       timestamp,
+    /// #       parent,
+    /// #       child,
+    /// #   };
+    /// #
+    /// # buffer.insert(transform);
+    ///  
+    ///  let result = buffer.get(&timestamp);
+    ///  match result {
+    ///    Ok(transform) => println!("Transform found: {:?}", transform),
+    ///    Err(_) => println!("No transform available"),
+    ///  }
+    ///  ```
     pub fn get(
         &self,
         timestamp: &Timestamp,
