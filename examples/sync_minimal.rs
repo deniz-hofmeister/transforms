@@ -1,3 +1,4 @@
+/// This module provides functionality for generating and managing transforms.
 pub use log::{error, info};
 pub use std::time::Duration;
 pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
@@ -28,6 +29,8 @@ fn main() {
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed.
     let ttl = Duration::from_secs(10);
+
+    // We do not need to use Arc or Mutex as this example is a fully synchronous.
     let mut registry = Registry::new(ttl.into());
 
     // Create a transform

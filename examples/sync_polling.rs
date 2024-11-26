@@ -1,3 +1,5 @@
+/// This module demonstrates the use of asynchronous tasks to generate and manage transforms.
+/// It utilizes Tokio's asynchronous runtime and Mutex for concurrent access to shared data.
 pub use log::{error, info};
 pub use std::sync::Arc;
 pub use tokio::sync::Mutex;
@@ -30,6 +32,9 @@ async fn main() {
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed.
     let ttl = std::time::Duration::from_secs(10);
+
+    // Arc and Mutex is used in this example because we load the synchronous implementation of the
+    // registry, but in a multi-threaded context.
     let registry = Arc::new(Mutex::new(Registry::new(ttl.into())));
 
     // Writer task - generates and adds transforms

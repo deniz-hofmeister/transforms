@@ -1,3 +1,6 @@
+/// This module provides asynchronous functionality for generating and managing transforms.
+/// It is only compiled when the "async" feature is enabled.
+
 #[cfg(feature = "async")]
 mod async_minimal {
     pub use log::{error, info};

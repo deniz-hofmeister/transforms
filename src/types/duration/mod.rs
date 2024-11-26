@@ -6,6 +6,24 @@ use std::time::Duration as StdDuration;
 
 use crate::errors::TimestampError;
 
+/// Represents a duration of time in nanoseconds.
+///
+/// The `Duration` struct encapsulates a time span measured in nanoseconds.
+/// It provides a conversion from the standard library's `std::time::Duration` type.
+///
+/// # Examples
+///
+/// ```
+/// use transforms::types::Duration;
+///
+/// // Create a standard duration of 2 seconds
+/// let std_duration = std::time::Duration::new(2, 0);
+///
+/// // Convert it to our custom Duration type
+/// let custom_duration: Duration = std_duration.into();
+///
+/// assert_eq!(custom_duration.nanoseconds, 2_000_000_000);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Default)]
 pub struct Duration {
     pub nanoseconds: u128,
@@ -18,7 +36,6 @@ impl From<StdDuration> for Duration {
         }
     }
 }
-
 impl TryFrom<f64> for Duration {
     type Error = DurationError;
 
