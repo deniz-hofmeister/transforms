@@ -18,42 +18,20 @@ impl Timestamp {
             nanoseconds: now.as_nanos(),
         }
     }
+
     pub fn zero() -> Self {
         Timestamp { nanoseconds: 0 }
     }
 
     pub fn as_seconds(&self) -> Result<f64, TimestampError> {
-        let seconds = self.nanoseconds as f64 / 1_000_000_000.0;
-        let rounded = (seconds * 1_000_000_000.0).round() / 1_000_000_000.0;
+        const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        let seconds = self.nanoseconds as f64 / NANOSECONDS_PER_SECOND;
 
-        if (seconds - rounded).abs() > f64::EPSILON {
+        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.nanoseconds {
             Err(TimestampError::AccuracyLoss)
         } else {
             Ok(seconds)
         }
-    }
-
-    pub fn as_milliseconds(&self) -> u128 {
-        self.nanoseconds / 1_000_000
-    }
-
-    pub fn as_nanoseconds(&self) -> u128 {
-        self.nanoseconds
-    }
-
-    pub fn from_seconds(seconds: f64) -> Self {
-        let nanoseconds = (seconds * 1_000_000_000.0) as u128;
-        Timestamp { nanoseconds }
-    }
-
-    pub fn from_milliseconds(milliseconds: u64) -> Self {
-        Timestamp {
-            nanoseconds: u128::from(milliseconds) * 1_000_000,
-        }
-    }
-
-    pub fn from_nanoseconds(nanoseconds: u128) -> Self {
-        Timestamp { nanoseconds }
     }
 }
 

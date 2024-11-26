@@ -2,7 +2,6 @@ use crate::types::Timestamp;
 use core::ops::{Add, Div, Sub};
 mod error;
 pub use error::DurationError;
-use std::time::Duration as StdDuration;
 
 use crate::errors::TimestampError;
 
@@ -29,13 +28,14 @@ pub struct Duration {
     pub nanoseconds: u128,
 }
 
-impl From<StdDuration> for Duration {
-    fn from(d: StdDuration) -> Self {
+impl From<std::time::Duration> for Duration {
+    fn from(d: std::time::Duration) -> Self {
         Self {
             nanoseconds: d.as_nanos(),
         }
     }
 }
+
 impl TryFrom<f64> for Duration {
     type Error = DurationError;
 

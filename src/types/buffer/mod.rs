@@ -120,25 +120,25 @@ impl Buffer {
     /// #       z: 0.0,
     /// #   };
     /// # let timestamp = Timestamp::now();
-    /// # let parent = "map".to_string();
-    /// # let child = "base".to_string();
+    /// # let parent = "a".to_string();
+    /// # let child = "b".to_string();
     /// #
-    /// # let transform = Transform {
-    /// #       translation,
-    /// #       rotation,
-    /// #       timestamp,
-    /// #       parent,
-    /// #       child,
-    /// #   };
-    /// #
-    /// # buffer.insert(transform);
+    /// let transform = Transform {
+    ///       translation,
+    ///       rotation,
+    ///       timestamp,
+    ///       parent,
+    ///       child,
+    ///   };
+    ///
+    /// buffer.insert(transform);
     ///  
-    ///  let result = buffer.get(&timestamp);
-    ///  match result {
-    ///    Ok(transform) => println!("Transform found: {:?}", transform),
-    ///    Err(_) => println!("No transform available"),
-    ///  }
-    ///  ```
+    /// let result = buffer.get(&timestamp);
+    /// match result {
+    ///   Ok(transform) => println!("Transform found: {:?}", transform),
+    ///   Err(_) => println!("No transform available"),
+    /// }
+    /// ```
     pub fn get(
         &self,
         timestamp: &Timestamp,

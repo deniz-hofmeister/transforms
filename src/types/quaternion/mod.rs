@@ -4,6 +4,7 @@ pub mod error;
 use approx::AbsDiffEq;
 pub use error::QuaternionError;
 
+/// A quaternion representing a rotation in 3D space.
 #[derive(Debug, Clone, Copy, PartialOrd)]
 pub struct Quaternion {
     pub w: f64,
@@ -13,6 +14,16 @@ pub struct Quaternion {
 }
 
 impl Quaternion {
+    /// Returns the conjugate of the quaternion.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    ///
+    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
+    /// assert_eq!(q.conjugate(), Quaternion { w: 1.0, x: -2.0, y: -3.0, z: -4.0 });
+    /// ```
     #[inline]
     pub fn conjugate(self) -> Quaternion {
         Quaternion {
@@ -23,6 +34,25 @@ impl Quaternion {
         }
     }
 
+    /// Normalizes the quaternion to unit length.
+    ///
+    /// # Errors
+    ///
+    /// Returns `QuaternionError::ZeroLengthNormalization` if the quaternion is zero-length.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    /// # use transforms::errors::QuaternionError;
+    ///
+    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
+    /// let normalized = q.normalize().unwrap();
+    /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
+    ///
+    /// let zero_q = Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 0.0 };
+    /// assert!(matches!(zero_q.normalize(), Err(QuaternionError::ZeroLengthNormalization)));
+    /// ```
     #[inline]
     pub fn normalize(self) -> Result<Quaternion, QuaternionError> {
         let norm = self.norm();
@@ -32,16 +62,49 @@ impl Quaternion {
         Ok(self.scale(1.0 / norm))
     }
 
+    /// Computes the norm (magnitude) of the quaternion.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    ///
+    /// let q = Quaternion { w: 1.0, x: 1.0, y: 1.0, z: 1.0 };
+    /// assert_eq!(q.norm(), 2.0);
+    /// ```
     #[inline]
     pub fn norm(self) -> f64 {
         (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
+    /// Computes the squared norm of the quaternion.
+    ///
+    /// This is the sum of the squares of the components.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    ///
+    /// let q = Quaternion { w: 1.0, x: 2.0, y: 2.0, z: 2.0 };
+    /// assert_eq!(q.norm_squared(), 13.0);
+    /// ```
     #[inline]
     pub fn norm_squared(self) -> f64 {
         self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    /// Scales the quaternion by a given factor.
+    ///
+    /// Multiplies each component of the quaternion by the factor.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    ///
+    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
+    /// assert_eq!(q.scale(2.0), Quaternion { w: 2.0, x: 4.0, y: 6.0, z: 8.0 });
     #[inline]
     pub fn scale(
         self,
@@ -55,6 +118,25 @@ impl Quaternion {
         }
     }
 
+    /// Rotates a vector by the quaternion.
+    ///
+    /// The vector is treated as a pure quaternion with a real part of zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::{Quaternion, Vector3};
+    /// # use approx::assert_relative_eq;
+    ///
+    /// let q = Quaternion {
+    ///     w: (std::f64::consts::PI / 4.0).cos(),
+    ///     x: 0.0,
+    ///     y: 0.0,
+    ///     z: (std::f64::consts::PI / 4.0).sin(),
+    /// };
+    /// let v = Vector3 { x: 1.0, y: 0.0, z: 0.0 };
+    /// assert_relative_eq!(q.rotate_vector(v), Vector3 {x: 0.0, y: 1.0, z: 0.0});
+    /// ```
     #[inline]
     pub fn rotate_vector(
         self,
@@ -73,7 +155,30 @@ impl Quaternion {
             z: q_res.z,
         }
     }
-
+    /// Performs spherical linear interpolation (slerp) between two quaternions.
+    ///
+    /// Interpolates between `self` and `other` by the factor `t`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Quaternion;
+    /// # use approx::assert_relative_eq;
+    ///
+    /// let q1 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+    /// let q2 = Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 };
+    /// let result = q1.slerp(q2, 0.5);
+    /// let expected = Quaternion {
+    ///     w: (0.5_f64).sqrt(),
+    ///     x: (0.5_f64).sqrt(),
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
+    /// assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
+    /// assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
+    /// assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);
+    /// assert_relative_eq!(result.z, expected.z, epsilon = f64::EPSILON);
+    /// ```
     #[inline]
     pub fn slerp(
         self,
