@@ -15,33 +15,99 @@ pub mod async_impl {
     use super::*;
     use tokio::sync::{Mutex, Notify};
 
+    /// A registry for managing transforms between different frames.
+    ///
+    /// The `Registry` struct provides methods to add and retrieve transforms
+    /// between frames, supporting both synchronous and asynchronous operations
+    /// depending on the feature flags.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    /// use std::time::Duration;
+    /// use tokio_test::block_on;
+    ///
+    /// # block_on(async {
+    ///     let registry = Registry::new(Duration::from_secs(60));
+    ///     let t1 = Timestamp::now();
+    ///     let t2 = t1.clone();
+    ///
+    ///     // Define a transform from frame "a" to frame "b"
+    ///     let t_a_b_1 = Transform {
+    ///         translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
+    ///         rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///         timestamp: t1,
+    ///         parent: "a".to_string(),
+    ///         child: "b".to_string(),
+    ///     };
+    ///
+    ///     // Add the transform to the registry
+    ///     registry.add_transform(t_a_b_1.clone()).await.unwrap();
+    ///
+    ///     // Retrieve the transform from "a" to "b"
+    ///     let result = registry.await_transform("a", "b", t2).await.unwrap();
+    ///     assert_eq!(result, t_a_b_1);
+    /// # });
+    /// ```
     pub struct Registry {
         pub data: Mutex<HashMap<String, Buffer>>,
-        ttl: Duration,
+        max_age: crate::types::Duration,
         notify: Notify,
     }
 
     impl Registry {
-        pub fn new(ttl: Duration) -> Self {
+        /// Creates a new `Registry` with the specified time-to-live duration.
+        ///
+        /// # Arguments
+        ///
+        /// * `max_age` - The duration for which transforms are considered valid.
+        ///
+        /// # Returns
+        ///
+        /// A new instance of `Registry`.
+        pub fn new(max_age: std::time::Duration) -> Self {
             Self {
                 data: Mutex::new(HashMap::new()),
-                ttl,
+                max_age: max_age.into(),
                 notify: Notify::new(),
             }
         }
 
+        /// Adds a transform to the registry asynchronously.
+        ///
+        /// # Arguments
+        ///
+        /// * `t` - The transform to add.
+        ///
+        /// # Errors
+        ///
+        /// Returns a `BufferError` if the transform cannot be added.
         pub async fn add_transform(
             &self,
             t: Transform,
         ) -> Result<(), BufferError> {
             {
                 let mut data = self.data.lock().await;
-                Self::process_add_transform(t, &mut data, self.ttl)?;
+                Self::process_add_transform(t, &mut data, self.max_age)?;
             }
             self.notify.notify_waiters();
             Ok(())
         }
 
+        /// Awaits for a transform to become available in the registry.
+        ///
+        /// This method will (indefinitely) wait until the requested transform becomes available.
+        ///
+        /// # Arguments
+        ///
+        /// * `from` - The source frame.
+        /// * `to` - The destination frame.
+        /// * `timestamp` - The timestamp for which the transform is requested.
+        ///
+        /// # Returns
+        ///
+        /// A `Result` containing the `Transform` if found, or an error if not found.
         pub async fn await_transform(
             &self,
             from: &str,
@@ -56,6 +122,17 @@ pub mod async_impl {
             }
         }
 
+        /// Retrieves a transform from the registry asynchronously.
+        ///
+        /// # Arguments
+        ///
+        /// * `from` - The source frame.
+        /// * `to` - The destination frame.
+        /// * `timestamp` - The timestamp for which the transform is requested.
+        ///
+        /// # Errors
+        ///
+        /// Returns a `TransformError` if the transform cannot be found.
         pub async fn get_transform(
             &self,
             from: &str,
@@ -71,26 +148,127 @@ pub mod async_impl {
 #[cfg(not(feature = "async"))]
 pub mod sync_impl {
     use super::*;
+
+    /// A registry for managing transforms between different frames. It can
+    /// traverse the parent-child tree and calculate the final transform.
+    /// It will interpolate between two entries if a time is requested that
+    /// lies in between.
+    ///
+    /// The `Registry` struct provides methods to add and retrieve transforms
+    /// between frames, supporting both synchronous and asynchronous operations
+    /// depending on the feature flags.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    /// use std::time::Duration;
+    ///
+    /// // Create a new registry with a time-to-live duration
+    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let t1 = Timestamp::now();
+    /// let t2 = t1.clone();
+    ///
+    /// // Define a transform from frame "a" to frame "b"
+    /// let t_a_b_1 = Transform {
+    ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: t1,
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
+    /// // For validation
+    /// let t_a_b_2 = t_a_b_1.clone();
+    ///
+    /// // Add the transform to the registry
+    /// registry.add_transform(t_a_b_1).unwrap();
+    ///
+    /// // Retrieve the transform from "a" to "b"
+    /// let result = registry.get_transform("a", "b", t2);
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap(), t_a_b_2);
+    /// ```
     pub struct Registry {
         pub data: HashMap<String, Buffer>,
-        ttl: Duration,
+        max_age: Duration,
     }
 
     impl Registry {
-        pub fn new(d: Duration) -> Self {
+        /// Creates a new `Registry` with the specified time-to-live duration.
+        ///
+        /// # Arguments
+        ///
+        /// * `max_age` - The duration for which transforms are considered valid.
+        ///
+        /// # Returns
+        ///
+        /// A new instance of `Registry`.
+        pub fn new(max_age: std::time::Duration) -> Self {
             Self {
                 data: HashMap::new(),
-                ttl: d,
+                max_age: max_age.into(),
             }
         }
-
+        /// Adds a transform to the registry.
+        ///
+        /// # Arguments
+        ///
+        /// * `t` - The transform to add.
+        ///
+        /// # Errors
+        ///
+        /// Returns a `BufferError` if the transform cannot be added.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use std::time::Duration;
+        ///
+        /// let mut registry = Registry::new(Duration::from_secs(60));
+        /// let transform = Transform::identity();
+        ///
+        /// let result = registry.add_transform(transform);
+        /// assert!(result.is_ok());
+        /// ```
         pub fn add_transform(
             &mut self,
             t: Transform,
         ) -> Result<(), BufferError> {
-            Self::process_add_transform(t, &mut self.data, self.ttl)
+            Self::process_add_transform(t, &mut self.data, self.max_age)
         }
 
+        /// Retrieves a transform from the registry.
+        ///
+        /// # Arguments
+        ///
+        /// * `from` - The source frame.
+        /// * `to` - The destination frame.
+        /// * `timestamp` - The timestamp for which the transform is requested.
+        ///
+        /// # Errors
+        ///
+        /// Returns a `TransformError` if the transform cannot be found.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use std::time::Duration;
+        ///
+        /// let mut registry = Registry::new(Duration::from_secs(60));
+        /// let t = Timestamp::zero();
+        /// let mut transform_1 = Transform::identity();
+        /// transform_1.parent = "a".into();
+        /// transform_1.child = "b".into();
+        ///
+        /// let transform_2 = transform_1.clone();
+        ///
+        /// let _ = registry.add_transform(transform_1).unwrap();
+        /// let result = registry.get_transform("a", "b", t);
+        /// assert!(result.is_ok());
+        /// assert_eq!(result.unwrap(), transform_2);
+        /// ```
         pub fn get_transform(
             &mut self,
             from: &str,
@@ -106,14 +284,14 @@ impl Registry {
     fn process_add_transform(
         t: Transform,
         data: &mut HashMap<String, Buffer>,
-        ttl: Duration,
+        max_age: Duration,
     ) -> Result<(), BufferError> {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(t);
             }
             Entry::Vacant(entry) => {
-                let buffer = Buffer::new(ttl);
+                let buffer = Buffer::new(max_age);
                 let buffer = entry.insert(buffer);
                 buffer.insert(t);
             }
@@ -203,10 +381,7 @@ impl Registry {
         let mut final_transform = match iter.next() {
             Some(transform) => transform,
             None => {
-                return Err(TransformError::NotFound(
-                    "from".to_string(),
-                    "to".to_string(),
-                ));
+                return Err(TransformError::TransformTreeEmpty);
             }
         };
 

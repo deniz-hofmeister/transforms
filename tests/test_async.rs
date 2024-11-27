@@ -1,13 +1,14 @@
 #[cfg(all(test, feature = "async"))]
-use log::debug;
-#[cfg(all(test, feature = "async"))]
-use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+use {
+    log::debug,
+    transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3},
+};
 
 #[cfg(all(test, feature = "async"))]
 #[tokio::test]
 async fn test_async_matching_tree() {
     let _ = env_logger::try_init();
-    let registry = Registry::new(Duration::try_from(10.0).unwrap());
+    let registry = Registry::new(std::time::Duration::from_secs(60));
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -121,7 +122,7 @@ async fn test_async_matching_tree() {
 #[tokio::test]
 async fn test_async_non_matching_tree() {
     let _ = env_logger::try_init();
-    let registry = Registry::new(Duration::try_from(1.0).unwrap());
+    let registry = Registry::new(std::time::Duration::from_secs(60));
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation

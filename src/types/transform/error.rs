@@ -15,6 +15,9 @@ pub enum TransformError {
     #[error("Transform not found from {0} to {1}")]
     NotFound(String, String),
 
+    #[error("Transform tree is empty")]
+    TransformTreeEmpty,
+
     #[error("Duration error: {0}")]
     DurationError(#[from] DurationError),
 

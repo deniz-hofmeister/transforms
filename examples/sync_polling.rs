@@ -1,41 +1,42 @@
-/// This module demonstrates the use of asynchronous tasks to generate and manage transforms.
-/// It utilizes Tokio's asynchronous runtime and Mutex for concurrent access to shared data.
-pub use log::{error, info};
-pub use std::sync::Arc;
-pub use tokio::sync::Mutex;
-pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
-
-// Dummy transform generator
-pub fn generate_transform(t: Timestamp) -> Transform {
-    let x = t.as_seconds().unwrap().sin();
-    let y = t.as_seconds().unwrap().cos();
-    let z = 0.;
-
-    Transform {
-        translation: Vector3 { x, y, z },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
-        parent: "a".into(),
-        child: "b".into(),
-        timestamp: t,
-    }
-}
-
+/// This example demonstrates the use of sync implementation of the registry in an async main
+/// to add and retrieve transforms.
+#[cfg(not(feature = "async"))]
 #[tokio::main]
 async fn main() {
+    pub use log::{error, info};
+    pub use std::sync::Arc;
+    pub use tokio::sync::Mutex;
+    pub use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+
+    // Dummy transform generator
+    pub fn generate_transform(t: Timestamp) -> Transform {
+        let x = t.as_seconds().unwrap().sin();
+        let y = t.as_seconds().unwrap().cos();
+        let z = 0.;
+
+        Transform {
+            translation: Vector3 { x, y, z },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            parent: "a".into(),
+            child: "b".into(),
+            timestamp: t,
+        }
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed.
-    let ttl = std::time::Duration::from_secs(10);
+    let max_age = std::time::Duration::from_secs(10);
 
     // Arc and Mutex is used in this example because we load the synchronous implementation of the
     // registry, but in a multi-threaded context.
-    let registry = Arc::new(Mutex::new(Registry::new(ttl.into())));
+    let registry = Arc::new(Mutex::new(Registry::new(max_age)));
 
     // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
@@ -74,4 +75,9 @@ async fn main() {
     });
 
     let _ = tokio::join!(writer, reader);
+}
+
+#[cfg(feature = "async")]
+fn main() {
+    panic!("This example should not be run with the 'async' feature enabled.");
 }
