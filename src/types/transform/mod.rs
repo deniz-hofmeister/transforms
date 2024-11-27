@@ -5,6 +5,23 @@ use core::ops::Mul;
 mod error;
 pub use error::TransformError;
 
+/// Represents a 3D transformation with translation, rotation, and timestamp.
+///
+/// The `Transform` struct is used to represent a transformation in 3D space,
+/// including translation, rotation, and associated metadata such as timestamps
+/// and frame identifiers.
+///
+/// # Examples
+///
+/// ```
+/// # use transforms::types::{Transform, Vector3, Quaternion, Timestamp};
+///
+/// // Create an identity transform
+/// let identity = Transform::identity();
+///
+/// assert_eq!(identity.translation, Vector3 { x: 0.0, y: 0.0, z: 0.0 });
+/// assert_eq!(identity.rotation, Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 });
+/// ```
 #[derive(Debug, Clone)]
 pub struct Transform {
     pub translation: Vector3,
