@@ -2,6 +2,20 @@ use core::ops::{Add, Div, Mul, Sub};
 mod error;
 use approx::{AbsDiffEq, RelativeEq};
 
+/// A 3D vector with `x`, `y`, and `z` components.
+///
+/// The `Vector3` struct represents a point or direction in 3D space.
+///
+/// # Examples
+///
+/// ```
+/// # use transforms::types::Vector3;
+///
+/// let vector = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
+///
+/// assert_eq!(vector.x, 1.0);
+/// assert_eq!(vector.y, 2.0);
+/// assert_eq!(vector.z, 3.0);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vector3 {
     pub x: f64,

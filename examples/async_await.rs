@@ -1,8 +1,10 @@
-/// This module provides asynchronous functionality for generating and managing transforms.
+/// This is the recommended way of using this library.
+///
+/// An async implementation of the registry, allowing the registry to await for transforms.
 /// It is only compiled when the "async" feature is enabled.
-
 #[cfg(feature = "async")]
-mod async_minimal {
+#[tokio::main]
+async fn main() {
     pub use log::{error, info};
     pub use std::sync::Arc;
     pub use std::time::Duration;
@@ -27,20 +29,13 @@ mod async_minimal {
             timestamp: t,
         }
     }
-}
 
-#[cfg(feature = "async")]
-use async_minimal::*;
-
-#[cfg(feature = "async")]
-#[tokio::main]
-async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed. Mutex is not needed as mutex is managed internally.
-    let ttl = Duration::from_secs(10);
-    let registry = Arc::new(Registry::new(ttl.into()));
+    let max_age = Duration::from_secs(10);
+    let registry = Arc::new(Registry::new(max_age.into()));
 
     // Writer task - generates and adds transforms
     let registry_writer = Arc::clone(&registry);

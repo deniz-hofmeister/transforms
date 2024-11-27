@@ -10,7 +10,7 @@ mod registry_tests {
         #[test]
         fn basic_chain_linear() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -85,7 +85,7 @@ mod registry_tests {
         #[test]
         fn basic_chain_rotation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -179,7 +179,7 @@ mod registry_tests {
         #[test]
         fn basic_exact_match() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
 
             // Child frame B at x=1m without rotation
             let t_a_b = Transform {
@@ -247,7 +247,7 @@ mod registry_tests {
         #[test]
         fn basic_interpolation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -318,7 +318,7 @@ mod registry_tests {
         #[test]
         fn basic_chained_interpolation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at t=0, x=1m without rotation
@@ -434,7 +434,7 @@ mod registry_tests {
         #[test]
         fn basic_common_parent_elimination() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(std::time::Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame C at t=0, x=1m without rotation

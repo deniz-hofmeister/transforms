@@ -1,5 +1,8 @@
 use crate::types::Timestamp;
-use core::ops::{Add, Div, Sub};
+use core::{
+    f64,
+    ops::{Add, Div, Sub},
+};
 mod error;
 pub use error::DurationError;
 
@@ -58,15 +61,49 @@ impl TryFrom<f64> for Duration {
         }
 
         // Check for accuracy loss
+        // This will likely trigger when Duration is greater than
+        // 2^53 nanoseconds ~ 104 days.
+        //
+        // If such a duration would be necessary, consider using
+        // static transforms or avoid using f64.
         let nanos_u128 = nanos as u128;
         let back_to_seconds = nanos_u128 as f64 / 1e9;
-        if (back_to_seconds - seconds).abs() > 1e-9 {
+        if (back_to_seconds - seconds).abs() > f64::EPSILON {
             return Err(DurationError::AccuracyLoss);
         }
 
         Ok(Self {
             nanoseconds: nanos_u128,
         })
+    }
+}
+
+/// Converts the duration to seconds.
+///
+/// # Examples
+///
+/// ```
+/// # use transforms::types::Duration;
+///
+/// let duration = Duration { nanoseconds: 1_000_000_000 };
+/// let seconds = duration.as_seconds().unwrap();
+///
+/// assert_eq!(seconds, 1.0);
+/// ```
+///
+/// # Errors
+///
+/// Returns `DurationError::AccuracyLoss` if the conversion loses accuracy.
+impl Duration {
+    pub fn as_seconds(&self) -> Result<f64, DurationError> {
+        const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        let seconds = self.nanoseconds as f64 / NANOSECONDS_PER_SECOND;
+
+        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.nanoseconds {
+            Err(DurationError::AccuracyLoss)
+        } else {
+            Ok(seconds)
+        }
     }
 }
 
@@ -108,19 +145,6 @@ impl Div<f64> for Duration {
         Ok(Duration {
             nanoseconds: result as u128,
         })
-    }
-}
-
-impl Duration {
-    pub fn as_seconds(&self) -> Result<f64, DurationError> {
-        let seconds = self.nanoseconds as f64 / 1_000_000_000.0;
-        let rounded = (seconds * 1_000_000_000.0).round() / 1_000_000_000.0;
-
-        if (seconds - rounded).abs() > f64::EPSILON {
-            Err(DurationError::AccuracyLoss)
-        } else {
-            Ok(seconds)
-        }
     }
 }
 
