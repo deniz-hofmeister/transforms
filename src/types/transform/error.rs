@@ -1,4 +1,4 @@
-use crate::errors::{DurationError, TimestampError};
+use crate::errors::{DurationError, QuaternionError, TimestampError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -20,4 +20,7 @@ pub enum TransformError {
 
     #[error("Timestamp error: {0}")]
     TimestampError(#[from] TimestampError),
+
+    #[error("Quaternion error: {0}")]
+    QuaternionError(#[from] QuaternionError),
 }
