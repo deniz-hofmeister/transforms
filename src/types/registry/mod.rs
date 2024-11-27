@@ -327,7 +327,7 @@ impl Registry {
         from: &str,
         to: &str,
         timestamp: Timestamp,
-        data: &HashMap<String, Buffer>, // Use an immutable reference
+        data: &HashMap<String, Buffer>,
     ) -> Result<VecDeque<Transform>, TransformError> {
         let mut transforms = VecDeque::new();
         let mut current_frame = from.to_string();
