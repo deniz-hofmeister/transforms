@@ -29,25 +29,31 @@ pub mod async_impl {
     /// # use tokio_test::block_on;
     ///
     /// # block_on(async {
-    ///     let registry = Registry::new(Duration::from_secs(60));
-    ///     let t1 = Timestamp::now();
-    ///     let t2 = t1.clone();
+    /// // Create a new registry with a time-to-live duration
+    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let t1 = Timestamp::now();
+    /// let t2 = t1.clone();
     ///
-    ///     // Define a transform from frame "a" to frame "b"
-    ///     let t_a_b_1 = Transform {
-    ///         translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-    ///         rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
-    ///         timestamp: t1,
-    ///         parent: "a".to_string(),
-    ///         child: "b".to_string(),
-    ///     };
+    /// // Define a transform from frame "a" to frame "b"
+    /// let t_a_b_1 = Transform {
+    ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: t1,
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
     ///
-    ///     // Add the transform to the registry
-    ///     registry.add_transform(t_a_b_1.clone()).await.unwrap();
+    /// // For validation
+    /// let t_a_b_2 = t_a_b_1.clone();
     ///
-    ///     // Retrieve the transform from "a" to "b"
-    ///     let result = registry.await_transform("a", "b", t2).await.unwrap();
-    ///     assert_eq!(result, t_a_b_1);
+    /// // Add the transform to the registry
+    /// let result = registry.add_transform(t_a_b_1).await;
+    /// assert!(result.is_ok());
+    ///
+    /// // Retrieve the transform from "a" to "b"
+    /// let result = registry.get_transform("a", "b", t2).await;
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap(), t_a_b_2);
     /// # });
     /// ```
     pub struct Registry {
@@ -66,6 +72,15 @@ pub mod async_impl {
         /// # Returns
         ///
         /// A new instance of `Registry`.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use std::time::Duration;
+        ///
+        /// let mut registry = Registry::new(Duration::from_secs(60));
+        /// ```
         pub fn new(max_age: std::time::Duration) -> Self {
             Self {
                 data: Mutex::new(HashMap::new()),
@@ -92,11 +107,11 @@ pub mod async_impl {
         /// use std::time::Duration;
         ///
         /// # block_on(async {
-        ///     let mut registry = Registry::new(Duration::from_secs(60));
-        ///     let transform = Transform::identity();
+        /// let mut registry = Registry::new(Duration::from_secs(60));
+        /// let transform = Transform::identity();
         ///
-        ///     let result = registry.add_transform(transform).await;
-        ///     assert!(result.is_ok());
+        /// let result = registry.add_transform(transform).await;
+        /// assert!(result.is_ok());
         /// # });
         /// ```
         pub async fn add_transform(
@@ -128,24 +143,32 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
+        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// # use tokio_test::block_on;
+        /// use std::time::Duration;
+        ///
         /// # block_on(async {
-        ///     let registry = Registry::new(Duration::from_secs(60));
-        ///     let t1 = Timestamp::now();
-        ///     
-        ///     let t_a_b = Transform {
-        ///         translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-        ///         rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
-        ///         timestamp: t1.clone(),
-        ///         parent: "a".to_string(),
-        ///         child: "b".to_string(),
-        ///     };
-        ///     
-        ///     // Clone not necessary, only used for assert_eq later.
-        ///     registry.add_transform(t_a_b.clone()).await.unwrap();
-        ///     
-        ///     let result = registry.await_transform("a", "b", t1).await.unwrap();
-        ///     
-        ///     assert_eq!(result, t_a_b);
+        /// let mut registry = Registry::new(Duration::from_secs(60));
+        /// let t1 = Timestamp::zero();
+        /// let t2 = t1.clone();
+        ///
+        /// // Define a transform from frame "a" to frame "b"
+        /// let t_a_b_1 = Transform {
+        ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
+        ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+        ///     timestamp: t1,
+        ///     parent: "a".to_string(),
+        ///     child: "b".to_string(),
+        /// };
+        /// // For validation
+        /// let t_a_b_2 = t_a_b_1.clone();
+        ///
+        /// let result = registry.add_transform(t_a_b_1).await;
+        /// assert!(result.is_ok());
+        ///
+        /// let result = registry.await_transform("a", "b", t2).await;
+        /// assert!(result.is_ok());
+        /// assert_eq!(result.unwrap(), t_a_b_2);
         /// # });
         /// ```
         pub async fn await_transform(
@@ -177,21 +200,33 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
-        /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// # use tokio_test::block_on;
         /// use std::time::Duration;
         ///
+        /// # block_on(async {
         /// let mut registry = Registry::new(Duration::from_secs(60));
-        /// let t = Timestamp::zero();
-        /// let mut transform_1 = Transform::identity();
-        /// transform_1.parent = "a".into();
-        /// transform_1.child = "b".into();
+        /// let t1 = Timestamp::zero();
+        /// let t2 = t1.clone();
         ///
-        /// let transform_2 = transform_1.clone();
+        /// // Define a transform from frame "a" to frame "b"
+        /// let t_a_b_1 = Transform {
+        ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
+        ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+        ///     timestamp: t1,
+        ///     parent: "a".to_string(),
+        ///     child: "b".to_string(),
+        /// };
+        /// // For validation
+        /// let t_a_b_2 = t_a_b_1.clone();
         ///
-        /// let _ = registry.add_transform(transform_1).await.unwrap();
-        /// let result = registry.get_transform("a", "b", t).await;
+        /// let result = registry.add_transform(t_a_b_1).await;
         /// assert!(result.is_ok());
-        /// assert_eq!(result.unwrap(), transform_2);
+        ///
+        /// let result = registry.get_transform("a", "b", t2).await;
+        /// assert!(result.is_ok());
+        /// assert_eq!(result.unwrap(), t_a_b_2);
+        /// # });
         /// ```
         pub async fn get_transform(
             &self,
@@ -237,6 +272,7 @@ pub mod sync_impl {
     ///     parent: "a".to_string(),
     ///     child: "b".to_string(),
     /// };
+    ///
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
