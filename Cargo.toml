@@ -10,7 +10,7 @@ repository = "https://github.com/dHofmeister/transforms"
 async = ["dep:tokio", "dep:tokio-test"]
 
 [dependencies]
-thiserror = "1"
+thiserror = "2"
 approx = "0"
 tokio = { version = "1", features = ["sync"], optional = true }
 tokio-test = { version = "0", optional = true }
