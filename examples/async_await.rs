@@ -12,8 +12,8 @@ async fn main() {
 
     // Dummy transform generator
     pub fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds().unwrap().sin();
-        let y = t.as_seconds().unwrap().cos();
+        let x = t.as_seconds_unchecked().sin();
+        let y = t.as_seconds_unchecked().cos();
         let z = 0.;
 
         Transform {

@@ -53,8 +53,13 @@ impl Timestamp {
     /// # use transforms::types::Timestamp;
     ///
     /// let timestamp = Timestamp { nanoseconds: 1_000_000_000 };
-    /// let seconds = timestamp.as_seconds().unwrap();
-    /// assert_eq!(seconds, 1.0);
+    /// let result = timestamp.as_seconds();
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap(), 1.0);
+    ///
+    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let result = timestamp.as_seconds();
+    /// assert!(result.is_err());
     /// ```
     ///
     /// # Errors
@@ -69,6 +74,22 @@ impl Timestamp {
         } else {
             Ok(seconds)
         }
+    }
+
+    /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Timestamp;
+    ///
+    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let seconds = timestamp.as_seconds_unchecked();
+    /// assert_eq!(seconds, 1_000_000_000.0);
+    /// ```
+    pub fn as_seconds_unchecked(&self) -> f64 {
+        const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        self.nanoseconds as f64 / NANOSECONDS_PER_SECOND
     }
 }
 
