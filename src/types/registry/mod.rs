@@ -467,6 +467,7 @@ impl Registry {
             Ok(transforms)
         }
     }
+
     fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,

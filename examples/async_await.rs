@@ -35,7 +35,7 @@ async fn main() {
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed. Mutex is not needed as mutex is managed internally.
     let max_age = Duration::from_secs(10);
-    let registry = Arc::new(Registry::new(max_age.into()));
+    let registry = Arc::new(Registry::new(max_age));
 
     // Writer task - generates and adds transforms
     let registry_writer = Arc::clone(&registry);
