@@ -21,4 +21,4 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Run tests async
-      run: cargo test --features async --verbose
+      run: cargo test --features async -- async --verbose
