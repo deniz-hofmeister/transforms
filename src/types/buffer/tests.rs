@@ -39,10 +39,10 @@ mod buffer_tests {
         assert_eq!(r.unwrap(), transform);
 
         r = buffer.get(&(transform.timestamp + Duration::try_from(1.0).unwrap()).unwrap());
-        assert!(r.is_err(), "transform found, but shouldnt't have");
+        assert!(r.is_err(), "transform found, but shouldn't have");
 
         r = buffer.get(&(transform.timestamp - Duration::try_from(1.0).unwrap()).unwrap());
-        assert!(r.is_err(), "transform found, but shouldnt't have");
+        assert!(r.is_err(), "transform found, but shouldn't have");
     }
 
     #[test]
