@@ -78,23 +78,29 @@ impl TryFrom<f64> for Duration {
     }
 }
 
-/// Converts the duration to seconds.
-///
-/// # Examples
-///
-/// ```
-/// # use transforms::types::Duration;
-///
-/// let duration = Duration { nanoseconds: 1_000_000_000 };
-/// let seconds = duration.as_seconds().unwrap();
-///
-/// assert_eq!(seconds, 1.0);
-/// ```
-///
-/// # Errors
-///
-/// Returns `DurationError::AccuracyLoss` if the conversion loses accuracy.
 impl Duration {
+    /// Converts the `Duration` to seconds as a floating-point number.
+    ///
+    /// Returns an error if the conversion results in accuracy loss.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Duration;
+    ///
+    /// let duration = Duration { nanoseconds: 1_000_000_000 };
+    /// let result = duration.as_seconds();
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap(), 1.0);
+    ///
+    /// let duration = Duration { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let result = duration.as_seconds();
+    /// assert!(result.is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns `DurationError::AccuracyLoss` if the conversion is not exact.
     pub fn as_seconds(&self) -> Result<f64, DurationError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         let seconds = self.nanoseconds as f64 / NANOSECONDS_PER_SECOND;
@@ -104,6 +110,22 @@ impl Duration {
         } else {
             Ok(seconds)
         }
+    }
+
+    /// Converts the `Duration` to seconds as a floating-point number without checking for accuracy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::Duration;
+    ///
+    /// let duration = Duration { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let seconds = duration.as_seconds_unchecked();
+    /// assert_eq!(seconds, 1_000_000_000.0);
+    /// ```
+    pub fn as_seconds_unchecked(&self) -> f64 {
+        const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        self.nanoseconds as f64 / NANOSECONDS_PER_SECOND
     }
 }
 

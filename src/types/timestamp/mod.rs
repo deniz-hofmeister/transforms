@@ -84,10 +84,10 @@ impl Timestamp {
     /// # use transforms::types::Timestamp;
     ///
     /// let timestamp = Timestamp { nanoseconds: 1_000_000_000_000_000_001 };
-    /// let seconds = timestamp.as_seconds_lossy();
+    /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
-    pub fn as_seconds_lossy(&self) -> f64 {
+    pub fn as_seconds_unchecked(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.nanoseconds as f64 / NANOSECONDS_PER_SECOND
     }
