@@ -113,7 +113,7 @@ mod buffer_tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::new(Duration::from_secs(1));
         let t = Timestamp::now();
 
         let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
@@ -129,7 +129,8 @@ mod buffer_tests {
         let get_3 = buffer.get(&t);
 
         assert!(get_1.is_err());
-        assert!(get_2.is_ok());
+        // The following is not found because by this time, it has expired.
+        assert!(get_2.is_err());
         assert!(get_3.is_ok());
     }
 

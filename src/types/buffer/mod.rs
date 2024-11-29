@@ -184,11 +184,10 @@ impl Buffer {
         (before, after)
     }
 
-    /// Removes expired transforms from the buffer based on the TTL.
+    /// Removes expired transforms from the buffer based on the max_age.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than the current time minus the time-to-live (TTL)
-    /// duration.
+    /// timestamp older than the current time minus the max_age.
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {
