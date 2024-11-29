@@ -1,14 +1,15 @@
 #[cfg(all(test, feature = "async"))]
 use {
     log::debug,
-    transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3},
+    std::time::Duration,
+    transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3},
 };
 
 #[cfg(all(test, feature = "async"))]
 #[tokio::test]
 async fn test_async_matching_tree() {
     let _ = env_logger::try_init();
-    let registry = Registry::new(std::time::Duration::from_secs(60));
+    let registry = Registry::new(Duration::from_secs(60));
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -42,7 +43,7 @@ async fn test_async_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(1000)).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -59,7 +60,7 @@ async fn test_async_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(0.5).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(500)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -77,7 +78,7 @@ async fn test_async_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.5).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(1500)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -87,7 +88,7 @@ async fn test_async_matching_tree() {
     registry.add_transform(t_b_c_0.clone()).await.unwrap();
     registry.add_transform(t_b_c_1.clone()).await.unwrap();
 
-    let middle_timestamp = (t + Duration::try_from(0.75).unwrap()).unwrap();
+    let middle_timestamp = (t + Duration::from_millis(750)).unwrap();
     let t_a_c = Transform {
         translation: Vector3 {
             x: 1.75,
@@ -156,7 +157,7 @@ async fn test_async_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(1)).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -174,7 +175,7 @@ async fn test_async_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(2.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(2)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -192,7 +193,7 @@ async fn test_async_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(3.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(3)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
