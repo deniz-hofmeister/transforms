@@ -5,13 +5,13 @@
 #[cfg(feature = "async")]
 #[tokio::main]
 async fn main() {
-    pub use log::{error, info};
-    pub use std::sync::Arc;
-    pub use std::time::Duration;
-    pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    use log::{error, info};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     // Dummy transform generator
-    pub fn generate_transform(t: Timestamp) -> Transform {
+    fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();
         let y = t.as_seconds_unchecked().cos();
         let z = 0.;
@@ -70,7 +70,10 @@ async fn main() {
         }
     });
 
-    let _ = tokio::join!(writer, reader);
+    // Run example for a fixed amount of time
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    writer.abort();
+    reader.abort();
 }
 
 #[cfg(not(feature = "async"))]

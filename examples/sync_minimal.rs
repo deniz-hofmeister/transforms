@@ -6,7 +6,7 @@ fn main() {
     use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     // Dummy transform generator
-    pub fn generate_transform(t: Timestamp) -> Transform {
+    fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();
         let y = t.as_seconds_unchecked().cos();
         let z = 0.;
