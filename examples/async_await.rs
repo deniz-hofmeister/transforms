@@ -60,7 +60,7 @@ async fn main() {
         info!("Reader waiting for a new transform");
         loop {
             // Request a transform in the future, therefore forcing it to wait.
-            let time = (Timestamp::now() + Duration::from_secs(1).into()).unwrap();
+            let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
             // Wait for the transform to become available
             match registry_reader.await_transform("a", "b", time).await {

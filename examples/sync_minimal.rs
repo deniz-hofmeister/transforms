@@ -43,7 +43,7 @@ fn main() {
     }
 
     // Request a transform that is in the future and therefore doesn't exist
-    let time_future = (time + Duration::from_secs(1).into()).unwrap();
+    let time_future = (time + Duration::from_secs(1)).unwrap();
     let result = registry.get_transform("a", "b", time_future);
     match result {
         Ok(tf) => info!("Found transform: {:?}", tf),
