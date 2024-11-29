@@ -5,8 +5,9 @@
 async fn main() {
     use log::{error, info};
     use std::sync::Arc;
+    use std::time::Duration;
     use tokio::sync::Mutex;
-    use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
@@ -32,7 +33,7 @@ async fn main() {
 
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed.
-    let max_age = std::time::Duration::from_secs(10);
+    let max_age = Duration::from_secs(10);
 
     // Arc and Mutex is used in this example because we load the synchronous implementation of the
     // registry, but in a multi-threaded context.
@@ -51,7 +52,7 @@ async fn main() {
                 error!("Error adding transform: {:?}", e);
             }
             drop(r);
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });
 
@@ -60,7 +61,8 @@ async fn main() {
     let reader = tokio::spawn(async move {
         loop {
             // Request a transform in the past, which will be unavailable initially.
-            let time = (Timestamp::now() - Duration::try_from(1.0).unwrap()).unwrap();
+            let time =
+                (Timestamp::now() - transforms::types::Duration::try_from(1.0).unwrap()).unwrap();
             let mut r = registry_reader.lock().await;
 
             // Poll the registry for the transform
@@ -70,7 +72,7 @@ async fn main() {
                 Err(e) => error!("Transform not found: {:?}", e),
             }
             drop(r);
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });
 
