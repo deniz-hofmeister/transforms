@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod buffer_tests {
-    use crate::types::{Buffer, Duration, Quaternion, Timestamp, Transform, Vector3};
+    use crate::types::{Buffer, Quaternion, Timestamp, Transform, Vector3};
+    use std::time::Duration;
 
     fn create_transform(t: Timestamp) -> Transform {
         let translation = Vector3 {
@@ -28,7 +29,7 @@ mod buffer_tests {
 
     #[test]
     fn insert_and_get() {
-        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(10));
         let t = Timestamp::now();
         let transform = create_transform(t);
         buffer.insert(transform.clone());
@@ -38,38 +39,38 @@ mod buffer_tests {
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&(transform.timestamp + Duration::try_from(1.0).unwrap()).unwrap());
+        r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "transform found, but shouldn't have");
 
-        r = buffer.get(&(transform.timestamp - Duration::try_from(1.0).unwrap()).unwrap());
+        r = buffer.get(&(transform.timestamp - Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "transform found, but shouldn't have");
     }
 
     #[test]
     fn insert_and_get_static() {
-        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(10));
         let t = Timestamp::zero();
         let transform = create_transform(t);
 
         buffer.insert(transform.clone());
 
-        let mut r = buffer.get(&(transform.timestamp + Duration::try_from(1.0).unwrap()).unwrap());
+        let mut r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
 
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&(transform.timestamp + Duration::try_from(2.0).unwrap()).unwrap());
+        r = buffer.get(&(transform.timestamp + Duration::from_secs(2)).unwrap());
         assert!(r.is_ok(), "transform not found");
         assert_eq!(r.unwrap(), transform);
     }
 
     #[test]
     fn get_nearest() {
-        let mut buffer = Buffer::new(Duration::try_from(10.0).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(10));
         let t = Timestamp::now();
 
-        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
-        let p2 = create_transform((t - Duration::try_from(1.0).unwrap()).unwrap());
+        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
+        let p2 = create_transform((t - Duration::from_secs(1)).unwrap());
         let p3 = create_transform(t);
 
         buffer.insert(p1.clone());
@@ -82,19 +83,19 @@ mod buffer_tests {
         assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Between two points
-        let p_mid = (p1.timestamp + Duration::try_from(0.5).unwrap()).unwrap();
+        let p_mid = (p1.timestamp + Duration::from_millis(500)).unwrap();
         let (before, after) = buffer.get_nearest(&p_mid);
         assert_eq!(before.unwrap(), (&p1.timestamp, &p1));
         assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Before first point
-        let p_0 = (p1.timestamp - Duration::try_from(1.0).unwrap()).unwrap();
+        let p_0 = (p1.timestamp - Duration::from_millis(1000)).unwrap();
         let (before, after) = buffer.get_nearest(&p_0);
         assert_eq!(before, None);
         assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // After last point
-        let p_4 = (p3.timestamp + Duration::try_from(1.0).unwrap()).unwrap();
+        let p_4 = (p3.timestamp + Duration::from_millis(1000)).unwrap();
         let (before, after) = buffer.get_nearest(&p_4);
         assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
         assert_eq!(after, None);
@@ -112,29 +113,30 @@ mod buffer_tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(Duration::try_from(1.5).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(1));
         let t = Timestamp::now();
 
-        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
-        let p2 = create_transform((t - Duration::try_from(1.0).unwrap()).unwrap());
+        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
+        let p2 = create_transform((t - Duration::from_secs(1)).unwrap());
         let p3 = create_transform(t);
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
         buffer.insert(p3.clone());
 
-        let get_1 = buffer.get(&(t - Duration::try_from(2.0).unwrap()).unwrap());
-        let get_2 = buffer.get(&(t - Duration::try_from(1.0).unwrap()).unwrap());
+        let get_1 = buffer.get(&(t - Duration::from_secs(2)).unwrap());
+        let get_2 = buffer.get(&(t - Duration::from_secs(1)).unwrap());
         let get_3 = buffer.get(&t);
 
         assert!(get_1.is_err());
-        assert!(get_2.is_ok());
+        // The following is not found because by this time, it has expired.
+        assert!(get_2.is_err());
         assert!(get_3.is_ok());
     }
 
     #[test]
     fn empty_buffer() {
-        let buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let buffer = Buffer::new(Duration::from_secs(1));
         assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
@@ -144,13 +146,13 @@ mod buffer_tests {
 
     #[test]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(1));
         let t = Timestamp::now();
         let point = create_transform(t);
         buffer.insert(point.clone());
 
         // Before the point
-        let (before, after) = buffer.get_nearest(&(t - Duration::try_from(1.0).unwrap()).unwrap());
+        let (before, after) = buffer.get_nearest(&(t - Duration::from_secs(1)).unwrap());
         assert!(before.is_none());
         assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
@@ -160,17 +162,17 @@ mod buffer_tests {
         assert_eq!(after.unwrap(), (&point.timestamp, &point));
 
         // After the point
-        let (before, after) = buffer.get_nearest(&(t + Duration::try_from(1.0).unwrap()).unwrap());
+        let (before, after) = buffer.get_nearest(&(t + Duration::from_secs(1)).unwrap());
         assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert!(after.is_none());
     }
 
     #[test]
     fn delete_expired() {
-        let mut buffer = Buffer::new(Duration::try_from(1.0).unwrap());
+        let mut buffer = Buffer::new(Duration::from_secs(1));
 
         let t = Timestamp::now();
-        let p1 = create_transform((t - Duration::try_from(2.0).unwrap()).unwrap());
+        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
         let p2 = create_transform(t);
 
         buffer.insert(p1.clone());

@@ -1,6 +1,6 @@
-use crate::types::{Buffer, Duration, Timestamp, Transform};
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, VecDeque};
+use crate::types::{Buffer, Timestamp, Transform};
+use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::time::Duration;
 mod error;
 use crate::errors::{BufferError, TransformError};
 
@@ -58,7 +58,7 @@ pub mod async_impl {
     /// ```
     pub struct Registry {
         pub data: Mutex<HashMap<String, Buffer>>,
-        max_age: crate::types::Duration,
+        max_age: Duration,
         notify: Notify,
     }
 

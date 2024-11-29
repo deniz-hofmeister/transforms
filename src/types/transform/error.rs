@@ -1,4 +1,4 @@
-use crate::errors::{DurationError, QuaternionError, TimestampError};
+use crate::errors::{QuaternionError, TimestampError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,9 +17,6 @@ pub enum TransformError {
 
     #[error("Transform tree is empty")]
     TransformTreeEmpty,
-
-    #[error("Duration error: {0}")]
-    DurationError(#[from] DurationError),
 
     #[error("Timestamp error: {0}")]
     TimestampError(#[from] TimestampError),

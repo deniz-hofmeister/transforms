@@ -1,7 +1,6 @@
-use crate::types::Duration;
 use core::ops::{Add, Sub};
 use std::cmp::Ordering;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub mod error;
 pub use error::TimestampError;
@@ -102,10 +101,18 @@ impl Sub<Timestamp> for Timestamp {
     ) -> Self::Output {
         match self.nanoseconds.cmp(&other.nanoseconds) {
             Ordering::Less => Err(TimestampError::DurationUnderflow),
-            Ordering::Equal => Ok(Duration { nanoseconds: 0 }),
-            Ordering::Greater => Ok(Duration {
-                nanoseconds: self.nanoseconds - other.nanoseconds,
-            }),
+            Ordering::Equal => Ok(Duration::from_secs(0)),
+            Ordering::Greater => {
+                let diff = self.nanoseconds - other.nanoseconds;
+                let seconds = diff / 1_000_000_000;
+                let nanos = (diff % 1_000_000_000) as u32;
+
+                if seconds > u64::MAX as u128 {
+                    return Err(TimestampError::DurationOverflow);
+                }
+
+                Ok(Duration::new(seconds as u64, nanos))
+            }
         }
     }
 }
@@ -117,10 +124,12 @@ impl Add<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        self.nanoseconds
-            .checked_add(rhs.nanoseconds)
-            .map(|result| Timestamp {
-                nanoseconds: result,
+        (rhs.as_secs() as u128)
+            .checked_mul(1_000_000_000)
+            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|total_duration_nanos| self.nanoseconds.checked_add(total_duration_nanos))
+            .map(|final_nanos| Timestamp {
+                nanoseconds: final_nanos,
             })
             .ok_or(TimestampError::DurationOverflow)
     }
@@ -133,10 +142,12 @@ impl Sub<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        self.nanoseconds
-            .checked_sub(rhs.nanoseconds)
-            .map(|result| Timestamp {
-                nanoseconds: result,
+        (rhs.as_secs() as u128)
+            .checked_mul(1_000_000_000)
+            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|total_duration_nanos| self.nanoseconds.checked_sub(total_duration_nanos))
+            .map(|final_nanos| Timestamp {
+                nanoseconds: final_nanos,
             })
             .ok_or(TimestampError::DurationUnderflow)
     }

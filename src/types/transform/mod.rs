@@ -1,6 +1,8 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
 use approx::AbsDiffEq;
 use core::ops::Mul;
+use std::cmp::Ordering;
+use std::time::Duration;
 
 mod error;
 pub use error::TransformError;
@@ -198,13 +200,13 @@ impl Mul for Transform {
         self,
         rhs: Transform,
     ) -> Self::Output {
-        let duration = if self.timestamp > rhs.timestamp {
-            (self.timestamp - rhs.timestamp)?
-        } else {
-            (rhs.timestamp - self.timestamp)?
-        };
+        let duration = match self.timestamp.cmp(&rhs.timestamp) {
+            Ordering::Equal => Ok(Duration::from_secs(0)),
+            Ordering::Greater => self.timestamp - rhs.timestamp,
+            Ordering::Less => rhs.timestamp - self.timestamp,
+        }?;
 
-        if duration.as_seconds()? > 2.0 * f64::EPSILON {
+        if duration.as_secs_f64() > 2.0 * f64::EPSILON {
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.as_seconds()?,
                 rhs.timestamp.as_seconds()?,
@@ -226,7 +228,7 @@ impl Mul for Transform {
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: (self.timestamp + (d / 2.0)?)?,
+            timestamp: (self.timestamp + (d.div_f64(2.0)))?,
             parent: self.parent,
             child: rhs.child,
         })
