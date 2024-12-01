@@ -19,8 +19,13 @@ tokio-test = { version = "0", optional = true }
 env_logger = "0"
 tokio = { version = "1", features = ["full"] }
 log = "0"
+criterion = { version = "0", features = ["async_tokio"] }
 
 [[example]]
 name = "async_await"
 path = "examples/async_await.rs"
 required-features = ["async"]
+
+[[bench]]
+name = "registry_benchmarks"
+harness = false
