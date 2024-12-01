@@ -28,4 +28,7 @@ jobs:
       run: cargo run --example sync_polling
     - name: Run example async_await
       run: cargo run --example async_await --features async
-
+    - name: Run bench
+      run: cargo bench
+    - name: Run bench async
+      run: cargo bench --features async
