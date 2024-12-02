@@ -16,11 +16,13 @@ mod point_tests {
             z: 0.0,
         };
         let t = Timestamp::now();
+        let f = String::from("a");
 
         let _p = Point {
             position: v,
             orientation: q,
             timestamp: t,
+            frame: f,
         };
     }
 }
