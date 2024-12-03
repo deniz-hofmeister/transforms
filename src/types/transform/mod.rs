@@ -1,10 +1,29 @@
 use crate::types::{Quaternion, Timestamp, Vector3};
 use approx::AbsDiffEq;
 use core::ops::Mul;
+use std::cmp::Ordering;
+use std::time::Duration;
 
 mod error;
 pub use error::TransformError;
 
+/// Represents a 3D transformation with translation, rotation, and timestamp.
+///
+/// The `Transform` struct is used to represent a transformation in 3D space,
+/// including translation, rotation, and associated metadata such as timestamps
+/// and frame identifiers.
+///
+/// # Examples
+///
+/// ```
+/// # use transforms::types::{Transform, Vector3, Quaternion, Timestamp};
+///
+/// // Create an identity transform
+/// let identity = Transform::identity();
+///
+/// assert_eq!(identity.translation, Vector3 { x: 0.0, y: 0.0, z: 0.0 });
+/// assert_eq!(identity.rotation, Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 });
+/// ```
 #[derive(Debug, Clone)]
 pub struct Transform {
     pub translation: Vector3,
@@ -15,6 +34,48 @@ pub struct Transform {
 }
 
 impl Transform {
+    /// Interpolates between two transforms at a given timestamp.
+    ///
+    /// Returns a new `Transform` that is the interpolation between `from` and `to`
+    /// at the specified `timestamp`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransformError::TimestampMismatch` if the timestamp is outside the range
+    /// of `from` and `to`. Returns `TransformError::IncompatibleFrames` if the frames
+    /// do not match.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::{Transform, Timestamp, Vector3, Quaternion};
+    ///
+    /// let from = Transform {
+    ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
+    /// let to = Transform {
+    ///     translation: Vector3 { x: 2.0, y: 2.0, z: 2.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: Timestamp { nanoseconds: 2_000_000_000 },
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
+    /// let result = Transform {
+    ///     translation: Vector3 { x: 1.0, y: 1.0, z: 1.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: Timestamp { nanoseconds: 1_000_000_000 },
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
+    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000 };
+    ///
+    /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
+    /// assert_eq!(result, interpolated);
+    /// ```
     pub fn interpolate(
         from: Transform,
         to: Transform,
@@ -46,6 +107,27 @@ impl Transform {
         })
     }
 
+    /// Returns the identity transform.
+    ///
+    /// The identity transform has no translation or rotation and is often used
+    /// as a neutral element in transformations.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::{Transform, Timestamp, Vector3, Quaternion};
+    ///
+    /// let identity = Transform::identity();
+    /// let transform = Transform {
+    ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
+    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     parent: "".to_string(),
+    ///     child: "".to_string(),
+    /// };
+    ///
+    /// assert_eq!(identity, transform);
+    /// ```
     pub fn identity() -> Self {
         Transform {
             translation: Vector3 {
@@ -64,6 +146,50 @@ impl Transform {
             child: "".to_string(),
         }
     }
+
+    /// Computes the inverse of the transform.
+    ///
+    /// Returns a new `Transform` that is the inverse of the current transform.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use transforms::types::{Transform, Vector3, Quaternion, Timestamp};
+    ///
+    /// // Create a transform with specific translation and rotation
+    /// let transform = Transform {
+    ///     translation: Vector3 { x: 1.0, y: 2.0, z: 3.0 },
+    ///     rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }.normalize().unwrap(),
+    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     parent: "a".to_string(),
+    ///     child: "b".to_string(),
+    /// };
+    ///
+    /// // Compute its inverse
+    /// let inverse = transform.inverse().unwrap();
+    ///
+    /// // Verify that the inverse has swapped frames
+    /// assert_eq!(inverse.parent, "b");
+    /// assert_eq!(inverse.child, "a");
+    ///
+    /// // Verify that applying the inverse transformation results in the identity
+    /// let identity = Transform::identity();
+    /// let result = (transform * inverse).unwrap();
+    /// assert_eq!(result.translation, identity.translation);
+    /// assert_eq!(result.rotation, identity.rotation);
+    pub fn inverse(&self) -> Result<Self, TransformError> {
+        let q = self.rotation.normalize()?;
+        let inverse_rotation = q.conjugate();
+        let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
+
+        Ok(Transform {
+            translation: inverse_translation,
+            rotation: inverse_rotation,
+            timestamp: self.timestamp,
+            parent: self.child.clone(),
+            child: self.parent.clone(),
+        })
+    }
 }
 
 impl Mul for Transform {
@@ -74,13 +200,13 @@ impl Mul for Transform {
         self,
         rhs: Transform,
     ) -> Self::Output {
-        let duration = if self.timestamp > rhs.timestamp {
-            (self.timestamp - rhs.timestamp)?
-        } else {
-            (rhs.timestamp - self.timestamp)?
-        };
+        let duration = match self.timestamp.cmp(&rhs.timestamp) {
+            Ordering::Equal => Ok(Duration::from_secs(0)),
+            Ordering::Greater => self.timestamp - rhs.timestamp,
+            Ordering::Less => rhs.timestamp - self.timestamp,
+        }?;
 
-        if duration.as_seconds()? > 2.0 * f64::EPSILON {
+        if duration.as_secs_f64() > 2.0 * f64::EPSILON {
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.as_seconds()?,
                 rhs.timestamp.as_seconds()?,
@@ -102,24 +228,9 @@ impl Mul for Transform {
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: (self.timestamp + (d / 2.0)?)?,
+            timestamp: (self.timestamp + (d.div_f64(2.0)))?,
             parent: self.parent,
             child: rhs.child,
-        })
-    }
-}
-
-impl Transform {
-    pub fn inverse(&self) -> Result<Self, TransformError> {
-        let inverse_rotation = self.rotation.conjugate();
-        let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
-
-        Ok(Transform {
-            translation: inverse_translation,
-            rotation: inverse_rotation,
-            timestamp: self.timestamp,
-            parent: self.child.clone(),
-            child: self.parent.clone(),
         })
     }
 }

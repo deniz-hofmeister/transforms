@@ -1,5 +1,6 @@
-use crate::types::{Duration, Timestamp, Transform};
+use crate::types::{Timestamp, Transform};
 use std::collections::BTreeMap;
+use std::time::Duration;
 mod error;
 pub use error::BufferError;
 
@@ -17,13 +18,13 @@ type NearestTransforms<'a> = (
 /// # Fields
 ///
 /// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
-/// - `ttl`: A `u128` that defines the time-to-live for each entry, determining how long
+/// - `max_age`: A `u128` that defines the time-to-live for each entry, determining how long
 ///   entries remain valid.
 /// - `is_static`: A boolean flag that, when set to true, converts the buffer to a static
 ///   lookup if a timestamp with nanoseconds set to zero is supplied. Any
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
-    ttl: u128,
+    max_age: Duration,
     is_static: bool,
 }
 
@@ -34,16 +35,16 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use std::time::Duration;
     /// # use transforms::types::Buffer;
+    /// use std::time::Duration;
     ///
-    /// let ttl = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(ttl.into());
+    /// let max_age = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(max_age);
     /// ```
-    pub fn new(ttl: Duration) -> Self {
+    pub fn new(max_age: Duration) -> Self {
         Self {
             data: BTreeMap::new(),
-            ttl: ttl.nanoseconds,
+            max_age,
             is_static: false,
         }
     }
@@ -53,11 +54,11 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use std::time::Duration;
     /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
+    /// use std::time::Duration;
     ///
-    /// let ttl = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(ttl.into());
+    /// let max_age = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(max_age);
     ///
     /// # let translation = Vector3 {
     /// #       x: 1.0,
@@ -101,12 +102,12 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use std::time::Duration;
     /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
     /// # use transforms::errors::BufferError;
+    /// use std::time::Duration;
     ///
-    /// let ttl = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(ttl.into());
+    /// let max_age = Duration::from_secs(10);
+    /// let mut buffer = Buffer::new(max_age);
     ///
     /// # let translation = Vector3 {
     /// #       x: 1.0,
@@ -183,16 +184,12 @@ impl Buffer {
         (before, after)
     }
 
-    /// Removes expired transforms from the buffer based on the TTL.
+    /// Removes expired transforms from the buffer based on the max_age.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than the current time minus the time-to-live (TTL)
-    /// duration.
+    /// timestamp older than the current time minus the max_age.
     fn delete_expired(&mut self) {
-        let timestamp_threshold = Timestamp::now()
-            - Duration {
-                nanoseconds: self.ttl,
-            };
+        let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {
             self.data.retain(|&k, _| k >= t);
         }

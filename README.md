@@ -13,10 +13,16 @@ This library draws inspiration from ROS2 and the TF2 package.
 
 ## Usage
 
-Usage is best defined by the registry struct under ```src/types/registry/mod.rs```. This is the main API of the system. For examples of usage, see the tests of the registry under ```src/types/registry/tests.rs```. Please note that the returned transform (Tab) is the transform for the reference frames themselves. To use the transforms to change data from one reference frame to another, use the inverse of the returned transform. ```Pb = Tab^-1 * Pa```.
+This library exposes the ```add_transform```, ```get_transform``` and ```await_transform``` for the ```Registry``` type. Beyond this one can create transforms using the ```Transform``` type. Please see the examples for more details.
+
+## Documentation
+Please consult the cargo doc for more detailed information.
+```bash
+cargo doc --open
+```
 
 ## Examples
-For example usage see the two included examples. They provide an example usage for a sync and a tokio-based async version of the library. 
+For example usage see the included examples. They provide an example usage for a sync and a tokio-based async version of the library. 
 
 The recommended usage is to use the ```async``` version. This allows one to efficiently await for incoming transforms using the notify() system and does not require any polling.
 ```bash
@@ -66,13 +72,8 @@ The known issues that will be fixed in future releases:
 
 ## Roadmap
 
-- v0.1 Exploration of the domain, provide functionality, built for purpose
-- v0.2 Feature: Usability in an In-process/monolithic system (Rust)
-- v0.3 Feature: IPC Pub/Sub + Request Server (Rust), likely [iceoryx2](https://github.com/eclipse-iceoryx/iceoryx2) as provider
-- v0.4 Feature: ROS2 / tf2 bridge
-- v0.x Lock-in feature set
-- v0.y: Internal refactor for reasons a/b/c
-- v1.0 Release (Breaking refactor & release to lock-in API)
+- v0.1 Exploration of the domain, provide functionality, built for purpose, open for feature requests
+- v0.2 Debugging tools, ROS2 interoperability
 
 
 ## Note

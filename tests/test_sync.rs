@@ -1,13 +1,15 @@
 #[cfg(not(feature = "async"))]
-use log::debug;
-#[cfg(not(feature = "async"))]
-use transforms::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+use {
+    log::debug,
+    std::time::Duration,
+    transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3},
+};
 
 #[cfg(not(feature = "async"))]
 #[test]
 fn test_sync_matching_tree() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(Duration::try_from(10.0).unwrap());
+    let mut registry = Registry::new(Duration::from_secs(10));
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -41,7 +43,7 @@ fn test_sync_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(1000)).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -58,7 +60,7 @@ fn test_sync_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(0.5).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(500)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -76,7 +78,7 @@ fn test_sync_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.5).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_millis(1500)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -86,7 +88,7 @@ fn test_sync_matching_tree() {
     registry.add_transform(t_b_c_0.clone()).unwrap();
     registry.add_transform(t_b_c_1.clone()).unwrap();
 
-    let middle_timestamp = (t + Duration::try_from(0.75).unwrap()).unwrap();
+    let middle_timestamp = (t + Duration::from_millis(750)).unwrap();
     let t_a_c = Transform {
         translation: Vector3 {
             x: 1.75,
@@ -121,7 +123,7 @@ fn test_sync_matching_tree() {
 #[test]
 fn test_sync_non_matching_tree() {
     let _ = env_logger::try_init();
-    let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+    let mut registry = Registry::new(Duration::from_secs(1));
     let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
@@ -155,7 +157,7 @@ fn test_sync_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(1)).unwrap(),
         parent: "a".to_string(),
         child: "b".to_string(),
     };
@@ -173,7 +175,7 @@ fn test_sync_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(2.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(2)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };
@@ -191,7 +193,7 @@ fn test_sync_non_matching_tree() {
             y: 0.,
             z: 0.,
         },
-        timestamp: (t + Duration::try_from(3.0).unwrap()).unwrap(),
+        timestamp: (t + Duration::from_secs(3)).unwrap(),
         parent: "b".to_string(),
         child: "c".to_string(),
     };

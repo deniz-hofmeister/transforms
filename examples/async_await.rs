@@ -1,17 +1,19 @@
-/// This module provides asynchronous functionality for generating and managing transforms.
+/// This is the recommended way of using this library.
+///
+/// An async implementation of the registry, allowing the registry to await for transforms.
 /// It is only compiled when the "async" feature is enabled.
-
 #[cfg(feature = "async")]
-mod async_minimal {
-    pub use log::{error, info};
-    pub use std::sync::Arc;
-    pub use std::time::Duration;
-    pub use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+#[tokio::main]
+async fn main() {
+    use log::{error, info};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
 
     // Dummy transform generator
-    pub fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds().unwrap().sin();
-        let y = t.as_seconds().unwrap().cos();
+    fn generate_transform(t: Timestamp) -> Transform {
+        let x = t.as_seconds_unchecked().sin();
+        let y = t.as_seconds_unchecked().cos();
         let z = 0.;
 
         Transform {
@@ -27,20 +29,13 @@ mod async_minimal {
             timestamp: t,
         }
     }
-}
 
-#[cfg(feature = "async")]
-use async_minimal::*;
-
-#[cfg(feature = "async")]
-#[tokio::main]
-async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
     // 10 seconds will be flushed. Mutex is not needed as mutex is managed internally.
-    let ttl = Duration::from_secs(10);
-    let registry = Arc::new(Registry::new(ttl.into()));
+    let max_age = Duration::from_secs(10);
+    let registry = Arc::new(Registry::new(max_age));
 
     // Writer task - generates and adds transforms
     let registry_writer = Arc::clone(&registry);
@@ -65,7 +60,7 @@ async fn main() {
         info!("Reader waiting for a new transform");
         loop {
             // Request a transform in the future, therefore forcing it to wait.
-            let time = (Timestamp::now() + Duration::from_secs(1).into()).unwrap();
+            let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
             // Wait for the transform to become available
             match registry_reader.await_transform("a", "b", time).await {
@@ -75,7 +70,10 @@ async fn main() {
         }
     });
 
-    let _ = tokio::join!(writer, reader);
+    // Run example for a fixed amount of time
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    writer.abort();
+    reader.abort();
 }
 
 #[cfg(not(feature = "async"))]

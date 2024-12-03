@@ -1,8 +1,9 @@
 #[cfg(not(feature = "async"))]
 #[cfg(test)]
 mod registry_tests {
-    use crate::types::{Duration, Quaternion, Registry, Timestamp, Transform, Vector3};
+    use crate::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
     use log::debug;
+    use std::time::Duration;
 
     mod sync_tests {
         use super::*;
@@ -10,7 +11,7 @@ mod registry_tests {
         #[test]
         fn basic_chain_linear() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -85,7 +86,7 @@ mod registry_tests {
         #[test]
         fn basic_chain_rotation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -179,7 +180,7 @@ mod registry_tests {
         #[test]
         fn basic_exact_match() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
 
             // Child frame B at x=1m without rotation
             let t_a_b = Transform {
@@ -247,7 +248,7 @@ mod registry_tests {
         #[test]
         fn basic_interpolation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at x=1m without rotation
@@ -282,7 +283,7 @@ mod registry_tests {
                     y: 0.,
                     z: (theta / 2.0).sin(),
                 },
-                timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+                timestamp: (t + Duration::from_secs(1)).unwrap(),
                 parent: "a".to_string(),
                 child: "b".to_string(),
             };
@@ -318,7 +319,7 @@ mod registry_tests {
         #[test]
         fn basic_chained_interpolation() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame B at t=0, x=1m without rotation
@@ -352,7 +353,7 @@ mod registry_tests {
                     y: 0.,
                     z: 0.,
                 },
-                timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+                timestamp: (t + Duration::from_secs(1)).unwrap(),
                 parent: "a".to_string(),
                 child: "b".to_string(),
             };
@@ -387,7 +388,7 @@ mod registry_tests {
                     y: 0.,
                     z: 0.,
                 },
-                timestamp: (t + Duration::try_from(1.0).unwrap()).unwrap(),
+                timestamp: (t + Duration::from_secs(1)).unwrap(),
                 parent: "b".to_string(),
                 child: "c".to_string(),
             };
@@ -434,7 +435,7 @@ mod registry_tests {
         #[test]
         fn basic_common_parent_elimination() {
             let _ = env_logger::try_init();
-            let mut registry = Registry::new(Duration::try_from(1.0).unwrap());
+            let mut registry = Registry::new(Duration::from_secs(10));
             let t = Timestamp::now();
 
             // Child frame C at t=0, x=1m without rotation
