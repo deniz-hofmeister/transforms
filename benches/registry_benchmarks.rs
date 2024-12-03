@@ -26,8 +26,6 @@ fn create_sample_transform() -> Transform {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_transforms(c: &mut Criterion) {
-    use transforms::types::transform;
-
     let mut group = c.benchmark_group("sync_transforms");
     group.sample_size(1000);
 
@@ -52,9 +50,9 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
     group.bench_function("sync_add_and_get_transform_with_preparation", |b| {
         let mut registry = Registry::new(Duration::from_secs(60));
 
-        // Prepare registry with 10000 transforms
-        for _ in 0..10000 {
-            let mut transform = create_sample_transform();
+        // Prepare registry with 1000 transforms
+        for _ in 0..1000 {
+            let transform = create_sample_transform();
             let _ = registry.add_transform(transform);
         }
 
@@ -63,6 +61,30 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
             let t = transform.timestamp.clone();
             let _ = black_box(registry.add_transform(transform));
             let _ = black_box(registry.get_transform("a", "b", t));
+        });
+    });
+
+    group.finish();
+}
+
+#[cfg(not(feature = "async"))]
+fn benchmark_sync_tree_climb(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sync_tree_climb");
+    group.sample_size(1000);
+
+    group.bench_function("sync_tree_climb", |b| {
+        let mut registry = Registry::new(Duration::from_secs(60));
+
+        // Prepare registry with 1000 transforms
+        for i in 0..1000 {
+            let mut transform = Transform::identity();
+            transform.parent = i.to_string();
+            transform.child = (i + 1).to_string();
+            let _ = registry.add_transform(transform);
+        }
+
+        b.iter(|| {
+            let _ = black_box(registry.get_transform("0", "999", Timestamp::zero()));
         });
     });
 
@@ -103,7 +125,7 @@ fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
 
         // Prepare registry with 10000 transforms
         rt.block_on(async {
-            for _ in 0..10000 {
+            for _ in 0..1000 {
                 let transform = create_sample_transform();
                 let _ = registry.add_transform(transform).await;
             }
@@ -122,16 +144,48 @@ fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "async")]
+fn benchmark_async_tree_climb(c: &mut Criterion) {
+    let mut group = c.benchmark_group("async_tree_climb");
+    group.sample_size(1000);
+
+    let rt = Runtime::new().unwrap();
+
+    group.bench_function("async_tree_climb", |b| {
+        let registry = Registry::new(Duration::from_secs(60));
+
+        // Prepare registry with 1000 transforms
+        rt.block_on(async {
+            for i in 0..1000 {
+                let mut transform = Transform::identity();
+                transform.parent = i.to_string();
+                transform.child = (i + 1).to_string();
+                let _ = registry.add_transform(transform).await;
+            }
+        });
+
+        b.iter(|| {
+            rt.block_on(async {
+                let _ = black_box(registry.get_transform("0", "999", Timestamp::zero()).await);
+            });
+        });
+    });
+
+    group.finish();
+}
+
 #[cfg(not(feature = "async"))]
 criterion_group!(
     benches,
     benchmark_sync_transforms,
-    benchmark_sync_transforms_with_preparation
+    benchmark_sync_transforms_with_preparation,
+    benchmark_sync_tree_climb
 );
 #[cfg(feature = "async")]
 criterion_group!(
     benches,
     benchmark_async_transforms,
-    benchmark_async_transforms_with_preparation
+    benchmark_async_transforms_with_preparation,
+    benchmark_async_tree_climb
 );
 criterion_main!(benches);

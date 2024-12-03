@@ -141,7 +141,7 @@ impl Transform {
                 y: 0.0,
                 z: 0.0,
             },
-            timestamp: Timestamp { nanoseconds: 0 },
+            timestamp: Timestamp::zero(),
             parent: "".to_string(),
             child: "".to_string(),
         }
@@ -160,7 +160,7 @@ impl Transform {
     /// let transform = Transform {
     ///     translation: Vector3 { x: 1.0, y: 2.0, z: 3.0 },
     ///     rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }.normalize().unwrap(),
-    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     timestamp: Timestamp::zero(),
     ///     parent: "a".to_string(),
     ///     child: "b".to_string(),
     /// };
