@@ -58,7 +58,7 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
 
         b.iter(|| {
             let transform = create_sample_transform();
-            let t = transform.timestamp.clone();
+            let t = transform.timestamp;
             let _ = black_box(registry.add_transform(transform));
             let _ = black_box(registry.get_transform("a", "b", t));
         });
@@ -103,7 +103,7 @@ fn benchmark_async_transforms(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 let transform = create_sample_transform();
-                let t = transform.timestamp.clone();
+                let t = transform.timestamp;
                 let _ = black_box(registry.add_transform(transform).await);
                 let _ = black_box(registry.get_transform("a", "b", t).await);
             });
@@ -134,7 +134,7 @@ fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
         b.iter(|| {
             rt.block_on(async {
                 let transform = create_sample_transform();
-                let t = transform.timestamp.clone();
+                let t = transform.timestamp;
                 let _ = black_box(registry.add_transform(transform).await);
                 let _ = black_box(registry.get_transform("a", "b", t).await);
             });
