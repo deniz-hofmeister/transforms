@@ -15,7 +15,7 @@ fn main() {
             y: 0.0,
             z: 0.0,
         },
-        timestamp: timestamp.clone(),
+        timestamp,
         frame: "b".into(),
     };
 
