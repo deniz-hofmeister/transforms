@@ -16,8 +16,8 @@ mod transform_tests {
             z: 0.0,
         };
         let timestamp = Timestamp::now();
-        let parent = "map".to_string();
-        let child = "base".to_string();
+        let parent = "map".into();
+        let child = "base".into();
 
         let _t = Transform {
             translation,

@@ -72,8 +72,8 @@ impl Buffer {
     /// #       z: 0.0,
     /// #   };
     /// # let timestamp = Timestamp::now();
-    /// # let parent = "a".to_string();
-    /// # let child = "b".to_string();
+    /// # let parent = "a".into();
+    /// # let child = "b".into();
     ///
     /// let transform = Transform {
     ///       translation,
@@ -121,8 +121,8 @@ impl Buffer {
     /// #       z: 0.0,
     /// #   };
     /// # let timestamp = Timestamp::now();
-    /// # let parent = "a".to_string();
-    /// # let child = "b".to_string();
+    /// # let parent = "a".into();
+    /// # let child = "b".into();
     /// #
     /// let transform = Transform {
     ///       translation,

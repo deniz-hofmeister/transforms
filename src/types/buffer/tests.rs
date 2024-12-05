@@ -16,8 +16,8 @@ mod buffer_tests {
             z: 0.0,
         };
         let timestamp = t;
-        let parent = "map".to_string();
-        let child = "base".to_string();
+        let parent = "map".into();
+        let child = "base".into();
         Transform {
             translation,
             rotation,

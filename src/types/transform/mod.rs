@@ -54,22 +54,22 @@ impl Transform {
     ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: Timestamp { nanoseconds: 0 },
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     /// let to = Transform {
     ///     translation: Vector3 { x: 2.0, y: 2.0, z: 2.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: Timestamp { nanoseconds: 2_000_000_000 },
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     /// let result = Transform {
     ///     translation: Vector3 { x: 1.0, y: 1.0, z: 1.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: Timestamp { nanoseconds: 1_000_000_000 },
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     /// let timestamp = Timestamp { nanoseconds: 1_000_000_000 };
     ///
@@ -122,8 +122,8 @@ impl Transform {
     ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: Timestamp { nanoseconds: 0 },
-    ///     parent: "".to_string(),
-    ///     child: "".to_string(),
+    ///     parent: "".into(),
+    ///     child: "".into(),
     /// };
     ///
     /// assert_eq!(identity, transform);
@@ -142,8 +142,8 @@ impl Transform {
                 z: 0.0,
             },
             timestamp: Timestamp::zero(),
-            parent: "".to_string(),
-            child: "".to_string(),
+            parent: "".into(),
+            child: "".into(),
         }
     }
 
@@ -161,8 +161,8 @@ impl Transform {
     ///     translation: Vector3 { x: 1.0, y: 2.0, z: 3.0 },
     ///     rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }.normalize().unwrap(),
     ///     timestamp: Timestamp::zero(),
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     ///
     /// // Compute its inverse

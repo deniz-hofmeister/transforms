@@ -39,8 +39,8 @@ pub mod async_impl {
     ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: t1,
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     ///
     /// // For validation
@@ -157,8 +157,8 @@ pub mod async_impl {
         ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
         ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
         ///     timestamp: t1,
-        ///     parent: "a".to_string(),
-        ///     child: "b".to_string(),
+        ///     parent: "a".into(),
+        ///     child: "b".into(),
         /// };
         /// // For validation
         /// let t_a_b_2 = t_a_b_1.clone();
@@ -214,8 +214,8 @@ pub mod async_impl {
         ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
         ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
         ///     timestamp: t1,
-        ///     parent: "a".to_string(),
-        ///     child: "b".to_string(),
+        ///     parent: "a".into(),
+        ///     child: "b".into(),
         /// };
         /// // For validation
         /// let t_a_b_2 = t_a_b_1.clone();
@@ -269,8 +269,8 @@ pub mod sync_impl {
     ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
     ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
     ///     timestamp: t1,
-    ///     parent: "a".to_string(),
-    ///     child: "b".to_string(),
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
     /// };
     ///
     /// // For validation
@@ -372,8 +372,8 @@ pub mod sync_impl {
         ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
         ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
         ///     timestamp: t1,
-        ///     parent: "a".to_string(),
-        ///     child: "b".to_string(),
+        ///     parent: "a".into(),
+        ///     child: "b".into(),
         /// };
         /// // For validation
         /// let t_a_b_2 = t_a_b_1.clone();
@@ -435,7 +435,7 @@ impl Registry {
             }
             (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
             (Err(_), Ok(to_chain)) => Self::combine_transforms(VecDeque::new(), to_chain),
-            (Err(_), Err(_)) => Err(TransformError::NotFound(from.to_string(), to.to_string())),
+            (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
         }
     }
 
@@ -446,7 +446,7 @@ impl Registry {
         data: &HashMap<String, Buffer>,
     ) -> Result<VecDeque<Transform>, TransformError> {
         let mut transforms = VecDeque::new();
-        let mut current_frame = from.to_string();
+        let mut current_frame = from.into();
 
         while let Some(frame_buffer) = data.get(&current_frame) {
             match frame_buffer.get(&timestamp) {
@@ -462,7 +462,7 @@ impl Registry {
         }
 
         if transforms.is_empty() {
-            Err(TransformError::NotFound(from.to_string(), to.to_string()))
+            Err(TransformError::NotFound(from.into(), to.into()))
         } else {
             Ok(transforms)
         }

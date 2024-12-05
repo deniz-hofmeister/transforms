@@ -28,8 +28,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             // Child frame C at y=1m
@@ -46,8 +46,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "b".to_string(),
-                child: "c".to_string(),
+                parent: "b".into(),
+                child: "c".into(),
             };
 
             registry.add_transform(t_a_b.clone()).unwrap();
@@ -66,8 +66,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "c".to_string(),
+                parent: "a".into(),
+                child: "c".into(),
             };
 
             let r = registry.get_transform("a", "c", t_a_b.timestamp);
@@ -103,8 +103,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             // Child frame C at +90 degrees
@@ -122,8 +122,8 @@ mod registry_tests {
                     z: (theta / 2.0).sin(),
                 },
                 timestamp: t,
-                parent: "b".to_string(),
-                child: "c".to_string(),
+                parent: "b".into(),
+                child: "c".into(),
             };
 
             // Child frame D at x=1m
@@ -140,8 +140,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "c".to_string(),
-                child: "d".to_string(),
+                parent: "c".into(),
+                child: "d".into(),
             };
 
             registry.add_transform(t_a_b.clone()).unwrap();
@@ -161,8 +161,8 @@ mod registry_tests {
                     z: (theta / 2.0).sin(),
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "d".to_string(),
+                parent: "a".into(),
+                child: "d".into(),
             };
             let r = registry.get_transform("a", "d", t_a_b.timestamp);
 
@@ -196,8 +196,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: Timestamp::now(),
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             // Child frame C at y=1m with 90 degrees rotation around +Z
@@ -215,8 +215,8 @@ mod registry_tests {
                     z: (theta / 2.0).sin(),
                 },
                 timestamp: Timestamp::now(),
-                parent: "a".to_string(),
-                child: "c".to_string(),
+                parent: "a".into(),
+                child: "c".into(),
             };
 
             registry.add_transform(t_a_b.clone()).unwrap();
@@ -265,8 +265,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             // Child frame B at y=1m with 90 degrees rotation around +Z
@@ -284,8 +284,8 @@ mod registry_tests {
                     z: (theta / 2.0).sin(),
                 },
                 timestamp: (t + Duration::from_secs(1)).unwrap(),
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             registry.add_transform(t_a_b_0.clone()).unwrap();
@@ -299,8 +299,8 @@ mod registry_tests {
                 translation: (t_a_b_0.translation + t_a_b_1.translation) / 2.0,
                 rotation: (t_a_b_0.rotation.slerp(t_a_b_1.rotation, 0.5)),
                 timestamp: middle_timestamp,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             let r = registry.get_transform("a", "b", middle_timestamp);
@@ -336,8 +336,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             // Child frame B at t=1, x=2m without rotation
@@ -354,8 +354,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: (t + Duration::from_secs(1)).unwrap(),
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
             // Child frame C at t=0, y=1m without rotation
             let t_b_c_0 = Transform {
@@ -371,8 +371,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "b".to_string(),
-                child: "c".to_string(),
+                parent: "b".into(),
+                child: "c".into(),
             };
 
             // Child frame B at t=1, y=2m without rotation
@@ -389,8 +389,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: (t + Duration::from_secs(1)).unwrap(),
-                parent: "b".to_string(),
-                child: "c".to_string(),
+                parent: "b".into(),
+                child: "c".into(),
             };
 
             registry.add_transform(t_a_b_0.clone()).unwrap();
@@ -415,8 +415,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: middle_timestamp,
-                parent: "a".to_string(),
-                child: "c".to_string(),
+                parent: "a".into(),
+                child: "c".into(),
             };
 
             let r = registry.get_transform("a", "c", middle_timestamp);
@@ -452,8 +452,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "b".to_string(),
-                child: "c".to_string(),
+                parent: "b".into(),
+                child: "c".into(),
             };
 
             // Child frame D at t=0, x=2m without rotation
@@ -470,8 +470,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "b".to_string(),
-                child: "d".to_string(),
+                parent: "b".into(),
+                child: "d".into(),
             };
 
             // Child frame B at t=0, y=1m without rotation
@@ -488,8 +488,8 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "a".to_string(),
-                child: "b".to_string(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
             registry.add_transform(t_a_b).unwrap();
