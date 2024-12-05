@@ -1,2 +1,6 @@
+pub mod core;
 pub mod errors;
-pub mod types;
+pub mod geometry;
+pub mod time;
+
+pub use core::Registry;

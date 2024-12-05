@@ -1,4 +1,5 @@
-use crate::types::{Timestamp, Transform};
+use crate::geometry::Transform;
+use crate::time::Timestamp;
 use std::collections::BTreeMap;
 use std::time::Duration;
 mod error;
@@ -35,7 +36,7 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Buffer;
+    /// # use transforms::core::Buffer;
     /// use std::time::Duration;
     ///
     /// let max_age = Duration::from_secs(10);
@@ -54,7 +55,9 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
+    /// # use transforms::core::Buffer;
+    /// # use transforms::geometry::{Vector3, Quaternion, Transform};
+    /// # use transforms::time::Timestamp;
     /// use std::time::Duration;
     ///
     /// let max_age = Duration::from_secs(10);
@@ -102,7 +105,9 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Buffer, Vector3, Quaternion, Transform, Timestamp};
+    /// # use transforms::core::Buffer;
+    /// # use transforms::geometry::{Vector3, Quaternion};
+    /// # use transforms::time::Timestamp;
     /// # use transforms::errors::BufferError;
     /// use std::time::Duration;
     ///

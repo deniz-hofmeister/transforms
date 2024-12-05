@@ -1,4 +1,6 @@
-use crate::types::{Buffer, Timestamp, Transform};
+use crate::core::Buffer;
+use crate::geometry::Transform;
+use crate::time::Timestamp;
 use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use std::time::Duration;
 mod error;
@@ -24,8 +26,10 @@ pub mod async_impl {
     /// # Examples
     ///
     /// ```
-    /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
-    /// use std::time::Duration;
+    /// # use transforms::geometry::{Quaternion, Transform, Vector3};
+    /// # use transforms::core::Registry;
+    /// # use transforms::time::Timestamp;
+    /// # use std::time::Duration;
     /// # use tokio_test::block_on;
     ///
     /// # block_on(async {
