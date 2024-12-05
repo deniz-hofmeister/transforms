@@ -29,9 +29,9 @@ pub mod async_impl {
     /// use std::time::Duration;
     /// # use tokio_test::block_on;
     /// use transforms::{
-    ///     core::Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
+    ///     Registry,
     /// };
     ///
     /// # block_on(async {
@@ -415,7 +415,11 @@ pub mod sync_impl {
         ///
         /// ```
         /// use std::time::Duration;
-        /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use transforms::{
+        ///     geometry::{Quaternion, Transform, Vector3},
+        ///     time::Timestamp,
+        ///     Registry,
+        /// };
         ///
         /// let mut registry = Registry::new(Duration::from_secs(60));
         /// let t1 = Timestamp::zero();

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod vector3_tests {
-    use crate::types::Vector3;
+    use crate::geometry::Vector3;
 
     #[test]
     fn add() {

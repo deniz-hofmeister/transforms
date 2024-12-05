@@ -106,12 +106,11 @@ impl Buffer {
     ///
     /// ```
     /// use std::time::Duration;
-    /// # use transforms::{
-    /// #     core::Buffer,
-    /// #     errors::BufferError,
-    /// #     geometry::{Quaternion, Vector3},
-    /// #     time::Timestamp,
-    /// # };
+    /// use transforms::{
+    ///     core::Buffer,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// let max_age = Duration::from_secs(10);
     /// let mut buffer = Buffer::new(max_age);

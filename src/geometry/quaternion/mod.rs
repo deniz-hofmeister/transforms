@@ -1,4 +1,4 @@
-use crate::types::Vector3;
+use crate::geometry::Vector3;
 use core::ops::{Add, Div, Mul, Sub};
 pub mod error;
 use approx::AbsDiffEq;
@@ -19,10 +19,23 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
+    /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
-    /// assert_eq!(q.conjugate(), Quaternion { w: 1.0, x: -2.0, y: -3.0, z: -4.0 });
+    /// let q = Quaternion {
+    ///     w: 1.0,
+    ///     x: 2.0,
+    ///     y: 3.0,
+    ///     z: 4.0,
+    /// };
+    /// assert_eq!(
+    ///     q.conjugate(),
+    ///     Quaternion {
+    ///         w: 1.0,
+    ///         x: -2.0,
+    ///         y: -3.0,
+    ///         z: -4.0
+    ///     }
+    /// );
     /// ```
     #[inline]
     pub fn conjugate(self) -> Quaternion {
@@ -43,15 +56,27 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
-    /// # use transforms::errors::QuaternionError;
+    /// use transforms::{errors::QuaternionError, geometry::Quaternion};
     ///
-    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
+    /// let q = Quaternion {
+    ///     w: 1.0,
+    ///     x: 2.0,
+    ///     y: 3.0,
+    ///     z: 4.0,
+    /// };
     /// let normalized = q.normalize().unwrap();
     /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
     ///
-    /// let zero_q = Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 0.0 };
-    /// assert!(matches!(zero_q.normalize(), Err(QuaternionError::ZeroLengthNormalization)));
+    /// let zero_q = Quaternion {
+    ///     w: 0.0,
+    ///     x: 0.0,
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
+    /// assert!(matches!(
+    ///     zero_q.normalize(),
+    ///     Err(QuaternionError::ZeroLengthNormalization)
+    /// ));
     /// ```
     #[inline]
     pub fn normalize(self) -> Result<Quaternion, QuaternionError> {
@@ -67,9 +92,14 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
+    /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion { w: 1.0, x: 1.0, y: 1.0, z: 1.0 };
+    /// let q = Quaternion {
+    ///     w: 1.0,
+    ///     x: 1.0,
+    ///     y: 1.0,
+    ///     z: 1.0,
+    /// };
     /// assert_eq!(q.norm(), 2.0);
     /// ```
     #[inline]
@@ -84,9 +114,14 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
+    /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion { w: 1.0, x: 2.0, y: 2.0, z: 2.0 };
+    /// let q = Quaternion {
+    ///     w: 1.0,
+    ///     x: 2.0,
+    ///     y: 2.0,
+    ///     z: 2.0,
+    /// };
     /// assert_eq!(q.norm_squared(), 13.0);
     /// ```
     #[inline]
@@ -101,7 +136,7 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
+    /// use transforms::geometry::Quaternion;
     ///
     /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
     /// assert_eq!(q.scale(2.0), Quaternion { w: 2.0, x: 4.0, y: 6.0, z: 8.0 });
@@ -125,7 +160,7 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Quaternion, Vector3};
+    /// use transforms::geometry::{Quaternion, Vector3};
     /// # use approx::assert_relative_eq;
     ///
     /// let q = Quaternion {
@@ -134,8 +169,19 @@ impl Quaternion {
     ///     y: 0.0,
     ///     z: (std::f64::consts::PI / 4.0).sin(),
     /// };
-    /// let v = Vector3 { x: 1.0, y: 0.0, z: 0.0 };
-    /// assert_relative_eq!(q.rotate_vector(v), Vector3 {x: 0.0, y: 1.0, z: 0.0});
+    /// let v = Vector3 {
+    ///     x: 1.0,
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
+    /// assert_relative_eq!(
+    ///     q.rotate_vector(v),
+    ///     Vector3 {
+    ///         x: 0.0,
+    ///         y: 1.0,
+    ///         z: 0.0
+    ///     }
+    /// );
     /// ```
     #[inline]
     pub fn rotate_vector(
@@ -162,11 +208,21 @@ impl Quaternion {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Quaternion;
+    /// use transforms::geometry::Quaternion;
     /// # use approx::assert_relative_eq;
     ///
-    /// let q1 = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
-    /// let q2 = Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 };
+    /// let q1 = Quaternion {
+    ///     w: 1.0,
+    ///     x: 0.0,
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
+    /// let q2 = Quaternion {
+    ///     w: 0.0,
+    ///     x: 1.0,
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
     /// let result = q1.slerp(q2, 0.5);
     /// let expected = Quaternion {
     ///     w: (0.5_f64).sqrt(),

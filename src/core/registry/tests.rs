@@ -1,7 +1,12 @@
 #[cfg(not(feature = "async"))]
 #[cfg(test)]
 mod registry_tests {
-    use crate::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    use crate::{
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+        Registry,
+    };
+
     use log::debug;
     use std::time::Duration;
 

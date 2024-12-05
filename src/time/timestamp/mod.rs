@@ -1,6 +1,8 @@
 use core::ops::{Add, Sub};
-use std::cmp::Ordering;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    cmp::Ordering,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 pub mod error;
 pub use error::TimestampError;
@@ -17,7 +19,7 @@ impl Timestamp {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Timestamp;
+    /// use transforms::time::Timestamp;
     ///
     /// let now = Timestamp::now();
     /// ```
@@ -33,7 +35,7 @@ impl Timestamp {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Timestamp;
+    /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
     /// assert_eq!(zero.nanoseconds, 0);
@@ -49,14 +51,18 @@ impl Timestamp {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Timestamp;
+    /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000 };
+    /// let timestamp = Timestamp {
+    ///     nanoseconds: 1_000_000_000,
+    /// };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap(), 1.0);
     ///
-    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let timestamp = Timestamp {
+    ///     nanoseconds: 1_000_000_000_000_000_001,
+    /// };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_err());
     /// ```
@@ -80,9 +86,11 @@ impl Timestamp {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::Timestamp;
+    /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000_000_000_001 };
+    /// let timestamp = Timestamp {
+    ///     nanoseconds: 1_000_000_000_000_000_001,
+    /// };
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```

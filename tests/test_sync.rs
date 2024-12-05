@@ -2,7 +2,9 @@
 use {
     log::debug,
     std::time::Duration,
-    transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3},
+    transforms::geometry::{Quaternion, Transform, Vector3},
+    transforms::time::Timestamp,
+    transforms::Registry,
 };
 
 #[cfg(not(feature = "async"))]

@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod point_tests {
-    use crate::types::{Point, Quaternion, Timestamp, Vector3};
+    use crate::{
+        geometry::{Point, Quaternion, Vector3},
+        time::Timestamp,
+    };
 
     #[test]
     fn point_creation() {

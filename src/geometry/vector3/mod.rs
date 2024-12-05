@@ -9,7 +9,7 @@ use approx::{AbsDiffEq, RelativeEq};
 /// # Examples
 ///
 /// ```
-/// # use transforms::types::Vector3;
+/// use transforms::geometry::Vector3;
 ///
 /// let vector = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
 ///

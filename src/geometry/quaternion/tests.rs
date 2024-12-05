@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod quaternion_tests {
-    use core::f64;
-
-    use crate::errors::QuaternionError;
-    use crate::types::{Quaternion, Vector3};
+    use crate::{
+        errors::QuaternionError,
+        geometry::{Quaternion, Vector3},
+    };
     use approx::assert_relative_eq;
+    use core::f64;
 
     #[test]
     fn quaternion_creation() {
