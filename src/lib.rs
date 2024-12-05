@@ -3,4 +3,4 @@ pub mod errors;
 pub mod geometry;
 pub mod time;
 
-pub use core::Registry;
+pub use core::registry::Registry;

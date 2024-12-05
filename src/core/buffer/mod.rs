@@ -1,7 +1,5 @@
-use crate::geometry::Transform;
-use crate::time::Timestamp;
-use std::collections::BTreeMap;
-use std::time::Duration;
+use crate::{geometry::Transform, time::Timestamp};
+use std::{collections::BTreeMap, time::Duration};
 mod error;
 pub use error::BufferError;
 
@@ -55,10 +53,12 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::core::Buffer;
-    /// # use transforms::geometry::{Vector3, Quaternion, Transform};
-    /// # use transforms::time::Timestamp;
     /// use std::time::Duration;
+    /// # use transforms::{
+    /// #     core::Buffer,
+    /// #     geometry::{Quaternion, Transform, Vector3},
+    /// #     time::Timestamp,
+    /// # };
     ///
     /// let max_age = Duration::from_secs(10);
     /// let mut buffer = Buffer::new(max_age);
@@ -79,12 +79,12 @@ impl Buffer {
     /// # let child = "b".into();
     ///
     /// let transform = Transform {
-    ///       translation,
-    ///       rotation,
-    ///       timestamp,
-    ///       parent,
-    ///       child,
-    ///   };
+    ///     translation,
+    ///     rotation,
+    ///     timestamp,
+    ///     parent,
+    ///     child,
+    /// };
     ///
     /// buffer.insert(transform);
     /// ```
@@ -105,11 +105,13 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::core::Buffer;
-    /// # use transforms::geometry::{Vector3, Quaternion};
-    /// # use transforms::time::Timestamp;
-    /// # use transforms::errors::BufferError;
     /// use std::time::Duration;
+    /// # use transforms::{
+    /// #     core::Buffer,
+    /// #     errors::BufferError,
+    /// #     geometry::{Quaternion, Vector3},
+    /// #     time::Timestamp,
+    /// # };
     ///
     /// let max_age = Duration::from_secs(10);
     /// let mut buffer = Buffer::new(max_age);
@@ -130,19 +132,19 @@ impl Buffer {
     /// # let child = "b".into();
     /// #
     /// let transform = Transform {
-    ///       translation,
-    ///       rotation,
-    ///       timestamp,
-    ///       parent,
-    ///       child,
-    ///   };
+    ///     translation,
+    ///     rotation,
+    ///     timestamp,
+    ///     parent,
+    ///     child,
+    /// };
     ///
     /// buffer.insert(transform);
-    ///  
+    ///
     /// let result = buffer.get(&timestamp);
     /// match result {
-    ///   Ok(transform) => println!("Transform found: {:?}", transform),
-    ///   Err(_) => println!("No transform available"),
+    ///     Ok(transform) => println!("Transform found: {:?}", transform),
+    ///     Err(_) => println!("No transform available"),
     /// }
     /// ```
     pub fn get(

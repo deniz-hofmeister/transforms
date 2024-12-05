@@ -1,6 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
-use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+use transforms::{
+    geometry::{Quaternion, Transform, Vector3},
+    time::Timestamp,
+    Registry,
+};
 
 #[cfg(feature = "async")]
 use tokio::runtime::Runtime;

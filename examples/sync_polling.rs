@@ -4,10 +4,13 @@
 #[tokio::main]
 async fn main() {
     use log::{error, info};
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
     use tokio::sync::Mutex;
-    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    use transforms::{
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+        Registry,
+    };
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {

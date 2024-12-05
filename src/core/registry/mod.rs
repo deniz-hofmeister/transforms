@@ -1,8 +1,8 @@
-use crate::core::Buffer;
-use crate::geometry::Transform;
-use crate::time::Timestamp;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
-use std::time::Duration;
+use crate::{core::Buffer, geometry::Transform, time::Timestamp};
+use std::{
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    time::Duration,
+};
 mod error;
 use crate::errors::{BufferError, TransformError};
 
@@ -26,11 +26,13 @@ pub mod async_impl {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::geometry::{Quaternion, Transform, Vector3};
-    /// # use transforms::core::Registry;
-    /// # use transforms::time::Timestamp;
-    /// # use std::time::Duration;
+    /// use std::time::Duration;
     /// # use tokio_test::block_on;
+    /// use transforms::{
+    ///     core::Registry,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// # block_on(async {
     /// // Create a new registry with a time-to-live duration
@@ -40,8 +42,17 @@ pub mod async_impl {
     ///
     /// // Define a transform from frame "a" to frame "b"
     /// let t_a_b_1 = Transform {
-    ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: t1,
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -80,8 +91,8 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
         /// use std::time::Duration;
+        /// use transforms::Registry;
         ///
         /// let mut registry = Registry::new(Duration::from_secs(60));
         /// ```
@@ -106,7 +117,7 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use transforms::{geometry::Transform, Registry};
         /// # use tokio_test::block_on;
         /// use std::time::Duration;
         ///
@@ -147,7 +158,11 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use transforms::{
+        ///     geometry::{Quaternion, Transform, Vector3},
+        ///     time::Timestamp,
+        ///     Registry,
+        /// };
         /// # use tokio_test::block_on;
         /// use std::time::Duration;
         ///
@@ -158,8 +173,17 @@ pub mod async_impl {
         ///
         /// // Define a transform from frame "a" to frame "b"
         /// let t_a_b_1 = Transform {
-        ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-        ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+        ///     translation: Vector3 {
+        ///         x: 1.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
+        ///     rotation: Quaternion {
+        ///         w: 1.0,
+        ///         x: 0.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
         ///     timestamp: t1,
         ///     parent: "a".into(),
         ///     child: "b".into(),
@@ -204,7 +228,11 @@ pub mod async_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+        /// use transforms::{
+        ///     geometry::{Quaternion, Transform, Vector3},
+        ///     time::Timestamp,
+        ///     Registry,
+        /// };
         /// # use tokio_test::block_on;
         /// use std::time::Duration;
         ///
@@ -215,8 +243,17 @@ pub mod async_impl {
         ///
         /// // Define a transform from frame "a" to frame "b"
         /// let t_a_b_1 = Transform {
-        ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-        ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+        ///     translation: Vector3 {
+        ///         x: 1.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
+        ///     rotation: Quaternion {
+        ///         w: 1.0,
+        ///         x: 0.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
         ///     timestamp: t1,
         ///     parent: "a".into(),
         ///     child: "b".into(),
@@ -260,8 +297,12 @@ pub mod sync_impl {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
     /// use std::time::Duration;
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    ///     Registry,
+    /// };
     ///
     /// // Create a new registry with a time-to-live duration
     /// let mut registry = Registry::new(Duration::from_secs(60));
@@ -270,8 +311,17 @@ pub mod sync_impl {
     ///
     /// // Define a transform from frame "a" to frame "b"
     /// let t_a_b_1 = Transform {
-    ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: t1,
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -308,8 +358,8 @@ pub mod sync_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
         /// use std::time::Duration;
+        /// use transforms::Registry;
         ///
         /// let mut registry = Registry::new(Duration::from_secs(60));
         /// ```
@@ -333,8 +383,8 @@ pub mod sync_impl {
         /// # Examples
         ///
         /// ```
-        /// # use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
         /// use std::time::Duration;
+        /// use transforms::{geometry::Transform, Registry};
         ///
         /// let mut registry = Registry::new(Duration::from_secs(60));
         /// let transform = Transform::identity();
@@ -364,8 +414,8 @@ pub mod sync_impl {
         /// # Examples
         ///
         /// ```
-        /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
         /// use std::time::Duration;
+        /// use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
         ///
         /// let mut registry = Registry::new(Duration::from_secs(60));
         /// let t1 = Timestamp::zero();
@@ -373,8 +423,17 @@ pub mod sync_impl {
         ///
         /// // Define a transform from frame "a" to frame "b"
         /// let t_a_b_1 = Transform {
-        ///     translation: Vector3 { x: 1.0, y: 0.0, z: 0.0 },
-        ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+        ///     translation: Vector3 {
+        ///         x: 1.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
+        ///     rotation: Quaternion {
+        ///         w: 1.0,
+        ///         x: 0.0,
+        ///         y: 0.0,
+        ///         z: 0.0,
+        ///     },
         ///     timestamp: t1,
         ///     parent: "a".into(),
         ///     child: "b".into(),
