@@ -1,3 +1,14 @@
+//! Registry module provides the core functionality for transform management.
+//!
+//! The registry maintains a collection of transforms between different coordinate frames
+//! and provides methods to add, retrieve, and chain transforms.
+//!
+//! # Implementation Details
+//!
+//! The module provides two implementations:
+//! - Synchronous implementation using std::sync primitives
+//! - Asynchronous implementation using tokio synchronization primitives
+
 use crate::{core::Buffer, geometry::Transform, time::Timestamp};
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},

@@ -13,7 +13,39 @@ pub struct Quaternion {
     pub z: f64,
 }
 
+// Optional: Implement Default trait which returns identity
+impl Default for Quaternion {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
 impl Quaternion {
+    /// Creates an identity quaternion representing no rotation.
+    ///
+    /// Returns a quaternion with w=1 and x=y=z=0, which represents the identity rotation
+    /// (i.e., no rotation at all).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::Quaternion;
+    ///
+    /// let q = Quaternion::identity();
+    /// assert_eq!(q.w, 1.0);
+    /// assert_eq!(q.x, 0.0);
+    /// assert_eq!(q.y, 0.0);
+    /// assert_eq!(q.z, 0.0);
+    /// ```
+    pub fn identity() -> Self {
+        Self {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+
     /// Returns the conjugate of the quaternion.
     ///
     /// # Examples

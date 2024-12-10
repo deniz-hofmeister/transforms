@@ -23,6 +23,43 @@ pub struct Vector3 {
     pub z: f64,
 }
 
+impl Vector3 {
+    /// Creates a new Vector3 with the given x, y, z coordinates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::Vector3;
+    /// let v = Vector3::new(1.0, 2.0, 3.0);
+    /// assert_eq!(v.x, 1.0);
+    /// assert_eq!(v.y, 2.0);
+    /// assert_eq!(v.z, 3.0);
+    /// ```
+    pub fn new(
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> Self {
+        Self { x, y, z }
+    }
+
+    pub fn zero() -> Self {
+        Self::new(0.0, 0.0, 0.0)
+    }
+
+    pub fn unit_x() -> Self {
+        Self::new(1.0, 0.0, 0.0)
+    }
+
+    pub fn unit_y() -> Self {
+        Self::new(0.0, 1.0, 0.0)
+    }
+
+    pub fn unit_z() -> Self {
+        Self::new(0.0, 0.0, 1.0)
+    }
+}
+
 impl Add for Vector3 {
     type Output = Self;
 
