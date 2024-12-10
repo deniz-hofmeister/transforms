@@ -2,7 +2,9 @@
 use {
     log::debug,
     std::time::Duration,
-    transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3},
+    transforms::geometry::{Quaternion, Transform, Vector3},
+    transforms::time::Timestamp,
+    transforms::Registry,
 };
 
 #[cfg(all(test, feature = "async"))]
@@ -26,8 +28,8 @@ async fn test_async_matching_tree() {
             z: 0.,
         },
         timestamp: t,
-        parent: "a".to_string(),
-        child: "b".to_string(),
+        parent: "a".into(),
+        child: "b".into(),
     };
 
     // Child frame B at t=1, x=2m without rotation
@@ -44,8 +46,8 @@ async fn test_async_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_millis(1000)).unwrap(),
-        parent: "a".to_string(),
-        child: "b".to_string(),
+        parent: "a".into(),
+        child: "b".into(),
     };
     // Child frame C at t=0, y=1m without rotation
     let t_b_c_0 = Transform {
@@ -61,8 +63,8 @@ async fn test_async_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_millis(500)).unwrap(),
-        parent: "b".to_string(),
-        child: "c".to_string(),
+        parent: "b".into(),
+        child: "c".into(),
     };
 
     // Child frame B at t=1, y=2m without rotation
@@ -79,8 +81,8 @@ async fn test_async_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_millis(1500)).unwrap(),
-        parent: "b".to_string(),
-        child: "c".to_string(),
+        parent: "b".into(),
+        child: "c".into(),
     };
 
     registry.add_transform(t_a_b_0.clone()).await.unwrap();
@@ -102,8 +104,8 @@ async fn test_async_matching_tree() {
             z: 0.,
         },
         timestamp: middle_timestamp,
-        parent: "a".to_string(),
-        child: "c".to_string(),
+        parent: "a".into(),
+        child: "c".into(),
     };
 
     let r = registry.get_transform("a", "c", middle_timestamp).await;
@@ -140,8 +142,8 @@ async fn test_async_non_matching_tree() {
             z: 0.,
         },
         timestamp: t,
-        parent: "a".to_string(),
-        child: "b".to_string(),
+        parent: "a".into(),
+        child: "b".into(),
     };
 
     // Child frame B at t=1, x=2m without rotation
@@ -158,8 +160,8 @@ async fn test_async_non_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_secs(1)).unwrap(),
-        parent: "a".to_string(),
-        child: "b".to_string(),
+        parent: "a".into(),
+        child: "b".into(),
     };
 
     // Child frame C at t=0, y=1m without rotation
@@ -176,8 +178,8 @@ async fn test_async_non_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_secs(2)).unwrap(),
-        parent: "b".to_string(),
-        child: "c".to_string(),
+        parent: "b".into(),
+        child: "c".into(),
     };
 
     // Child frame B at t=1, y=2m without rotation
@@ -194,8 +196,8 @@ async fn test_async_non_matching_tree() {
             z: 0.,
         },
         timestamp: (t + Duration::from_secs(3)).unwrap(),
-        parent: "b".to_string(),
-        child: "c".to_string(),
+        parent: "b".into(),
+        child: "c".into(),
     };
 
     registry.add_transform(t_a_b_0.clone()).await.unwrap();

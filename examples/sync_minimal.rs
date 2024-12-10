@@ -3,7 +3,11 @@
 fn main() {
     use log::{error, info};
     use std::time::Duration;
-    use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+    use transforms::{
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+        Registry,
+    };
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {

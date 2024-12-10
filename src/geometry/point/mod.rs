@@ -1,4 +1,8 @@
-use crate::types::{Quaternion, Timestamp, Vector3};
+use crate::{
+    geometry::{Quaternion, Vector3},
+    time::Timestamp,
+};
+
 mod error;
 
 /// Represents a point in space with a position, orientation, and timestamp.
@@ -9,10 +13,22 @@ mod error;
 /// # Examples
 ///
 /// ```
-/// # use transforms::types::{Quaternion, Timestamp, Vector3, Point};
+/// use transforms::{
+///     geometry::{Point, Quaternion, Vector3},
+///     time::Timestamp,
+/// };
 ///
-/// let position = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
-/// let orientation = Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 };
+/// let position = Vector3 {
+///     x: 1.0,
+///     y: 2.0,
+///     z: 3.0,
+/// };
+/// let orientation = Quaternion {
+///     w: 1.0,
+///     x: 0.0,
+///     y: 0.0,
+///     z: 0.0,
+/// };
 /// let timestamp = Timestamp::now();
 /// let frame = String::from("a");
 ///
@@ -25,6 +41,7 @@ mod error;
 ///
 /// assert_eq!(point.position.x, 1.0);
 /// assert_eq!(point.orientation.w, 1.0);
+/// ```
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Point {
     pub position: Vector3,

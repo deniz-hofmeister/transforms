@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod transform_tests {
-    use crate::types::{Quaternion, Timestamp, Transform, Vector3};
+    use crate::{
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+    };
 
     #[test]
     fn transform_creation() {

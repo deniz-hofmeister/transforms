@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::errors::TimestampError;
-    use crate::types::Timestamp;
+    use crate::{errors::TimestampError, time::Timestamp};
 
     #[test]
     fn creation() {

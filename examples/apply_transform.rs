@@ -1,4 +1,7 @@
-use transforms::types::{Point, Quaternion, Timestamp, Transform, Vector3};
+use transforms::{
+    geometry::{Point, Quaternion, Transform, Vector3},
+    time::Timestamp,
+};
 
 fn main() {
     let timestamp = Timestamp::now();

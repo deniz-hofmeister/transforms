@@ -1,6 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::time::Duration;
-use transforms::types::{Quaternion, Registry, Timestamp, Transform, Vector3};
+use transforms::{
+    geometry::{Quaternion, Transform, Vector3},
+    time::Timestamp,
+    Registry,
+};
 
 #[cfg(feature = "async")]
 use tokio::runtime::Runtime;
@@ -26,14 +30,14 @@ fn create_sample_transform() -> Transform {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_transforms(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sync_transforms");
+    let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
-    group.bench_function("sync_add_and_get_transform", |b| {
+    group.bench_function("add_and_get_transform", |b| {
         let mut registry = Registry::new(Duration::from_secs(60));
         b.iter(|| {
             let transform = create_sample_transform();
-            let t = transform.timestamp.clone();
+            let t = transform.timestamp;
             let _ = black_box(registry.add_transform(transform));
             let _ = black_box(registry.get_transform("a", "b", t));
         });
@@ -44,10 +48,10 @@ fn benchmark_sync_transforms(c: &mut Criterion) {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sync_transforms_with_preparation");
+    let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
-    group.bench_function("sync_add_and_get_transform_with_preparation", |b| {
+    group.bench_function("add_and_get_transform_1k", |b| {
         let mut registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
@@ -69,10 +73,10 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_tree_climb(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sync_tree_climb");
+    let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
-    group.bench_function("sync_tree_climb", |b| {
+    group.bench_function("tree_climb_1k", |b| {
         let mut registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
@@ -93,12 +97,12 @@ fn benchmark_sync_tree_climb(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_transforms(c: &mut Criterion) {
-    let mut group = c.benchmark_group("async_transforms");
+    let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
     let rt = Runtime::new().unwrap();
 
-    group.bench_function("async_add_and_get_transform", |b| {
+    group.bench_function("add_and_get_transform", |b| {
         let registry = Registry::new(Duration::from_secs(60));
         b.iter(|| {
             rt.block_on(async {
@@ -115,12 +119,12 @@ fn benchmark_async_transforms(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
-    let mut group = c.benchmark_group("async_transforms_with_preparation");
+    let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
     let rt = Runtime::new().unwrap();
 
-    group.bench_function("async_add_and_get_transform_with_preparation", |b| {
+    group.bench_function("add_and_get_transform_1k", |b| {
         let registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 10000 transforms
@@ -146,12 +150,12 @@ fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_tree_climb(c: &mut Criterion) {
-    let mut group = c.benchmark_group("async_tree_climb");
+    let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
     let rt = Runtime::new().unwrap();
 
-    group.bench_function("async_tree_climb", |b| {
+    group.bench_function("tree_climb_1k", |b| {
         let registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms

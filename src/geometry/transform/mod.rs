@@ -1,8 +1,10 @@
-use crate::types::{Quaternion, Timestamp, Vector3};
+use crate::{
+    geometry::{Quaternion, Vector3},
+    time::Timestamp,
+};
 use approx::AbsDiffEq;
 use core::ops::Mul;
-use std::cmp::Ordering;
-use std::time::Duration;
+use std::{cmp::Ordering, time::Duration};
 
 mod error;
 pub use error::TransformError;
@@ -16,13 +18,29 @@ pub use error::TransformError;
 /// # Examples
 ///
 /// ```
-/// # use transforms::types::{Transform, Vector3, Quaternion, Timestamp};
+/// use transforms::geometry::{Quaternion, Transform, Vector3};
 ///
 /// // Create an identity transform
 /// let identity = Transform::identity();
 ///
-/// assert_eq!(identity.translation, Vector3 { x: 0.0, y: 0.0, z: 0.0 });
-/// assert_eq!(identity.rotation, Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 });
+/// assert_eq!(
+///     identity.translation,
+///     Vector3 {
+///         x: 0.0,
+///         y: 0.0,
+///         z: 0.0
+///     }
+/// );
+///
+/// assert_eq!(
+///     identity.rotation,
+///     Quaternion {
+///         w: 1.0,
+///         x: 0.0,
+///         y: 0.0,
+///         z: 0.0
+///     }
+/// );
 /// ```
 #[derive(Debug, Clone)]
 pub struct Transform {
@@ -48,30 +66,66 @@ impl Transform {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Transform, Timestamp, Vector3, Quaternion};
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// let from = Transform {
-    ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     translation: Vector3 {
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: Timestamp { nanoseconds: 0 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let to = Transform {
-    ///     translation: Vector3 { x: 2.0, y: 2.0, z: 2.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
-    ///     timestamp: Timestamp { nanoseconds: 2_000_000_000 },
+    ///     translation: Vector3 {
+    ///         x: 2.0,
+    ///         y: 2.0,
+    ///         z: 2.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: Timestamp {
+    ///         nanoseconds: 2_000_000_000,
+    ///     },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let result = Transform {
-    ///     translation: Vector3 { x: 1.0, y: 1.0, z: 1.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
-    ///     timestamp: Timestamp { nanoseconds: 1_000_000_000 },
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 1.0,
+    ///         z: 1.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: Timestamp {
+    ///         nanoseconds: 1_000_000_000,
+    ///     },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
-    /// let timestamp = Timestamp { nanoseconds: 1_000_000_000 };
+    /// let timestamp = Timestamp {
+    ///     nanoseconds: 1_000_000_000,
+    /// };
     ///
     /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
     /// assert_eq!(result, interpolated);
@@ -115,12 +169,24 @@ impl Transform {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Transform, Timestamp, Vector3, Quaternion};
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// let identity = Transform::identity();
     /// let transform = Transform {
-    ///     translation: Vector3 { x: 0.0, y: 0.0, z: 0.0 },
-    ///     rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 },
+    ///     translation: Vector3 {
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: Timestamp { nanoseconds: 0 },
     ///     parent: "".into(),
     ///     child: "".into(),
@@ -154,7 +220,10 @@ impl Transform {
     /// # Examples
     ///
     /// ```
-    /// # use transforms::types::{Transform, Vector3, Quaternion, Timestamp};
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// // Create a transform with specific translation and rotation
     /// let transform = Transform {

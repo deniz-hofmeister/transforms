@@ -1,6 +1,10 @@
 #[cfg(test)]
 mod buffer_tests {
-    use crate::types::{Buffer, Quaternion, Timestamp, Transform, Vector3};
+    use crate::{
+        core::Buffer,
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+    };
     use std::time::Duration;
 
     fn create_transform(t: Timestamp) -> Transform {
