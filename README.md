@@ -1,5 +1,9 @@
 # Transforms
 [![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
+[![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
+[![Version](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
+[![License](https://img.shields.io/crates/l/transforms.svg)](https://github.com/deniz-hofmeister/transforms/blob/master/LICENSE)
+[![Downloads](https://img.shields.io/crates/d/transforms.svg)](https://crates.io/crates/transforms)
 
 Coordinate frames transforms through time and space
 
