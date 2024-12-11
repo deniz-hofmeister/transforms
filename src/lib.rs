@@ -107,4 +107,5 @@ pub mod errors;
 pub mod geometry;
 pub mod time;
 
-pub use core::registry::Registry;
+pub use core::Registry;
+pub use geometry::{Transform, Transformable};

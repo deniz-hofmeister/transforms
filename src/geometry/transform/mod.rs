@@ -4,10 +4,12 @@ use crate::{
 };
 use approx::AbsDiffEq;
 use core::ops::Mul;
+pub use error::TransformError;
 use std::{cmp::Ordering, time::Duration};
+pub use traits::Transformable;
 
 mod error;
-pub use error::TransformError;
+mod traits;
 
 /// Represents a 3D transformation with translation, rotation, and timestamp.
 ///

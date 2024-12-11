@@ -5,5 +5,5 @@ pub mod vector3;
 
 pub use point::Point;
 pub use quaternion::Quaternion;
-pub use transform::Transform;
+pub use transform::{Transform, Transformable};
 pub use vector3::Vector3;

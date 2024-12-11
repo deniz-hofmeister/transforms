@@ -6,10 +6,21 @@
 //!
 //! # Features
 //!
-//! - Store transforms with associated timestamps.
-//! - Automatically remove expired transforms based on a specified time-to-live (TTL).
-//! - Retrieve transforms at specific timestamps, with interpolation between nearest transforms.
-//! - Support for static lookup mode when a timestamp with nanoseconds set to zero is supplied.
+//! - **Store Transforms with Timestamps**: The `Buffer` allows you to store multiple transforms,
+//!   each associated with a unique timestamp. This is useful for applications that require
+//!   time-based transformations, such as robotics, animation, and simulations.
+//!
+//! - **Automatic Expiration of Transforms**: The buffer can automatically remove expired transforms
+//!   based on a specified time-to-live (TTL). This ensures that the buffer does not grow indefinitely
+//!   and only retains relevant transforms within the specified duration.
+//!
+//! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
+//!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
+//!   provide an estimated transform at the requested timestamp.
+//!
+//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp with
+//!   nanoseconds set to zero is supplied, the buffer will return a static transform if available.
+//!   This is useful for scenarios where a constant transform is needed regardless of the timestamp.
 //!
 //! # Examples
 //!

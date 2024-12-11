@@ -6,6 +6,7 @@
 //!
 //! - **Synchronous Implementation**: Uses standard synchronization primitives from `std::sync`.
 //! - **Asynchronous Implementation**: Uses `tokio` synchronization primitives for async operations.
+//! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
 //!
 //! ## Usage
 //!
