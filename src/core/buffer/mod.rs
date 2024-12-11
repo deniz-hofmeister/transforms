@@ -1,3 +1,73 @@
+//! A module for managing a buffer of transforms with timestamps.
+//!
+//! This module provides the `Buffer` struct, which is designed to store and manage
+//! a collection of transforms, each associated with a timestamp. The buffer uses
+//! a binary tree to efficiently store and retrieve transforms based on their timestamps.
+//!
+//! # Features
+//!
+//! - Store transforms with associated timestamps.
+//! - Automatically remove expired transforms based on a specified time-to-live (TTL).
+//! - Retrieve transforms at specific timestamps, with interpolation between nearest transforms.
+//! - Support for static lookup mode when a timestamp with nanoseconds set to zero is supplied.
+//!
+//! # Examples
+//!
+//! ```
+//! use std::time::Duration;
+//! use transforms::{
+//!     core::Buffer,
+//!     geometry::{Quaternion, Transform, Vector3},
+//!     time::Timestamp,
+//! };
+//!
+//! let max_age = Duration::from_secs(10);
+//! let mut buffer = Buffer::new(max_age);
+//!
+//! let translation = Vector3 {
+//!     x: 1.0,
+//!     y: 2.0,
+//!     z: 3.0,
+//! };
+//! let rotation = Quaternion {
+//!     w: 1.0,
+//!     x: 0.0,
+//!     y: 0.0,
+//!     z: 0.0,
+//! };
+//! let timestamp = Timestamp::now();
+//! let parent = "a".into();
+//! let child = "b".into();
+//!
+//! let transform = Transform {
+//!     translation,
+//!     rotation,
+//!     timestamp,
+//!     parent,
+//!     child,
+//! };
+//!
+//! buffer.insert(transform);
+//!
+//! let result = buffer.get(&timestamp);
+//! match result {
+//!     Ok(transform) => println!("Transform found: {:?}", transform),
+//!     Err(_) => println!("No transform available"),
+//! }
+//! ```
+//!
+//! # Modules
+//!
+//! - `error`: Contains the `BufferError` type for error handling.
+//!
+//! # Structs
+//!
+//! - `Buffer`: The main struct for managing the buffer of transforms.
+//!
+//! # Types
+//!
+//! - `NearestTransforms`: A type alias for a tuple containing the nearest transforms before and after a given timestamp.
+
 use crate::{geometry::Transform, time::Timestamp};
 use std::{collections::BTreeMap, time::Duration};
 mod error;
