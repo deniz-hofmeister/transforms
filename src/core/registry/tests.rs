@@ -6,7 +6,6 @@ mod registry_tests {
         time::Timestamp,
         Registry,
     };
-
     use log::debug;
     use std::time::Duration;
 
@@ -501,8 +500,8 @@ mod registry_tests {
             registry.add_transform(t_b_c).unwrap();
             registry.add_transform(t_b_d).unwrap();
 
-            let from_chain = Registry::get_transform_chain("c", "d", t, &mut registry.data);
-            let mut to_chain = Registry::get_transform_chain("d", "c", t, &mut registry.data);
+            let from_chain = Registry::get_transform_chain("c", "d", t, &registry.data);
+            let mut to_chain = Registry::get_transform_chain("d", "c", t, &registry.data);
 
             if let Ok(chain) = to_chain.as_mut() {
                 Registry::reverse_and_invert_transforms(chain).unwrap();

@@ -366,7 +366,7 @@ pub mod sync_impl {
         pub fn new(max_age: std::time::Duration) -> Self {
             Self {
                 data: HashMap::new(),
-                max_age: max_age.into(),
+                max_age,
             }
         }
 
