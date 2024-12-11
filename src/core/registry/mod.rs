@@ -14,6 +14,8 @@
 //! ### Synchronous Example
 //!
 //! ```rust
+//! # #[cfg(not(feature = "async"))]
+//! # {
 //! use std::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
@@ -55,55 +57,59 @@
 //! let result = registry.get_transform("a", "b", t2);
 //! assert!(result.is_ok());
 //! assert_eq!(result.unwrap(), t_a_b_2);
+//! # }
 //! ```
 //!
 //! ### Asynchronous Example
 //!
 //! ```rust
+//! # #[cfg(feature = "async")]
+//! # {
 //! use std::time::Duration;
-//! # use tokio_test::block_on;
+//! use tokio_test::block_on;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
 //!     Registry,
 //! };
 //!
-//! # block_on(async {
-//! // Create a new registry with a max_age duration
-//! let mut registry = Registry::new(Duration::from_secs(60));
-//! let t1 = Timestamp::now();
-//! let t2 = t1.clone();
+//! block_on(async {
+//!     // Create a new registry with a max_age duration
+//!     let mut registry = Registry::new(Duration::from_secs(60));
+//!     let t1 = Timestamp::now();
+//!     let t2 = t1.clone();
 //!
-//! // Define a transform from frame "a" to frame "b"
-//! let t_a_b_1 = Transform {
-//!     translation: Vector3 {
-//!         x: 1.0,
-//!         y: 0.0,
-//!         z: 0.0,
-//!     },
-//!     rotation: Quaternion {
-//!         w: 1.0,
-//!         x: 0.0,
-//!         y: 0.0,
-//!         z: 0.0,
-//!     },
-//!     timestamp: t1,
-//!     parent: "a".into(),
-//!     child: "b".into(),
-//! };
+//!     // Define a transform from frame "a" to frame "b"
+//!     let t_a_b_1 = Transform {
+//!         translation: Vector3 {
+//!             x: 1.0,
+//!             y: 0.0,
+//!             z: 0.0,
+//!         },
+//!         rotation: Quaternion {
+//!             w: 1.0,
+//!             x: 0.0,
+//!             y: 0.0,
+//!             z: 0.0,
+//!         },
+//!         timestamp: t1,
+//!         parent: "a".into(),
+//!         child: "b".into(),
+//!     };
 //!
-//! // For validation
-//! let t_a_b_2 = t_a_b_1.clone();
+//!     // For validation
+//!     let t_a_b_2 = t_a_b_1.clone();
 //!
-//! // Add the transform to the registry
-//! let result = registry.add_transform(t_a_b_1).await;
-//! assert!(result.is_ok());
+//!     // Add the transform to the registry
+//!     let result = registry.add_transform(t_a_b_1).await;
+//!     assert!(result.is_ok());
 //!
-//! // Retrieve the transform from "a" to "b"
-//! let result = registry.get_transform("a", "b", t2).await;
-//! assert!(result.is_ok());
-//! assert_eq!(result.unwrap(), t_a_b_2);
-//! # });
+//!     // Retrieve the transform from "a" to "b"
+//!     let result = registry.get_transform("a", "b", t2).await;
+//!     assert!(result.is_ok());
+//!     assert_eq!(result.unwrap(), t_a_b_2);
+//! });
+//! # }
 //! ```
 //!
 //! ## Structs
