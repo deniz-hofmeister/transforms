@@ -1,3 +1,173 @@
+//! # Registry Module
+//!
+//! The `registry` module provides the core functionality for managing transforms between different coordinate frames. It maintains a collection of transforms and offers methods to add, retrieve, and chain these transforms. The module supports both synchronous and asynchronous implementations, depending on the feature flags enabled.
+//!
+//! ## Features
+//!
+//! - **Synchronous Implementation**: Uses standard synchronization primitives from `std::sync`.
+//! - **Asynchronous Implementation**: Uses `tokio` synchronization primitives for async operations.
+//!
+//! ## Usage
+//!
+//! The `Registry` struct is the main entry point for interacting with the registry. Depending on the feature flags, it can be used in either synchronous or asynchronous contexts.
+//!
+//! ### Synchronous Example
+//!
+//! ```rust
+//! # #[cfg(not(feature = "async"))]
+//! # {
+//! use std::time::Duration;
+//! use transforms::{
+//!     geometry::{Quaternion, Transform, Vector3},
+//!     time::Timestamp,
+//!     Registry,
+//! };
+//!
+//! // Create a new registry with a max_age duration
+//! let mut registry = Registry::new(Duration::from_secs(60));
+//! let t1 = Timestamp::now();
+//! let t2 = t1.clone();
+//!
+//! // Define a transform from frame "a" to frame "b"
+//! let t_a_b_1 = Transform {
+//!     translation: Vector3 {
+//!         x: 1.0,
+//!         y: 0.0,
+//!         z: 0.0,
+//!     },
+//!     rotation: Quaternion {
+//!         w: 1.0,
+//!         x: 0.0,
+//!         y: 0.0,
+//!         z: 0.0,
+//!     },
+//!     timestamp: t1,
+//!     parent: "a".into(),
+//!     child: "b".into(),
+//! };
+//!
+//! // For validation
+//! let t_a_b_2 = t_a_b_1.clone();
+//!
+//! // Add the transform to the registry
+//! let result = registry.add_transform(t_a_b_1);
+//! assert!(result.is_ok());
+//!
+//! // Retrieve the transform from "a" to "b"
+//! let result = registry.get_transform("a", "b", t2);
+//! assert!(result.is_ok());
+//! assert_eq!(result.unwrap(), t_a_b_2);
+//! # }
+//! ```
+//!
+//! ### Asynchronous Example
+//!
+//! ```rust
+//! # #[cfg(feature = "async")]
+//! # {
+//! use std::time::Duration;
+//! use tokio_test::block_on;
+//! use transforms::{
+//!     geometry::{Quaternion, Transform, Vector3},
+//!     time::Timestamp,
+//!     Registry,
+//! };
+//!
+//! block_on(async {
+//!     // Create a new registry with a max_age duration
+//!     let mut registry = Registry::new(Duration::from_secs(60));
+//!     let t1 = Timestamp::now();
+//!     let t2 = t1.clone();
+//!
+//!     // Define a transform from frame "a" to frame "b"
+//!     let t_a_b_1 = Transform {
+//!         translation: Vector3 {
+//!             x: 1.0,
+//!             y: 0.0,
+//!             z: 0.0,
+//!         },
+//!         rotation: Quaternion {
+//!             w: 1.0,
+//!             x: 0.0,
+//!             y: 0.0,
+//!             z: 0.0,
+//!         },
+//!         timestamp: t1,
+//!         parent: "a".into(),
+//!         child: "b".into(),
+//!     };
+//!
+//!     // For validation
+//!     let t_a_b_2 = t_a_b_1.clone();
+//!
+//!     // Add the transform to the registry
+//!     let result = registry.add_transform(t_a_b_1).await;
+//!     assert!(result.is_ok());
+//!
+//!     // Retrieve the transform from "a" to "b"
+//!     let result = registry.get_transform("a", "b", t2).await;
+//!     assert!(result.is_ok());
+//!     assert_eq!(result.unwrap(), t_a_b_2);
+//! });
+//! # }
+//! ```
+//!
+//! ## Structs
+//!
+//! ### `Registry`
+//!
+//! The `Registry` struct provides methods to add and retrieve transforms between frames. It supports both synchronous and asynchronous operations depending on the feature flags.
+//!
+//! #### Methods
+//!
+//! - `new(max_age: Duration) -> Self`
+//!   - Creates a new `Registry` with the specified max_age duration.
+//!   - **Arguments**
+//!     - `max_age`: The duration for which transforms are considered valid.
+//!   - **Returns**
+//!     - A new instance of `Registry`.
+//!
+//! - `add_transform(&self, t: Transform) -> Result<(), BufferError>` (async)
+//!   - Adds a transform to the registry asynchronously.
+//!   - **Arguments**
+//!     - `t`: The transform to add.
+//!   - **Errors**
+//!     - Returns a `BufferError` if the transform cannot be added.
+//!
+//! - `await_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (async)
+//!   - Awaits for a transform to become available in the registry.
+//!   - **Arguments**
+//!     - `from`: The source frame.
+//!     - `to`: The destination frame.
+//!     - `timestamp`: The timestamp for which the transform is requested.
+//!   - **Returns**
+//!     - A `Result` containing the `Transform` if found, or an error if not found.
+//!
+//! - `get_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (async)
+//!   - Retrieves a transform from the registry asynchronously.
+//!   - **Arguments**
+//!     - `from`: The source frame.
+//!     - `to`: The destination frame.
+//!     - `timestamp`: The timestamp for which the transform is requested.
+//!   - **Errors**
+//!     - Returns a `TransformError` if the transform cannot be found.
+//!
+//! - `add_transform(&mut self, t: Transform) -> Result<(), BufferError>` (sync)
+//!   - Adds a transform to the registry.
+//!   - **Arguments**
+//!     - `t`: The transform to add.
+//!   - **Errors**
+//!     - Returns a `BufferError` if the transform cannot be added.
+//!
+//! - `get_transform(&mut self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (sync)
+//!   - Retrieves a transform from the registry.
+//!   - **Arguments**
+//!     - `from`: The source frame.
+//!     - `to`: The destination frame.
+//!     - `timestamp`: The timestamp for which the transform is requested.
+//!   - **Errors**
+//!     - Returns a `TransformError` if the transform cannot be found.
+
 use crate::{core::Buffer, geometry::Transform, time::Timestamp};
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
@@ -35,7 +205,7 @@ pub mod async_impl {
     /// };
     ///
     /// # block_on(async {
-    /// // Create a new registry with a time-to-live duration
+    /// // Create a new registry with a max_age duration
     /// let mut registry = Registry::new(Duration::from_secs(60));
     /// let t1 = Timestamp::now();
     /// let t2 = t1.clone();
@@ -78,7 +248,7 @@ pub mod async_impl {
     }
 
     impl Registry {
-        /// Creates a new `Registry` with the specified time-to-live duration.
+        /// Creates a new `Registry` with the specified max_age duration.
         ///
         /// # Arguments
         ///
@@ -304,7 +474,7 @@ pub mod sync_impl {
     ///     Registry,
     /// };
     ///
-    /// // Create a new registry with a time-to-live duration
+    /// // Create a new registry with a max_age duration
     /// let mut registry = Registry::new(Duration::from_secs(60));
     /// let t1 = Timestamp::now();
     /// let t2 = t1.clone();
@@ -345,7 +515,7 @@ pub mod sync_impl {
     }
 
     impl Registry {
-        /// Creates a new `Registry` with the specified time-to-live duration.
+        /// Creates a new `Registry` with the specified max_age duration.
         ///
         /// # Arguments
         ///
@@ -366,7 +536,7 @@ pub mod sync_impl {
         pub fn new(max_age: std::time::Duration) -> Self {
             Self {
                 data: HashMap::new(),
-                max_age: max_age.into(),
+                max_age,
             }
         }
 
