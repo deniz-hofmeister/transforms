@@ -169,13 +169,18 @@
 //!   - **Errors**
 //!     - Returns a `TransformError` if the transform cannot be found.
 
-use crate::{core::Buffer, geometry::Transform, time::Timestamp};
+use crate::{
+    core::Buffer,
+    errors::{BufferError, TransformError},
+    geometry::Transform,
+    time::Timestamp,
+};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     time::Duration,
 };
 mod error;
-use crate::errors::{BufferError, TransformError};
 
 #[cfg(feature = "async")]
 pub use async_impl::Registry;
@@ -660,19 +665,19 @@ impl Registry {
         data: &mut HashMap<String, Buffer>,
     ) -> Result<Transform, TransformError> {
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
-        let mut to_chain = Self::get_transform_chain(to, from, timestamp, data);
-
-        if let Ok(chain) = to_chain.as_mut() {
-            Self::reverse_and_invert_transforms(chain)?;
-        }
+        let to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
         match (from_chain, to_chain) {
             (Ok(mut from_chain), Ok(mut to_chain)) => {
                 Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
+                Self::reverse_and_invert_transforms(&mut to_chain)?;
                 Self::combine_transforms(from_chain, to_chain)
             }
             (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
-            (Err(_), Ok(to_chain)) => Self::combine_transforms(VecDeque::new(), to_chain),
+            (Err(_), Ok(mut to_chain)) => {
+                Self::reverse_and_invert_transforms(&mut to_chain)?;
+                Self::combine_transforms(VecDeque::new(), to_chain)
+            }
             (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
         }
     }
@@ -706,22 +711,47 @@ impl Registry {
         }
     }
 
+    // fn truncate_at_common_parent(
+    //     from_chain: &mut VecDeque<Transform>,
+    //     to_chain: &mut VecDeque<Transform>,
+    // ) {
+    //     if let Some(index) = from_chain
+    //         .iter()
+    //         .position(|tf| to_chain.iter().any(|to_tf| to_tf.parent == tf.parent))
+    //     {
+    //         from_chain.truncate(index + 1);
+    //     }
+    //
+    //     if let Some(index) = to_chain
+    //         .iter()
+    //         .position(|tf| from_chain.iter().any(|from_tf| from_tf.parent == tf.parent))
+    //     {
+    //         to_chain.truncate(index + 1);
+    //     }
+    // }
+
     fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
     ) {
-        if let Some(index) = from_chain
-            .iter()
-            .position(|tf| to_chain.iter().any(|to_tf| to_tf.parent == tf.parent))
-        {
-            from_chain.truncate(index + 1);
-        }
+        let from_parents: HashSet<_> = from_chain.iter().map(|tf| &tf.parent).collect();
 
-        if let Some(index) = to_chain
+        if let Some((index, _)) = to_chain
             .iter()
-            .position(|tf| from_chain.iter().any(|from_tf| from_tf.parent == tf.parent))
+            .enumerate()
+            .find(|(_, tf)| from_parents.contains(&tf.parent))
         {
             to_chain.truncate(index + 1);
+        }
+
+        let to_parents: HashSet<_> = to_chain.iter().map(|tf| &tf.parent).collect();
+
+        if let Some((index, _)) = from_chain
+            .iter()
+            .enumerate()
+            .find(|(_, tf)| to_parents.contains(&tf.parent))
+        {
+            from_chain.truncate(index + 1);
         }
     }
 
@@ -747,6 +777,36 @@ impl Registry {
         final_transform.inverse()
     }
 
+    // fn combine_transforms(
+    //     mut from_chain: VecDeque<Transform>,
+    //     mut to_chain: VecDeque<Transform>,
+    // ) -> Result<Transform, TransformError> {
+    //     from_chain.append(&mut to_chain);
+    //
+    //     // Collect the transforms into a vector in the correct order
+    //     let transforms: Vec<Transform> = from_chain.into_iter().collect();
+    //
+    //     // Check if we have any transforms to combine
+    //     if transforms.is_empty() {
+    //         return Err(TransformError::TransformTreeEmpty);
+    //     }
+    //
+    //     // Parallel reduction over the transforms
+    //     let final_transform = transforms
+    //         .par_iter()
+    //         // Reverse the iterator to maintain the correct order (if necessary)
+    //         .rev()
+    //         // Clone the transforms to own them
+    //         .cloned()
+    //         // Reduce with the associative transform multiplication
+    //         .reduce_with(|a, b| (a * b).unwrap())
+    //         // Handle the case where reduce_with returns None (empty iterator)
+    //         .ok_or(TransformError::TransformTreeEmpty)?;
+    //
+    //     // Invert the final transform if necessary
+    //     final_transform.inverse()
+    // }
+
     fn reverse_and_invert_transforms(
         chain: &mut VecDeque<Transform>
     ) -> Result<(), TransformError> {
@@ -759,6 +819,23 @@ impl Registry {
         *chain = reversed_and_inverted;
         Ok(())
     }
+
+    // fn reverse_and_invert_transforms(
+    //     chain: &mut VecDeque<Transform>
+    // ) -> Result<(), TransformError> {
+    //     let reversed_chain: Vec<Transform> = chain.iter().rev().cloned().collect();
+    //
+    //     let inverted_transforms: Result<Vec<Transform>, TransformError> = reversed_chain
+    //         .par_iter()
+    //         .map(|item| item.inverse())
+    //         .collect();
+    //
+    //     let inverted_chain = VecDeque::from(inverted_transforms?);
+    //
+    //     *chain = inverted_chain;
+    //
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]
