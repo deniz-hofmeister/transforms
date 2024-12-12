@@ -6,6 +6,7 @@
 //!
 //! - **Synchronous Implementation**: Uses standard synchronization primitives from `std::sync`.
 //! - **Asynchronous Implementation**: Uses `tokio` synchronization primitives for async operations.
+//! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
 //!
 //! ## Usage
 //!
@@ -168,13 +169,17 @@
 //!   - **Errors**
 //!     - Returns a `TransformError` if the transform cannot be found.
 
-use crate::{core::Buffer, geometry::Transform, time::Timestamp};
+use crate::{
+    core::Buffer,
+    errors::{BufferError, TransformError},
+    geometry::Transform,
+    time::Timestamp,
+};
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     time::Duration,
 };
 mod error;
-use crate::errors::{BufferError, TransformError};
 
 #[cfg(feature = "async")]
 pub use async_impl::Registry;
@@ -634,6 +639,17 @@ pub mod sync_impl {
 }
 
 impl Registry {
+    /// Adds a transform to the data buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - The transform to be added to the registry
+    /// * `data` - Mutable reference to the data buffer where transforms are stored
+    /// * `max_age` - The maximum duration for which transforms are considered valid
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError` if there is an issue adding the transform to the buffer
     fn process_add_transform(
         t: Transform,
         data: &mut HashMap<String, Buffer>,
@@ -652,6 +668,20 @@ impl Registry {
         Ok(())
     }
 
+    /// Retrieves and computes the transform between two frames at a specific timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The source frame identifier
+    /// * `to` - The target frame identifier
+    /// * `timestamp` - The time for which the transform is requested
+    /// * `data` - Mutable reference to the data buffer containing transforms
+    ///
+    /// # Errors
+    ///
+    /// * `TransformError::NotFound` - If no valid transform chain is found between the specified frames
+    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty after processing
+    /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
         from: &str,
         to: &str,
@@ -659,23 +689,35 @@ impl Registry {
         data: &mut HashMap<String, Buffer>,
     ) -> Result<Transform, TransformError> {
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
-        let mut to_chain = Self::get_transform_chain(to, from, timestamp, data);
-
-        if let Ok(chain) = to_chain.as_mut() {
-            Self::reverse_and_invert_transforms(chain)?;
-        }
+        let to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
         match (from_chain, to_chain) {
             (Ok(mut from_chain), Ok(mut to_chain)) => {
                 Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
+                Self::reverse_and_invert_transforms(&mut to_chain)?;
                 Self::combine_transforms(from_chain, to_chain)
             }
             (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
-            (Err(_), Ok(to_chain)) => Self::combine_transforms(VecDeque::new(), to_chain),
+            (Err(_), Ok(mut to_chain)) => {
+                Self::reverse_and_invert_transforms(&mut to_chain)?;
+                Self::combine_transforms(VecDeque::new(), to_chain)
+            }
             (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
         }
     }
 
+    /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - The starting frame identifier
+    /// * `to` - The target frame identifier
+    /// * `timestamp` - The time for which the transforms are requested
+    /// * `data` - Reference to the data buffer containing transforms
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransformError::NotFound` if no transform chain can be found from the starting frame to the target frame
     fn get_transform_chain(
         from: &str,
         to: &str,
@@ -705,25 +747,48 @@ impl Registry {
         }
     }
 
+    /// Truncates two transform chains at their common parent frame to optimize the transformation computation.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_chain` - Mutable reference to the transform chain originating from the source frame
+    /// * `to_chain` - Mutable reference to the transform chain originating from the target frame
     fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
     ) {
-        if let Some(index) = from_chain
-            .iter()
-            .position(|tf| to_chain.iter().any(|to_tf| to_tf.parent == tf.parent))
-        {
-            from_chain.truncate(index + 1);
-        }
+        let from_parents: HashSet<_> = from_chain.iter().map(|tf| &tf.parent).collect();
 
-        if let Some(index) = to_chain
+        if let Some((index, _)) = to_chain
             .iter()
-            .position(|tf| from_chain.iter().any(|from_tf| from_tf.parent == tf.parent))
+            .enumerate()
+            .find(|(_, tf)| from_parents.contains(&tf.parent))
         {
             to_chain.truncate(index + 1);
         }
+
+        let to_parents: HashSet<_> = to_chain.iter().map(|tf| &tf.parent).collect();
+
+        if let Some((index, _)) = from_chain
+            .iter()
+            .enumerate()
+            .find(|(_, tf)| to_parents.contains(&tf.parent))
+        {
+            from_chain.truncate(index + 1);
+        }
     }
 
+    /// Combines two transform chains into a single transform representing the transformation from the source frame to the target frame.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_chain` - The transform chain from the source frame toward the common ancestor
+    /// * `to_chain` - The inverted and reversed transform chain from the target frame toward the common ancestor
+    ///
+    /// # Errors
+    ///
+    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty
+    /// * Other variants of `TransformError` resulting from invalid transform operations
     fn combine_transforms(
         mut from_chain: VecDeque<Transform>,
         mut to_chain: VecDeque<Transform>,
@@ -746,6 +811,15 @@ impl Registry {
         final_transform.inverse()
     }
 
+    /// Reverses a transform chain and inverts each transform within it.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - Mutable reference to the transform chain to be reversed and inverted
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransformError` if any transform in the chain cannot be inverted
     fn reverse_and_invert_transforms(
         chain: &mut VecDeque<Transform>
     ) -> Result<(), TransformError> {
