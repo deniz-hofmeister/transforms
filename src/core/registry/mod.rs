@@ -175,7 +175,6 @@ use crate::{
     geometry::Transform,
     time::Timestamp,
 };
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     time::Duration,
