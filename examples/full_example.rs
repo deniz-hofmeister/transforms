@@ -1,5 +1,11 @@
 //! This example demonstrates the complete functionality of the transforms library,
 //! including creating transforms, using the registry, and applying transforms to data.
+//!
+//! This example also showcases the ability of the registry to interpolate transforms for
+//! timestamps between known timestamps.
+//!
+//! The await functionality allows us to wait for a transform to become available as the registry
+//! will not extrapolate.
 
 use log::{error, info};
 use std::{sync::Arc, time::Duration};
