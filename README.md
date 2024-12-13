@@ -13,6 +13,12 @@ A blazingly fast and efficient coordinate transform library for robotics and com
 
 This library provides functionality for managing coordinate transformations between different frames of reference. It supports both synchronous and asynchronous operations through feature flags, making it suitable for both real-time and event-driven applications.
 
+For more detailed information, please refer to the [documentation](https://docs.rs/transforms). To view the async-specific documentation, use:
+
+```bash
+cargo doc --open --features async
+```
+
 ## Features
 
 - **Synchronous and Asynchronous APIs**: Choose between sync and async implementations via the `async` feature flag.
@@ -109,14 +115,6 @@ let result = registry
     .await_transform("base", "sensor", timestamp)
     .await
     .unwrap();
-```
-
-## Documentation
-
-For more detailed information, please refer to the [documentation](https://docs.rs/transforms). To view the async-specific documentation, use:
-
-```bash
-cargo doc --open --features async
 ```
 
 ## License
