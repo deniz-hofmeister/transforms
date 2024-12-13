@@ -4,6 +4,20 @@
 //! of reference. It supports both synchronous and asynchronous operations through feature flags, making
 //! it suitable for both real-time and event-driven applications.
 //!
+//! <div class="warning">
+//! <strong>Recommended Configuration:</strong>
+//! Enable the <code>async</code> feature flag as it provides the ability to await for transforms
+//! asynchronously. View async specific documentation: <code>cargo doc --open --features async</code>
+//! </div>
+//!
+//! # Architecture
+//!
+//! The library is organized around three main components:
+//!
+//! - **Registry**: The main interface for managing transforms
+//! - **Buffer**: Internal storage for transforms between specific frames
+//! - **Transform**: The core data structure representing spatial transformations
+//!
 //! # Features
 //!
 //! - **Synchronous and Asynchronous APIs**: Choose between sync and async implementations via the `async` feature flag
@@ -78,14 +92,6 @@
 //!     .unwrap();
 //! # }
 //! ```
-//!
-//! # Architecture
-//!
-//! The library is organized around three main components:
-//!
-//! - **Registry**: The main interface for managing transforms
-//! - **Buffer**: Internal storage for transforms between specific frames
-//! - **Transform**: The core data structure representing spatial transformations
 //!
 //! # Transform and Data Transformation
 //!
