@@ -81,7 +81,6 @@ registry.add_transform(transform).unwrap();
 let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 ```
 
-```rust
 ### Asynchronous Example
 
 ```rust
