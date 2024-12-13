@@ -1,17 +1,11 @@
-# Transforms
+# Transforms Library
 
 [![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
 [![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
-[![Version](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
-[![License](https://img.shields.io/crates/l/transforms.svg)](https://github.com/deniz-hofmeister/transforms/blob/master/LICENSE)
-[![Downloads](https://img.shields.io/crates/d/transforms.svg)](https://crates.io/crates/transforms)
-
-# Transforms Library
-
 [![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
-[![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+[![Downloads](https://img.shields.io/crates/d/transforms.svg)](https://crates.io/crates/transforms)
 
 A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
 
@@ -22,7 +16,7 @@ This library provides functionality for managing coordinate transformations betw
 ## Features
 
 - **Synchronous and Asynchronous APIs**: Choose between sync and async implementations via the `async` feature flag.
-- **Transform Interpolation**: Smooth interpolation between transforms at different timestamps.
+- **Interpolation**: Smooth linear interpolation between transforms at different timestamps.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames.
 - **Thread-safe Operations**: Safe concurrent access to the transform registry.
 - **Time-based Buffer Management**: Automatic cleanup of old transforms.
@@ -87,8 +81,6 @@ registry.add_transform(transform).unwrap();
 let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 ```
 
-````
-
 ### Asynchronous Example
 
 ```rust
@@ -130,4 +122,3 @@ cargo doc --open --features async
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-````
