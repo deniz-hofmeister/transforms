@@ -21,18 +21,31 @@ async fn main() {
 
     // Create a point in the camera frame
     let mut point = Point {
-        position: Vector3::new(1.0, 0.0, 0.0),
+        position: Vector3::new(0.0, 0.0, 1.0),
         orientation: Quaternion::identity(),
         timestamp: time,
         frame: "camera".into(),
     };
     info!("Created point in camera frame: {:?}", point);
 
-    // Create transform from camera to base frame
-    let camera_to_base = Transform {
+    // Create transform from camera to base frame, 1 second ago
+    let camera_to_base_t0 = Transform {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: time,
+        // 1 second ago
+        timestamp: (time - Duration::from_secs(1)).unwrap(),
+        parent: "base".into(),
+        child: "camera".into(),
+    };
+
+    // Create a transform 1 second in the future.
+    // This forces the registry to interpolate the values to find
+    // the transform for the timestamp of the point object.
+    let camera_to_base_t1 = Transform {
+        translation: Vector3::new(0.0, 3.0, 0.0),
+        rotation: Quaternion::identity(),
+        // 1 second in the future
+        timestamp: (time + Duration::from_secs(1)).unwrap(),
         parent: "base".into(),
         child: "camera".into(),
     };
@@ -48,7 +61,11 @@ async fn main() {
 
     // Add transforms to registry
     registry
-        .add_transform(camera_to_base)
+        .add_transform(camera_to_base_t0)
+        .await
+        .expect("Failed to add camera transform");
+    registry
+        .add_transform(camera_to_base_t1)
         .await
         .expect("Failed to add camera transform");
     registry
