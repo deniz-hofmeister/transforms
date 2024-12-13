@@ -1,4 +1,4 @@
-//! A fast and efficient coordinate transform library for robotics and computer vision applications.
+//! A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
 //!
 //! This library provides functionality for managing coordinate transformations between different frames
 //! of reference. It supports both synchronous and asynchronous operations through feature flags, making
@@ -86,6 +86,50 @@
 //! - **Registry**: The main interface for managing transforms
 //! - **Buffer**: Internal storage for transforms between specific frames
 //! - **Transform**: The core data structure representing spatial transformations
+//!
+//! # Transform and Data Transformation
+//!
+//! The library provides a `Transform` type that represents spatial transformations between different
+//! coordinate frames. Transforms follow the common robotics convention where transformations are
+//! considered from child to parent frame (e.g., from sensor frame to base frame, or from base frame
+//! to map frame).
+//!
+//! To make your data transformable between different coordinate frames, implement the `Transformable`
+//! trait. This allows you to easily transform your data using the transforms stored in the registry.
+//!
+//! ```rust
+//! use transforms::{
+//!     geometry::{Point, Quaternion, Transform, Vector3},
+//!     time::Timestamp,
+//!     Transformable,
+//! };
+//!
+//! // Create a point in the camera frame
+//! let mut point = Point {
+//!     position: Vector3::new(1.0, 0.0, 0.0),
+//!     orientation: Quaternion::identity(),
+//!     timestamp: Timestamp::now(),
+//!     frame: "camera".into(),
+//! };
+//!
+//! // Define transform from camera to base frame
+//! let transform = Transform {
+//!     translation: Vector3::new(0.0, 1.0, 0.0),
+//!     rotation: Quaternion::identity(),
+//!     timestamp: point.timestamp,
+//!     parent: "base".into(),
+//!     child: "camera".into(),
+//! };
+//!
+//! // Transform the point from camera frame to base frame
+//! point
+//!     .transform(&transform)
+//!     .expect("Failed to transform point");
+//! ```
+//!
+//! The transform convention follows the common robotics practice where data typically needs to be
+//! transformed from specific sensor reference frames "up" to more general frames like the robot's
+//! base frame or a global map frame.
 //!
 //! # Feature Flags
 //!
