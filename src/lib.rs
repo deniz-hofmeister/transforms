@@ -144,9 +144,9 @@
 //! };
 //!
 //! // Transform the point from camera frame to base frame
-//! point
-//!     .transform(&transform)
-//!     .expect("Failed to transform point");
+//! point.transform(&transform).unwrap();
+//! assert_eq!(point.position.x, 1.0);
+//! assert_eq!(point.position.y, 1.0);
 //! ```
 //!
 //! The transform convention follows the common robotics practice where data typically needs to be
