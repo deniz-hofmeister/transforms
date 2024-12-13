@@ -26,6 +26,22 @@
 //! - **Thread-safe Operations**: Safe concurrent access to the transform registry
 //! - **Time-based Buffer Management**: Automatic cleanup of old transforms
 //!
+//! # Non-Goals
+//!
+//! This library intentionally limits its scope to rigid body transformations (translation and rotation)
+//! commonly used in robotics and computer vision. The following transformations are explicitly not
+//! supported and will not be considered for future implementation:
+//!
+//! - Scaling transformations
+//! - Skew transformations
+//! - Perspective transformations
+//! - Non-rigid transformations
+//! - Affine transformations beyond rigid body motion
+//!
+//! This decision helps maintain the library's focus on its core purpose: providing fast and efficient
+//! rigid body transformations for robotics applications. For more general transformation needs,
+//! consider using a computer graphics or linear algebra library instead.
+//!
 //! # Examples
 //!
 //! ## Synchronous Usage
@@ -140,6 +156,33 @@
 //! # Feature Flags
 //!
 //! - `async`: Enables async support using tokio (disabled by default)
+//!
+//! # Relationship with ROS2's tf2
+//!
+//! This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used
+//! transform library in the robotics community. While this crate aims to solve the same
+//! fundamental problem of transformation tracking, it does so in its own way.
+//!
+//! ## Similarities with tf2
+//!
+//! - Maintains relationships between coordinate frames in a tree structure
+//! - Buffers transforms over time
+//! - Supports transform lookups between arbitrary frames
+//! - Handles interpolation between transforms
+//! - Provides both synchronous and asynchronous APIs
+//!
+//! ## Key Differences
+//!
+//! This library:
+//! - Is a pure Rust implementation, not a wrapper around tf2
+//! - Makes no attempt to perfectly match the ROS2/tf2 API
+//! - Focuses on providing an ergonomic Rust-first experience
+//! - Is independent of ROS2's middleware and communication system
+//!
+//! While the core concepts and functionality align with tf2, this library prioritizes
+//! optimal usage for rust software over maintaining API compatibility with ROS2's tf2. Users
+//! familiar with tf2 will find the concepts familiar, but the implementation details
+//! and API design follow Rust idioms and best practices as best as it can.
 //!
 //! # Performance Considerations
 //!
