@@ -11,7 +11,7 @@
 //!   time-based transformations, such as robotics, animation, and simulations.
 //!
 //! - **Automatic Expiration of Transforms**: The buffer can automatically remove expired transforms
-//!   based on a specified time-to-live (TTL). This ensures that the buffer does not grow indefinitely
+//!   based on a specified max_age. This ensures that the buffer does not grow indefinitely
 //!   and only retains relevant transforms within the specified duration.
 //!
 //! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
@@ -98,7 +98,7 @@ type NearestTransforms<'a> = (
 /// # Fields
 ///
 /// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
-/// - `max_age`: A `u128` that defines the time-to-live for each entry, determining how long
+/// - `max_age`: A `Duration` that defines the max_age for each entry, determining how long
 ///   entries remain valid.
 /// - `is_static`: A boolean flag that, when set to true, converts the buffer to a static
 ///   lookup if a timestamp with nanoseconds set to zero is supplied. Any
@@ -109,8 +109,8 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    /// Creates a new buffer with the specified time-to-live(TTL).
-    /// Entries older than the TTL will automatically be removed.
+    /// Creates a new buffer with the specified max_age.
+    /// Entries older than the max_age will automatically be removed.
     ///
     /// # Examples
     ///

@@ -31,6 +31,7 @@ impl Timestamp {
     }
 
     /// Returns a `Timestamp` representing the UNIX epoch (0 nanoseconds).
+    /// This functionality is especially useful for static transforms.
     ///
     /// # Examples
     ///
