@@ -115,6 +115,7 @@ This library intentionally limits its scope to rigid body transformations (trans
 - Non-rigid transformations
 - Affine transformations beyond rigid body motion
 - Converge to parity with ROS2 / tf2
+- Extrapolation
 
 ## License
 

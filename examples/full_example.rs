@@ -3,26 +3,21 @@
 //!
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
-//!
-//! The await functionality allows us to wait for a transform to become available as the registry
-//! will not extrapolate.
 
-use log::{error, info};
-use std::{sync::Arc, time::Duration};
+#[cfg(not(feature = "async"))]
+fn main() {
+    use log::{error, info};
+    use std::time::Duration;
+    use transforms::{
+        geometry::{Point, Quaternion, Vector3},
+        time::Timestamp,
+        Registry, Transform, Transformable,
+    };
 
-use transforms::{
-    geometry::{Point, Quaternion, Vector3},
-    time::Timestamp,
-    Registry, Transform, Transformable,
-};
-
-#[cfg(feature = "async")]
-#[tokio::main]
-async fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a transform registry with 10 second time-to-live
-    let registry = Arc::new(Registry::new(Duration::from_secs(10)));
+    let mut registry = Registry::new(Duration::from_secs(10));
     let time = Timestamp::now();
 
     // Create a point in the camera frame
@@ -68,20 +63,17 @@ async fn main() {
     // Add transforms to registry
     registry
         .add_transform(camera_to_base_t0)
-        .await
         .expect("Failed to add camera transform");
     registry
         .add_transform(camera_to_base_t1)
-        .await
         .expect("Failed to add camera transform");
     registry
         .add_transform(base_to_map)
-        .await
         .expect("Failed to add base transform");
     info!("Added transforms to registry");
 
     // Get transform from camera to map frame
-    match registry.await_transform("camera", "map", time).await {
+    match registry.get_transform("camera", "map", time) {
         Ok(transform) => {
             info!("Retrieved transform from camera to map: {:?}", transform);
 
@@ -95,7 +87,7 @@ async fn main() {
     }
 }
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "async")]
 fn main() {
     panic!(
         "This example requires the 'async' feature. Please run with: cargo run --example full_example --features async"

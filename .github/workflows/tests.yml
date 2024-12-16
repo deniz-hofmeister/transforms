@@ -28,7 +28,7 @@ jobs:
       - name: Run example async_await
         run: cargo run --example async_await --features async
       - name: Run example full_example
-        run: cargo run --example full_example --features async
+        run: cargo run --example full_example
       - name: Run bench
         run: cargo bench
       - name: Run bench async
