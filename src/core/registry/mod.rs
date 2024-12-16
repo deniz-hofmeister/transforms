@@ -4,7 +4,7 @@
 //!
 //! ## Features
 //!
-//! - **Synchronous Implementation**: Uses standard synchronization primitives from `std::sync`.
+//! - **Synchronous Implementation**: Uses standard synchronization primitives for sync operations.
 //! - **Asynchronous Implementation**: Uses `tokio` synchronization primitives for async operations.
 //! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
 //!

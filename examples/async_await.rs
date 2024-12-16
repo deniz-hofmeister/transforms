@@ -1,5 +1,3 @@
-/// This is the recommended way of using this library.
-///
 /// An async implementation of the registry, allowing the registry to await for transforms.
 /// It is only compiled when the "async" feature is enabled.
 #[cfg(feature = "async")]

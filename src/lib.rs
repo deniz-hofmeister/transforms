@@ -4,11 +4,8 @@
 //! of reference. It supports both synchronous and asynchronous operations through feature flags, making
 //! it suitable for both real-time and event-driven applications.
 //!
-//! <div class="warning">
-//! <strong>Recommended Configuration:</strong>
-//! Enable the <code>async</code> feature flag as it provides the ability to await for transforms
+//! If you enable the <code>async</code> feature flag then the registry provides the ability to await for transforms
 //! asynchronously. View async specific documentation: <code>cargo doc --open --features async</code>
-//! </div>
 //!
 //! # Architecture
 //!
@@ -20,7 +17,6 @@
 //!
 //! # Features
 //!
-//! - **Synchronous and Asynchronous APIs**: Choose between sync and async implementations via the `async` feature flag
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
 //! - **Thread-safe Operations**: Safe concurrent access to the transform registry
@@ -169,7 +165,6 @@
 //! - Buffers transforms over time
 //! - Supports transform lookups between arbitrary frames
 //! - Handles interpolation between transforms
-//! - Provides both synchronous and asynchronous APIs
 //!
 //! ## Key Differences
 //!
