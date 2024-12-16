@@ -1,14 +1,14 @@
 /// An example on how to add and retrieve transforms
-use log::{error, info};
-use std::time::Duration;
-use transforms::{
-    geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
-    Registry,
-};
-
 #[cfg(not(feature = "async"))]
 fn main() {
+    use log::{error, info};
+    use std::time::Duration;
+    use transforms::{
+        geometry::{Quaternion, Transform, Vector3},
+        time::Timestamp,
+        Registry,
+    };
+
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();

@@ -26,11 +26,6 @@ name = "async_await"
 path = "examples/async_await.rs"
 required-features = ["async"]
 
-[[example]]
-name = "full_example"
-path = "examples/full_example.rs"
-required-features = ["async"]
-
 [[bench]]
 name = "registry_benchmarks"
 harness = false

@@ -4,22 +4,20 @@
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
 
-use log::{error, info};
-use std::{sync::Arc, time::Duration};
-use tokio::sync::Mutex;
-use transforms::{
-    geometry::{Point, Quaternion, Vector3},
-    time::Timestamp,
-    Registry, Transform, Transformable,
-};
-
 #[cfg(not(feature = "async"))]
-#[tokio::main]
-async fn main() {
+fn main() {
+    use log::{error, info};
+    use std::time::Duration;
+    use transforms::{
+        geometry::{Point, Quaternion, Vector3},
+        time::Timestamp,
+        Registry, Transform, Transformable,
+    };
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a transform registry with 10 second time-to-live
-    let registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::new(Duration::from_secs(10));
     let time = Timestamp::now();
 
     // Create a point in the camera frame
@@ -75,7 +73,7 @@ async fn main() {
     info!("Added transforms to registry");
 
     // Get transform from camera to map frame
-    match registry.get_transform("camera", "map", time).await {
+    match registry.get_transform("camera", "map", time) {
         Ok(transform) => {
             info!("Retrieved transform from camera to map: {:?}", transform);
 
