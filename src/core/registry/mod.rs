@@ -128,14 +128,14 @@
 //!   - **Returns**
 //!     - A new instance of `Registry`.
 //!
-//! - `add_transform(&self, t: Transform) -> Result<(), BufferError>` (async)
+//! - `add_transform(&self, t: Transform) -> Result<(), BufferError>`
 //!   - Adds a transform to the registry asynchronously.
 //!   - **Arguments**
 //!     - `t`: The transform to add.
 //!   - **Errors**
 //!     - Returns a `BufferError` if the transform cannot be added.
 //!
-//! - `await_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (async)
+//! - `await_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (async only)
 //!   - Awaits for a transform to become available in the registry.
 //!   - **Arguments**
 //!     - `from`: The source frame.
@@ -144,24 +144,8 @@
 //!   - **Returns**
 //!     - A `Result` containing the `Transform` if found, or an error if not found.
 //!
-//! - `get_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (async)
+//! - `get_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>`
 //!   - Retrieves a transform from the registry asynchronously.
-//!   - **Arguments**
-//!     - `from`: The source frame.
-//!     - `to`: The destination frame.
-//!     - `timestamp`: The timestamp for which the transform is requested.
-//!   - **Errors**
-//!     - Returns a `TransformError` if the transform cannot be found.
-//!
-//! - `add_transform(&mut self, t: Transform) -> Result<(), BufferError>` (sync)
-//!   - Adds a transform to the registry.
-//!   - **Arguments**
-//!     - `t`: The transform to add.
-//!   - **Errors**
-//!     - Returns a `BufferError` if the transform cannot be added.
-//!
-//! - `get_transform(&mut self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>` (sync)
-//!   - Retrieves a transform from the registry.
 //!   - **Arguments**
 //!     - `from`: The source frame.
 //!     - `to`: The destination frame.
