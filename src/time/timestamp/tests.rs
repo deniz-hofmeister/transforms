@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod timestamp_tests {
     use crate::{errors::TimestampError, time::Timestamp};
 
     #[test]
