@@ -1,7 +1,7 @@
-use core::ops::{Add, Sub};
-use std::{
+use core::{
     cmp::Ordering,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    ops::{Add, Sub},
+    time::Duration,
 };
 
 pub mod error;
@@ -14,22 +14,6 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
-    /// Returns the current time as a `Timestamp`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::time::Timestamp;
-    ///
-    /// let now = Timestamp::now();
-    /// ```
-    pub fn now() -> Self {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        Timestamp {
-            nanoseconds: now.as_nanos(),
-        }
-    }
-
     /// Returns a `Timestamp` representing the UNIX epoch (0 nanoseconds).
     /// This functionality is especially useful for static transforms.
     ///
