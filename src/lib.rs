@@ -190,7 +190,9 @@
 //! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
 #![forbid(unsafe_code)]
 #![no_std]
+
 extern crate alloc;
+
 pub mod core;
 pub mod errors;
 pub mod geometry;
