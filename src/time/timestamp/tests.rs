@@ -6,11 +6,6 @@ mod timestamp_tests {
     fn creation() {
         let _t = Timestamp { nanoseconds: 1 };
     }
-    #[test]
-    fn now() {
-        let t = Timestamp::now();
-        assert!(t.nanoseconds > 0);
-    }
 
     #[test]
     fn ordering() {

@@ -80,7 +80,7 @@
 //! - `NearestTransforms`: A type alias for a tuple containing the nearest transforms before and after a given timestamp.
 
 use crate::{geometry::Transform, time::Timestamp};
-use std::{collections::BTreeMap, time::Duration};
+use alloc::{collections::BTreeMap, time::Duration};
 mod error;
 pub use error::BufferError;
 
