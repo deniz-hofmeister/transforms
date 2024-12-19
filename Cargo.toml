@@ -12,6 +12,7 @@ async = ["dep:tokio", "dep:tokio-test"]
 [dependencies]
 thiserror = "2"
 approx = "0"
+hashbrown = "0"
 tokio = { version = "1", features = ["sync"], optional = true }
 tokio-test = { version = "0", optional = true }
 
