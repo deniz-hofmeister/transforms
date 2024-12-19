@@ -2,17 +2,44 @@ name: tests
 
 on:
   push:
-    branches: ["master"]
+    branches:
+      - '**'
   pull_request:
-    branches: ["master"]
+    branches:
+      - '**'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  rustfmt:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
+      - name: Install Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rustfmt
+
+      - name: Run rustfmt
+        id: rustfmt
+        run: |
+          cargo fmt --all -- --check || exit 1
+
+      - name: Annotate with reviewdog
+        if: failure()
+        uses: reviewdog/action-suggester@v1
+        with:
+          tool: rustfmt
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          level: warning
+
+  tests:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build

@@ -1,6 +1,6 @@
 # Transforms Library
 
-[![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
+[![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
 [![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
 [![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
