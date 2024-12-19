@@ -159,10 +159,8 @@ use crate::{
     geometry::Transform,
     time::Timestamp,
 };
-use std::{
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
-    time::Duration,
-};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use std::{collections::VecDeque, time::Duration};
 mod error;
 
 #[cfg(feature = "async")]
@@ -741,24 +739,28 @@ impl Registry {
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
     ) {
-        let from_parents: HashSet<_> = from_chain.iter().map(|tf| &tf.parent).collect();
-
-        if let Some((index, _)) = to_chain
-            .iter()
-            .enumerate()
-            .find(|(_, tf)| from_parents.contains(&tf.parent))
         {
-            to_chain.truncate(index + 1);
+            let from_parents: HashSet<_> = from_chain.iter().map(|tf| &tf.parent).collect();
+
+            if let Some((index, _)) = to_chain
+                .iter()
+                .enumerate()
+                .find(|(_, tf)| from_parents.contains(&tf.parent))
+            {
+                to_chain.truncate(index + 1);
+            }
         }
 
-        let to_parents: HashSet<_> = to_chain.iter().map(|tf| &tf.parent).collect();
-
-        if let Some((index, _)) = from_chain
-            .iter()
-            .enumerate()
-            .find(|(_, tf)| to_parents.contains(&tf.parent))
         {
-            from_chain.truncate(index + 1);
+            let to_parents: HashSet<_> = to_chain.iter().map(|tf| &tf.parent).collect();
+
+            if let Some((index, _)) = from_chain
+                .iter()
+                .enumerate()
+                .find(|(_, tf)| to_parents.contains(&tf.parent))
+            {
+                from_chain.truncate(index + 1);
+            }
         }
     }
 
