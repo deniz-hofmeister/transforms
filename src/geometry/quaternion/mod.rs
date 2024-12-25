@@ -196,10 +196,10 @@ impl Quaternion {
     /// # use approx::assert_relative_eq;
     ///
     /// let q = Quaternion {
-    ///     w: (std::f64::consts::PI / 4.0).cos(),
+    ///     w: (core::f64::consts::PI / 4.0).cos(),
     ///     x: 0.0,
     ///     y: 0.0,
-    ///     z: (std::f64::consts::PI / 4.0).sin(),
+    ///     z: (core::f64::consts::PI / 4.0).sin(),
     /// };
     /// let v = Vector3 {
     ///     x: 1.0,

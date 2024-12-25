@@ -186,7 +186,7 @@ mod registry_tests {
             };
 
             // Child frame C at +90 degrees
-            let theta = std::f64::consts::PI / 2.0;
+            let theta = core::f64::consts::PI / 2.0;
             let t_b_c = Transform {
                 translation: Vector3 {
                     x: 0.,
@@ -279,7 +279,7 @@ mod registry_tests {
             };
 
             // Child frame C at y=1m with 90 degrees rotation around +Z
-            let theta = std::f64::consts::PI / 2.0;
+            let theta = core::f64::consts::PI / 2.0;
             let t_a_c = Transform {
                 translation: Vector3 {
                     x: 0.,
@@ -348,7 +348,7 @@ mod registry_tests {
             };
 
             // Child frame B at y=1m with 90 degrees rotation around +Z
-            let theta = std::f64::consts::PI / 2.0;
+            let theta = core::f64::consts::PI / 2.0;
             let t_a_b_1 = Transform {
                 translation: Vector3 {
                     x: 0.,
