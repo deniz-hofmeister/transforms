@@ -12,41 +12,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rustfmt:
+  formatting:
+    name: cargo fmt
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up reviewdog
-        uses: reviewdog/action-setup@v1
-
-      - name: Install Rust nightly + rustfmt
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly
-          override: true
           components: rustfmt
-
-      - name: Run rustfmt
-        id: rustfmt
-        run: |
-          cargo fmt --all -- --check 2>&1 | tee reviewdog-report.log
-          # Don't exit so that we have a chance to annotate with reviewdog.
-        continue-on-error: true
-
-      - name: Review with reviewdog
-        if: always() 
-        uses: reviewdog/action-reviewdog@v2
-        with:
-          reporter: 'github-pr-check'
-          fail_on_error: false
-          filter_mode: 'diff_context'
-          tool_name: 'rustfmt'
-          level: 'error'
-          input_file: 'reviewdog-report.log'
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: nightly
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
 
   tests:
     runs-on: ubuntu-latest
