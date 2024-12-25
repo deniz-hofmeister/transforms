@@ -3,7 +3,7 @@ name: tests
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
     branches:
       - '**'
@@ -54,7 +54,7 @@ jobs:
         run: cargo run --example full_example
   benchmarks:
     runs-on: ubuntu-latest
-    name: tests
+    name: benchmarks
     steps:
       - uses: actions/checkout@v4
       - name: Run bench
