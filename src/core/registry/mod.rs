@@ -159,8 +159,9 @@ use crate::{
     geometry::Transform,
     time::Timestamp,
 };
+use alloc::collections::VecDeque;
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
-use std::{collections::VecDeque, time::Duration};
+use std::time::Duration;
 mod error;
 
 #[cfg(feature = "async")]
