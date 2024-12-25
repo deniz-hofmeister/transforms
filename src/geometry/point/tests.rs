@@ -4,6 +4,7 @@ mod point_tests {
         geometry::{Point, Quaternion, Vector3},
         time::Timestamp,
     };
+    use alloc::string::String;
 
     #[test]
     fn point_creation() {

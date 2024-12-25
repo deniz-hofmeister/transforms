@@ -1,4 +1,5 @@
 use crate::errors::{QuaternionError, TimestampError};
+use alloc::string::String;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

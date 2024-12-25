@@ -5,6 +5,8 @@ use crate::{
     Transform, Transformable,
 };
 
+use alloc::string::String;
+
 mod error;
 
 /// Represents a point in space with a position, orientation, and timestamp.
