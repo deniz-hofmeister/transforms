@@ -189,7 +189,6 @@
 //!
 //! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
 #![forbid(unsafe_code)]
-#![no_std]
 
 extern crate alloc;
 

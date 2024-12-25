@@ -4,9 +4,7 @@ use crate::{
 };
 use alloc::string::String;
 use approx::AbsDiffEq;
-use core::cmp::Ordering;
-use core::ops::Mul;
-use core::time::Duration;
+use core::{cmp::Ordering, ops::Mul, time::Duration};
 pub use error::TransformError;
 pub use traits::Transformable;
 

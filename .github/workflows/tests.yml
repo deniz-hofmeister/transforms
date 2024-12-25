@@ -13,7 +13,7 @@ env:
 
 jobs:
   formatting:
-    name: cargo fmt
+    name: formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,17 +23,27 @@ jobs:
           toolchain: nightly
       - name: Rustfmt Check
         uses: actions-rust-lang/rustfmt@v1
-
-  tests:
+  build:
     runs-on: ubuntu-latest
+    name: build
     steps:
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build
+  tests:
+    runs-on: ubuntu-latest
+    name: tests
+    steps:
+      - uses: actions/checkout@v4
       - name: Run tests
         run: cargo test
       - name: Run tests async
         run: cargo test --features async -- async
+  examples:
+    runs-on: ubuntu-latest
+    name: examples
+    steps:
+      - uses: actions/checkout@v4
       - name: Run example sync_minimal
         run: cargo run --example sync_minimal
       - name: Run example sync_polling
@@ -42,6 +52,11 @@ jobs:
         run: cargo run --example async_await --features async
       - name: Run example full_example
         run: cargo run --example full_example
+  benchmarks:
+    runs-on: ubuntu-latest
+    name: tests
+    steps:
+      - uses: actions/checkout@v4
       - name: Run bench
         run: cargo bench
       - name: Run bench async

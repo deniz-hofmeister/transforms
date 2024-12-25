@@ -4,6 +4,7 @@ use core::{
     time::Duration,
 };
 
+use std::time::{SystemTime, UNIX_EPOCH};
 pub mod error;
 pub use error::TimestampError;
 
@@ -14,6 +15,23 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    /// Returns the current time as a `Timestamp`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let now = Timestamp::now();
+    /// ```
+    pub fn now() -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Failed to get system time");
+        Timestamp {
+            nanoseconds: now.as_nanos(),
+        }
+    }
     /// Returns a `Timestamp` representing the UNIX epoch (0 nanoseconds).
     /// This functionality is especially useful for static transforms.
     ///
