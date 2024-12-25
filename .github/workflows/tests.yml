@@ -16,9 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Install Rust nightly
+      - name: Set up reviewdog
+        uses: reviewdog/action-setup@v1
+
+      - name: Install Rust nightly + rustfmt
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
@@ -28,15 +31,22 @@ jobs:
       - name: Run rustfmt
         id: rustfmt
         run: |
-          cargo fmt --all -- --check || exit 1
+          cargo fmt --all -- --check 2>&1 | tee reviewdog-report.log
+          # Don't exit so that we have a chance to annotate with reviewdog.
+        continue-on-error: true
 
-      - name: Annotate with reviewdog
-        if: failure()
-        uses: reviewdog/action-suggester@v1
+      - name: Review with reviewdog
+        if: always() 
+        uses: reviewdog/action-reviewdog@v2
         with:
-          tool: rustfmt
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          level: warning
+          reporter: 'github-pr-check'
+          fail_on_error: false
+          filter_mode: 'diff_context'
+          tool_name: 'rustfmt'
+          level: 'error'
+          input_file: 'reviewdog-report.log'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   tests:
     runs-on: ubuntu-latest
