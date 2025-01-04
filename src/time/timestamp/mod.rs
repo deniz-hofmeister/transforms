@@ -32,6 +32,7 @@ impl Timestamp {
             nanoseconds: now.as_nanos(),
         }
     }
+
     /// Returns a `Timestamp` representing the UNIX epoch (0 nanoseconds).
     /// This functionality is especially useful for static transforms.
     ///
