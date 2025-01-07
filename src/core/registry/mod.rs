@@ -82,7 +82,7 @@
 //!     Registry,
 //! };
 //!
-//! block_on(async {
+//! # block_on(async {
 //!     // Create a new registry with a max_age duration
 //!     let mut registry = Registry::new(Duration::from_secs(60));
 //!     let t1 = Timestamp::now();
