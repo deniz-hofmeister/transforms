@@ -16,6 +16,10 @@
 //!
 //! ```rust
 //! # #[cfg(not(feature = "async"))]
+//! #[deprecated(
+//!     since = "0.3.0",
+//!     note = "async features will be removed in a future release"
+//! )]
 //! # {
 //! use std::time::Duration;
 //! use transforms::{
@@ -65,6 +69,10 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "async")]
+//! #[deprecated(
+//!     since = "0.3.0",
+//!     note = "async features will be removed in a future release"
+//! )]
 //! # {
 //! use std::time::Duration;
 //! use tokio_test::block_on;
@@ -165,12 +173,20 @@ use std::time::Duration;
 mod error;
 
 #[cfg(feature = "async")]
+#[deprecated(
+    since = "0.4.0",
+    note = "async features will be removed in a future release"
+)]
 pub use async_impl::Registry;
 
 #[cfg(not(feature = "async"))]
 pub use sync_impl::Registry;
 
 #[cfg(feature = "async")]
+#[deprecated(
+    since = "0.3.0",
+    note = "async features will be removed in a future release"
+)]
 pub mod async_impl {
     use super::*;
     use tokio::sync::{Mutex, Notify};
