@@ -4,8 +4,11 @@
 //! of reference. It supports both synchronous and asynchronous operations through feature flags, making
 //! it suitable for both real-time and event-driven applications.
 //!
+//! <div class="warning"><b>Deprecation Notice</b>: The async feature will be removed in a future release.
+//!
 //! If you enable the <code>async</code> feature flag then the registry provides the ability to await for transforms
-//! asynchronously. View async specific documentation: <code>cargo doc --open --features async</code>
+//! asynchronously. View async specific documentation, this will mostly impact the core::async_impl::Registry: <code>cargo doc --open --features async</code>
+//! </div>
 //!
 //! # Architecture
 //!
