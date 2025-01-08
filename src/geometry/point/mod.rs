@@ -108,6 +108,7 @@ pub struct Point {
 /// };
 /// let r = point.transform(&transform);
 /// assert!(r.is_ok());
+/// assert_eq!(point.frame, "a");
 /// assert_eq!(point.position.x, 3.0);
 /// ```
 impl Transformable for Point {
@@ -136,6 +137,7 @@ impl Transformable for Point {
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
         self.orientation = transform.rotation * self.orientation;
+        self.frame = transform.parent.clone();
         Ok(())
     }
 }
