@@ -3,7 +3,6 @@ use std::time::Duration;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
-    Registry,
 };
 
 #[cfg(feature = "async")]
@@ -30,6 +29,7 @@ fn create_sample_transform() -> Transform {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_transforms(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -48,6 +48,7 @@ fn benchmark_sync_transforms(c: &mut Criterion) {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -73,6 +74,7 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_tree_climb(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -97,6 +99,7 @@ fn benchmark_sync_tree_climb(c: &mut Criterion) {
 
 #[cfg(not(feature = "async"))]
 fn benchmark_sync_tree_climb_common_parent_elim(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -141,6 +144,7 @@ fn benchmark_sync_tree_climb_common_parent_elim(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_transforms(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
@@ -163,6 +167,7 @@ fn benchmark_async_transforms(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
@@ -194,6 +199,7 @@ fn benchmark_async_transforms_with_preparation(c: &mut Criterion) {
 
 #[cfg(feature = "async")]
 fn benchmark_async_tree_climb(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("async");
     group.sample_size(1000);
 
