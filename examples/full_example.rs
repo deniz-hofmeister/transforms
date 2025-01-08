@@ -4,7 +4,6 @@
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
 
-#[cfg(not(feature = "async"))]
 fn main() {
     use log::{error, info};
     use std::time::Duration;
@@ -85,11 +84,4 @@ fn main() {
         }
         Err(e) => error!("Failed to get transform: {:?}", e),
     }
-}
-
-#[cfg(feature = "async")]
-fn main() {
-    panic!(
-        "This example requires the 'async' feature. Please run with: cargo run --example full_example --features async"
-    );
 }
