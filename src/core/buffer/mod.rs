@@ -276,6 +276,9 @@ impl Buffer {
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than the current time minus the max_age.
+    ///
+    /// Only available when the `std` feature is enabled.
+    #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {

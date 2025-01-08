@@ -1,5 +1,4 @@
 /// An example on how to add and retrieve transforms
-#[cfg(not(feature = "async"))]
 fn main() {
     use log::{error, info};
     use std::time::Duration;
@@ -60,9 +59,4 @@ fn main() {
         Ok(tf) => info!("Found transform: {:?}", tf),
         Err(e) => error!("Transform not found: {:?}", e),
     }
-}
-
-#[cfg(feature = "async")]
-fn main() {
-    panic!("This example should not be run with the 'async' feature enabled.");
 }

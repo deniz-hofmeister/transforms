@@ -7,25 +7,17 @@ license = "MIT"
 repository = "https://github.com/dHofmeister/transforms"
 
 [features]
-async = ["dep:tokio", "dep:tokio-test"]
+std = []
 
 [dependencies]
 thiserror = "2"
 approx = "0"
 hashbrown = "0"
-tokio = { version = "1", features = ["sync"], optional = true }
-tokio-test = { version = "0", optional = true }
 
 [dev-dependencies]
 env_logger = "0"
-tokio = { version = "1", features = ["full"] }
 log = "0"
-criterion = { version = "0", features = ["async_tokio"] }
-
-[[example]]
-name = "async_await"
-path = "examples/async_await.rs"
-required-features = ["async"]
+criterion = "0"
 
 [[bench]]
 name = "registry_benchmarks"
