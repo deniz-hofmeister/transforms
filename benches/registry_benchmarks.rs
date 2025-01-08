@@ -3,7 +3,6 @@ use std::time::Duration;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
-    Registry,
 };
 
 fn create_sample_transform() -> Transform {
@@ -26,6 +25,7 @@ fn create_sample_transform() -> Transform {
 }
 
 fn benchmark_sync_transforms(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -43,6 +43,7 @@ fn benchmark_sync_transforms(c: &mut Criterion) {
 }
 
 fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -67,6 +68,7 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
 }
 
 fn benchmark_sync_tree_climb(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
@@ -90,6 +92,7 @@ fn benchmark_sync_tree_climb(c: &mut Criterion) {
 }
 
 fn benchmark_sync_tree_climb_common_parent_elim(c: &mut Criterion) {
+    use transforms::Registry;
     let mut group = c.benchmark_group("sync");
     group.sample_size(1000);
 
