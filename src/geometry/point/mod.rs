@@ -130,8 +130,8 @@ impl Transformable for Point {
         }
         if self.timestamp != transform.timestamp {
             return Err(TransformError::TimestampMismatch(
-                self.timestamp.nanoseconds as f64,
-                transform.timestamp.nanoseconds as f64,
+                self.timestamp.time as f64,
+                transform.timestamp.time as f64,
             ));
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;

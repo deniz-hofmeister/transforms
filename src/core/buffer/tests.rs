@@ -141,9 +141,9 @@ mod buffer_tests {
     #[test]
     fn empty_buffer() {
         let buffer = Buffer::new(Duration::from_secs(1));
-        assert!(buffer.get(&Timestamp { nanoseconds: 1000 }).is_err());
+        assert!(buffer.get(&Timestamp { time: 1000 }).is_err());
 
-        let (before, after) = buffer.get_nearest(&Timestamp { nanoseconds: 1000 });
+        let (before, after) = buffer.get_nearest(&Timestamp { time: 1000 });
         assert!(before.is_none());
         assert!(after.is_none());
     }
