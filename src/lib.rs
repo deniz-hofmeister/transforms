@@ -76,6 +76,10 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "async")]
+//! #[deprecated(
+//!     since = "0.3.0",
+//!     note = "async features will be removed in a future release"
+//! )]
 //! # async fn example() {
 //! use std::time::Duration;
 //! use transforms::{
@@ -151,7 +155,7 @@
 //!
 //! # Feature Flags
 //!
-//! - `async`: Enables async support using tokio (disabled by default)
+//! - `async`: Enables async support using tokio (disabled by default, deprecated)
 //!
 //! # Relationship with ROS2's tf2
 //!
