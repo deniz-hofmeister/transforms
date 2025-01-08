@@ -13,7 +13,9 @@ A blazingly fast and efficient coordinate transform library for robotics and com
 
 This library provides functionality for managing coordinate transformations between different frames of reference. It supports both synchronous and asynchronous operations through feature flags, making it suitable for both real-time and event-driven applications.
 
-For more detailed information, please refer to the [documentation](https://docs.rs/transforms). To view the async-specific documentation, use:
+For more detailed information, please refer to the [documentation](https://docs.rs/transforms). 
+
+⚠️ DEPRECATED: To view the async-specific documentation, use:
 
 ```bash
 cargo doc --open --features async
@@ -21,14 +23,11 @@ cargo doc --open --features async
 
 ## Features
 
-- **Synchronous and Asynchronous APIs**: Choose between sync and async implementations via the `async` feature flag.
 - **Interpolation**: Smooth linear interpolation between transforms at different timestamps.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames.
 - **Thread-safe Operations**: Safe concurrent access to the transform registry.
 - **Time-based Buffer Management**: Automatic cleanup of old transforms.
 ## Usage
-
-### Synchronous Example
 
 ```rust
 use std::time::Duration;
@@ -57,35 +56,6 @@ registry.add_transform(transform).unwrap();
 let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 ```
 
-### Asynchronous Example
-
-```rust
-use std::time::Duration;
-use transforms::{
-    geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
-    Registry,
-};
-
-let registry = Registry::new(Duration::from_secs(60));
-let timestamp = Timestamp::now();
-
-let transform = Transform {
-    translation: Vector3::new(1.0, 0.0, 0.0),
-    rotation: Quaternion::identity(),
-    timestamp,
-    parent: "base".into(),
-    child: "sensor".into(),
-};
-
-registry.add_transform(transform).await.unwrap();
-
-// Wait for transform to become available
-let result = registry
-    .await_transform("base", "sensor", timestamp)
-    .await
-    .unwrap();
-```
 ## Relationship with ROS2's tf2
 
 This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used transform library in the robotics community. While this crate aims to solve the same fundamental problem of transformation tracking, it does so in its own way.
@@ -116,6 +86,12 @@ This library intentionally limits its scope to rigid body transformations (trans
 - Affine transformations beyond rigid body motion
 - Converge to parity with ROS2 / tf2
 - Extrapolation
+
+## Roadmap
+
+The current goals are twofold. 
+- Make this library no_std compatible and allow the std functionality behind a feature flag.
+- Removal of async, to allow users to implement the async functionality their own way. See [issue](https://github.com/deniz-hofmeister/transforms/issues/27)
 
 ## License
 
