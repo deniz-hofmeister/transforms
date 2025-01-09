@@ -18,7 +18,7 @@ mod transform_tests {
             y: 0.0,
             z: 0.0,
         };
-        let timestamp = Timestamp { time: 0 };
+        let timestamp = Timestamp { t: 0 };
         let parent = "map".into();
         let child = "base".into();
 

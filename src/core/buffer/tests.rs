@@ -5,7 +5,7 @@ mod buffer_tests {
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
     };
-    use std::time::Duration;
+    use core::time::Duration;
 
     fn create_transform(t: Timestamp) -> Transform {
         let translation = Vector3 {
@@ -34,7 +34,7 @@ mod buffer_tests {
     #[test]
     fn insert_and_get() {
         let mut buffer = Buffer::new(Duration::from_secs(10));
-        let t = Timestamp::now();
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
         let transform = create_transform(t);
         buffer.insert(transform.clone());
 
@@ -71,11 +71,11 @@ mod buffer_tests {
     #[test]
     fn get_nearest() {
         let mut buffer = Buffer::new(Duration::from_secs(10));
-        let t = Timestamp::now();
+        let t = Timestamp::zero();
 
-        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
-        let p2 = create_transform((t - Duration::from_secs(1)).unwrap());
-        let p3 = create_transform(t);
+        let p1 = create_transform(t);
+        let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
+        let p3 = create_transform((t + Duration::from_secs(2)).unwrap());
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
@@ -118,11 +118,11 @@ mod buffer_tests {
     #[test]
     fn delete_before() {
         let mut buffer = Buffer::new(Duration::from_secs(1));
-        let t = Timestamp::now();
+        let t = Timestamp::zero();
 
-        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
-        let p2 = create_transform((t - Duration::from_secs(1)).unwrap());
-        let p3 = create_transform(t);
+        let p1 = create_transform(t);
+        let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
+        let p3 = create_transform((t + Duration::from_secs(2)).unwrap());
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
@@ -141,9 +141,9 @@ mod buffer_tests {
     #[test]
     fn empty_buffer() {
         let buffer = Buffer::new(Duration::from_secs(1));
-        assert!(buffer.get(&Timestamp { time: 1000 }).is_err());
+        assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
 
-        let (before, after) = buffer.get_nearest(&Timestamp { time: 1000 });
+        let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
         assert!(before.is_none());
         assert!(after.is_none());
     }
@@ -151,7 +151,7 @@ mod buffer_tests {
     #[test]
     fn single_point_buffer() {
         let mut buffer = Buffer::new(Duration::from_secs(1));
-        let t = Timestamp::now();
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
         let point = create_transform(t);
         buffer.insert(point.clone());
 
