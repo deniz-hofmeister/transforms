@@ -370,7 +370,7 @@ mod registry_tests {
             registry.add_transform(t_a_b_1.clone()).unwrap();
 
             let middle_timestamp = Timestamp {
-                time: (t_a_b_0.timestamp.time + t_a_b_1.timestamp.time) / 2,
+                t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
             };
 
             let t_a_b_2 = Transform {
@@ -477,7 +477,7 @@ mod registry_tests {
             registry.add_transform(t_b_c_1.clone()).unwrap();
 
             let middle_timestamp = Timestamp {
-                time: (t_a_b_0.timestamp.time + t_a_b_1.timestamp.time) / 2,
+                t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
             };
 
             let t_a_c = Transform {

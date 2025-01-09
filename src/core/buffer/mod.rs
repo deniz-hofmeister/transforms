@@ -174,7 +174,7 @@ impl Buffer {
         &mut self,
         transform: Transform,
     ) {
-        self.is_static = transform.timestamp.time == 0;
+        self.is_static = transform.timestamp.t == 0;
         self.data.insert(transform.timestamp, transform);
 
         if !self.is_static {
@@ -233,7 +233,7 @@ impl Buffer {
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
         if self.is_static {
-            match self.data.get(&Timestamp { time: 0 }) {
+            match self.data.get(&Timestamp { t: 0 }) {
                 Some(tf) => return Ok(tf.clone()),
                 None => return Err(BufferError::NoTransformAvailable),
             }
