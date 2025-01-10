@@ -1,6 +1,5 @@
-/// This example demonstrates the use of sync implementation of the registry in an async main
-/// to add and retrieve transforms.
-#[cfg(not(feature = "async"))]
+/// This example demonstrates the use of the registry in an async main.
+
 #[tokio::main]
 async fn main() {
     use log::{error, info};
@@ -82,9 +81,4 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(5)).await;
     writer.abort();
     reader.abort();
-}
-
-#[cfg(feature = "async")]
-fn main() {
-    panic!("This example should not be run with the 'async' feature enabled.");
 }
