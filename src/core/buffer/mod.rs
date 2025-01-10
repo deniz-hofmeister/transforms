@@ -46,7 +46,7 @@
 //!     y: 0.0,
 //!     z: 0.0,
 //! };
-//! let timestamp = Timestamp::now();
+//! let timestamp = Timestamp { time: 0 };
 //! let parent = "a".into();
 //! let child = "b".into();
 //!
@@ -81,8 +81,8 @@
 
 use crate::{geometry::Transform, time::Timestamp};
 use alloc::collections::BTreeMap;
+use core::time::Duration;
 pub use error::BufferError;
-use std::time::Duration;
 mod error;
 
 type NearestTransforms<'a> = (
@@ -174,7 +174,7 @@ impl Buffer {
         &mut self,
         transform: Transform,
     ) {
-        self.is_static = transform.timestamp.nanoseconds == 0;
+        self.is_static = transform.timestamp.t == 0;
         self.data.insert(transform.timestamp, transform);
 
         if !self.is_static {
@@ -233,7 +233,7 @@ impl Buffer {
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
         if self.is_static {
-            match self.data.get(&Timestamp { nanoseconds: 0 }) {
+            match self.data.get(&Timestamp { t: 0 }) {
                 Some(tf) => return Ok(tf.clone()),
                 None => return Err(BufferError::NoTransformAvailable),
             }
@@ -276,6 +276,9 @@ impl Buffer {
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than the current time minus the max_age.
+    ///
+    /// Only available when the `std` feature is enabled.
+    #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {

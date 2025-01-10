@@ -13,7 +13,6 @@ hashbrown = "0"
 
 [dev-dependencies]
 env_logger = "0"
-tokio = { version = "1", features = ["full"] }
 log = "0"
 criterion = "0"
 
