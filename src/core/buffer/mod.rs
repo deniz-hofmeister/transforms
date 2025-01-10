@@ -25,7 +25,7 @@
 //! # Examples
 //!
 //! ```
-//! use std::time::Duration;
+//! use core::time::Duration;
 //! use transforms::{
 //!     core::Buffer,
 //!     geometry::{Quaternion, Transform, Vector3},
@@ -117,7 +117,7 @@ impl Buffer {
     ///
     /// ```
     /// # use transforms::core::Buffer;
-    /// use std::time::Duration;
+    /// use core::time::Duration;
     ///
     /// let max_age = Duration::from_secs(10);
     /// let mut buffer = Buffer::new(max_age);
@@ -276,11 +276,11 @@ impl Buffer {
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than the current time minus the max_age.
-    ///
-    /// Only available when the `std` feature is enabled.
-    #[cfg(feature = "std")]
-    fn delete_expired(&mut self) {
-        let timestamp_threshold = Timestamp::now() - self.max_age;
+    fn delete_expired(
+        &mut self,
+        current_time: Timestamp,
+    ) {
+        let timestamp_threshold = current_time - self.max_age;
         if let Ok(t) = timestamp_threshold {
             self.data.retain(|&k, _| k >= t);
         }
