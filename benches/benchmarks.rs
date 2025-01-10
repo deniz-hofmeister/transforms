@@ -24,9 +24,9 @@ fn create_sample_transform() -> Transform {
     }
 }
 
-fn benchmark_sync_transforms(c: &mut Criterion) {
+fn benchmark_transforms(c: &mut Criterion) {
     use transforms::Registry;
-    let mut group = c.benchmark_group("sync");
+    let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("add_and_get_transform", |b| {
@@ -42,9 +42,9 @@ fn benchmark_sync_transforms(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
+fn benchmark_transforms_with_preparation(c: &mut Criterion) {
     use transforms::Registry;
-    let mut group = c.benchmark_group("sync");
+    let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("add_and_get_transform_1k", |b| {
@@ -67,9 +67,9 @@ fn benchmark_sync_transforms_with_preparation(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_sync_tree_climb(c: &mut Criterion) {
+fn benchmark_tree_climb(c: &mut Criterion) {
     use transforms::Registry;
-    let mut group = c.benchmark_group("sync");
+    let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k", |b| {
@@ -91,9 +91,9 @@ fn benchmark_sync_tree_climb(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_sync_tree_climb_common_parent_elim(c: &mut Criterion) {
+fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
     use transforms::Registry;
-    let mut group = c.benchmark_group("sync");
+    let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k_common_parent_elim", |b| {
@@ -137,10 +137,10 @@ fn benchmark_sync_tree_climb_common_parent_elim(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    benchmark_sync_transforms,
-    benchmark_sync_transforms_with_preparation,
-    benchmark_sync_tree_climb,
-    benchmark_sync_tree_climb_common_parent_elim
+    benchmark_transforms,
+    benchmark_transforms_with_preparation,
+    benchmark_tree_climb,
+    benchmark_tree_climb_common_parent_elim
 );
 
 criterion_main!(benches);

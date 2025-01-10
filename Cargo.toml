@@ -6,9 +6,6 @@ description = "A transform library to track reference frames and provide transfo
 license = "MIT"
 repository = "https://github.com/dHofmeister/transforms"
 
-[features]
-std = []
-
 [dependencies]
 thiserror = "2"
 approx = "0"
@@ -20,5 +17,5 @@ log = "0"
 criterion = "0"
 
 [[bench]]
-name = "registry_benchmarks"
+name = "benchmarks"
 harness = false

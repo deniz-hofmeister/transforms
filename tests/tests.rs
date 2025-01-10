@@ -1,15 +1,13 @@
-#[cfg(not(feature = "async"))]
-use {
-    log::debug,
-    std::time::Duration,
-    transforms::geometry::{Quaternion, Transform, Vector3},
-    transforms::time::Timestamp,
-    transforms::Registry,
+use log::debug;
+use std::time::Duration;
+use transforms::{
+    geometry::{Quaternion, Transform, Vector3},
+    time::Timestamp,
+    Registry,
 };
 
-#[cfg(not(feature = "async"))]
 #[test]
-fn test_sync_matching_tree() {
+fn test_matching_tree() {
     let _ = env_logger::try_init();
     let mut registry = Registry::new(Duration::from_secs(10));
     let t = Timestamp::now();
@@ -121,9 +119,8 @@ fn test_sync_matching_tree() {
     );
 }
 
-#[cfg(not(feature = "async"))]
 #[test]
-fn test_sync_non_matching_tree() {
+fn test_non_matching_tree() {
     let _ = env_logger::try_init();
     let mut registry = Registry::new(Duration::from_secs(1));
     let t = Timestamp::now();

@@ -1,6 +1,7 @@
-/// This example demonstrates the use of sync implementation of the registry in an async main
-/// to add and retrieve transforms.
-fn main() {
+/// This example demonstrates the use of the registry in an async main.
+
+#[tokio::main]
+async fn main() {
     use log::{error, info};
     use std::{sync::Arc, time::Duration};
     use tokio::sync::Mutex;
