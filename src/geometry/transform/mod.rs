@@ -147,12 +147,12 @@ impl Transform {
             return Err(TransformError::IncompatibleFrames);
         }
 
-        let range = to.timestamp.nanoseconds - from.timestamp.nanoseconds;
+        let range = to.timestamp.t - from.timestamp.t;
         if range == 0 {
             return Ok(from);
         }
 
-        let diff = timestamp.nanoseconds - from.timestamp.nanoseconds;
+        let diff = timestamp.t - from.timestamp.t;
         let ratio = diff as f64 / range as f64;
         Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
