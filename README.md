@@ -11,15 +11,9 @@ A blazingly fast and efficient coordinate transform library for robotics and com
 
 ## Overview
 
-This library provides functionality for managing coordinate transformations between different frames of reference. It supports both synchronous and asynchronous operations through feature flags, making it suitable for both real-time and event-driven applications.
+This library provides functionality for managing coordinate transformations between different frames of reference.
 
 For more detailed information, please refer to the [documentation](https://docs.rs/transforms). 
-
-⚠️ DEPRECATED: To view the async-specific documentation, use:
-
-```bash
-cargo doc --open --features async
-```
 
 ## Features
 
@@ -53,7 +47,7 @@ let transform = Transform {
 registry.add_transform(transform).unwrap();
 
 // Retrieve the transform
-let result = registry.get_transform("base", "sensor", timestamp).unwrap();
+let result = registry.get_transform("base", "sensor", timestamp);
 ```
 
 ## Relationship with ROS2's tf2
@@ -66,7 +60,6 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely
 - Buffers transforms over time.
 - Supports transform lookups between arbitrary frames.
 - Handles interpolation between transforms.
-- Provides both synchronous and asynchronous APIs.
 
 ### Key Differences
 
@@ -89,9 +82,8 @@ This library intentionally limits its scope to rigid body transformations (trans
 
 ## Roadmap
 
-The current goals are twofold. 
+There is currently only a single goal on the roadmap. 
 - Make this library no_std compatible and allow the std functionality behind a feature flag.
-- Removal of async, to allow users to implement the async functionality their own way. See [issue](https://github.com/deniz-hofmeister/transforms/issues/27)
 
 ## License
 
