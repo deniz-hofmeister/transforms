@@ -1,14 +1,7 @@
 //! A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
 //!
 //! This library provides functionality for managing coordinate transformations between different frames
-//! of reference. It supports both synchronous and asynchronous operations through feature flags, making
-//! it suitable for both real-time and event-driven applications.
-//!
-//! <div class="warning"><b>Deprecation Notice</b>: The async feature will be removed in a future release.
-//!
-//! If you enable the <code>async</code> feature flag then the registry provides the ability to await for transforms
-//! asynchronously. View async specific documentation, this will mostly impact the core::async_impl::Registry: <code>cargo doc --open --features async</code>
-//! </div>
+//! of reference.
 //!
 //! # Architecture
 //!
@@ -43,11 +36,7 @@
 //!
 //! # Examples
 //!
-//! ## Synchronous Usage
-//!
 //! ```rust
-//! # #[cfg(not(feature = "async"))]
-//! # async fn example() {
 //! use std::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
@@ -72,43 +61,6 @@
 //!
 //! // Retrieve the transform
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
-//! # }
-//! ```
-//!
-//! ## Asynchronous Usage
-//!
-//! ```rust
-//! # #[cfg(feature = "async")]
-//! #[deprecated(
-//!     since = "0.3.0",
-//!     note = "async features will be removed in a future release"
-//! )]
-//! # async fn example() {
-//! use std::time::Duration;
-//! use transforms::{
-//!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
-//!     Registry,
-//! };
-//!
-//! let registry = Registry::new(Duration::from_secs(60));
-//! let timestamp = Timestamp::now();
-//!
-//! let transform = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp,
-//!     parent: "base".into(),
-//!     child: "sensor".into(),
-//! };
-//!
-//! registry.add_transform(transform).await.unwrap();
-//!
-//! // Wait for transform to become available
-//! let result = registry
-//!     .await_transform("base", "sensor", timestamp)
-//!     .await
-//!     .unwrap();
 //! # }
 //! ```
 //!
@@ -156,10 +108,6 @@
 //! transformed from specific sensor reference frames "up" to more general frames like the robot's
 //! base frame or a global map frame.
 //!
-//! # Feature Flags
-//!
-//! - `async`: Enables async support using tokio (disabled by default, deprecated)
-//!
 //! # Relationship with ROS2's tf2
 //!
 //! This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used
@@ -190,7 +138,6 @@
 //!
 //! - Transform lookups are optimized for O(log n) time complexity
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
-//! - Lock-free data structures are used where possible in the async implementation
 //!
 //! # Safety
 //!
