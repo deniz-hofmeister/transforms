@@ -61,7 +61,6 @@
 //!
 //! // Retrieve the transform
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
-//! # }
 //! ```
 //!
 //! # Transform and Data Transformation
