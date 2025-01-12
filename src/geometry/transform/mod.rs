@@ -85,7 +85,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     timestamp: Timestamp { t: 0 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -102,7 +102,7 @@ impl Transform {
     ///         z: 0.0,
     ///     },
     ///     timestamp: Timestamp {
-    ///         nanoseconds: 2_000_000_000,
+    ///         t: 2_000_000_000,
     ///     },
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -120,13 +120,13 @@ impl Transform {
     ///         z: 0.0,
     ///     },
     ///     timestamp: Timestamp {
-    ///         nanoseconds: 1_000_000_000,
+    ///         t: 1_000_000_000,
     ///     },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000,
+    ///     t: 1_000_000_000,
     /// };
     ///
     /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
@@ -189,7 +189,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     timestamp: Timestamp { t: 0 },
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };

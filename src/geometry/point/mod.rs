@@ -80,7 +80,7 @@ pub struct Point {
 ///     y: 0.0,
 ///     z: 0.0,
 /// };
-/// let timestamp = Timestamp { nanoseconds: 0 };
+/// let timestamp = Timestamp { t: 0 };
 /// let frame = String::from("b");
 ///
 /// let mut point = Point {
@@ -102,7 +102,7 @@ pub struct Point {
 ///         y: 0.0,
 ///         z: 0.0,
 ///     },
-///     timestamp: Timestamp { nanoseconds: 0 },
+///     timestamp: Timestamp { t: 0 },
 ///     parent: "a".into(),
 ///     child: "b".into(),
 /// };

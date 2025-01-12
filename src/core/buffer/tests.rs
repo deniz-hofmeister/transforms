@@ -32,9 +32,10 @@ mod buffer_tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn insert_and_get() {
         let mut buffer = Buffer::new(Duration::from_secs(10));
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
         let transform = create_transform(t);
         buffer.insert(transform.clone());
 
@@ -69,13 +70,14 @@ mod buffer_tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn get_nearest() {
         let mut buffer = Buffer::new(Duration::from_secs(10));
-        let t = Timestamp::zero();
+        let t = Timestamp::now();
 
-        let p1 = create_transform(t);
-        let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
-        let p3 = create_transform((t + Duration::from_secs(2)).unwrap());
+        let p1 = create_transform((t + Duration::from_secs(1)).unwrap());
+        let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
+        let p3 = create_transform((t + Duration::from_secs(3)).unwrap());
 
         buffer.insert(p1.clone());
         buffer.insert(p2.clone());
@@ -116,9 +118,10 @@ mod buffer_tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn delete_before() {
         let mut buffer = Buffer::new(Duration::from_secs(1));
-        let t = Timestamp::zero();
+        let t = Timestamp::now();
 
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
@@ -149,9 +152,10 @@ mod buffer_tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn single_point_buffer() {
         let mut buffer = Buffer::new(Duration::from_secs(1));
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
         let point = create_transform(t);
         buffer.insert(point.clone());
 

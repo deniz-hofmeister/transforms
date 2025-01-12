@@ -46,7 +46,7 @@
 //!     y: 0.0,
 //!     z: 0.0,
 //! };
-//! let timestamp = Timestamp { time: 0 };
+//! let timestamp = Timestamp { t: 0 };
 //! let parent = "a".into();
 //! let child = "b".into();
 //!
@@ -177,6 +177,7 @@ impl Buffer {
         self.is_static = transform.timestamp.t == 0;
         self.data.insert(transform.timestamp, transform);
 
+        #[cfg(feature = "std")]
         if !self.is_static {
             self.delete_expired();
         };
@@ -272,15 +273,28 @@ impl Buffer {
         (before, after)
     }
 
+    /// Removes transforms from the buffer based on the max_age and the current time.
+    ///
+    /// This function deletes all transforms from the buffer that have a
+    /// timestamp older than the input argument minus the max_age.
+    ///
+    /// # Fields
+    ///
+    /// - `timestamp`: the time to compare all entries in the buffer with.
+    fn delete_before(
+        &mut self,
+        timestamp: Timestamp,
+    ) {
+        self.data.retain(|&k, _| k >= timestamp);
+    }
+
     /// Removes expired transforms from the buffer based on the max_age.
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than the current time minus the max_age.
-    fn delete_expired(
-        &mut self,
-        current_time: Timestamp,
-    ) {
-        let timestamp_threshold = current_time - self.max_age;
+    #[cfg(feature = "std")]
+    fn delete_expired(&mut self) {
+        let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {
             self.data.retain(|&k, _| k >= t);
         }
