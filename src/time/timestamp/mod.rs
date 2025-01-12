@@ -4,6 +4,9 @@ use core::{
     time::Duration,
 };
 
+#[cfg(feature = "std")]
+use std::time::{SystemTime, UNIX_EPOCH};
+
 pub mod error;
 pub use error::TimestampError;
 
@@ -14,6 +17,26 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    /// Returns a `Timestamp` initialized to the current time.
+    /// This functionality is useful for dynamic transforms.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let now = Timestamp::now();
+    /// assert!(now.t > 0);
+    /// ```
+    pub fn now() -> Self {
+        let duration_since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        Timestamp {
+            t: duration_since_epoch.as_nanos(),
+        }
+    }
     /// Returns a `Timestamp` initialized at zero.
     /// This functionality is especially useful for static transforms.
     ///
@@ -23,7 +46,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
-    /// assert_eq!(zero.nanoseconds, 0);
+    /// assert_eq!(zero.t, 0);
     /// ```
     pub fn zero() -> Self {
         Timestamp { t: 0 }
@@ -38,15 +61,13 @@ impl Timestamp {
     /// ```
     /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000,
-    /// };
+    /// let timestamp = Timestamp { t: 1_000_000_000 };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap(), 1.0);
     ///
     /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000_000_000_001,
+    ///     t: 1_000_000_000_000_000_001,
     /// };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_err());
@@ -74,7 +95,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000_000_000_001,
+    ///     t: 1_000_000_000_000_000_001,
     /// };
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
