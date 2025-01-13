@@ -37,21 +37,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run tests
         run: cargo test
-      - name: Run tests async
-        run: cargo test --features async -- async
   examples:
     runs-on: ubuntu-latest
     name: examples
     steps:
       - uses: actions/checkout@v4
-      - name: Run example sync_minimal
+      - name: Run example minimal
         run: cargo run --example sync_minimal
-      - name: Run example sync_polling
+      - name: Run example polling
         run: cargo run --example sync_polling
-      - name: Run example async_await
-        run: cargo run --example async_await --features async
-      - name: Run example full_example
-        run: cargo run --example full_example
+      - name: Run example full
+        run: cargo run --example full
   benchmarks:
     runs-on: ubuntu-latest
     name: benchmarks
@@ -59,5 +55,3 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run bench
         run: cargo bench
-      - name: Run bench async
-        run: cargo bench --features async
