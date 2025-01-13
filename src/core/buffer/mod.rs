@@ -276,7 +276,7 @@ impl Buffer {
     /// Removes transforms from the buffer based on the max_age and the current time.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than the input argument minus the max_age.
+    /// timestamp lower than the input argument minus the max_age.
     ///
     /// # Fields
     ///
