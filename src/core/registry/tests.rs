@@ -5,8 +5,8 @@ mod registry_tests {
         time::Timestamp,
         Registry,
     };
+    use core::time::Duration;
     use log::debug;
-    use std::time::Duration;
 
     #[test]
     fn basic_chain_linear() {

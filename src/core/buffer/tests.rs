@@ -118,8 +118,38 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
+    fn empty_buffer() {
+        let buffer = Buffer::new(Duration::from_secs(1));
+        assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
+
+        let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
+        assert!(before.is_none());
+        assert!(after.is_none());
+    }
+
+    #[test]
     fn delete_before() {
+        let mut buffer = Buffer::new(Duration::from_secs(1));
+
+        let t = Timestamp::zero();
+        let p1 = create_transform(t);
+        let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
+
+        buffer.insert(p1.clone());
+        buffer.insert(p2.clone());
+
+        assert!(buffer.get(&p1.timestamp).is_ok());
+        assert!(buffer.get(&p2.timestamp).is_ok());
+
+        buffer.delete_before(Timestamp { t: 2_000_000_000 });
+
+        assert!(buffer.get(&p1.timestamp).is_err());
+        assert!(buffer.get(&p2.timestamp).is_ok());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn delete_expired() {
         let mut buffer = Buffer::new(Duration::from_secs(1));
         let t = Timestamp::now();
 
@@ -139,16 +169,6 @@ mod buffer_tests {
         // The following is not found because by this time, it has expired.
         assert!(get_2.is_err());
         assert!(get_3.is_ok());
-    }
-
-    #[test]
-    fn empty_buffer() {
-        let buffer = Buffer::new(Duration::from_secs(1));
-        assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
-
-        let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
-        assert!(before.is_none());
-        assert!(after.is_none());
     }
 
     #[test]
@@ -173,20 +193,5 @@ mod buffer_tests {
         let (before, after) = buffer.get_nearest(&(t + Duration::from_secs(1)).unwrap());
         assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert!(after.is_none());
-    }
-
-    #[test]
-    fn delete_expired() {
-        let mut buffer = Buffer::new(Duration::from_secs(1));
-
-        let t = Timestamp::now();
-        let p1 = create_transform((t - Duration::from_secs(2)).unwrap());
-        let p2 = create_transform(t);
-
-        buffer.insert(p1.clone());
-        buffer.insert(p2.clone());
-
-        assert!(buffer.get(&p1.timestamp).is_err());
-        assert!(buffer.get(&p2.timestamp).is_ok());
     }
 }

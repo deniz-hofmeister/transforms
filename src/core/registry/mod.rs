@@ -5,6 +5,7 @@
 //! ## Features
 //!
 //! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
+//!
 //! TODO: Write out the features
 //! TODO: manual buffer cleanup
 //!
@@ -14,7 +15,7 @@
 //!
 //! ```rust
 //! # {
-//! use std::time::Duration;
+//! use core::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
@@ -95,9 +96,9 @@ use crate::{
     geometry::Transform,
     time::Timestamp,
 };
-use alloc::collections::VecDeque;
+use alloc::{collections::VecDeque, string::String};
+use core::time::Duration;
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
-use std::time::Duration;
 mod error;
 
 /// A registry for managing transforms between different frames. It can
@@ -111,7 +112,7 @@ mod error;
 /// # Examples
 ///
 /// ```
-/// use std::time::Duration;
+/// use core::time::Duration;
 /// use transforms::{
 ///     geometry::{Quaternion, Transform, Vector3},
 ///     time::Timestamp,
@@ -172,12 +173,12 @@ impl Registry {
     /// # Examples
     ///
     /// ```
-    /// use std::time::Duration;
+    /// use core::time::Duration;
     /// use transforms::Registry;
     ///
     /// let mut registry = Registry::new(Duration::from_secs(60));
     /// ```
-    pub fn new(max_age: std::time::Duration) -> Self {
+    pub fn new(max_age: Duration) -> Self {
         Self {
             data: HashMap::new(),
             max_age,
@@ -197,7 +198,7 @@ impl Registry {
     /// # Examples
     ///
     /// ```
-    /// use std::time::Duration;
+    /// use core::time::Duration;
     /// use transforms::{geometry::Transform, Registry};
     ///
     /// let mut registry = Registry::new(Duration::from_secs(60));
@@ -228,7 +229,7 @@ impl Registry {
     /// # Examples
     ///
     /// ```
-    /// use std::time::Duration;
+    /// use core::time::Duration;
     /// use transforms::{
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
