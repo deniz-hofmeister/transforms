@@ -15,16 +15,24 @@
 //!
 //! ```rust
 //! # {
-//! use core::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
 //!     Registry,
 //! };
 //!
-//! // Create a new registry with a max_age duration
+//! # #[cfg(feature = "std")]
+//! use core::time::Duration;
+//! # #[cfg(feature = "std")]
 //! let mut registry = Registry::new(Duration::from_secs(60));
+//! # #[cfg(feature = "std")]
 //! let t1 = Timestamp::now();
+//!
+//! # #[cfg(not(feature = "std"))]
+//! let mut registry = Registry::new();
+//! # #[cfg(not(feature = "std"))]
+//! let t1 = Timestamp::zero();
+//!
 //! let t2 = t1.clone();
 //!
 //! // Define a transform from frame "a" to frame "b"
@@ -97,9 +105,11 @@ use crate::{
     time::Timestamp,
 };
 use alloc::{collections::VecDeque, string::String};
-use core::time::Duration;
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 mod error;
+
+#[cfg(feature = "std")]
+use core::time::Duration;
 
 /// A registry for managing transforms between different frames. It can
 /// traverse the parent-child tree and calculate the final transform.
@@ -112,16 +122,24 @@ mod error;
 /// # Examples
 ///
 /// ```
-/// use core::time::Duration;
 /// use transforms::{
 ///     geometry::{Quaternion, Transform, Vector3},
 ///     time::Timestamp,
 ///     Registry,
 /// };
 ///
-/// // Create a new registry with a max_age duration
+/// # #[cfg(feature = "std")]
+/// use core::time::Duration;
+/// # #[cfg(feature = "std")]
 /// let mut registry = Registry::new(Duration::from_secs(60));
+/// # #[cfg(feature = "std")]
 /// let t1 = Timestamp::now();
+///
+/// # #[cfg(not(feature = "std"))]
+/// let mut registry = Registry::new();
+/// # #[cfg(not(feature = "std"))]
+/// let t1 = Timestamp::zero();
+///
 /// let t2 = t1.clone();
 ///
 /// // Define a transform from frame "a" to frame "b"
@@ -156,10 +174,12 @@ mod error;
 /// ```
 pub struct Registry {
     pub data: HashMap<String, Buffer>,
+    #[cfg(feature = "std")]
     max_age: Duration,
 }
 
 impl Registry {
+    #[cfg(feature = "std")]
     /// Creates a new `Registry` with the specified max_age duration.
     ///
     /// # Arguments
@@ -185,6 +205,26 @@ impl Registry {
         }
     }
 
+    #[cfg(not(feature = "std"))]
+    /// Creates a new `Registry`.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `Registry`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::Registry;
+    ///
+    /// let registry = Registry::new();
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            data: HashMap::new(),
+        }
+    }
+
     /// Adds a transform to the registry.
     ///
     /// # Arguments
@@ -198,10 +238,15 @@ impl Registry {
     /// # Examples
     ///
     /// ```
-    /// use core::time::Duration;
     /// use transforms::{geometry::Transform, Registry};
-    ///
+    /// # #[cfg(feature = "std")]
+    /// use core::time::Duration;
+    /// # #[cfg(feature = "std")]
     /// let mut registry = Registry::new(Duration::from_secs(60));
+    ///
+    /// # #[cfg(not(feature = "std"))]
+    /// let mut registry = Registry::new();
+    ///
     /// let transform = Transform::identity();
     ///
     /// let result = registry.add_transform(transform);
@@ -211,7 +256,12 @@ impl Registry {
         &mut self,
         t: Transform,
     ) -> Result<(), BufferError> {
-        Self::process_add_transform(t, &mut self.data, self.max_age)
+        #[cfg(not(feature = "std"))]
+        let result = Self::process_add_transform(t, &mut self.data);
+        #[cfg(feature = "std")]
+        let result = Self::process_add_transform(t, &mut self.data, self.max_age);
+
+        result
     }
 
     /// Retrieves a transform from the registry.
@@ -236,8 +286,18 @@ impl Registry {
     ///     Registry,
     /// };
     ///
+    /// # #[cfg(feature = "std")]
+    /// use core::time::Duration;
+    /// # #[cfg(feature = "std")]
     /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// # #[cfg(feature = "std")]
+    /// let t1 = Timestamp::now();
+    ///
+    /// # #[cfg(not(feature = "std"))]
+    /// let mut registry = Registry::new();
+    /// # #[cfg(not(feature = "std"))]
     /// let t1 = Timestamp::zero();
+    /// # #[cfg(not(feature = "std"))]
     /// let t2 = t1.clone();
     ///
     /// // Define a transform from frame "a" to frame "b"
@@ -276,6 +336,52 @@ impl Registry {
         Self::process_get_transform(from, to, timestamp, &mut self.data)
     }
 
+    /// Removes transforms from every buffer based on the given threshold.
+    ///
+    /// Iterates over all buffers and deletes all entries with a
+    /// timestamp lower than the input argument.
+    ///
+    /// # Fields
+    ///
+    /// - `timestamp`: the time to compare all entries in the buffer with.
+    pub fn delete_transforms_before(
+        &mut self,
+        timestamp: Timestamp,
+    ) {
+        for buffer in self.data.values_mut() {
+            buffer.delete_before(timestamp);
+        }
+    }
+
+    #[cfg(not(feature = "std"))]
+    /// Adds a transform to the data buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - The transform to be added to the registry
+    /// * `data` - Mutable reference to the data buffer where transforms are stored
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError` if there is an issue adding the transform to the buffer
+    fn process_add_transform(
+        t: Transform,
+        data: &mut HashMap<String, Buffer>,
+    ) -> Result<(), BufferError> {
+        match data.entry(t.child.clone()) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().insert(t);
+            }
+            Entry::Vacant(entry) => {
+                let buffer = Buffer::new();
+                let buffer = entry.insert(buffer);
+                buffer.insert(t);
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "std")]
     /// Adds a transform to the data buffer.
     ///
     /// # Arguments

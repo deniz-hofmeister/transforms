@@ -33,7 +33,7 @@ mod error;
 ///     y: 0.0,
 ///     z: 0.0,
 /// };
-/// let timestamp = Timestamp::now();
+/// let timestamp = Timestamp::zero();
 /// let frame = String::from("a");
 ///
 /// let point = Point {

@@ -2,8 +2,9 @@
 
 #[tokio::main]
 async fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
     use tokio::sync::Mutex;
     use transforms::{
         geometry::{Quaternion, Transform, Vector3},
@@ -33,19 +34,14 @@ async fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
-    // 10 seconds will be flushed.
-    let max_age = Duration::from_secs(10);
-
-    // Arc and Mutex is used in this example because we load the synchronous implementation of the
-    // registry, but in a multi-threaded context.
-    let registry = Arc::new(Mutex::new(Registry::new(max_age)));
+    let registry = Arc::new(Mutex::new(Registry::new()));
 
     // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
+    let mut writer_counter = 0;
     let writer = tokio::spawn(async move {
         loop {
-            let time = Timestamp::now();
+            let time = Timestamp { t: writer_counter };
             let t = generate_transform(time);
             let mut r = registry_writer.lock().await;
 
@@ -55,19 +51,20 @@ async fn main() {
             }
             drop(r);
             tokio::time::sleep(Duration::from_millis(500)).await;
+            writer_counter += 1;
         }
     });
 
     // Reader task - uses get_transform to poll for transforms
     let registry_reader = registry.clone();
+    let reader_counter = 3;
     let reader = tokio::spawn(async move {
         loop {
-            // Request a transform in the past, which will be unavailable initially.
-            let time = (Timestamp::now() - Duration::from_secs(1)).unwrap();
+            // Request a transform in the future, which initially will fail
             let mut r = registry_reader.lock().await;
 
             // Poll the registry for the transform
-            let result = r.get_transform("a", "b", time);
+            let result = r.get_transform("a", "b", Timestamp { t: reader_counter });
             match result {
                 Ok(tf) => info!("Found transform: {:?}", tf),
                 Err(e) => error!("Transform not found: {:?}", e),

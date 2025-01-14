@@ -5,8 +5,8 @@
 //! timestamps between known timestamps.
 
 fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::time::Duration;
     use transforms::{
         geometry::{Point, Quaternion, Vector3},
         time::Timestamp,
@@ -15,8 +15,10 @@ fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a transform registry with 10 second time-to-live
+    // Create a transform registry with 10 second max_age
     let mut registry = Registry::new(Duration::from_secs(10));
+
+    // Timestamp::now() is not available in no_std
     let time = Timestamp::now();
 
     // Create a point in the camera frame

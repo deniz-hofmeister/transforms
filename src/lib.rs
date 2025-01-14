@@ -37,15 +37,23 @@
 //! # Examples
 //!
 //! ```rust
-//! use std::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
 //!     Registry,
 //! };
 //!
+//! # #[cfg(feature = "std")]
+//! use core::time::Duration;
+//! # #[cfg(feature = "std")]
 //! let mut registry = Registry::new(Duration::from_secs(60));
+//! # #[cfg(feature = "std")]
 //! let timestamp = Timestamp::now();
+//!
+//! # #[cfg(not(feature = "std"))]
+//! let mut registry = Registry::new();
+//! # #[cfg(not(feature = "std"))]
+//! let timestamp = Timestamp::zero();
 //!
 //! // Create a transform from frame "base" to frame "sensor"
 //! let transform = Transform {
@@ -72,7 +80,6 @@
 //!
 //! To make your data transformable between different coordinate frames, implement the `Transformable`
 //! trait. This allows you to easily transform your data using the transforms stored in the registry.
-//!
 //! ```rust
 //! use transforms::{
 //!     geometry::{Point, Quaternion, Transform, Vector3},
@@ -84,6 +91,9 @@
 //! let mut point = Point {
 //!     position: Vector3::new(1.0, 0.0, 0.0),
 //!     orientation: Quaternion::identity(),
+//! # #[cfg(not(feature = "std"))]
+//!     timestamp: Timestamp::zero(),
+//! # #[cfg(feature = "std")]
 //!     timestamp: Timestamp::now(),
 //!     frame: "camera".into(),
 //! };
