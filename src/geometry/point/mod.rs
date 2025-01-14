@@ -7,6 +7,8 @@ use crate::{
 
 use alloc::string::String;
 
+use super::transform;
+
 mod error;
 
 /// Represents a point in space with a position, orientation, and timestamp.
@@ -126,18 +128,20 @@ impl Transformable for Point {
         &mut self,
         transform: &Transform,
     ) -> Result<(), TransformError> {
-        if self.frame != transform.child {
+        let tf = transform.inverse()?;
+
+        if self.frame != tf.child {
             return Err(TransformError::IncompatibleFrames);
         }
-        if self.timestamp != transform.timestamp {
+        if self.timestamp != tf.timestamp {
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.nanoseconds as f64,
-                transform.timestamp.nanoseconds as f64,
+                tf.timestamp.nanoseconds as f64,
             ));
         }
-        self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
-        self.orientation = transform.rotation * self.orientation;
-        self.frame = transform.parent.clone();
+        self.position = tf.rotation.rotate_vector(self.position) + tf.translation;
+        self.orientation = tf.rotation * self.orientation;
+        self.frame = tf.parent.clone();
         Ok(())
     }
 }
