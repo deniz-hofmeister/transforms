@@ -7,20 +7,28 @@ license = "MIT"
 repository = "https://github.com/deniz-hofmeister/transforms"
 
 [features]
-default = ["std"]
 std = []
 
 [dependencies]
-thiserror = "2"
-approx = "0"
-hashbrown = "0"
+thiserror = "2.0.11"
+approx = "0.5.1"
+hashbrown = "0.15.2"
 
 [dev-dependencies]
-env_logger = "0"
-log = "0"
-criterion = "0"
-tokio = { version = "1", features = ["full"] }
+env_logger = "0.11.6"
+log = "0.4.22"
+criterion = "0.5.1"
+tokio = { version = "1.43.0", features = ["full"] }
+
+[[example]]
+name = "std"
+path = "examples/std.rs"
+required-features = ["std"]
 
 [[bench]]
 name = "benchmarks"
 harness = false
+
+[profile.release]
+codegen-units = 1
+lto = true

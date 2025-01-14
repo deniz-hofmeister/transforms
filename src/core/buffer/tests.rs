@@ -53,7 +53,7 @@ mod buffer_tests {
 
     #[test]
     fn insert_and_get_static() {
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::new();
         let t = Timestamp::zero();
         let transform = create_transform(t);
 
@@ -119,7 +119,7 @@ mod buffer_tests {
 
     #[test]
     fn empty_buffer() {
-        let buffer = Buffer::new(Duration::from_secs(1));
+        let buffer = Buffer::new();
         assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
@@ -129,7 +129,7 @@ mod buffer_tests {
 
     #[test]
     fn delete_before() {
-        let mut buffer = Buffer::new(Duration::from_secs(1));
+        let mut buffer = Buffer::new();
 
         let t = Timestamp::zero();
         let p1 = create_transform(t);

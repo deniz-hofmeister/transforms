@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub mod error;
 pub use error::TimestampError;
 
-/// A `Timestamp` represents a point in time as nanoseconds since the UNIX epoch.
+/// A `Timestamp` represents a point in time.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
     pub t: u128,
