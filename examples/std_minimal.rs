@@ -80,7 +80,7 @@ fn main() {
             info!("Retrieved transform from camera to map: {:?}", transform);
 
             // Apply transform to point
-            match point.transform(&transform) {
+            match point.transform(&transform.inverse().expect("Failed to invert")) {
                 Ok(()) => info!("Successfully transformed point to map frame: {:?}", point),
                 Err(e) => error!("Failed to transform point: {:?}", e),
             }

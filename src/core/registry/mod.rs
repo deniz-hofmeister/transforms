@@ -106,6 +106,7 @@ use crate::{
 };
 use alloc::{collections::VecDeque, string::String};
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
+
 mod error;
 
 #[cfg(feature = "std")]
@@ -474,9 +475,6 @@ impl Registry {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());
                     current_frame = tf.parent.clone();
-                    if current_frame == to {
-                        return Ok(transforms);
-                    }
                 }
                 Err(_) => break,
             }
@@ -499,29 +497,18 @@ impl Registry {
         from_chain: &mut VecDeque<Transform>,
         to_chain: &mut VecDeque<Transform>,
     ) {
-        {
-            let from_parents: HashSet<_> = from_chain.iter().map(|tf| &tf.parent).collect();
-
-            if let Some((index, _)) = to_chain
-                .iter()
-                .enumerate()
-                .find(|(_, tf)| from_parents.contains(&tf.parent))
-            {
-                to_chain.truncate(index + 1);
+        let mut start_idx = 0;
+        for (i, j) in from_chain.iter().rev().zip(to_chain.iter().rev()) {
+            if i == j {
+                start_idx += 1;
+            } else {
+                break;
             }
         }
 
-        {
-            let to_parents: HashSet<_> = to_chain.iter().map(|tf| &tf.parent).collect();
-
-            if let Some((index, _)) = from_chain
-                .iter()
-                .enumerate()
-                .find(|(_, tf)| to_parents.contains(&tf.parent))
-            {
-                from_chain.truncate(index + 1);
-            }
-        }
+        // Truncate the chains at the common parent frame
+        from_chain.truncate(from_chain.len() - start_idx);
+        to_chain.truncate(to_chain.len() - start_idx);
     }
 
     /// Combines two transform chains into a single transform representing the transformation from the source frame to the target frame.
