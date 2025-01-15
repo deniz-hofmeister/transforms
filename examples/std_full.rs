@@ -39,10 +39,9 @@ async fn main() {
 
     // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
-    let mut writer_counter = 0;
     let writer = tokio::spawn(async move {
         loop {
-            let time = Timestamp { t: writer_counter };
+            let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
             let t = generate_transform(time);
             let mut r = registry_writer.lock().await;
 
@@ -52,20 +51,18 @@ async fn main() {
             }
             drop(r);
             tokio::time::sleep(Duration::from_millis(500)).await;
-            writer_counter += 1;
         }
     });
 
     // Reader task - uses get_transform to poll for transforms
     let registry_reader = registry.clone();
-    let reader_counter = 3;
     let reader = tokio::spawn(async move {
         loop {
             // Request a transform in the future, which initially will fail
             let mut r = registry_reader.lock().await;
 
             // Poll the registry for the transform
-            let result = r.get_transform("a", "b", Timestamp { t: reader_counter });
+            let result = r.get_transform("a", "b", Timestamp::now());
             match result {
                 Ok(tf) => info!("Found transform: {:?}", tf),
                 Err(e) => error!("Transform not found: {:?}", e),

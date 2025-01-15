@@ -1,5 +1,6 @@
+#[cfg(feature = "std")]
+use core::time::Duration;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::time::Duration;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
@@ -18,6 +19,9 @@ fn create_sample_transform() -> Transform {
             y: 0.0,
             z: 0.0,
         },
+        #[cfg(not(feature = "std"))]
+        timestamp: Timestamp::zero(),
+        #[cfg(feature = "std")]
         timestamp: Timestamp::now(),
         parent: "a".to_string(),
         child: "b".to_string(),
@@ -30,6 +34,9 @@ fn benchmark_transforms(c: &mut Criterion) {
     group.sample_size(1000);
 
     group.bench_function("add_and_get_transform", |b| {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(60));
         b.iter(|| {
             let transform = create_sample_transform();
@@ -48,6 +55,9 @@ fn benchmark_transforms_with_preparation(c: &mut Criterion) {
     group.sample_size(1000);
 
     group.bench_function("add_and_get_transform_1k", |b| {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
@@ -73,6 +83,9 @@ fn benchmark_tree_climb(c: &mut Criterion) {
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k", |b| {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
@@ -97,6 +110,9 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k_common_parent_elim", |b| {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms

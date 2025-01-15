@@ -18,12 +18,13 @@ fn main() {
 
     // Create a transform registry
     let mut registry = Registry::new();
-    let time = Timestamp::zero();
+    let time = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
     // Create a point in the camera frame
     let mut point = Point {
         position: Vector3::new(0.0, 0.0, 1.0),
         orientation: Quaternion::identity(),
+        // 1 second
         timestamp: time,
         frame: "camera".into(),
     };
@@ -33,7 +34,7 @@ fn main() {
     let camera_to_base_t0 = Transform {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
-        // 1 second ago
+        // 1 second before
         timestamp: (time - Duration::from_secs(1)).unwrap(),
         parent: "base".into(),
         child: "camera".into(),
@@ -78,7 +79,7 @@ fn main() {
             info!("Retrieved transform from camera to map: {:?}", transform);
 
             // Apply transform to point
-            match point.transform(&transform) {
+            match point.transform(&transform.inverse().expect("Failed to invert transform")) {
                 Ok(()) => info!("Successfully transformed point to map frame: {:?}", point),
                 Err(e) => error!("Failed to transform point: {:?}", e),
             }
