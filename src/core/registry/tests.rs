@@ -88,6 +88,81 @@ mod registry_tests {
         }
 
         #[test]
+        fn basic_chain_linear_parent() {
+            let _ = env_logger::try_init();
+            let mut registry = Registry::new(Duration::from_secs(10));
+            let t = Timestamp::now();
+
+            // Child frame B at y=1m
+            let t_a_b = Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 1.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            };
+
+            // Child frame C at x=1m without rotation
+            let t_b_c = Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "b".into(),
+                child: "c".into(),
+            };
+
+            registry.add_transform(t_a_b.clone()).unwrap();
+            registry.add_transform(t_b_c.clone()).unwrap();
+
+            let t_a_c = Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 1.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "b".into(),
+                child: "c".into(),
+            };
+
+            let r = registry.get_transform("b", "c", t_a_b.timestamp);
+
+            debug!("Result: {:?}", r);
+            debug!("Desired: {:?}", t_a_c);
+
+            assert!(r.is_ok(), "Registry returned Error, expected Ok");
+            assert_eq!(
+                r.unwrap(),
+                t_a_c,
+                "Registry returned a transform that is different"
+            );
+        }
+
+        #[test]
         fn basic_chain_linear_reverse() {
             let _ = env_logger::try_init();
             let mut registry = Registry::new(Duration::from_secs(10));
