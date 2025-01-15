@@ -1,4 +1,5 @@
 /// An example on how to add and retrieve transforms
+#[cfg(not(feature = "std"))]
 fn main() {
     use core::time::Duration;
     use log::{error, info};
@@ -55,4 +56,9 @@ fn main() {
         Ok(tf) => info!("Found transform: {:?}", tf),
         Err(e) => error!("Transform not found: {:?}", e),
     }
+}
+
+#[cfg(feature = "std")]
+fn main() {
+    panic!("The 'std' feature must be disabled for this example.");
 }

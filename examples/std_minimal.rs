@@ -4,9 +4,10 @@
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
 
+#[cfg(feature = "std")]
 fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::time::Duration;
     use transforms::{
         geometry::{Point, Quaternion, Vector3},
         time::Timestamp,
@@ -15,9 +16,11 @@ fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a transform registry
-    let mut registry = Registry::new();
-    let time = Timestamp::zero();
+    // Create a transform registry with 10 second max_age
+    let mut registry = Registry::new(Duration::from_secs(10));
+
+    // Timestamp::now() is not available in no_std
+    let time = Timestamp::now();
 
     // Create a point in the camera frame
     let mut point = Point {
@@ -84,7 +87,9 @@ fn main() {
         }
         Err(e) => error!("Failed to get transform: {:?}", e),
     }
+}
 
-    // Flush old transforms from the registry
-    registry.delete_transforms_before(time);
+#[cfg(not(feature = "std"))]
+fn main() {
+    panic!("The 'std' feature must be enabled for this example.");
 }
