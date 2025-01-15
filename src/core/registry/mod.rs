@@ -279,15 +279,14 @@ impl Registry {
     /// # Examples
     ///
     /// ```
-    /// use core::time::Duration;
     /// use transforms::{
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
     ///     Registry,
     /// };
-    ///
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
+    ///
     /// # #[cfg(feature = "std")]
     /// let mut registry = Registry::new(Duration::from_secs(60));
     /// # #[cfg(feature = "std")]
@@ -297,7 +296,7 @@ impl Registry {
     /// let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
     /// let t1 = Timestamp::zero();
-    /// # #[cfg(not(feature = "std"))]
+    ///
     /// let t2 = t1.clone();
     ///
     /// // Define a transform from frame "a" to frame "b"

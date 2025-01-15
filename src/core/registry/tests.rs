@@ -11,8 +11,16 @@ mod registry_tests {
     #[test]
     fn basic_chain_linear() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -86,8 +94,16 @@ mod registry_tests {
     #[test]
     fn basic_chain_linear_reverse() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -160,8 +176,16 @@ mod registry_tests {
     #[test]
     fn basic_chain_rotation() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -254,7 +278,16 @@ mod registry_tests {
     #[test]
     fn basic_exact_match() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -269,7 +302,7 @@ mod registry_tests {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: Timestamp::zero(),
+            timestamp: t,
             parent: "a".into(),
             child: "b".into(),
         };
@@ -288,7 +321,7 @@ mod registry_tests {
                 y: 0.,
                 z: (theta / 2.0).sin(),
             },
-            timestamp: Timestamp::zero(),
+            timestamp: t,
             parent: "a".into(),
             child: "c".into(),
         };
@@ -322,8 +355,16 @@ mod registry_tests {
     #[test]
     fn basic_interpolation() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b_0 = Transform {
@@ -393,8 +434,16 @@ mod registry_tests {
     #[test]
     fn basic_chained_interpolation() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at t=0, x=1m without rotation
         let t_a_b_0 = Transform {
@@ -509,8 +558,16 @@ mod registry_tests {
     #[test]
     fn basic_branch_navigation() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at t=0, y=1m without rotation
         let t_a_b = Transform {
@@ -600,8 +657,16 @@ mod registry_tests {
     #[test]
     fn basic_common_parent_elimination() {
         let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
 
         // Child frame B at t=0, y=1m without rotation
         let t_a_b = Transform {

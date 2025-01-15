@@ -1,5 +1,6 @@
 /// This example demonstrates the use of the registry in an async main.
 
+#[cfg(feature = "std")]
 #[tokio::main]
 async fn main() {
     use core::time::Duration;
@@ -34,7 +35,7 @@ async fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    let registry = Arc::new(Mutex::new(Registry::new()));
+    let registry = Arc::new(Mutex::new(Registry::new(Duration::from_secs(10))));
 
     // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
@@ -78,4 +79,9 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(5)).await;
     writer.abort();
     reader.abort();
+}
+
+#[cfg(not(feature = "std"))]
+fn main() {
+    panic!("The 'std' feature must be enabled for this example.");
 }

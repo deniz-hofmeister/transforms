@@ -9,8 +9,16 @@ use transforms::{
 #[test]
 fn test_matching_tree() {
     let _ = env_logger::try_init();
+
+    #[cfg(not(feature = "std"))]
     let mut registry = Registry::new();
+    #[cfg(not(feature = "std"))]
     let t = Timestamp::zero();
+
+    #[cfg(feature = "std")]
+    let mut registry = Registry::new(Duration::from_secs(10));
+    #[cfg(feature = "std")]
+    let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {
@@ -122,8 +130,16 @@ fn test_matching_tree() {
 #[test]
 fn test_non_matching_tree() {
     let _ = env_logger::try_init();
+
+    #[cfg(not(feature = "std"))]
     let mut registry = Registry::new();
+    #[cfg(not(feature = "std"))]
     let t = Timestamp::zero();
+
+    #[cfg(feature = "std")]
+    let mut registry = Registry::new(Duration::from_secs(10));
+    #[cfg(feature = "std")]
+    let t = Timestamp::now();
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {

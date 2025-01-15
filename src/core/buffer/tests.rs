@@ -32,10 +32,17 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn insert_and_get() {
+        #[cfg(not(feature = "std"))]
+        let mut buffer = Buffer::new();
+        #[cfg(not(feature = "std"))]
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+
+        #[cfg(feature = "std")]
         let mut buffer = Buffer::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+
         let transform = create_transform(t);
         buffer.insert(transform.clone());
 
@@ -53,7 +60,12 @@ mod buffer_tests {
 
     #[test]
     fn insert_and_get_static() {
+        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
+
+        #[cfg(feature = "std")]
+        let mut buffer = Buffer::new(Duration::from_secs(10));
+
         let t = Timestamp::zero();
         let transform = create_transform(t);
 
@@ -70,10 +82,16 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn get_nearest() {
+        #[cfg(not(feature = "std"))]
+        let mut buffer = Buffer::new();
+        #[cfg(not(feature = "std"))]
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+
+        #[cfg(feature = "std")]
         let mut buffer = Buffer::new(Duration::from_secs(10));
-        let t = Timestamp::now();
+        #[cfg(feature = "std")]
+        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
         let p1 = create_transform((t + Duration::from_secs(1)).unwrap());
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
@@ -119,7 +137,12 @@ mod buffer_tests {
 
     #[test]
     fn empty_buffer() {
+        #[cfg(not(feature = "std"))]
         let buffer = Buffer::new();
+
+        #[cfg(feature = "std")]
+        let buffer = Buffer::new(Duration::from_secs(10));
+
         assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
@@ -128,10 +151,11 @@ mod buffer_tests {
     }
 
     #[test]
+    #[cfg(not(feature = "std"))]
     fn delete_before() {
         let mut buffer = Buffer::new();
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
-        let t = Timestamp::zero();
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
 
@@ -150,8 +174,8 @@ mod buffer_tests {
     #[test]
     #[cfg(feature = "std")]
     fn delete_expired() {
-        let mut buffer = Buffer::new(Duration::from_secs(1));
-        let t = Timestamp::now();
+        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
@@ -172,10 +196,17 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn single_point_buffer() {
-        let mut buffer = Buffer::new(Duration::from_secs(1));
+        #[cfg(not(feature = "std"))]
+        let mut buffer = Buffer::new();
+        #[cfg(not(feature = "std"))]
+        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+
+        #[cfg(feature = "std")]
+        let mut buffer = Buffer::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+
         let point = create_transform(t);
         buffer.insert(point.clone());
 
