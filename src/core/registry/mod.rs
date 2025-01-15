@@ -731,9 +731,9 @@ impl Registry {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());
                     current_frame = tf.parent.clone();
-                    if current_frame == to {
-                        return Ok(transforms);
-                    }
+                    // if current_frame == to {
+                    //     return Ok(transforms);
+                    // }
                 }
                 Err(_) => break,
             }
