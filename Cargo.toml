@@ -1,10 +1,10 @@
 [package]
 name = "transforms"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
-repository = "https://github.com/dHofmeister/transforms"
+repository = "https://github.com/deniz-hofmeister/transforms"
 
 [features]
 async = ["dep:tokio", "dep:tokio-test"]
