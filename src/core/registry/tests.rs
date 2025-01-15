@@ -757,6 +757,27 @@ mod registry_tests {
             let result = Registry::combine_transforms(from, to);
 
             debug!("{:?}", result);
+            assert!(result.is_ok());
+            let t_c_d = result.unwrap();
+
+            let t_c_d_expected = Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "c".into(),
+                child: "d".into(),
+            };
+
+            assert_eq!(t_c_d, t_c_d_expected);
         }
     }
 }
