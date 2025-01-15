@@ -105,7 +105,7 @@ use crate::{
     time::Timestamp,
 };
 use alloc::{collections::VecDeque, string::String};
-use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap};
 
 mod error;
 

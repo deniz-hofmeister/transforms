@@ -21,16 +21,6 @@ criterion = "0.5.1"
 tokio = { version = "1.43.0", features = ["full"] }
 
 [[example]]
-name = "std_minimal"
-path = "examples/std_minimal.rs"
-required-features = ["std"]
-
-[[example]]
-name = "std_full"
-path = "examples/std_full.rs"
-required-features = ["std"]
-
-[[example]]
 name = "no_std_minimal"
 path = "examples/no_std_minimal.rs"
 required-features = []
@@ -39,6 +29,16 @@ required-features = []
 name = "no_std_full"
 path = "examples/no_std_full.rs"
 required-features = []
+
+[[example]]
+name = "std_minimal"
+path = "examples/std_minimal.rs"
+required-features = ["std"]
+
+[[example]]
+name = "std_full"
+path = "examples/std_full.rs"
+required-features = ["std"]
 
 [[bench]]
 name = "benchmarks"

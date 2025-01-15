@@ -42,12 +42,14 @@ jobs:
     name: examples
     steps:
       - uses: actions/checkout@v4
-      - name: Run example minimal
-        run: cargo run --example sync_minimal
-      - name: Run example polling
-        run: cargo run --example sync_polling
-      - name: Run example full
-        run: cargo run --example full
+      - name: Run example no_std_minimal
+        run: cargo run --example no_std_minimal
+      - name: Run example no_std_full
+        run: cargo run --example no_std_full
+      - name: Run example std_minimal
+        run: cargo run --example std_minimal --features std
+      - name: Run example std_full
+        run: cargo run --example std_full --features std
   benchmarks:
     runs-on: ubuntu-latest
     name: benchmarks
