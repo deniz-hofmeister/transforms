@@ -168,7 +168,7 @@ use crate::{
     time::Timestamp,
 };
 use alloc::collections::VecDeque;
-use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap};
 use std::time::Duration;
 mod error;
 
