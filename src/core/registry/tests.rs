@@ -132,9 +132,9 @@ mod registry_tests {
             registry.add_transform(t_a_b.clone()).unwrap();
             registry.add_transform(t_b_c.clone()).unwrap();
 
-            let t_a_c = Transform {
+            let t_a_b_expected = Transform {
                 translation: Vector3 {
-                    x: 1.,
+                    x: 0.,
                     y: 1.,
                     z: 0.,
                 },
@@ -145,19 +145,19 @@ mod registry_tests {
                     z: 0.,
                 },
                 timestamp: t,
-                parent: "b".into(),
-                child: "c".into(),
+                parent: "a".into(),
+                child: "b".into(),
             };
 
-            let r = registry.get_transform("b", "c", t_a_b.timestamp);
+            let r = registry.get_transform("a", "b", t_a_b.timestamp);
 
             debug!("Result: {:?}", r);
-            debug!("Desired: {:?}", t_a_c);
+            debug!("Desired: {:?}", t_a_b_expected);
 
             assert!(r.is_ok(), "Registry returned Error, expected Ok");
             assert_eq!(
                 r.unwrap(),
-                t_a_c,
+                t_a_b_expected,
                 "Registry returned a transform that is different"
             );
         }
@@ -740,8 +740,8 @@ mod registry_tests {
             registry.add_transform(t_b_c).unwrap();
             registry.add_transform(t_b_d).unwrap();
 
-            let from_chain = Registry::get_transform_chain("d", "a", t, &registry.data);
-            let mut to_chain = Registry::get_transform_chain("c", "a", t, &registry.data);
+            let from_chain = Registry::get_transform_chain("c", "a", t, &registry.data);
+            let mut to_chain = Registry::get_transform_chain("d", "a", t, &registry.data);
 
             if let Ok(chain) = to_chain.as_mut() {
                 Registry::reverse_and_invert_transforms(chain).unwrap();
