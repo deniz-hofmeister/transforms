@@ -1,7 +1,7 @@
 /// This example demonstrates the use of the registry in an async main.
 
-#[cfg(feature = "std")]
 #[tokio::main]
+#[cfg(feature = "std")]
 async fn main() {
     use core::time::Duration;
     use log::{error, info};

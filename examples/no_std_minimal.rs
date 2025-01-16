@@ -56,6 +56,9 @@ fn main() {
         Ok(tf) => info!("Found transform: {:?}", tf),
         Err(e) => error!("Transform not found: {:?}", e),
     }
+
+    // Delete all transforms before a certain time
+    registry.delete_transforms_before(time);
 }
 
 #[cfg(feature = "std")]

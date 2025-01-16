@@ -7,7 +7,7 @@
 //! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
 //!
 //! TODO: Write out the features
-//! TODO: manual buffer cleanup
+//! TODO: explain automatic buffer cleanup with the max_age and that it is only available with the `std` feature
 //!
 //! ## Usage
 //!
@@ -181,6 +181,7 @@ pub struct Registry {
 
 impl Registry {
     #[cfg(feature = "std")]
+    #[allow(clippy::new_without_default)]
     /// Creates a new `Registry` with the specified max_age duration.
     ///
     /// # Arguments
@@ -205,7 +206,7 @@ impl Registry {
             max_age,
         }
     }
-
+    #[allow(clippy::new_without_default)]
     #[cfg(not(feature = "std"))]
     /// Creates a new `Registry`.
     ///
