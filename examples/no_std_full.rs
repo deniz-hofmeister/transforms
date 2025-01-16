@@ -3,6 +3,8 @@
 //!
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
+//!
+//! As this is a no_std example, the registry does not automatically delete old transforms.
 
 #[cfg(not(feature = "std"))]
 fn main() {
@@ -87,6 +89,7 @@ fn main() {
         Err(e) => error!("Failed to get transform: {:?}", e),
     }
 
+    // The no_std version of this package does not automatically wipe old transforms
     // Flush old transforms from the registry
     registry.delete_transforms_before(time);
 }

@@ -10,17 +10,21 @@
 //!   each associated with a unique timestamp. This is useful for applications that require
 //!   time-based transformations, such as robotics, animation, and simulations.
 //!
-//! - **Automatic Expiration of Transforms**: The buffer can automatically remove expired transforms
-//!   based on a specified max_age. This ensures that the buffer does not grow indefinitely
-//!   and only retains relevant transforms within the specified duration.
-//!
 //! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
 //!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
 //!   provide an estimated transform at the requested timestamp.
 //!
-//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp with
-//!   nanoseconds set to zero is supplied, the buffer will return a static transform if available.
-//!   This is useful for scenarios where a constant transform is needed regardless of the timestamp.
+//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp set to zero
+//!   is supplied, the buffer will return a static transform if available. This is useful for
+//!   scenarios where a constant transform is needed regardless of the timestamp.
+//!
+//! - **Automatic Expiration of Transforms**:
+//!   - This feature is available only when the `std` feature is enabled.
+//!   - The buffer can automatically remove expired transforms based on a specified max_age.
+//!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
+//!     within the specified duration.
+//!   - the no_std variant requires manual cleanup through the `delete_before` method.
+
 //!
 //! # Examples
 //!
@@ -111,11 +115,10 @@ type NearestTransforms<'a> = (
 /// # Fields
 ///
 /// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
-/// #[cfg(feature = "std")]
-/// - `max_age`: A `Duration` that defines the max_age for each entry, determining how long
-///   entries remain valid.
+/// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
+///   defines the max_age for each entry, determining how long entries remain valid.
 /// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
-/// static by supplying a timestamp set to zero.
+///   static by supplying a timestamp set to zero.
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
     #[cfg(feature = "std")]
@@ -125,6 +128,7 @@ pub struct Buffer {
 
 impl Buffer {
     #[cfg(not(feature = "std"))]
+    #[allow(clippy::new_without_default)]
     /// Creates a new `Buffer` in a `no_std` environment.
     ///
     /// This variant does **not** track or remove entries based on their age,
@@ -145,6 +149,7 @@ impl Buffer {
     }
 
     #[cfg(feature = "std")]
+    #[allow(clippy::new_without_default)]
     /// Creates a new `Buffer` in a `std` environment with a specified `max_age`.
     ///
     /// Entries older than `max_age` can be removed automatically, depending on
@@ -248,6 +253,7 @@ impl Buffer {
     /// # let mut buffer = Buffer::new();
     /// # #[cfg(not(feature = "std"))]
     /// # let timestamp = Timestamp::zero();
+    /// #
     /// # let translation = Vector3 {
     /// #       x: 1.0,
     /// #       y: 2.0,
