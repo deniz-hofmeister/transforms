@@ -20,7 +20,17 @@ For more detailed information, please refer to the [documentation](https://docs.
 - **Interpolation**: Smooth linear interpolation between transforms at different timestamps.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames.
 - **Thread-safe Operations**: Safe concurrent access to the transform registry.
-- **Time-based Buffer Management**: Automatic cleanup of old transforms.
+- **Time-based Buffer Management**: Automatic cleanup of old transforms when feature = "std".
+
+### Notes on no_std
+
+This library supports no_std implementations. By default this is disabled and feature = "std" is enabled. To use the no_std version:
+
+```shell
+transforms = { version = "0.4.0-rc.1", default-features = false }
+```
+
+
 ## Usage
 
 ```rust

@@ -1,13 +1,13 @@
 [package]
 name = "transforms"
-version = "0.4.0"
+version = "0.4.0-rc.1"
 edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
 repository = "https://github.com/deniz-hofmeister/transforms"
 
 [features]
-# default = ["std"]
+default = ["std"]
 std = []
 
 [dependencies]
