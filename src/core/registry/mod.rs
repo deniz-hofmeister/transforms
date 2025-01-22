@@ -5,9 +5,9 @@
 //! ## Features
 //!
 //! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
-//!
-//! TODO: Write out the features
-//! TODO: explain automatic buffer cleanup with the max_age and that it is only available with the `std` feature
+//! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
+//! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
+//! - **Automatic Buffer Cleanup**: Automatically cleans up old transforms based on the `max_age` parameter when the `std` feature is enabled.
 //!
 //! ## Usage
 //!
