@@ -24,7 +24,6 @@
 //!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
 //!     within the specified duration.
 //!   - the no_std variant requires manual cleanup through the `delete_before` method.
-
 //!
 //! # Examples
 //!
