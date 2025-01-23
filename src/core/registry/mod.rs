@@ -13,6 +13,8 @@
 //!
 //! The `Registry` struct is the main entry point for interacting with the registry.
 //!
+//! # Examples
+//!
 //! ```rust
 //! # {
 //! use transforms::{
