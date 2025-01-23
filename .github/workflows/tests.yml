@@ -26,7 +26,7 @@ jobs:
 
   build-no-std:
     runs-on: ubuntu-latest
-    name: build
+    name: build-no-std
     steps:
       - uses: actions/checkout@v4
       - name: Build
@@ -41,7 +41,7 @@ jobs:
 
   tests-no-std:
     runs-on: ubuntu-latest
-    name: tests
+    name: tests-no-std
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
@@ -56,7 +56,7 @@ jobs:
 
   examples-no-std:
     runs-on: ubuntu-latest
-    name: examples
+    name: examples-no-std
     steps:
       - uses: actions/checkout@v4
       - name: Run example no_std_minimal
@@ -75,7 +75,7 @@ jobs:
 
   benchmarks-no-std:
     runs-on: ubuntu-latest
-    name: benchmarks
+    name: benchmarks-no-std
     steps:
       - uses: actions/checkout@v4
       - name: Run bench
