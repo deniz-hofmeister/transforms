@@ -25,7 +25,7 @@ For more detailed information, please refer to the [documentation](https://docs.
 
 ### Note
 
-This library supports no_std implementations. By default the feature = "std" is enabled. Disable default features use the no_std version:
+This library supports **no_std** implementations. By default the feature = "std" is enabled. Disable default features use the no_std version:
 
 ```shell
 transforms = { version = "0.4.0-rc.1", default-features = false }
