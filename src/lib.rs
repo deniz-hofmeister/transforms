@@ -1,14 +1,7 @@
 //! A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
 //!
 //! This library provides functionality for managing coordinate transformations between different frames
-//! of reference. It supports both synchronous and asynchronous operations through feature flags, making
-//! it suitable for both real-time and event-driven applications.
-//!
-//! <div class="warning"><b>Deprecation Notice</b>: The async feature will be removed in a future release.
-//!
-//! If you enable the <code>async</code> feature flag then the registry provides the ability to await for transforms
-//! asynchronously. View async specific documentation, this will mostly impact the core::async_impl::Registry: <code>cargo doc --open --features async</code>
-//! </div>
+//! of reference.
 //!
 //! # Architecture
 //!
@@ -43,20 +36,24 @@
 //!
 //! # Examples
 //!
-//! ## Synchronous Usage
-//!
 //! ```rust
-//! # #[cfg(not(feature = "async"))]
-//! # async fn example() {
-//! use std::time::Duration;
 //! use transforms::{
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
 //!     Registry,
 //! };
 //!
+//! # #[cfg(feature = "std")]
+//! use core::time::Duration;
+//! # #[cfg(feature = "std")]
 //! let mut registry = Registry::new(Duration::from_secs(60));
+//! # #[cfg(feature = "std")]
 //! let timestamp = Timestamp::now();
+//!
+//! # #[cfg(not(feature = "std"))]
+//! let mut registry = Registry::new();
+//! # #[cfg(not(feature = "std"))]
+//! let timestamp = Timestamp::zero();
 //!
 //! // Create a transform from frame "base" to frame "sensor"
 //! let transform = Transform {
@@ -72,44 +69,6 @@
 //!
 //! // Retrieve the transform
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
-//! # }
-//! ```
-//!
-//! ## Asynchronous Usage
-//!
-//! ```rust
-//! # #[cfg(feature = "async")]
-//! #[deprecated(
-//!     since = "0.3.0",
-//!     note = "async features will be removed in a future release"
-//! )]
-//! # async fn example() {
-//! use std::time::Duration;
-//! use transforms::{
-//!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
-//!     Registry,
-//! };
-//!
-//! let registry = Registry::new(Duration::from_secs(60));
-//! let timestamp = Timestamp::now();
-//!
-//! let transform = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp,
-//!     parent: "base".into(),
-//!     child: "sensor".into(),
-//! };
-//!
-//! registry.add_transform(transform).await.unwrap();
-//!
-//! // Wait for transform to become available
-//! let result = registry
-//!     .await_transform("base", "sensor", timestamp)
-//!     .await
-//!     .unwrap();
-//! # }
 //! ```
 //!
 //! # Transform and Data Transformation
@@ -121,7 +80,6 @@
 //!
 //! To make your data transformable between different coordinate frames, implement the `Transformable`
 //! trait. This allows you to easily transform your data using the transforms stored in the registry.
-//!
 //! ```rust
 //! use transforms::{
 //!     geometry::{Point, Quaternion, Transform, Vector3},
@@ -133,6 +91,9 @@
 //! let mut point = Point {
 //!     position: Vector3::new(1.0, 0.0, 0.0),
 //!     orientation: Quaternion::identity(),
+//! # #[cfg(not(feature = "std"))]
+//!     timestamp: Timestamp::zero(),
+//! # #[cfg(feature = "std")]
 //!     timestamp: Timestamp::now(),
 //!     frame: "camera".into(),
 //! };
@@ -155,10 +116,6 @@
 //! The transform convention follows the common robotics practice where data typically needs to be
 //! transformed from specific sensor reference frames "up" to more general frames like the robot's
 //! base frame or a global map frame.
-//!
-//! # Feature Flags
-//!
-//! - `async`: Enables async support using tokio (disabled by default, deprecated)
 //!
 //! # Relationship with ROS2's tf2
 //!
@@ -190,12 +147,13 @@
 //!
 //! - Transform lookups are optimized for O(log n) time complexity
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
-//! - Lock-free data structures are used where possible in the async implementation
 //!
 //! # Safety
 //!
 //! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
 #![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
 extern crate alloc;
 pub mod core;
 pub mod errors;

@@ -4,18 +4,23 @@ use core::{
     time::Duration,
 };
 
+#[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
+
 pub mod error;
 pub use error::TimestampError;
 
-/// A `Timestamp` represents a point in time as nanoseconds since the UNIX epoch.
+/// A `Timestamp` represents a point in time. It is assumed that the time is measured in
+/// nanoseconds when using feature = "std". The definition of the timestamp in a no_std environment
+/// is free to be chosen by the user.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
-    pub nanoseconds: u128,
+    pub t: u128,
 }
 
 impl Timestamp {
-    /// Returns the current time as a `Timestamp`.
+    /// Returns a `Timestamp` initialized to the current time.
+    /// This functionality is useful for dynamic transforms.
     ///
     /// # Examples
     ///
@@ -23,17 +28,19 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let now = Timestamp::now();
+    /// assert!(now.t > 0);
     /// ```
+    #[cfg(feature = "std")]
     pub fn now() -> Self {
-        let now = SystemTime::now()
+        let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Failed to get system time");
+            .expect("Time went backwards");
+
         Timestamp {
-            nanoseconds: now.as_nanos(),
+            t: duration_since_epoch.as_nanos(),
         }
     }
-
-    /// Returns a `Timestamp` representing the UNIX epoch (0 nanoseconds).
+    /// Returns a `Timestamp` initialized at zero.
     /// This functionality is especially useful for static transforms.
     ///
     /// # Examples
@@ -42,10 +49,10 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
-    /// assert_eq!(zero.nanoseconds, 0);
+    /// assert_eq!(zero.t, 0);
     /// ```
     pub fn zero() -> Self {
-        Timestamp { nanoseconds: 0 }
+        Timestamp { t: 0 }
     }
 
     /// Converts the `Timestamp` to seconds as a floating-point number.
@@ -57,15 +64,13 @@ impl Timestamp {
     /// ```
     /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000,
-    /// };
+    /// let timestamp = Timestamp { t: 1_000_000_000 };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap(), 1.0);
     ///
     /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000_000_000_001,
+    ///     t: 1_000_000_000_000_000_001,
     /// };
     /// let result = timestamp.as_seconds();
     /// assert!(result.is_err());
@@ -76,9 +81,9 @@ impl Timestamp {
     /// Returns `TimestampError::AccuracyLoss` if the conversion is not exact.
     pub fn as_seconds(&self) -> Result<f64, TimestampError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
-        let seconds = self.nanoseconds as f64 / NANOSECONDS_PER_SECOND;
+        let seconds = self.t as f64 / NANOSECONDS_PER_SECOND;
 
-        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.nanoseconds {
+        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.t {
             Err(TimestampError::AccuracyLoss)
         } else {
             Ok(seconds)
@@ -93,14 +98,14 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000_000_000_001,
+    ///     t: 1_000_000_000_000_000_001,
     /// };
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
     pub fn as_seconds_unchecked(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
-        self.nanoseconds as f64 / NANOSECONDS_PER_SECOND
+        self.t as f64 / NANOSECONDS_PER_SECOND
     }
 }
 
@@ -111,11 +116,11 @@ impl Sub<Timestamp> for Timestamp {
         self,
         other: Timestamp,
     ) -> Self::Output {
-        match self.nanoseconds.cmp(&other.nanoseconds) {
+        match self.t.cmp(&other.t) {
             Ordering::Less => Err(TimestampError::DurationUnderflow),
             Ordering::Equal => Ok(Duration::from_secs(0)),
             Ordering::Greater => {
-                let diff = self.nanoseconds - other.nanoseconds;
+                let diff = self.t - other.t;
                 let seconds = diff / 1_000_000_000;
                 let nanos = (diff % 1_000_000_000) as u32;
 
@@ -139,10 +144,8 @@ impl Add<Duration> for Timestamp {
         (rhs.as_secs() as u128)
             .checked_mul(1_000_000_000)
             .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
-            .and_then(|total_duration_nanos| self.nanoseconds.checked_add(total_duration_nanos))
-            .map(|final_nanos| Timestamp {
-                nanoseconds: final_nanos,
-            })
+            .and_then(|total_duration_nanos| self.t.checked_add(total_duration_nanos))
+            .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationOverflow)
     }
 }
@@ -157,10 +160,8 @@ impl Sub<Duration> for Timestamp {
         (rhs.as_secs() as u128)
             .checked_mul(1_000_000_000)
             .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
-            .and_then(|total_duration_nanos| self.nanoseconds.checked_sub(total_duration_nanos))
-            .map(|final_nanos| Timestamp {
-                nanoseconds: final_nanos,
-            })
+            .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
+            .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationUnderflow)
     }
 }

@@ -1,10 +1,11 @@
-/// This example demonstrates the use of sync implementation of the registry in an async main
-/// to add and retrieve transforms.
-#[cfg(not(feature = "async"))]
+/// This example demonstrates the use of the registry in an async main.
+
 #[tokio::main]
+#[cfg(feature = "std")]
 async fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
     use tokio::sync::Mutex;
     use transforms::{
         geometry::{Quaternion, Transform, Vector3},
@@ -34,19 +35,13 @@ async fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a new transform registry with a time-to-live of 10 seconds. Transforms older than
-    // 10 seconds will be flushed.
-    let max_age = Duration::from_secs(10);
-
-    // Arc and Mutex is used in this example because we load the synchronous implementation of the
-    // registry, but in a multi-threaded context.
-    let registry = Arc::new(Mutex::new(Registry::new(max_age)));
+    let registry = Arc::new(Mutex::new(Registry::new(Duration::from_secs(10))));
 
     // Writer task - generates and adds transforms
     let registry_writer = registry.clone();
     let writer = tokio::spawn(async move {
         loop {
-            let time = Timestamp::now();
+            let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
             let t = generate_transform(time);
             let mut r = registry_writer.lock().await;
 
@@ -63,12 +58,11 @@ async fn main() {
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
         loop {
-            // Request a transform in the past, which will be unavailable initially.
-            let time = (Timestamp::now() - Duration::from_secs(1)).unwrap();
+            // Request a transform in the future, which initially will fail
             let mut r = registry_reader.lock().await;
 
             // Poll the registry for the transform
-            let result = r.get_transform("a", "b", time);
+            let result = r.get_transform("a", "b", Timestamp::now());
             match result {
                 Ok(tf) => info!("Found transform: {:?}", tf),
                 Err(e) => error!("Transform not found: {:?}", e),
@@ -84,7 +78,7 @@ async fn main() {
     reader.abort();
 }
 
-#[cfg(feature = "async")]
+#[cfg(not(feature = "std"))]
 fn main() {
-    panic!("This example should not be run with the 'async' feature enabled.");
+    panic!("The 'std' feature must be enabled for this example.");
 }
