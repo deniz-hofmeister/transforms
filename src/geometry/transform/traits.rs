@@ -30,7 +30,7 @@ use crate::geometry::transform::{Transform, TransformError};
 /// let mut point = Point {
 ///     position: Vector3::new(1.0, 0.0, 0.0),
 ///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::now(),
+///     timestamp: Timestamp::zero(),
 ///     frame: "camera".into(),
 /// };
 ///

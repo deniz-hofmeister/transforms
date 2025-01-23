@@ -85,7 +85,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     timestamp: Timestamp { t: 0 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -101,9 +101,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp {
-    ///         nanoseconds: 2_000_000_000,
-    ///     },
+    ///     timestamp: Timestamp { t: 2_000_000_000 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -119,15 +117,11 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp {
-    ///         nanoseconds: 1_000_000_000,
-    ///     },
+    ///     timestamp: Timestamp { t: 1_000_000_000 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
-    /// let timestamp = Timestamp {
-    ///     nanoseconds: 1_000_000_000,
-    /// };
+    /// let timestamp = Timestamp { t: 1_000_000_000 };
     ///
     /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
     /// assert_eq!(result, interpolated);
@@ -147,12 +141,12 @@ impl Transform {
             return Err(TransformError::IncompatibleFrames);
         }
 
-        let range = to.timestamp.nanoseconds - from.timestamp.nanoseconds;
+        let range = to.timestamp.t - from.timestamp.t;
         if range == 0 {
             return Ok(from);
         }
 
-        let diff = timestamp.nanoseconds - from.timestamp.nanoseconds;
+        let diff = timestamp.t - from.timestamp.t;
         let ratio = diff as f64 / range as f64;
         Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
@@ -189,7 +183,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp { nanoseconds: 0 },
+    ///     timestamp: Timestamp { t: 0 },
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };

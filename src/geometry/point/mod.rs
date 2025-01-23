@@ -33,7 +33,7 @@ mod error;
 ///     y: 0.0,
 ///     z: 0.0,
 /// };
-/// let timestamp = Timestamp::now();
+/// let timestamp = Timestamp::zero();
 /// let frame = String::from("a");
 ///
 /// let point = Point {
@@ -80,7 +80,7 @@ pub struct Point {
 ///     y: 0.0,
 ///     z: 0.0,
 /// };
-/// let timestamp = Timestamp { nanoseconds: 0 };
+/// let timestamp = Timestamp { t: 0 };
 /// let frame = String::from("b");
 ///
 /// let mut point = Point {
@@ -102,7 +102,7 @@ pub struct Point {
 ///         y: 0.0,
 ///         z: 0.0,
 ///     },
-///     timestamp: Timestamp { nanoseconds: 0 },
+///     timestamp: Timestamp { t: 0 },
 ///     parent: "a".into(),
 ///     child: "b".into(),
 /// };
@@ -131,8 +131,8 @@ impl Transformable for Point {
         }
         if self.timestamp != transform.timestamp {
             return Err(TransformError::TimestampMismatch(
-                self.timestamp.nanoseconds as f64,
-                transform.timestamp.nanoseconds as f64,
+                self.timestamp.t as f64,
+                transform.timestamp.t as f64,
             ));
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;

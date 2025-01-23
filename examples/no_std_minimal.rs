@@ -1,8 +1,8 @@
 /// An example on how to add and retrieve transforms
-#[cfg(not(feature = "async"))]
+#[cfg(not(feature = "std"))]
 fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::time::Duration;
     use transforms::{
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
@@ -31,14 +31,10 @@ fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a new transform registry with a time-to-live of 10 seconds.
-    let max_age = Duration::from_secs(10);
-
-    // We do not need to use Arc or Mutex as this example is fully synchronous.
-    let mut registry = Registry::new(max_age);
+    let mut registry = Registry::new();
 
     // Create a transform
-    let time = Timestamp::now();
+    let time = Timestamp::zero();
     let transform = generate_transform(time);
 
     // Add the transform
@@ -60,9 +56,12 @@ fn main() {
         Ok(tf) => info!("Found transform: {:?}", tf),
         Err(e) => error!("Transform not found: {:?}", e),
     }
+
+    // Delete all transforms before a certain time
+    registry.delete_transforms_before(time);
 }
 
-#[cfg(feature = "async")]
+#[cfg(feature = "std")]
 fn main() {
-    panic!("This example should not be run with the 'async' feature enabled.");
+    panic!("The 'std' feature must be disabled for this example.");
 }

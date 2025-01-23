@@ -3,8 +3,10 @@
 //!
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
+//!
+//! As this is a no_std example, the registry does not automatically delete old transforms.
 
-#[cfg(not(feature = "async"))]
+#[cfg(not(feature = "std"))]
 fn main() {
     use log::{error, info};
     use std::time::Duration;
@@ -16,14 +18,15 @@ fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    // Create a transform registry with 10 second time-to-live
-    let mut registry = Registry::new(Duration::from_secs(10));
-    let time = Timestamp::now();
+    // Create a transform registry
+    let mut registry = Registry::new();
+    let time = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
     // Create a point in the camera frame
     let mut point = Point {
         position: Vector3::new(0.0, 0.0, 1.0),
         orientation: Quaternion::identity(),
+        // 1 second
         timestamp: time,
         frame: "camera".into(),
     };
@@ -33,7 +36,7 @@ fn main() {
     let camera_to_base_t0 = Transform {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
-        // 1 second ago
+        // 1 second before
         timestamp: (time - Duration::from_secs(1)).unwrap(),
         parent: "base".into(),
         child: "camera".into(),
@@ -78,18 +81,20 @@ fn main() {
             info!("Retrieved transform from camera to map: {:?}", transform);
 
             // Apply transform to point
-            match point.transform(&transform.inverse().expect("Failed to invert")) {
+            match point.transform(&transform.inverse().expect("Failed to invert transform")) {
                 Ok(()) => info!("Successfully transformed point to map frame: {:?}", point),
                 Err(e) => error!("Failed to transform point: {:?}", e),
             }
         }
         Err(e) => error!("Failed to get transform: {:?}", e),
     }
+
+    // The no_std version of this package does not automatically wipe old transforms
+    // Flush old transforms from the registry
+    registry.delete_transforms_before(time);
 }
 
-#[cfg(feature = "async")]
+#[cfg(feature = "std")]
 fn main() {
-    panic!(
-        "This example requires the 'async' feature. Please run with: cargo run --example full_example --features async"
-    );
+    panic!("The 'std' feature must be disabled for this example.");
 }

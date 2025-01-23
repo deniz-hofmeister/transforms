@@ -19,7 +19,7 @@ mod point_tests {
             y: 0.0,
             z: 0.0,
         };
-        let t = Timestamp::now();
+        let t = Timestamp { t: 0 };
         let f = String::from("a");
 
         let _p = Point {

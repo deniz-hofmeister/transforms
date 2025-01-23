@@ -1,4 +1,4 @@
-# Transforms Library
+# Transforms
 
 [![tests](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/dHofmeister/transforms/actions/workflows/tests.yml)
 [![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
@@ -7,30 +7,35 @@
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![Downloads](https://img.shields.io/crates/d/transforms.svg)](https://crates.io/crates/transforms)
 
-A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
+A blazingly fast, minimalist and efficient coordinate transform library for robotics and computer vision applications.
 
 ## Overview
 
-This library provides functionality for managing coordinate transformations between different frames of reference. It supports both synchronous and asynchronous operations through feature flags, making it suitable for both real-time and event-driven applications.
+This library provides functionality for managing coordinate transformations between different frames of reference.
 
 For more detailed information, please refer to the [documentation](https://docs.rs/transforms). 
-
-⚠️ DEPRECATED: To view the async-specific documentation, use:
-
-```bash
-cargo doc --open --features async
-```
 
 ## Features
 
 - **Interpolation**: Smooth linear interpolation between transforms at different timestamps.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames.
-- **Thread-safe Operations**: Safe concurrent access to the transform registry.
-- **Time-based Buffer Management**: Automatic cleanup of old transforms.
+- **Support for no_std**: This library is no_std compatible, this does come with the requirement of manual time management.
+- **Time-based Buffer Management**: Automatic cleanup of old transforms with feature = "std", which is default enabled.
+- **Minimal Dependencies**: This library aims to provide only the core functionality of being a transforms library.
+
+### Note
+
+This library supports **no_std** implementations. By default the feature = "std" is enabled. Disable default features use the no_std version:
+
+```shell
+transforms = { version = "0.4.0-rc.1", default-features = false }
+```
+
+
 ## Usage
 
 ```rust
-use std::time::Duration;
+use core::time::Duration;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
@@ -53,12 +58,17 @@ let transform = Transform {
 registry.add_transform(transform).unwrap();
 
 // Retrieve the transform
-let result = registry.get_transform("base", "sensor", timestamp).unwrap();
+let result = registry.get_transform("base", "sensor", timestamp);
 ```
+For more in-depth examples please see the examples directory.
+
+## Roadmap
+
+Please refer to the [Milestones](https://github.com/deniz-hofmeister/transforms/milestones) page for an up-to-date roadmap.
 
 ## Relationship with ROS2's tf2
 
-This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used transform library in the robotics community. While this crate aims to solve the same fundamental problem of transformation tracking, it does so in its own way.
+This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used transform library in the robotics community. While this crate aims to solve the same fundamental problem of transformation tracking, it does so in its own way. The core functionality of this library is similar to tf2.
 
 ### Similarities with tf2
 
@@ -66,14 +76,15 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely
 - Buffers transforms over time.
 - Supports transform lookups between arbitrary frames.
 - Handles interpolation between transforms.
-- Provides both synchronous and asynchronous APIs.
 
 ### Key Differences
 
 - Is a pure Rust implementation, not a wrapper around tf2.
 - Makes no attempt to perfectly match the ROS2/tf2 API.
 - Focuses on providing an ergonomic Rust-first experience.
-- Is independent of ROS2's middleware and communication system.
+- Is independent of ROS2's middleware and fully stand-alone.
+
+A core conceptual difference between ROS2/tf2 and this library is that this library does not attempt to integrate into a communication layer as strongly as tf2 does with the ROS2 RMW DDS layer. If you would like this system to be DDS-enabled then it is left up to the user to write the pub-sub wrapper around this library. This is done based on the ideal that this library should be suitable for monolithic codebases and no_std implementations.
 
 ## Non-Goals
 
@@ -85,13 +96,14 @@ This library intentionally limits its scope to rigid body transformations (trans
 - Non-rigid transformations
 - Affine transformations beyond rigid body motion
 - Converge to parity with ROS2 / tf2
+- Non-linear interpolation
 - Extrapolation
 
-## Roadmap
+All the features mentioned above are going beyond the definition of a minimal, precise and predictable library. If you feel like there is a feature here that could be argued as critically-needed, feel free to open an issue with a feature request. We are open to change our minds. 
 
-The current goals are twofold. 
-- Make this library no_std compatible and allow the std functionality behind a feature flag.
-- Removal of async, to allow users to implement the async functionality their own way. See [issue](https://github.com/deniz-hofmeister/transforms/issues/27)
+## Contribution
+
+We are grateful for any form of comments, issues, or constructive criticism. Feel free to reach out or create an issue on this page. Feature requests are also more than welcome.
 
 ## License
 

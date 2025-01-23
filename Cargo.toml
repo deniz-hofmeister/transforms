@@ -1,32 +1,50 @@
 [package]
 name = "transforms"
-version = "0.3.3"
+version = "0.4.0-rc.1"
 edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
 repository = "https://github.com/deniz-hofmeister/transforms"
 
 [features]
-async = ["dep:tokio", "dep:tokio-test"]
+default = ["std"]
+std = []
 
 [dependencies]
-thiserror = "2"
-approx = "0"
-hashbrown = "0"
-tokio = { version = "1", features = ["sync"], optional = true }
-tokio-test = { version = "0", optional = true }
+thiserror = "2.0.11"
+approx = "0.5.1"
+hashbrown = "0.15.2"
 
 [dev-dependencies]
-env_logger = "0"
-tokio = { version = "1", features = ["full"] }
-log = "0"
-criterion = { version = "0", features = ["async_tokio"] }
+env_logger = "0.11.6"
+log = "0.4.25"
+criterion = "0.5.1"
+tokio = { version = "1.43.0", features = ["full"] }
 
 [[example]]
-name = "async_await"
-path = "examples/async_await.rs"
-required-features = ["async"]
+name = "no_std_minimal"
+path = "examples/no_std_minimal.rs"
+required-features = []
+
+[[example]]
+name = "no_std_full"
+path = "examples/no_std_full.rs"
+required-features = []
+
+[[example]]
+name = "std_minimal"
+path = "examples/std_minimal.rs"
+required-features = ["std"]
+
+[[example]]
+name = "std_full"
+path = "examples/std_full.rs"
+required-features = ["std"]
 
 [[bench]]
-name = "registry_benchmarks"
+name = "benchmarks"
 harness = false
+
+[profile.release]
+codegen-units = 1
+lto = true

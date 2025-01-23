@@ -10,29 +10,39 @@
 //!   each associated with a unique timestamp. This is useful for applications that require
 //!   time-based transformations, such as robotics, animation, and simulations.
 //!
-//! - **Automatic Expiration of Transforms**: The buffer can automatically remove expired transforms
-//!   based on a specified max_age. This ensures that the buffer does not grow indefinitely
-//!   and only retains relevant transforms within the specified duration.
-//!
 //! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
 //!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
 //!   provide an estimated transform at the requested timestamp.
 //!
-//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp with
-//!   nanoseconds set to zero is supplied, the buffer will return a static transform if available.
-//!   This is useful for scenarios where a constant transform is needed regardless of the timestamp.
+//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp set to zero
+//!   is supplied, the buffer will return a static transform if available. This is useful for
+//!   scenarios where a constant transform is needed regardless of the timestamp.
+//!
+//! - **Automatic Expiration of Transforms**:
+//!   - This feature is available only when the `std` feature is enabled.
+//!   - The buffer can automatically remove expired transforms based on a specified max_age.
+//!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
+//!     within the specified duration.
+//!   - the no_std variant requires manual cleanup through the `delete_before` method.
+
 //!
 //! # Examples
 //!
 //! ```
-//! use std::time::Duration;
+//! # #[cfg(feature = "std")]
+//! use core::time::Duration;
 //! use transforms::{
 //!     core::Buffer,
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
 //! };
 //!
+//! # #[cfg(not(feature = "std"))]
+//! let mut buffer = Buffer::new();
+//!
+//! # #[cfg(feature = "std")]
 //! let max_age = Duration::from_secs(10);
+//! # #[cfg(feature = "std")]
 //! let mut buffer = Buffer::new(max_age);
 //!
 //! let translation = Vector3 {
@@ -46,6 +56,10 @@
 //!     y: 0.0,
 //!     z: 0.0,
 //! };
+//!
+//! # #[cfg(not(feature = "std"))]
+//! let timestamp = Timestamp::zero();
+//! # #[cfg(feature = "std")]
 //! let timestamp = Timestamp::now();
 //! let parent = "a".into();
 //! let child = "b".into();
@@ -82,8 +96,10 @@
 use crate::{geometry::Transform, time::Timestamp};
 use alloc::collections::BTreeMap;
 pub use error::BufferError;
-use std::time::Duration;
 mod error;
+
+#[cfg(feature = "std")]
+use core::time::Duration;
 
 type NearestTransforms<'a> = (
     Option<(&'a Timestamp, &'a Transform)>,
@@ -99,28 +115,54 @@ type NearestTransforms<'a> = (
 /// # Fields
 ///
 /// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
-/// - `max_age`: A `Duration` that defines the max_age for each entry, determining how long
-///   entries remain valid.
-/// - `is_static`: A boolean flag that, when set to true, converts the buffer to a static
-///   lookup if a timestamp with nanoseconds set to zero is supplied. Any
+/// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
+///   defines the max_age for each entry, determining how long entries remain valid.
+/// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
+///   static by supplying a timestamp set to zero.
 pub struct Buffer {
     data: BTreeMap<Timestamp, Transform>,
+    #[cfg(feature = "std")]
     max_age: Duration,
     is_static: bool,
 }
 
 impl Buffer {
-    /// Creates a new buffer with the specified max_age.
-    /// Entries older than the max_age will automatically be removed.
+    #[cfg(not(feature = "std"))]
+    #[allow(clippy::new_without_default)]
+    /// Creates a new `Buffer` in a `no_std` environment.
+    ///
+    /// This variant does **not** track or remove entries based on their age,
+    /// because the `std` feature is disabled and we do not have access to
+    /// standard library functionality.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use transforms::core::Buffer;
-    /// use std::time::Duration;
+    /// use transforms::core::Buffer;
+    /// let buffer = Buffer::new();
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            data: BTreeMap::new(),
+            is_static: false,
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[allow(clippy::new_without_default)]
+    /// Creates a new `Buffer` in a `std` environment with a specified `max_age`.
+    ///
+    /// Entries older than `max_age` can be removed automatically, depending on
+    /// how you implement your cleanup logic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::time::Duration;
+    /// use transforms::core::Buffer;
     ///
     /// let max_age = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(max_age);
+    /// let buffer = Buffer::new(max_age);
     /// ```
     pub fn new(max_age: Duration) -> Self {
         Self {
@@ -135,30 +177,37 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// use std::time::Duration;
-    /// # use transforms::{
-    /// #     core::Buffer,
-    /// #     geometry::{Quaternion, Transform, Vector3},
-    /// #     time::Timestamp,
-    /// # };
+    /// use transforms::{
+    ///     core::Buffer,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
+    /// # #[cfg(feature = "std")]
+    /// use core::time::Duration;
     ///
-    /// let max_age = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(max_age);
+    /// # #[cfg(feature = "std")]
+    /// let mut buffer = Buffer::new(Duration::from_secs(10));
+    /// # #[cfg(feature = "std")]
+    /// let timestamp = Timestamp::now();
     ///
-    /// # let translation = Vector3 {
-    /// #       x: 1.0,
-    /// #       y: 2.0,
-    /// #       z: 3.0,
-    /// #   };
-    /// # let rotation = Quaternion {
-    /// #       w: 1.0,
-    /// #       x: 0.0,
-    /// #       y: 0.0,
-    /// #       z: 0.0,
-    /// #   };
-    /// # let timestamp = Timestamp::now();
-    /// # let parent = "a".into();
-    /// # let child = "b".into();
+    /// # #[cfg(not(feature = "std"))]
+    /// let mut buffer = Buffer::new();
+    /// # #[cfg(not(feature = "std"))]
+    /// let timestamp = Timestamp::zero();
+    ///
+    /// let translation = Vector3 {
+    ///     x: 1.0,
+    ///     y: 2.0,
+    ///     z: 3.0,
+    /// };
+    /// let rotation = Quaternion {
+    ///     w: 1.0,
+    ///     x: 0.0,
+    ///     y: 0.0,
+    ///     z: 0.0,
+    /// };
+    /// let parent = "a".into();
+    /// let child = "b".into();
     ///
     /// let transform = Transform {
     ///     translation,
@@ -174,9 +223,10 @@ impl Buffer {
         &mut self,
         transform: Transform,
     ) {
-        self.is_static = transform.timestamp.nanoseconds == 0;
+        self.is_static = transform.timestamp.t == 0;
         self.data.insert(transform.timestamp, transform);
 
+        #[cfg(feature = "std")]
         if !self.is_static {
             self.delete_expired();
         };
@@ -187,16 +237,23 @@ impl Buffer {
     /// # Examples
     ///
     /// ```
-    /// use std::time::Duration;
     /// use transforms::{
     ///     core::Buffer,
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
     /// };
+    /// # #[cfg(feature = "std")]
+    /// use core::time::Duration;
     ///
-    /// let max_age = Duration::from_secs(10);
-    /// let mut buffer = Buffer::new(max_age);
-    ///
+    /// # #[cfg(feature = "std")]
+    /// # let mut buffer = Buffer::new(Duration::from_secs(10));
+    /// # #[cfg(feature = "std")]
+    /// # let timestamp = Timestamp::now();
+    /// # #[cfg(not(feature = "std"))]
+    /// # let mut buffer = Buffer::new();
+    /// # #[cfg(not(feature = "std"))]
+    /// # let timestamp = Timestamp::zero();
+    /// #
     /// # let translation = Vector3 {
     /// #       x: 1.0,
     /// #       y: 2.0,
@@ -208,7 +265,6 @@ impl Buffer {
     /// #       y: 0.0,
     /// #       z: 0.0,
     /// #   };
-    /// # let timestamp = Timestamp::now();
     /// # let parent = "a".into();
     /// # let child = "b".into();
     /// #
@@ -233,7 +289,7 @@ impl Buffer {
         timestamp: &Timestamp,
     ) -> Result<Transform, BufferError> {
         if self.is_static {
-            match self.data.get(&Timestamp { nanoseconds: 0 }) {
+            match self.data.get(&Timestamp { t: 0 }) {
                 Some(tf) => return Ok(tf.clone()),
                 None => return Err(BufferError::NoTransformAvailable),
             }
@@ -249,6 +305,21 @@ impl Buffer {
             )?),
             _ => Err(BufferError::NoTransformAvailable),
         }
+    }
+
+    /// Removes transforms from the buffer based on the given threshold.
+    ///
+    /// This function deletes all transforms from the buffer that have a
+    /// timestamp lower than the input argument.
+    ///
+    /// # Fields
+    ///
+    /// - `timestamp`: the time to compare all entries in the buffer with.
+    pub fn delete_before(
+        &mut self,
+        timestamp: Timestamp,
+    ) {
+        self.data.retain(|&k, _| k >= timestamp);
     }
 
     /// Retrieves the nearest transforms before and after the given timestamp.
@@ -276,6 +347,7 @@ impl Buffer {
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than the current time minus the max_age.
+    #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now() - self.max_age;
         if let Ok(t) = timestamp_threshold {

@@ -1,12 +1,13 @@
 #!/bin/sh
 set -e
 
-cargo build 
-cargo test 
-cargo test  --features async -- async
-cargo run --example sync_minimal
-cargo run --example sync_polling
-cargo run --example async_await --features async
-cargo run --example full_example
+cargo build --no-default-features
+cargo build
+cargo test --no-default-features
+cargo test
+cargo run --example no_std_minimal --no-default-features
+cargo run --example no_std_full --no-default-features
+cargo run --example std_minimal
+cargo run --example std_full
+cargo bench --no-default-features
 cargo bench
-cargo bench --features async
