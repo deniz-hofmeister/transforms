@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-cargo build 
-cargo build --features std
-cargo test 
-cargo test --features std
-cargo run --example no_std_minimal
-cargo run --example no_std_full
-cargo run --example std_minimal --features std
-cargo run --example std_full --features std
+cargo build --no-default-features
+cargo build
+cargo test --no-default-features
+cargo test
+cargo run --example no_std_minimal --no-default-features
+cargo run --example no_std_full --no-default-features
+cargo run --example std_minimal
+cargo run --example std_full
+cargo bench --no-default-features
 cargo bench
-cargo bench --features std
