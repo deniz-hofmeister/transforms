@@ -101,9 +101,7 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp {
-    ///         t: 2_000_000_000,
-    ///     },
+    ///     timestamp: Timestamp { t: 2_000_000_000 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -119,15 +117,11 @@ impl Transform {
     ///         y: 0.0,
     ///         z: 0.0,
     ///     },
-    ///     timestamp: Timestamp {
-    ///         t: 1_000_000_000,
-    ///     },
+    ///     timestamp: Timestamp { t: 1_000_000_000 },
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
-    /// let timestamp = Timestamp {
-    ///     t: 1_000_000_000,
-    /// };
+    /// let timestamp = Timestamp { t: 1_000_000_000 };
     ///
     /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
     /// assert_eq!(result, interpolated);
