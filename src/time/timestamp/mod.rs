@@ -136,6 +136,7 @@ impl Sub<Timestamp> for Timestamp {
                     return Err(TimestampError::DurationOverflow);
                 }
 
+                #[allow(clippy::cast_possible_truncation)]
                 Ok(Duration::new(seconds as u64, nanos))
             }
         }
@@ -149,9 +150,9 @@ impl Add<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        (rhs.as_secs() as u128)
+        (u128::from(rhs.as_secs()))
             .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_add(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationOverflow)
@@ -165,9 +166,9 @@ impl Sub<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        (rhs.as_secs() as u128)
+        u128::from(rhs.as_secs())
             .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationUnderflow)
