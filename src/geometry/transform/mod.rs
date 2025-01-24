@@ -123,7 +123,7 @@ impl Transform {
     /// };
     /// let timestamp = Timestamp { t: 1_000_000_000 };
     ///
-    /// let interpolated = Transform::interpolate(from, to, timestamp).unwrap();
+    /// let interpolated = Transform::interpolate(&from, &to, timestamp).unwrap();
     /// assert_eq!(result, interpolated);
     /// ```
     pub fn interpolate(

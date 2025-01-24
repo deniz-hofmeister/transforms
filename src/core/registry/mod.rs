@@ -59,8 +59,7 @@
 //! let t_a_b_2 = t_a_b_1.clone();
 //!
 //! // Add the transform to the registry
-//! let result = registry.add_transform(t_a_b_1);
-//! assert!(result.is_ok());
+//! registry.add_transform(t_a_b_1);
 //!
 //! // Retrieve the transform from "a" to "b"
 //! let result = registry.get_transform("a", "b", t2);
@@ -162,8 +161,7 @@ use core::time::Duration;
 /// let t_a_b_2 = t_a_b_1.clone();
 ///
 /// // Add the transform to the registry
-/// let result = registry.add_transform(t_a_b_1);
-/// assert!(result.is_ok());
+/// registry.add_transform(t_a_b_1);
 ///
 /// // Retrieve the transform from "a" to "b"
 /// let result = registry.get_transform("a", "b", t2);
@@ -250,8 +248,7 @@ impl Registry {
     ///
     /// let transform = Transform::identity();
     ///
-    /// let result = registry.add_transform(transform);
-    /// assert!(result.is_ok());
+    /// registry.add_transform(transform);
     /// ```
     pub fn add_transform(
         &mut self,
@@ -318,8 +315,7 @@ impl Registry {
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
-    /// let result = registry.add_transform(t_a_b_1);
-    /// assert!(result.is_ok());
+    /// registry.add_transform(t_a_b_1);
     ///
     /// let result = registry.get_transform("a", "b", t2);
     /// assert!(result.is_ok());
