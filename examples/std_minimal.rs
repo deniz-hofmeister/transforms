@@ -63,15 +63,9 @@ fn main() {
     };
 
     // Add transforms to registry
-    registry
-        .add_transform(camera_to_base_t0)
-        .expect("Failed to add camera transform");
-    registry
-        .add_transform(camera_to_base_t1)
-        .expect("Failed to add camera transform");
-    registry
-        .add_transform(base_to_map)
-        .expect("Failed to add base transform");
+    registry.add_transform(camera_to_base_t0);
+    registry.add_transform(camera_to_base_t1);
+    registry.add_transform(base_to_map);
     info!("Added transforms to registry");
 
     // Get transform from camera to map frame
