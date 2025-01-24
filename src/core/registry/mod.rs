@@ -106,6 +106,8 @@ use hashbrown::{hash_map::Entry, HashMap};
 
 mod error;
 
+#[cfg(not(feature = "std"))]
+use crate::errors::BufferError;
 #[cfg(feature = "std")]
 use core::time::Duration;
 
