@@ -130,6 +130,7 @@ impl Transformable for Point {
             return Err(TransformError::IncompatibleFrames);
         }
         if self.timestamp != transform.timestamp {
+            #[allow(clippy::cast_precision_loss)]
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.t as f64,
                 transform.timestamp.t as f64,
@@ -137,7 +138,7 @@ impl Transformable for Point {
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
         self.orientation = transform.rotation * self.orientation;
-        self.frame = transform.parent.clone();
+        self.frame.clone_from(&transform.parent);
         Ok(())
     }
 }

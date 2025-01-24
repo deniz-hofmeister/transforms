@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod vector3_tests {
+    use approx::assert_relative_eq;
+
     use crate::geometry::Vector3;
 
     #[test]
@@ -119,15 +121,7 @@ mod vector3_tests {
             z: 6.0,
         };
         let expected = 32.0;
-        assert_eq!(
-            v1.dot(v2),
-            expected,
-            "Dot product of {:?} and {:?} was incorrect. Expected: {:?}, Got: {:?}",
-            v1,
-            v2,
-            expected,
-            v1.dot(v2)
-        );
+        assert_relative_eq!(v1.dot(v2), expected);
     }
 
     #[test]
