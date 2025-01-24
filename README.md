@@ -56,7 +56,7 @@ let transform = Transform {
 };
 
 // Add the transform to the registry
-registry.add_transform(transform).unwrap();
+registry.add_transform(transform);
 
 // Retrieve the transform
 let result = registry.get_transform("base", "sensor", timestamp);
