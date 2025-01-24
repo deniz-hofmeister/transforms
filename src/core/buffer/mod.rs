@@ -128,6 +128,7 @@ pub struct Buffer {
 impl Buffer {
     #[cfg(not(feature = "std"))]
     #[allow(clippy::new_without_default)]
+    #[must_use = "The Buffer should be used to store transforms."]
     /// Creates a new `Buffer` in a `no_std` environment.
     ///
     /// This variant does **not** track or remove entries based on their age,

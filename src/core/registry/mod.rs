@@ -106,8 +106,6 @@ use hashbrown::{hash_map::Entry, HashMap};
 
 mod error;
 
-#[cfg(not(feature = "std"))]
-use crate::errors::BufferError;
 #[cfg(feature = "std")]
 use core::time::Duration;
 
@@ -208,6 +206,7 @@ impl Registry {
     }
     #[allow(clippy::new_without_default)]
     #[cfg(not(feature = "std"))]
+    #[must_use = "The Registry should be used to manage transforms."]
     /// Creates a new `Registry`.
     ///
     /// # Returns
@@ -259,7 +258,7 @@ impl Registry {
         t: Transform,
     ) {
         #[cfg(not(feature = "std"))]
-        let result = Self::process_add_transform(t, &mut self.data);
+        Self::process_add_transform(t, &mut self.data);
         #[cfg(feature = "std")]
         Self::process_add_transform(t, &mut self.data, self.max_age);
     }
@@ -366,7 +365,7 @@ impl Registry {
     fn process_add_transform(
         t: Transform,
         data: &mut HashMap<String, Buffer>,
-    ) -> Result<(), BufferError> {
+    ) {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(t);
@@ -377,7 +376,6 @@ impl Registry {
                 buffer.insert(t);
             }
         }
-        Ok(())
     }
 
     #[cfg(feature = "std")]

@@ -11,7 +11,7 @@ pub mod error;
 pub use error::TimestampError;
 
 /// A `Timestamp` represents a point in time. It is assumed that the time is measured in
-/// nanoseconds when using feature = "std". The definition of the timestamp in a no_std environment
+/// nanoseconds when using feature = "std". The definition of the timestamp in a ```no_std``` environment
 /// is free to be chosen by the user.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
@@ -19,6 +19,8 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    #[cfg(feature = "std")]
+    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized to the current time.
     /// This functionality is useful for dynamic transforms.
     ///
@@ -30,7 +32,6 @@ impl Timestamp {
     /// let now = Timestamp::now();
     /// assert!(now.t > 0);
     /// ```
-    #[cfg(feature = "std")]
     pub fn now() -> Self {
         let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -40,6 +41,8 @@ impl Timestamp {
             t: duration_since_epoch.as_nanos(),
         }
     }
+
+    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized at zero.
     /// This functionality is especially useful for static transforms.
     ///
@@ -81,15 +84,19 @@ impl Timestamp {
     /// Returns `TimestampError::AccuracyLoss` if the conversion is not exact.
     pub fn as_seconds(&self) -> Result<f64, TimestampError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        #[allow(clippy::cast_precision_loss)]
         let seconds = self.t as f64 / NANOSECONDS_PER_SECOND;
 
-        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.t {
-            Err(TimestampError::AccuracyLoss)
-        } else {
+        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss)]
+        if (seconds * NANOSECONDS_PER_SECOND) as u128 == self.t {
             Ok(seconds)
+        } else {
+            Err(TimestampError::AccuracyLoss)
         }
     }
 
+    #[must_use = "this returns the result of the operation"]
     /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
     ///
     /// # Examples
@@ -103,6 +110,7 @@ impl Timestamp {
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
+    #[allow(clippy::cast_precision_loss)]
     pub fn as_seconds_unchecked(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.t as f64 / NANOSECONDS_PER_SECOND
@@ -124,7 +132,7 @@ impl Sub<Timestamp> for Timestamp {
                 let seconds = diff / 1_000_000_000;
                 let nanos = (diff % 1_000_000_000) as u32;
 
-                if seconds > u64::MAX as u128 {
+                if seconds > u128::from(u64::MAX) {
                     return Err(TimestampError::DurationOverflow);
                 }
 
