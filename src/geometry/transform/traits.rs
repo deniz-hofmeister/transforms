@@ -12,7 +12,7 @@ use crate::geometry::transform::{Transform, TransformError};
 /// In robotics, it's common to transform data from sensor reference frames "up" to
 /// base or map reference frames. For example:
 /// - A camera's data might need to be transformed from the camera frame to the robot's base frame
-/// - LiDAR points might need to be transformed from the LiDAR frame to the map frame
+/// - Lidar points might need to be transformed from the lidar frame to the map frame
 ///
 /// This trait follows this convention, where transforms are applied from child frame
 /// to parent frame. The child frame is typically the more specific/local frame (e.g.,
@@ -65,6 +65,12 @@ pub trait Transformable {
     ///
     /// * `Ok(())` if the transformation was successful
     /// * `Err(TransformError)` if the transformation failed
+    ///
+    /// # Errors
+    ///
+    /// This method returns a `TransformError` if:
+    /// - The frames of the object and the transform are incompatible.
+    /// - The timestamps of the object and the transform do not match.
     fn transform(
         &mut self,
         transform: &Transform,

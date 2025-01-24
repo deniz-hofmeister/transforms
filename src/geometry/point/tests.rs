@@ -22,7 +22,7 @@ mod point_tests {
         let t = Timestamp { t: 0 };
         let f = String::from("a");
 
-        let _p = Point {
+        let _ = Point {
             position: v,
             orientation: q,
             timestamp: t,

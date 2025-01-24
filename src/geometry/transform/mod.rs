@@ -127,8 +127,8 @@ impl Transform {
     /// assert_eq!(result, interpolated);
     /// ```
     pub fn interpolate(
-        from: Transform,
-        to: Transform,
+        from: &Transform,
+        to: &Transform,
         timestamp: Timestamp,
     ) -> Result<Transform, TransformError> {
         if from.timestamp > to.timestamp || timestamp < from.timestamp || timestamp > to.timestamp {
@@ -143,20 +143,23 @@ impl Transform {
 
         let range = to.timestamp.t - from.timestamp.t;
         if range == 0 {
-            return Ok(from);
+            return Ok(from.clone());
         }
 
         let diff = timestamp.t - from.timestamp.t;
+        #[allow(clippy::cast_precision_loss)]
         let ratio = diff as f64 / range as f64;
+
         Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
             rotation: from.rotation.slerp(to.rotation, ratio),
             timestamp,
-            child: from.child,
-            parent: from.parent,
+            child: from.child.clone(),
+            parent: from.parent.clone(),
         })
     }
 
+    #[must_use = "Returns a new transform"]
     /// Returns the identity transform.
     ///
     /// The identity transform has no translation or rotation and is often used
@@ -204,8 +207,8 @@ impl Transform {
                 z: 0.0,
             },
             timestamp: Timestamp::zero(),
-            parent: "".into(),
-            child: "".into(),
+            parent: String::new(),
+            child: String::new(),
         }
     }
 
@@ -223,8 +226,19 @@ impl Transform {
     ///
     /// // Create a transform with specific translation and rotation
     /// let transform = Transform {
-    ///     translation: Vector3 { x: 1.0, y: 2.0, z: 3.0 },
-    ///     rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }.normalize().unwrap(),
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 2.0,
+    ///         z: 3.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 0.0,
+    ///         x: 1.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     }
+    ///     .normalize()
+    ///     .unwrap(),
     ///     timestamp: Timestamp::zero(),
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -242,6 +256,12 @@ impl Transform {
     /// let result = (transform * inverse).unwrap();
     /// assert_eq!(result.translation, identity.translation);
     /// assert_eq!(result.rotation, identity.rotation);
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function returns a `TransformError` if:
+    /// - The quaternion normalization fails, resulting in a `QuaternionError`.
     pub fn inverse(&self) -> Result<Self, TransformError> {
         let q = self.rotation.normalize()?;
         let inverse_rotation = q.conjugate();

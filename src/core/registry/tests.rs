@@ -58,8 +58,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone()).unwrap();
-        registry.add_transform(t_b_c.clone()).unwrap();
+        registry.add_transform(t_a_b.clone());
+        registry.add_transform(t_b_c.clone());
 
         let t_a_c = Transform {
             translation: Vector3 {
@@ -141,8 +141,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone()).unwrap();
-        registry.add_transform(t_b_c.clone()).unwrap();
+        registry.add_transform(t_a_b.clone());
+        registry.add_transform(t_b_c.clone());
 
         let t_c_a = Transform {
             translation: Vector3 {
@@ -242,9 +242,9 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b.clone()).unwrap();
-        registry.add_transform(t_b_c.clone()).unwrap();
-        registry.add_transform(t_c_d.clone()).unwrap();
+        registry.add_transform(t_a_b.clone());
+        registry.add_transform(t_b_c.clone());
+        registry.add_transform(t_c_d.clone());
 
         let t_a_d = Transform {
             translation: Vector3 {
@@ -326,8 +326,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone()).unwrap();
-        registry.add_transform(t_a_c.clone()).unwrap();
+        registry.add_transform(t_a_b.clone());
+        registry.add_transform(t_a_c.clone());
 
         let r = registry.get_transform("a", "b", t_a_b.timestamp);
 
@@ -403,8 +403,8 @@ mod registry_tests {
             child: "b".into(),
         };
 
-        registry.add_transform(t_a_b_0.clone()).unwrap();
-        registry.add_transform(t_a_b_1.clone()).unwrap();
+        registry.add_transform(t_a_b_0.clone());
+        registry.add_transform(t_a_b_1.clone());
 
         let middle_timestamp = Timestamp {
             t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
@@ -516,10 +516,10 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b_0.clone()).unwrap();
-        registry.add_transform(t_a_b_1.clone()).unwrap();
-        registry.add_transform(t_b_c_0.clone()).unwrap();
-        registry.add_transform(t_b_c_1.clone()).unwrap();
+        registry.add_transform(t_a_b_0.clone());
+        registry.add_transform(t_a_b_1.clone());
+        registry.add_transform(t_b_c_0.clone());
+        registry.add_transform(t_b_c_1.clone());
 
         let middle_timestamp = Timestamp {
             t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
@@ -623,9 +623,9 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b).unwrap();
-        registry.add_transform(t_b_c).unwrap();
-        registry.add_transform(t_b_d).unwrap();
+        registry.add_transform(t_a_b);
+        registry.add_transform(t_b_c);
+        registry.add_transform(t_b_d);
 
         let result = registry.get_transform("c", "d", t);
 
@@ -722,15 +722,15 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b).unwrap();
-        registry.add_transform(t_b_c).unwrap();
-        registry.add_transform(t_b_d).unwrap();
+        registry.add_transform(t_a_b);
+        registry.add_transform(t_b_c);
+        registry.add_transform(t_b_d);
 
         let from_chain = Registry::get_transform_chain("d", "a", t, &registry.data);
         let mut to_chain = Registry::get_transform_chain("c", "a", t, &registry.data);
 
         if let Ok(chain) = to_chain.as_mut() {
-            Registry::reverse_and_invert_transforms(chain).unwrap();
+            Registry::reverse_and_invert_transforms(chain).expect("Failed to reverse and invert");
         }
 
         assert!(from_chain.is_ok());
