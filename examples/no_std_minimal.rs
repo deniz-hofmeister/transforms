@@ -38,9 +38,7 @@ fn main() {
     let transform = generate_transform(time);
 
     // Add the transform
-    if let Err(e) = registry.add_transform(transform.clone()) {
-        error!("Error adding transform: {:?}", e);
-    }
+    registry.add_transform(transform.clone());
 
     // Request a transform that is in the future and therefore doesn't exist
     let time_future = (time + Duration::from_secs(1)).unwrap();
