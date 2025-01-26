@@ -59,8 +59,7 @@
 //! let t_a_b_2 = t_a_b_1.clone();
 //!
 //! // Add the transform to the registry
-//! let result = registry.add_transform(t_a_b_1);
-//! assert!(result.is_ok());
+//! registry.add_transform(t_a_b_1);
 //!
 //! // Retrieve the transform from "a" to "b"
 //! let result = registry.get_transform("a", "b", t2);
@@ -78,7 +77,7 @@
 //! #### Methods
 //!
 //! - `new(max_age: Duration) -> Self`
-//!   - Creates a new `Registry` with the specified max_age duration.
+//!   - Creates a new `Registry` with the specified ``max_age`` duration.
 //!   - **Arguments**
 //!     - `max_age`: The duration for which transforms are considered valid.
 //!   - **Returns**
@@ -100,12 +99,7 @@
 //!   - **Errors**
 //!     - Returns a `TransformError` if the transform cannot be found.
 
-use crate::{
-    core::Buffer,
-    errors::{BufferError, TransformError},
-    geometry::Transform,
-    time::Timestamp,
-};
+use crate::{core::Buffer, errors::TransformError, geometry::Transform, time::Timestamp};
 use alloc::{collections::VecDeque, string::String};
 use hashbrown::{hash_map::Entry, HashMap};
 
@@ -167,8 +161,7 @@ use core::time::Duration;
 /// let t_a_b_2 = t_a_b_1.clone();
 ///
 /// // Add the transform to the registry
-/// let result = registry.add_transform(t_a_b_1);
-/// assert!(result.is_ok());
+/// registry.add_transform(t_a_b_1);
 ///
 /// // Retrieve the transform from "a" to "b"
 /// let result = registry.get_transform("a", "b", t2);
@@ -184,7 +177,8 @@ pub struct Registry {
 impl Registry {
     #[cfg(feature = "std")]
     #[allow(clippy::new_without_default)]
-    /// Creates a new `Registry` with the specified max_age duration.
+    #[must_use = "The Registry should be used to manage transforms."]
+    /// Creates a new `Registry` with the specified ``max_age`` duration.
     ///
     /// # Arguments
     ///
@@ -210,6 +204,7 @@ impl Registry {
     }
     #[allow(clippy::new_without_default)]
     #[cfg(not(feature = "std"))]
+    #[must_use = "The Registry should be used to manage transforms."]
     /// Creates a new `Registry`.
     ///
     /// # Returns
@@ -253,19 +248,16 @@ impl Registry {
     ///
     /// let transform = Transform::identity();
     ///
-    /// let result = registry.add_transform(transform);
-    /// assert!(result.is_ok());
+    /// registry.add_transform(transform);
     /// ```
     pub fn add_transform(
         &mut self,
         t: Transform,
-    ) -> Result<(), BufferError> {
+    ) {
         #[cfg(not(feature = "std"))]
-        let result = Self::process_add_transform(t, &mut self.data);
+        Self::process_add_transform(t, &mut self.data);
         #[cfg(feature = "std")]
-        let result = Self::process_add_transform(t, &mut self.data, self.max_age);
-
-        result
+        Self::process_add_transform(t, &mut self.data, self.max_age);
     }
 
     /// Retrieves a transform from the registry.
@@ -323,8 +315,7 @@ impl Registry {
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
-    /// let result = registry.add_transform(t_a_b_1);
-    /// assert!(result.is_ok());
+    /// registry.add_transform(t_a_b_1);
     ///
     /// let result = registry.get_transform("a", "b", t2);
     /// assert!(result.is_ok());
@@ -370,7 +361,7 @@ impl Registry {
     fn process_add_transform(
         t: Transform,
         data: &mut HashMap<String, Buffer>,
-    ) -> Result<(), BufferError> {
+    ) {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(t);
@@ -381,7 +372,6 @@ impl Registry {
                 buffer.insert(t);
             }
         }
-        Ok(())
     }
 
     #[cfg(feature = "std")]
@@ -400,7 +390,7 @@ impl Registry {
         t: Transform,
         data: &mut HashMap<String, Buffer>,
         max_age: Duration,
-    ) -> Result<(), BufferError> {
+    ) {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(t);
@@ -411,7 +401,6 @@ impl Registry {
                 buffer.insert(t);
             }
         }
-        Ok(())
     }
 
     /// Retrieves and computes the transform between two frames at a specific timestamp.
@@ -471,13 +460,13 @@ impl Registry {
         data: &HashMap<String, Buffer>,
     ) -> Result<VecDeque<Transform>, TransformError> {
         let mut transforms = VecDeque::new();
-        let mut current_frame = from.into();
+        let mut current_frame: String = from.into();
 
         while let Some(frame_buffer) = data.get(&current_frame) {
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());
-                    current_frame = tf.parent.clone();
+                    current_frame.clone_from(&tf.parent);
                 }
                 Err(_) => break,
             }
@@ -533,11 +522,8 @@ impl Registry {
 
         let mut iter = from_chain.into_iter();
 
-        let mut final_transform = match iter.next() {
-            Some(transform) => transform,
-            None => {
-                return Err(TransformError::TransformTreeEmpty);
-            }
+        let Some(mut final_transform) = iter.next() else {
+            return Err(TransformError::TransformTreeEmpty);
         };
 
         for transform in iter {
@@ -562,7 +548,7 @@ impl Registry {
         let reversed_and_inverted = chain
             .iter()
             .rev()
-            .map(|item| item.inverse())
+            .map(Transform::inverse)
             .collect::<Result<VecDeque<Transform>, TransformError>>()?;
 
         *chain = reversed_and_inverted;

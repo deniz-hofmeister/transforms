@@ -21,6 +21,7 @@ impl Default for Quaternion {
 }
 
 impl Quaternion {
+    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Creates an identity quaternion representing no rotation.
     ///
     /// Returns a quaternion with w=1 and x=y=z=0, which represents the identity rotation
@@ -46,6 +47,7 @@ impl Quaternion {
         }
     }
 
+    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Returns the conjugate of the quaternion.
     ///
     /// # Examples
@@ -119,6 +121,7 @@ impl Quaternion {
         Ok(self.scale(1.0 / norm))
     }
 
+    #[must_use = "f64 must be assigned to a variable to be used"]
     /// Computes the norm (magnitude) of the quaternion.
     ///
     /// # Examples
@@ -139,6 +142,7 @@ impl Quaternion {
         (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
+    #[must_use = "f64 must be assigned to a variable to be used"]
     /// Computes the squared norm of the quaternion.
     ///
     /// This is the sum of the squares of the components.
@@ -161,6 +165,7 @@ impl Quaternion {
         self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Scales the quaternion by a given factor.
     ///
     /// Multiplies each component of the quaternion by the factor.
@@ -185,6 +190,7 @@ impl Quaternion {
         }
     }
 
+    #[must_use = "Vector must be assigned to a variable to be used"]
     /// Rotates a vector by the quaternion.
     ///
     /// The vector is treated as a pure quaternion with a real part of zero.
@@ -233,6 +239,8 @@ impl Quaternion {
             z: q_res.z,
         }
     }
+
+    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Performs spherical linear interpolation (slerp) between two quaternions.
     ///
     /// Interpolates between `self` and `other` by the factor `t`.

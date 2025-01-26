@@ -22,7 +22,7 @@ mod transform_tests {
         let parent = "map".into();
         let child = "base".into();
 
-        let _t = Transform {
+        let _ = Transform {
             translation,
             rotation,
             timestamp,

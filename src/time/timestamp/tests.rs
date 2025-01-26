@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod timestamp_tests {
     use crate::{errors::TimestampError, time::Timestamp};
+    use approx::assert_relative_eq;
 
     #[test]
     fn creation() {
-        let _t = Timestamp { t: 1 };
+        let _ = Timestamp { t: 1 };
     }
 
     #[test]
@@ -23,13 +24,13 @@ mod timestamp_tests {
     #[test]
     fn as_seconds() {
         let timestamp = Timestamp { t: 1_500_000_000 };
-        assert_eq!(timestamp.as_seconds().unwrap(), 1.5);
+        assert_relative_eq!(timestamp.as_seconds().unwrap(), 1.5);
 
         let timestamp = Timestamp { t: 0 };
-        assert_eq!(timestamp.as_seconds().unwrap(), 0.0);
+        assert_relative_eq!(timestamp.as_seconds().unwrap(), 0.0);
 
         let timestamp = Timestamp { t: 1_000_000_000 };
-        assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
+        assert_relative_eq!(timestamp.as_seconds().unwrap(), 1.0);
     }
 
     #[test]

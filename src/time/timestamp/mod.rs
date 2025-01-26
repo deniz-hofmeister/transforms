@@ -11,7 +11,7 @@ pub mod error;
 pub use error::TimestampError;
 
 /// A `Timestamp` represents a point in time. It is assumed that the time is measured in
-/// nanoseconds when using feature = "std". The definition of the timestamp in a no_std environment
+/// nanoseconds when using feature = "std". The definition of the timestamp in a ```no_std``` environment
 /// is free to be chosen by the user.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
@@ -19,6 +19,8 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    #[cfg(feature = "std")]
+    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized to the current time.
     /// This functionality is useful for dynamic transforms.
     ///
@@ -30,7 +32,6 @@ impl Timestamp {
     /// let now = Timestamp::now();
     /// assert!(now.t > 0);
     /// ```
-    #[cfg(feature = "std")]
     pub fn now() -> Self {
         let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -40,6 +41,8 @@ impl Timestamp {
             t: duration_since_epoch.as_nanos(),
         }
     }
+
+    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized at zero.
     /// This functionality is especially useful for static transforms.
     ///
@@ -81,15 +84,19 @@ impl Timestamp {
     /// Returns `TimestampError::AccuracyLoss` if the conversion is not exact.
     pub fn as_seconds(&self) -> Result<f64, TimestampError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+        #[allow(clippy::cast_precision_loss)]
         let seconds = self.t as f64 / NANOSECONDS_PER_SECOND;
 
-        if (seconds * NANOSECONDS_PER_SECOND) as u128 != self.t {
-            Err(TimestampError::AccuracyLoss)
-        } else {
+        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss)]
+        if (seconds * NANOSECONDS_PER_SECOND) as u128 == self.t {
             Ok(seconds)
+        } else {
+            Err(TimestampError::AccuracyLoss)
         }
     }
 
+    #[must_use = "this returns the result of the operation"]
     /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
     ///
     /// # Examples
@@ -103,6 +110,7 @@ impl Timestamp {
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
+    #[allow(clippy::cast_precision_loss)]
     pub fn as_seconds_unchecked(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.t as f64 / NANOSECONDS_PER_SECOND
@@ -124,10 +132,11 @@ impl Sub<Timestamp> for Timestamp {
                 let seconds = diff / 1_000_000_000;
                 let nanos = (diff % 1_000_000_000) as u32;
 
-                if seconds > u64::MAX as u128 {
+                if seconds > u128::from(u64::MAX) {
                     return Err(TimestampError::DurationOverflow);
                 }
 
+                #[allow(clippy::cast_possible_truncation)]
                 Ok(Duration::new(seconds as u64, nanos))
             }
         }
@@ -141,9 +150,9 @@ impl Add<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        (rhs.as_secs() as u128)
+        (u128::from(rhs.as_secs()))
             .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_add(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationOverflow)
@@ -157,9 +166,9 @@ impl Sub<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        (rhs.as_secs() as u128)
+        u128::from(rhs.as_secs())
             .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(rhs.subsec_nanos() as u128))
+            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationUnderflow)

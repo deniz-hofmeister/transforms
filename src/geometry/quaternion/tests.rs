@@ -9,7 +9,7 @@ mod quaternion_tests {
 
     #[test]
     fn quaternion_creation() {
-        let _q = Quaternion {
+        let _ = Quaternion {
             w: 1.0,
             x: 0.0,
             y: 0.0,
@@ -52,9 +52,7 @@ mod quaternion_tests {
         let result = q.normalize();
         assert!(
             result.is_ok(),
-            "Normalization of {:?} failed with error {:?}",
-            q,
-            result
+            "Normalization of {q:?} failed with error {result:?}"
         );
         let normalized = result.unwrap();
         assert!(
@@ -76,9 +74,7 @@ mod quaternion_tests {
         let result = q.normalize();
         assert!(
             matches!(result, Err(QuaternionError::ZeroLengthNormalization)),
-            "Expected ZeroLengthNormalization error for {:?}. Got: {:?}",
-            q,
-            result
+            "Expected ZeroLengthNormalization error for {q:?}. Got: {result:?}"
         );
     }
 
@@ -90,15 +86,9 @@ mod quaternion_tests {
             y: 3.0,
             z: 4.0,
         };
-        let expected = (1.0_f64 + 4.0 + 9.0 + 16.0).sqrt();
-        assert_eq!(
-            q.norm(),
-            expected,
-            "Norm of {:?} was incorrect. Expected: {}, Got: {}",
-            q,
-            expected,
-            q.norm()
-        );
+        let expected: f64 = (1.0_f64 + 4.0 + 9.0 + 16.0).sqrt();
+
+        assert_relative_eq!(q.norm(), expected, epsilon = f64::EPSILON);
     }
 
     #[test]
@@ -110,14 +100,7 @@ mod quaternion_tests {
             z: 4.0,
         };
         let expected = 1.0_f64 + 4.0 + 9.0 + 16.0;
-        assert_eq!(
-            q.norm_squared(),
-            expected,
-            "Norm squared of {:?} was incorrect. Expected: {}, Got: {}",
-            q,
-            expected,
-            q.norm_squared()
-        );
+        assert_relative_eq!(q.norm_squared(), expected, epsilon = f64::EPSILON);
     }
 
     #[test]
@@ -305,9 +288,7 @@ mod quaternion_tests {
         let result = q1 / q2;
         assert!(
             matches!(result, Err(QuaternionError::DivisionByZero)),
-            "Expected DivisionByZero error for {:?} / {:?}",
-            q1,
-            q2
+            "Expected DivisionByZero error for {q1:?} / {q2:?}"
         );
     }
 
