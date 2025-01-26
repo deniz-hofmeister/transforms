@@ -20,8 +20,7 @@ For more detailed information, please refer to the [documentation](https://docs.
 - **Interpolation**: Smooth linear interpolation between transforms at different timestamps.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames.
 - **Static Transforms**: Submitting a timestamp at t=0 will short-circuit the lookup and always return the t=0 transform.
-- **Support for no_std**: This library is no_std compatible, this does come with the requirement of manual time management.
-- **Time-based Buffer Management**: Automatic cleanup of old transforms with feature = "std", which is default enabled.
+- **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as **no_std** then manual cleanup is required. See the examples.
 - **Minimal Dependencies**: This library aims to provide only the core functionality of being a transforms library.
 
 ### Note

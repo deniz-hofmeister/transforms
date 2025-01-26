@@ -15,8 +15,8 @@
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Thread-safe Operations**: Safe concurrent access to the transform registry
-//! - **Time-based Buffer Management**: Automatic cleanup of old transforms
+//! - **Static Transforms**: Submitting a timestamp at t=0 will short-circuit the lookup and always return the t=0 transform.
+//! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
 //!
 //! # Non-Goals
 //!
@@ -69,6 +69,11 @@
 //!
 //! // Retrieve the transform
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
+//!
+//! # #[cfg(not(feature = "std"))]
+//! // Delete old transforms
+//! # #[cfg(not(feature = "std"))]
+//! registry.delete_transforms_before(timestamp);
 //! ```
 //!
 //! # Transform and Data Transformation
