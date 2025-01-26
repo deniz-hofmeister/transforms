@@ -24,6 +24,7 @@ pub struct Vector3 {
 }
 
 impl Vector3 {
+    #[must_use = "this method does not mutate the original Vector3"]
     /// Creates a new Vector3 with the given x, y, z coordinates.
     ///
     /// # Examples
@@ -43,18 +44,22 @@ impl Vector3 {
         Self { x, y, z }
     }
 
+    #[must_use = "this method does not mutate the original Vector3"]
     pub fn zero() -> Self {
         Self::new(0.0, 0.0, 0.0)
     }
 
+    #[must_use = "this method does not mutate the original Vector3"]
     pub fn unit_x() -> Self {
         Self::new(1.0, 0.0, 0.0)
     }
 
+    #[must_use = "this method does not mutate the original Vector3"]
     pub fn unit_y() -> Self {
         Self::new(0.0, 1.0, 0.0)
     }
 
+    #[must_use = "this method does not mutate the original Vector3"]
     pub fn unit_z() -> Self {
         Self::new(0.0, 0.0, 1.0)
     }
@@ -141,6 +146,7 @@ impl Div<f64> for Vector3 {
 }
 
 impl Vector3 {
+    #[must_use = "this method does not mutate the original Vector3"]
     #[inline]
     pub fn dot(
         self,
@@ -149,6 +155,7 @@ impl Vector3 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
+    #[must_use = "this method does not mutate the original Vector3"]
     #[inline]
     pub fn cross(
         self,

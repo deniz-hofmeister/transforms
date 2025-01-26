@@ -46,9 +46,7 @@ async fn main() {
             let mut r = registry_writer.lock().await;
 
             // Add the transform to the registry
-            if let Err(e) = r.add_transform(t.clone()) {
-                error!("Error adding transform: {:?}", e);
-            }
+            r.add_transform(t.clone());
             drop(r);
             tokio::time::sleep(Duration::from_millis(500)).await;
         }

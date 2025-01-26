@@ -91,10 +91,10 @@ fn test_matching_tree() {
         child: "c".into(),
     };
 
-    registry.add_transform(t_a_b_0.clone()).unwrap();
-    registry.add_transform(t_a_b_1.clone()).unwrap();
-    registry.add_transform(t_b_c_0.clone()).unwrap();
-    registry.add_transform(t_b_c_1.clone()).unwrap();
+    registry.add_transform(t_a_b_0.clone());
+    registry.add_transform(t_a_b_1.clone());
+    registry.add_transform(t_b_c_0.clone());
+    registry.add_transform(t_b_c_1.clone());
 
     let middle_timestamp = (t + Duration::from_millis(750)).unwrap();
     let t_a_c = Transform {
@@ -213,10 +213,10 @@ fn test_non_matching_tree() {
         child: "c".into(),
     };
 
-    registry.add_transform(t_a_b_0.clone()).unwrap();
-    registry.add_transform(t_a_b_1.clone()).unwrap();
-    registry.add_transform(t_b_c_0.clone()).unwrap();
-    registry.add_transform(t_b_c_1.clone()).unwrap();
+    registry.add_transform(t_a_b_0.clone());
+    registry.add_transform(t_a_b_1.clone());
+    registry.add_transform(t_b_c_0.clone());
+    registry.add_transform(t_b_c_1.clone());
 
     let r = registry.get_transform("a", "c", t);
 

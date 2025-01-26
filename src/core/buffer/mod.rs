@@ -20,10 +20,10 @@
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - This feature is available only when the `std` feature is enabled.
-//!   - The buffer can automatically remove expired transforms based on a specified max_age.
+//!   - The buffer can automatically remove expired transforms based on a specified ``max_age``.
 //!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
 //!     within the specified duration.
-//!   - the no_std variant requires manual cleanup through the `delete_before` method.
+//!   - the ``no_std`` variant requires manual cleanup through the `delete_before` method.
 //!
 //! # Examples
 //!
@@ -115,7 +115,7 @@ type NearestTransforms<'a> = (
 ///
 /// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
 /// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
-///   defines the max_age for each entry, determining how long entries remain valid.
+///   defines the ``max_age`` for each entry, determining how long entries remain valid.
 /// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
 ///   static by supplying a timestamp set to zero.
 pub struct Buffer {
@@ -128,6 +128,7 @@ pub struct Buffer {
 impl Buffer {
     #[cfg(not(feature = "std"))]
     #[allow(clippy::new_without_default)]
+    #[must_use = "The Buffer should be used to store transforms."]
     /// Creates a new `Buffer` in a `no_std` environment.
     ///
     /// This variant does **not** track or remove entries based on their age,
@@ -149,6 +150,7 @@ impl Buffer {
 
     #[cfg(feature = "std")]
     #[allow(clippy::new_without_default)]
+    #[must_use = "The Buffer should be used to store transforms."]
     /// Creates a new `Buffer` in a `std` environment with a specified `max_age`.
     ///
     /// Entries older than `max_age` can be removed automatically, depending on
@@ -283,6 +285,12 @@ impl Buffer {
     ///     Err(_) => println!("No transform available"),
     /// }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function returns a `BufferError::NoTransformAvailable` if:
+    /// - The buffer is static and no transform is available at timestamp zero.
+    /// - There are no transforms available to interpolate between for the given timestamp.
     pub fn get(
         &self,
         timestamp: &Timestamp,
@@ -297,11 +305,9 @@ impl Buffer {
         let (before, after) = self.get_nearest(timestamp);
 
         match (before, after) {
-            (Some(before), Some(after)) => Ok(Transform::interpolate(
-                before.1.clone(),
-                after.1.clone(),
-                *timestamp,
-            )?),
+            (Some(before), Some(after)) => {
+                Ok(Transform::interpolate(before.1, after.1, *timestamp)?)
+            }
             _ => Err(BufferError::NoTransformAvailable),
         }
     }
@@ -342,10 +348,10 @@ impl Buffer {
         (before, after)
     }
 
-    /// Removes expired transforms from the buffer based on the max_age.
+    /// Removes expired transforms from the buffer based on the ``max_age``.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than the current time minus the max_age.
+    /// timestamp older than the current time minus the ``max_age``.
     #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
         let timestamp_threshold = Timestamp::now() - self.max_age;
