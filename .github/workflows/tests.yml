@@ -8,6 +8,9 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -17,12 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
         with:
           components: rustfmt
           toolchain: nightly
       - name: Rustfmt Check
-        uses: actions-rust-lang/rustfmt@v1
+        uses: actions-rust-lang/rustfmt@11df97af8e8102fd60b60a77dfbf58d40cd843b8
 
   build-no-std:
     runs-on: ubuntu-latest
@@ -31,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build
         run: cargo build --no-default-features
+
   build:
     runs-on: ubuntu-latest
     name: build
@@ -46,6 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run tests
         run: cargo test --no-default-features
+
   tests:
     runs-on: ubuntu-latest
     name: tests
@@ -63,6 +68,7 @@ jobs:
         run: cargo run --example no_std_minimal --no-default-features
       - name: Run example no_std_full
         run: cargo run --example no_std_full --no-default-features
+
   examples:
     runs-on: ubuntu-latest
     name: examples
@@ -80,6 +86,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run bench
         run: cargo bench --no-default-features
+
   benchmarks:
     runs-on: ubuntu-latest
     name: benchmarks
