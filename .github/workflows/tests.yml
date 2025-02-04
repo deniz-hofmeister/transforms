@@ -25,7 +25,7 @@ jobs:
           components: rustfmt
           toolchain: nightly
       - name: Rustfmt Check
-        uses: actions-rust-lang/rustfmt@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        uses: actions-rust-lang/rustfmt@559aa3035a47390ba96088dffa783b5d26da9326
 
   build-no-std:
     runs-on: ubuntu-latest
