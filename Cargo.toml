@@ -5,6 +5,7 @@ edition = "2021"
 description = "A transform library to track reference frames and provide transforms between them."
 license = "MIT"
 repository = "https://github.com/deniz-hofmeister/transforms"
+keywords = ["robotics", "transform", "3d", "coordinate"]
 
 [features]
 default = ["std"]
