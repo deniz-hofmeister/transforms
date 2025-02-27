@@ -18,6 +18,21 @@ mod quaternion_tests {
     }
 
     #[test]
+    fn identity_quaternion() {
+        let identity = Quaternion::identity();
+        assert_relative_eq!(identity.w, 1.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(identity.x, 0.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(identity.y, 0.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(identity.z, 0.0, epsilon = f64::EPSILON);
+
+        let v = Vector3::new(1.0, 2.0, 3.0);
+        let rotated = identity.rotate_vector(v);
+        assert_relative_eq!(rotated.x, v.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.y, v.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.z, v.z, epsilon = f64::EPSILON);
+    }
+
+    #[test]
     fn conjugate() {
         let q = Quaternion {
             w: 1.0,
@@ -149,9 +164,59 @@ mod quaternion_tests {
             z: 0.0,
         };
 
-        assert_relative_eq!(rotated.z, expected.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.x, expected.x, epsilon = f64::EPSILON);
         assert_relative_eq!(rotated.y, expected.y, epsilon = f64::EPSILON);
         assert_relative_eq!(rotated.z, expected.z, epsilon = f64::EPSILON);
+    }
+
+    #[test]
+    fn rotate_vector_multiple_axes() {
+        let q_z = Quaternion {
+            w: (f64::consts::PI / 4.0).cos(),
+            x: 0.0,
+            y: 0.0,
+            z: (f64::consts::PI / 4.0).sin(),
+        };
+
+        let q_x = Quaternion {
+            w: (f64::consts::PI / 4.0).cos(),
+            x: (f64::consts::PI / 4.0).sin(),
+            y: 0.0,
+            z: 0.0,
+        };
+
+        let q_combined = q_x * q_z;
+        let v = Vector3::new(1.0, 0.0, 0.0);
+        let rotated = q_combined.rotate_vector(v);
+        let expected = Vector3::new(0.0, 0.0, 1.0);
+
+        assert_relative_eq!(rotated.x, expected.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.y, expected.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(rotated.z, expected.z, epsilon = f64::EPSILON);
+    }
+
+    #[test]
+    fn quaternion_multiplication_properties() {
+        let q1 = Quaternion {
+            w: 0.5,
+            x: 0.5,
+            y: 0.5,
+            z: 0.5,
+        };
+        let q2 = Quaternion {
+            w: 0.0,
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        };
+
+        let q1_times_q2 = q1 * q2;
+        let q2_times_q1 = q2 * q1;
+
+        assert!(
+            q1_times_q2 != q2_times_q1,
+            "Quaternion multiplication should not be commutative"
+        );
     }
 
     #[test]
@@ -319,5 +384,58 @@ mod quaternion_tests {
         assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
         assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);
         assert_relative_eq!(result.z, expected.z, epsilon = f64::EPSILON);
+    }
+
+    #[test]
+    fn slerp_edge_cases() {
+        let q1 = Quaternion {
+            w: 0.5,
+            x: 0.5,
+            y: 0.5,
+            z: 0.5,
+        }
+        .normalize()
+        .unwrap();
+        let q2 = Quaternion {
+            w: 1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+
+        let result = q1.slerp(q2, 0.0);
+        assert_relative_eq!(result.w, q1.w, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.x, q1.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.y, q1.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.z, q1.z, epsilon = f64::EPSILON);
+
+        let result = q1.slerp(q2, 1.0);
+        assert_relative_eq!(result.w, q2.w, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.x, q2.x, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.y, q2.y, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.z, q2.z, epsilon = f64::EPSILON);
+
+        let q1 = Quaternion {
+            w: 0.9999,
+            x: 0.0001,
+            y: 0.0,
+            z: 0.0,
+        }
+        .normalize()
+        .unwrap();
+        let q2 = Quaternion {
+            w: 0.9998,
+            x: 0.0002,
+            y: 0.0,
+            z: 0.0,
+        }
+        .normalize()
+        .unwrap();
+
+        let result = q1.slerp(q2, 0.5);
+        assert!(
+            (result.norm() - 1.0).abs() < f64::EPSILON,
+            "Slerp result should be normalized"
+        );
     }
 }

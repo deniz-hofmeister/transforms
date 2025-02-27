@@ -32,6 +32,10 @@ impl Timestamp {
     /// let now = Timestamp::now();
     /// assert!(now.t > 0);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
     pub fn now() -> Self {
         let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
