@@ -22,7 +22,7 @@ hashbrown = "0.15.2"
 [dev-dependencies]
 env_logger = "0.11.6"
 log = "0.4.25"
-criterion = "0.5.1"
+criterion = "0.6.0"
 tokio = { version = "1.43.0", features = ["full"] }
 
 [[example]]
