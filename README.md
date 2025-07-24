@@ -28,7 +28,7 @@ For more detailed information, please refer to the [documentation](https://docs.
 This library supports **no_std** implementations. By default the feature = "std" is enabled. Disable default features to use the no_std version:
 
 ```shell
-transforms = { version = "0.5.1", default-features = false }
+transforms = { version = "1.0.0", default-features = false }
 ```
 
 
