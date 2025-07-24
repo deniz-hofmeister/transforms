@@ -3,7 +3,7 @@ name = "transforms"
 description = "A transform library to track reference frames and provide transforms between them."
 authors = ["Deniz Hofmeister"]
 license = "MIT"
-version = "0.5.1"
+version = "1.0.0"
 edition = "2021"
 repository = "https://github.com/deniz-hofmeister/transforms"
 keywords = ["robotics", "transform", "3d", "coordinate"]
@@ -15,15 +15,15 @@ default = ["std"]
 std = []
 
 [dependencies]
-thiserror = "2.0.11"
+thiserror = "2.0.12"
 approx = "0.5.1"
-hashbrown = "0.15.2"
+hashbrown = "0.15.4"
 
 [dev-dependencies]
-env_logger = "0.11.6"
-log = "0.4.25"
+env_logger = "0.11.8"
+log = "0.4.27"
 criterion = "0.6.0"
-tokio = { version = "1.43.0", features = ["full"] }
+tokio = { version = "1.46.1", features = ["full"] }
 
 [[example]]
 name = "no_std_minimal"
