@@ -17,7 +17,7 @@ std = []
 [dependencies]
 thiserror = "2.0.12"
 approx = "0.5.1"
-hashbrown = "0.15.4"
+hashbrown = "0.16.0"
 
 [dev-dependencies]
 env_logger = "0.11.8"
