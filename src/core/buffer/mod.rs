@@ -335,7 +335,7 @@ impl Buffer {
     fn get_nearest(
         &self,
         timestamp: &Timestamp,
-    ) -> NearestTransforms {
+    ) -> NearestTransforms<'_> {
         let before = self.data.range(..=timestamp).next_back();
 
         if let Some((t, _)) = before {
