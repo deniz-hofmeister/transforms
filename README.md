@@ -49,7 +49,7 @@ For `no_std` environments:
 
 ```toml
 [dependencies]
-transforms = { version = "1.0.2", default-features = false }
+transforms = { version = "1.0.3", default-features = false }
 ```
 
 ## Quick Start
@@ -256,7 +256,7 @@ use core::time::Duration;
 let mut registry = Registry::new();
 
 // Create timestamp manually (no Timestamp::now() in no_std)
-let timestamp = Timestamp::zero() + Duration::from_secs(100);
+let timestamp = (Timestamp::zero() + Duration::from_secs(100)).unwrap();
 
 let transform = Transform {
     translation: Vector3::new(1.0, 0.0, 0.0),
@@ -269,7 +269,7 @@ let transform = Transform {
 registry.add_transform(transform);
 
 // Manual cleanup required in no_std
-let cutoff = Timestamp::zero() + Duration::from_secs(50);
+let cutoff = (Timestamp::zero() + Duration::from_secs(50)).unwrap();
 registry.delete_transforms_before(cutoff);
 ```
 
