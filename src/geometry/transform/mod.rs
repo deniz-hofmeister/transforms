@@ -285,18 +285,26 @@ impl Mul for Transform {
         self,
         rhs: Transform,
     ) -> Self::Output {
-        let duration = match self.timestamp.cmp(&rhs.timestamp) {
-            Ordering::Equal => Ok(Duration::from_secs(0)),
-            Ordering::Greater => self.timestamp - rhs.timestamp,
-            Ordering::Less => rhs.timestamp - self.timestamp,
-        }?;
+        let is_self_static = self.timestamp.t == 0;
+        let is_rhs_static = rhs.timestamp.t == 0;
 
-        if duration.as_secs_f64() > 2.0 * f64::EPSILON {
-            return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds()?,
-                rhs.timestamp.as_seconds()?,
-            ));
-        }
+        let duration = if !is_self_static && !is_rhs_static {
+            let d = match self.timestamp.cmp(&rhs.timestamp) {
+                Ordering::Equal => Ok(Duration::from_secs(0)),
+                Ordering::Greater => self.timestamp - rhs.timestamp,
+                Ordering::Less => rhs.timestamp - self.timestamp,
+            }?;
+
+            if d.as_secs_f64() > 2.0 * f64::EPSILON {
+                return Err(TransformError::TimestampMismatch(
+                    self.timestamp.as_seconds()?,
+                    rhs.timestamp.as_seconds()?,
+                ));
+            }
+            d
+        } else {
+            Duration::from_secs(0)
+        };
 
         if self.child == rhs.child {
             return Err(TransformError::SameFrameMultiplication);
@@ -308,12 +316,17 @@ impl Mul for Transform {
 
         let r = self.rotation * rhs.rotation;
         let t = self.rotation.rotate_vector(rhs.translation) + self.translation;
-        let d = duration;
 
         Ok(Transform {
             translation: t,
             rotation: r,
-            timestamp: (self.timestamp + (d.div_f64(2.0)))?,
+            timestamp: if is_self_static {
+                rhs.timestamp
+            } else if is_rhs_static {
+                self.timestamp
+            } else {
+                (self.timestamp + (duration.div_f64(2.0)))?
+            },
             parent: self.parent,
             child: rhs.child,
         })
