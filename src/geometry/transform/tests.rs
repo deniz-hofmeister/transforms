@@ -36,16 +36,34 @@ mod transform_tests {
         let t = Timestamp::zero();
 
         let t_a_b = Transform {
-            translation: Vector3 { x: 1., y: 0., z: 0. },
-            rotation: Quaternion { w: 1., x: 0., y: 0., z: 0. },
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             timestamp: t,
             parent: "a".into(),
             child: "b".into(),
         };
 
         let t_b_c = Transform {
-            translation: Vector3 { x: 0., y: 2., z: 0. },
-            rotation: Quaternion { w: 1., x: 0., y: 0., z: 0. },
+            translation: Vector3 {
+                x: 0.,
+                y: 2.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             timestamp: t,
             parent: "b".into(),
             child: "c".into(),
@@ -53,7 +71,14 @@ mod transform_tests {
 
         let result = (t_a_b * t_b_c).unwrap();
 
-        assert_eq!(result.translation, Vector3 { x: 1., y: 2., z: 0. });
+        assert_eq!(
+            result.translation,
+            Vector3 {
+                x: 1.,
+                y: 2.,
+                z: 0.
+            }
+        );
         assert_eq!(result.parent, "a");
         assert_eq!(result.child, "c");
     }
@@ -64,7 +89,11 @@ mod transform_tests {
         let theta = core::f64::consts::PI / 2.0;
 
         let t_a_b = Transform {
-            translation: Vector3 { x: 0., y: 0., z: 0. },
+            translation: Vector3 {
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             rotation: Quaternion {
                 w: (theta / 2.0).cos(),
                 x: 0.,
@@ -77,8 +106,17 @@ mod transform_tests {
         };
 
         let t_b_c = Transform {
-            translation: Vector3 { x: 1., y: 0., z: 0. },
-            rotation: Quaternion { w: 1., x: 0., y: 0., z: 0. },
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             timestamp: t,
             parent: "b".into(),
             child: "c".into(),
@@ -93,8 +131,17 @@ mod transform_tests {
     #[test]
     fn inverse() {
         let t_a_b = Transform {
-            translation: Vector3 { x: 1., y: 2., z: 3. },
-            rotation: Quaternion { w: 1., x: 0., y: 0., z: 0. },
+            translation: Vector3 {
+                x: 1.,
+                y: 2.,
+                z: 3.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             timestamp: Timestamp::zero(),
             parent: "a".into(),
             child: "b".into(),
@@ -102,7 +149,14 @@ mod transform_tests {
 
         let t_b_a = t_a_b.inverse().unwrap();
 
-        assert_eq!(t_b_a.translation, Vector3 { x: -1., y: -2., z: -3. });
+        assert_eq!(
+            t_b_a.translation,
+            Vector3 {
+                x: -1.,
+                y: -2.,
+                z: -3.
+            }
+        );
         assert_eq!(t_b_a.parent, "b");
         assert_eq!(t_b_a.child, "a");
     }
@@ -110,13 +164,19 @@ mod transform_tests {
     #[test]
     fn mul_inverse_identity() {
         let t_a_b = Transform {
-            translation: Vector3 { x: 1., y: 2., z: 3. },
+            translation: Vector3 {
+                x: 1.,
+                y: 2.,
+                z: 3.,
+            },
             rotation: Quaternion {
                 w: 0.707,
                 x: 0.707,
                 y: 0.,
                 z: 0.,
-            }.normalize().unwrap(),
+            }
+            .normalize()
+            .unwrap(),
             timestamp: Timestamp::zero(),
             parent: "a".into(),
             child: "b".into(),
