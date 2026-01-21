@@ -300,7 +300,7 @@ impl Buffer {
                 Some(tf) => return Ok(tf.clone()),
                 None => return Err(BufferError::NoTransformAvailable),
             }
-        };
+        }
 
         let (before, after) = self.get_nearest(timestamp);
 
