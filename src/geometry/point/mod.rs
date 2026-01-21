@@ -9,10 +9,12 @@ use alloc::string::String;
 
 mod error;
 
-/// Represents a point in space with a position, orientation, and timestamp.
+/// Represents a point in space with a position, orientation, timestamp, and its frame of reference.
 ///
-/// The `Point` struct encapsulates a 3D position using a `Vector3`, an orientation
-/// using a `Quaternion`, and a `Timestamp` to indicate when the point was recorded.
+/// The `Point` struct represents a single observation of data, at some given moment in time, with respect
+/// to a specific reference frame. It encapsulates a 3D position using a `Vector3`, an orientation
+/// using a `Quaternion`, a `Timestamp` to indicate when the point was recorded, and  a `String`
+/// representing the coordinate reference frame its data is relative to.
 ///
 /// # Examples
 ///
