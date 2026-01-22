@@ -36,7 +36,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "1.0.3"
+transforms = "1.1.1"
 ```
 
 ### Feature Flags
@@ -49,7 +49,7 @@ For `no_std` environments:
 
 ```toml
 [dependencies]
-transforms = { version = "1.0.3", default-features = false }
+transforms = { version = "1.1.1", default-features = false }
 ```
 
 ## Quick Start
