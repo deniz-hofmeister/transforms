@@ -148,6 +148,10 @@
 //! familiar with tf2 will find the concepts familiar, but the implementation details
 //! and API design follow Rust idioms and best practices as best as it can.
 //!
+//! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
+//! (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] that wraps
+//! this crate in ROS pure-Rust ROS clients.
+//!
 //! # Performance Considerations
 //!
 //! - Transform lookups are optimized for O(log n) time complexity
