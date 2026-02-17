@@ -4,6 +4,8 @@ use core::{
     time::Duration,
 };
 
+use crate::time::TimestampLike;
+
 #[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -176,6 +178,37 @@ impl Sub<Duration> for Timestamp {
             .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimestampError::DurationUnderflow)
+    }
+}
+
+impl TimestampLike for Timestamp {
+    fn static_timestamp() -> Self {
+        Timestamp::zero()
+    }
+
+    fn duration_since(
+        self,
+        earlier: Self,
+    ) -> Result<Duration, TimestampError> {
+        self - earlier
+    }
+
+    fn checked_add(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimestampError> {
+        self + rhs
+    }
+
+    fn checked_sub(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimestampError> {
+        self - rhs
+    }
+
+    fn as_seconds(self) -> Result<f64, TimestampError> {
+        Timestamp::as_seconds(&self)
     }
 }
 
