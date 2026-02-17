@@ -92,7 +92,10 @@
 //!
 //! - `NearestTransforms`: A type alias for a tuple containing the nearest transforms before and after a given timestamp.
 
-use crate::{geometry::Transform, time::Timestamp};
+use crate::{
+    geometry::Transform,
+    time::{Timestamp, TimestampLike},
+};
 use alloc::collections::BTreeMap;
 pub use error::BufferError;
 mod error;
@@ -100,9 +103,9 @@ mod error;
 #[cfg(feature = "std")]
 use core::time::Duration;
 
-type NearestTransforms<'a> = (
-    Option<(&'a Timestamp, &'a Transform)>,
-    Option<(&'a Timestamp, &'a Transform)>,
+type NearestTransforms<'a, T> = (
+    Option<(&'a T, &'a Transform<T>)>,
+    Option<(&'a T, &'a Transform<T>)>,
 );
 
 /// A buffer that stores transforms ordered by timestamps.
@@ -118,14 +121,22 @@ type NearestTransforms<'a> = (
 ///   defines the ``max_age`` for each entry, determining how long entries remain valid.
 /// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
 ///   static by supplying a timestamp set to zero.
-pub struct Buffer {
-    data: BTreeMap<Timestamp, Transform>,
+pub struct Buffer<T = Timestamp>
+where
+    T: TimestampLike,
+{
+    data: BTreeMap<T, Transform<T>>,
     #[cfg(feature = "std")]
     max_age: Duration,
+    #[cfg(feature = "std")]
+    latest_timestamp: Option<T>,
     is_static: bool,
 }
 
-impl Buffer {
+impl<T> Buffer<T>
+where
+    T: TimestampLike,
+{
     #[cfg(not(feature = "std"))]
     #[allow(clippy::new_without_default)]
     #[must_use = "The Buffer should be used to store transforms."]
@@ -139,7 +150,7 @@ impl Buffer {
     ///
     /// ```
     /// use transforms::core::Buffer;
-    /// let buffer = Buffer::new();
+    /// let buffer: Buffer = Buffer::new();
     /// ```
     pub fn new() -> Self {
         Self {
@@ -163,12 +174,13 @@ impl Buffer {
     /// use transforms::core::Buffer;
     ///
     /// let max_age = Duration::from_secs(10);
-    /// let buffer = Buffer::new(max_age);
+    /// let buffer: Buffer = Buffer::new(max_age);
     /// ```
     pub fn new(max_age: Duration) -> Self {
         Self {
             data: BTreeMap::new(),
             max_age,
+            latest_timestamp: None,
             is_static: false,
         }
     }
@@ -222,13 +234,18 @@ impl Buffer {
     /// ```
     pub fn insert(
         &mut self,
-        transform: Transform,
+        transform: Transform<T>,
     ) {
-        self.is_static = transform.timestamp.t == 0;
-        self.data.insert(transform.timestamp, transform);
+        let timestamp = transform.timestamp;
+        self.is_static = timestamp.is_static();
+        self.data.insert(timestamp, transform);
 
         #[cfg(feature = "std")]
         if !self.is_static {
+            self.latest_timestamp = Some(match self.latest_timestamp {
+                Some(current_latest) if current_latest > timestamp => current_latest,
+                _ => timestamp,
+            });
             self.delete_expired();
         };
     }
@@ -293,10 +310,10 @@ impl Buffer {
     /// - There are no transforms available to interpolate between for the given timestamp.
     pub fn get(
         &self,
-        timestamp: &Timestamp,
-    ) -> Result<Transform, BufferError> {
+        timestamp: &T,
+    ) -> Result<Transform<T>, BufferError> {
         if self.is_static {
-            match self.data.get(&Timestamp { t: 0 }) {
+            match self.data.get(&T::static_timestamp()) {
                 Some(tf) => return Ok(tf.clone()),
                 None => return Err(BufferError::NoTransformAvailable),
             }
@@ -322,7 +339,7 @@ impl Buffer {
     /// - `timestamp`: the time to compare all entries in the buffer with.
     pub fn delete_before(
         &mut self,
-        timestamp: Timestamp,
+        timestamp: T,
     ) {
         self.data.retain(|&k, _| k >= timestamp);
     }
@@ -334,8 +351,8 @@ impl Buffer {
     /// timestamp exists, both elements of the tuple will be the same.
     fn get_nearest(
         &self,
-        timestamp: &Timestamp,
-    ) -> NearestTransforms<'_> {
+        timestamp: &T,
+    ) -> NearestTransforms<'_, T> {
         let before = self.data.range(..=timestamp).next_back();
 
         if let Some((t, _)) = before {
@@ -354,9 +371,11 @@ impl Buffer {
     /// timestamp older than the current time minus the ``max_age``.
     #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
-        let timestamp_threshold = Timestamp::now() - self.max_age;
-        if let Ok(t) = timestamp_threshold {
-            self.data.retain(|&k, _| k >= t);
+        if let Some(latest_timestamp) = self.latest_timestamp {
+            let timestamp_threshold = latest_timestamp.checked_sub(self.max_age);
+            if let Ok(threshold) = timestamp_threshold {
+                self.data.retain(|&k, _| k >= threshold);
+            }
         }
     }
 }

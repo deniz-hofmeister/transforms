@@ -99,7 +99,12 @@
 //!   - **Errors**
 //!     - Returns a `TransformError` if the transform cannot be found.
 
-use crate::{core::Buffer, errors::TransformError, geometry::Transform, time::Timestamp};
+use crate::{
+    core::Buffer,
+    errors::TransformError,
+    geometry::Transform,
+    time::{Timestamp, TimestampLike},
+};
 use alloc::{collections::VecDeque, string::String};
 use hashbrown::{hash_map::Entry, HashMap};
 
@@ -168,13 +173,19 @@ use core::time::Duration;
 /// assert!(result.is_ok());
 /// assert_eq!(result.unwrap(), t_a_b_2);
 /// ```
-pub struct Registry {
-    pub data: HashMap<String, Buffer>,
+pub struct Registry<T = Timestamp>
+where
+    T: TimestampLike,
+{
+    pub data: HashMap<String, Buffer<T>>,
     #[cfg(feature = "std")]
     max_age: Duration,
 }
 
-impl Registry {
+impl<T> Registry<T>
+where
+    T: TimestampLike,
+{
     #[cfg(feature = "std")]
     #[allow(clippy::new_without_default)]
     #[must_use = "The Registry should be used to manage transforms."]
@@ -194,7 +205,7 @@ impl Registry {
     /// use core::time::Duration;
     /// use transforms::Registry;
     ///
-    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry: Registry = Registry::new(Duration::from_secs(60));
     /// ```
     pub fn new(max_age: Duration) -> Self {
         Self {
@@ -216,7 +227,7 @@ impl Registry {
     /// ```
     /// use transforms::Registry;
     ///
-    /// let registry = Registry::new();
+    /// let registry: Registry = Registry::new();
     /// ```
     pub fn new() -> Self {
         Self {
@@ -252,7 +263,7 @@ impl Registry {
     /// ```
     pub fn add_transform(
         &mut self,
-        t: Transform,
+        t: Transform<T>,
     ) {
         #[cfg(not(feature = "std"))]
         Self::process_add_transform(t, &mut self.data);
@@ -325,8 +336,8 @@ impl Registry {
         &mut self,
         from: &str,
         to: &str,
-        timestamp: Timestamp,
-    ) -> Result<Transform, TransformError> {
+        timestamp: T,
+    ) -> Result<Transform<T>, TransformError> {
         Self::process_get_transform(from, to, timestamp, &mut self.data)
     }
 
@@ -340,7 +351,7 @@ impl Registry {
     /// - `timestamp`: the time to compare all entries in the buffer with.
     pub fn delete_transforms_before(
         &mut self,
-        timestamp: Timestamp,
+        timestamp: T,
     ) {
         for buffer in self.data.values_mut() {
             buffer.delete_before(timestamp);
@@ -359,8 +370,8 @@ impl Registry {
     ///
     /// Returns `BufferError` if there is an issue adding the transform to the buffer
     fn process_add_transform(
-        t: Transform,
-        data: &mut HashMap<String, Buffer>,
+        t: Transform<T>,
+        data: &mut HashMap<String, Buffer<T>>,
     ) {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => {
@@ -387,8 +398,8 @@ impl Registry {
     ///
     /// Returns `BufferError` if there is an issue adding the transform to the buffer
     fn process_add_transform(
-        t: Transform,
-        data: &mut HashMap<String, Buffer>,
+        t: Transform<T>,
+        data: &mut HashMap<String, Buffer<T>>,
         max_age: Duration,
     ) {
         match data.entry(t.child.clone()) {
@@ -420,9 +431,9 @@ impl Registry {
     fn process_get_transform(
         from: &str,
         to: &str,
-        timestamp: Timestamp,
-        data: &mut HashMap<String, Buffer>,
-    ) -> Result<Transform, TransformError> {
+        timestamp: T,
+        data: &mut HashMap<String, Buffer<T>>,
+    ) -> Result<Transform<T>, TransformError> {
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
         let to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
@@ -456,9 +467,9 @@ impl Registry {
     fn get_transform_chain(
         from: &str,
         to: &str,
-        timestamp: Timestamp,
-        data: &HashMap<String, Buffer>,
-    ) -> Result<VecDeque<Transform>, TransformError> {
+        timestamp: T,
+        data: &HashMap<String, Buffer<T>>,
+    ) -> Result<VecDeque<Transform<T>>, TransformError> {
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
 
@@ -486,8 +497,8 @@ impl Registry {
     /// * `from_chain` - Mutable reference to the transform chain originating from the source frame
     /// * `to_chain` - Mutable reference to the transform chain originating from the target frame
     fn truncate_at_common_parent(
-        from_chain: &mut VecDeque<Transform>,
-        to_chain: &mut VecDeque<Transform>,
+        from_chain: &mut VecDeque<Transform<T>>,
+        to_chain: &mut VecDeque<Transform<T>>,
     ) {
         let mut start_idx = 0;
         for (i, j) in from_chain.iter().rev().zip(to_chain.iter().rev()) {
@@ -515,9 +526,9 @@ impl Registry {
     /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty
     /// * Other variants of `TransformError` resulting from invalid transform operations
     fn combine_transforms(
-        mut from_chain: VecDeque<Transform>,
-        mut to_chain: VecDeque<Transform>,
-    ) -> Result<Transform, TransformError> {
+        mut from_chain: VecDeque<Transform<T>>,
+        mut to_chain: VecDeque<Transform<T>>,
+    ) -> Result<Transform<T>, TransformError> {
         from_chain.append(&mut to_chain);
 
         let mut iter = from_chain.into_iter();
@@ -543,13 +554,13 @@ impl Registry {
     ///
     /// Returns `TransformError` if any transform in the chain cannot be inverted
     fn reverse_and_invert_transforms(
-        chain: &mut VecDeque<Transform>
+        chain: &mut VecDeque<Transform<T>>
     ) -> Result<(), TransformError> {
         let reversed_and_inverted = chain
             .iter()
             .rev()
             .map(Transform::inverse)
-            .collect::<Result<VecDeque<Transform>, TransformError>>()?;
+            .collect::<Result<VecDeque<Transform<T>>, TransformError>>()?;
 
         *chain = reversed_and_inverted;
         Ok(())
