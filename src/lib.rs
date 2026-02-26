@@ -15,7 +15,8 @@
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Submitting a timestamp at t=0 will short-circuit the lookup and always return the t=0 transform.
+//! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
+//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimestampLike`.
 //! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
 //!
 //! # Non-Goals

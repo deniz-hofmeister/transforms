@@ -20,10 +20,13 @@ mod traits;
 /// # Examples
 ///
 /// ```
-/// use transforms::geometry::{Quaternion, Transform, Vector3};
+/// use transforms::{
+///     geometry::{Quaternion, Transform, Vector3},
+///     time::Timestamp,
+/// };
 ///
 /// // Create an identity transform
-/// let identity = Transform::identity();
+/// let identity = Transform::<Timestamp>::identity();
 ///
 /// assert_eq!(
 ///     identity.translation,
@@ -164,6 +167,62 @@ where
         })
     }
 
+    #[must_use = "Returns a new transform"]
+    /// Returns the identity transform.
+    ///
+    /// The identity transform has no translation or rotation and is often used
+    /// as a neutral element in transformations.
+    ///
+    /// The timestamp is set to the static timestamp value for the active
+    /// timestamp type (`Timestamp::zero()` by default).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
+    ///
+    /// let identity = Transform::<Timestamp>::identity();
+    /// let transform = Transform {
+    ///     translation: Vector3 {
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: Timestamp { t: 0 },
+    ///     parent: "".into(),
+    ///     child: "".into(),
+    /// };
+    ///
+    /// assert_eq!(identity, transform);
+    /// ```
+    pub fn identity() -> Self {
+        Transform {
+            translation: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: Quaternion {
+                w: 1.0,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            timestamp: T::static_timestamp(),
+            parent: String::new(),
+            child: String::new(),
+        }
+    }
+
     /// Computes the inverse of the transform.
     ///
     /// Returns a new `Transform` that is the inverse of the current transform.
@@ -204,7 +263,7 @@ where
     /// assert_eq!(inverse.child, "a");
     ///
     /// // Verify that applying the inverse transformation results in the identity
-    /// let identity = Transform::identity();
+    /// let identity = Transform::<Timestamp>::identity();
     /// let result = (transform * inverse).unwrap();
     /// assert_eq!(result.translation, identity.translation);
     /// assert_eq!(result.rotation, identity.rotation);
@@ -226,61 +285,6 @@ where
             parent: self.child.clone(),
             child: self.parent.clone(),
         })
-    }
-}
-
-impl Transform<Timestamp> {
-    #[must_use = "Returns a new transform"]
-    /// Returns the identity transform.
-    ///
-    /// The identity transform has no translation or rotation and is often used
-    /// as a neutral element in transformations.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
-    /// };
-    ///
-    /// let identity = Transform::identity();
-    /// let transform = Transform {
-    ///     translation: Vector3 {
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: Timestamp { t: 0 },
-    ///     parent: "".into(),
-    ///     child: "".into(),
-    /// };
-    ///
-    /// assert_eq!(identity, transform);
-    /// ```
-    pub fn identity() -> Self {
-        Transform {
-            translation: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            rotation: Quaternion {
-                w: 1.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            timestamp: Timestamp::zero(),
-            parent: String::new(),
-            child: String::new(),
-        }
     }
 }
 

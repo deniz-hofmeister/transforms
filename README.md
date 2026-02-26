@@ -25,7 +25,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps using spherical linear interpolation (SLERP) for rotations and linear interpolation for translations.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames by traversing the frame tree.
-- **Static Transforms**: Transforms with timestamp `t=0` are treated as static and bypass time-based lookups.
+- **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
 - **Time-based Buffer Management**: Automatic cleanup of old transforms (with `std` feature) or manual cleanup (for `no_std`).
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
@@ -119,17 +119,20 @@ The main interface for managing transforms. It stores `Buffer` instances (one pe
 
 ### Buffer
 
-Time-indexed storage for transforms between a specific child-parent frame pair. Uses a `BTreeMap<Timestamp, Transform>` for O(log n) lookups with automatic interpolation for timestamps between stored values.
+Time-indexed storage for transforms between a specific child-parent frame pair. Uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values.
 
 ### Transform
 
 The core data structure representing a rigid body transformation:
 
 ```rust
-pub struct Transform {
+pub struct Transform<T = Timestamp>
+where
+    T: TimestampLike,
+{
     pub translation: Vector3,   // Position offset (x, y, z)
     pub rotation: Quaternion,   // Orientation (w, x, y, z)
-    pub timestamp: Timestamp,   // When this transform is valid
+    pub timestamp: T,           // When this transform is valid
     pub parent: String,         // Destination frame
     pub child: String,          // Source frame
 }
@@ -140,8 +143,11 @@ pub struct Transform {
 Implement this trait on your own types to make them transformable:
 
 ```rust
-pub trait Transformable {
-    fn transform(&mut self, transform: &Transform) -> Result<(), TransformError>;
+pub trait Transformable<T = Timestamp>
+where
+    T: TimestampLike,
+{
+    fn transform(&mut self, transform: &Transform<T>) -> Result<(), TransformError>;
 }
 ```
 
@@ -381,19 +387,20 @@ pub fn new(max_age: Duration) -> Self
 // no_std
 pub fn new() -> Self
 
-pub fn add_transform(&mut self, transform: Transform)
-pub fn get_transform(&mut self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>
-pub fn delete_transforms_before(&mut self, timestamp: Timestamp)
+pub fn add_transform(&mut self, transform: Transform<T>)
+pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn delete_transforms_before(&mut self, timestamp: T)
 ```
 
 ### Core Types
 
 | Type | Description |
 |------|-------------|
-| `Transform` | Rigid body transformation (translation + rotation + timestamp + frames) |
+| `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
 | `Vector3` | 3D vector with x, y, z components (f64) |
 | `Quaternion` | Unit quaternion for rotations with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u128) |
+| `TimestampLike` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
 
 For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).

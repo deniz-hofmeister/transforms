@@ -140,3 +140,9 @@ fn custom_timestamp_static_policy_is_respected() {
         .unwrap();
     assert_eq!(result, static_transform);
 }
+
+#[test]
+fn identity_uses_custom_static_timestamp() {
+    let identity = Transform::<TestTime>::identity();
+    assert_eq!(identity.timestamp, TestTime::static_timestamp());
+}

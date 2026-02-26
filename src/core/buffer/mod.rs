@@ -14,9 +14,9 @@
 //!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
 //!   provide an estimated transform at the requested timestamp.
 //!
-//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When a timestamp set to zero
-//!   is supplied, the buffer will return a static transform if available. This is useful for
-//!   scenarios where a constant transform is needed regardless of the timestamp.
+//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When the static timestamp
+//!   value is supplied (`t=0` by default), the buffer returns a static transform if available.
+//!   This is useful for scenarios where a constant transform is needed regardless of timestamp.
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - This feature is available only when the `std` feature is enabled.
@@ -116,11 +116,11 @@ type NearestTransforms<'a, T> = (
 ///
 /// # Fields
 ///
-/// - `data`: A `BTreeMap` where each key is a `Timestamp` and each value is a `Transform`.
+/// - `data`: A `BTreeMap` where each key is a timestamp `T` and each value is a `Transform<T>`.
 /// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
 ///   defines the ``max_age`` for each entry, determining how long entries remain valid.
 /// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
-///   static by supplying a timestamp set to zero.
+///   static by supplying the static timestamp value (`t=0` by default).
 pub struct Buffer<T = Timestamp>
 where
     T: TimestampLike,
@@ -306,7 +306,7 @@ where
     /// # Errors
     ///
     /// This function returns a `BufferError::NoTransformAvailable` if:
-    /// - The buffer is static and no transform is available at timestamp zero.
+    /// - The buffer is static and no transform is available at the static timestamp value.
     /// - There are no transforms available to interpolate between for the given timestamp.
     pub fn get(
         &self,
@@ -368,7 +368,7 @@ where
     /// Removes expired transforms from the buffer based on the ``max_age``.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than the current time minus the ``max_age``.
+    /// timestamp older than `(latest inserted timestamp - max_age)`.
     #[cfg(feature = "std")]
     fn delete_expired(&mut self) {
         if let Some(latest_timestamp) = self.latest_timestamp {
