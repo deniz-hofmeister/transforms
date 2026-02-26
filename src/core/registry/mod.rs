@@ -4,7 +4,7 @@
 //!
 //! ## Features
 //!
-//! - **Static Transforms**: The registry can handle static transforms by using a timestamp set to zero.
+//! - **Static Transforms**: The registry can handle static transforms by using the static timestamp value (`t=0` by default).
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: Automatically cleans up old transforms based on the `max_age` parameter when the `std` feature is enabled.
@@ -26,12 +26,12 @@
 //! # #[cfg(feature = "std")]
 //! use core::time::Duration;
 //! # #[cfg(feature = "std")]
-//! let mut registry = Registry::new(Duration::from_secs(60));
+//! let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
 //! # #[cfg(feature = "std")]
 //! let t1 = Timestamp::now();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let mut registry = Registry::new();
+//! let mut registry = Registry::<Timestamp>::new();
 //! # #[cfg(not(feature = "std"))]
 //! let t1 = Timestamp::zero();
 //!
@@ -83,14 +83,12 @@
 //!   - **Returns**
 //!     - A new instance of `Registry`.
 //!
-//! - `add_transform(&self, t: Transform) -> Result<(), BufferError>`
+//! - `add_transform(&mut self, t: Transform<T>)`
 //!   - Adds a transform to the registry.
 //!   - **Arguments**
 //!     - `t`: The transform to add.
-//!   - **Errors**
-//!     - Returns a `BufferError` if the transform cannot be added.
 //!
-//! - `get_transform(&self, from: &str, to: &str, timestamp: Timestamp) -> Result<Transform, TransformError>`
+//! - `get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>`
 //!   - Retrieves a transform from the registry.
 //!   - **Arguments**
 //!     - `from`: The source frame.
@@ -133,12 +131,12 @@ use core::time::Duration;
 /// # #[cfg(feature = "std")]
 /// use core::time::Duration;
 /// # #[cfg(feature = "std")]
-/// let mut registry = Registry::new(Duration::from_secs(60));
+/// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
 /// # #[cfg(feature = "std")]
 /// let t1 = Timestamp::now();
 ///
 /// # #[cfg(not(feature = "std"))]
-/// let mut registry = Registry::new();
+/// let mut registry = Registry::<Timestamp>::new();
 /// # #[cfg(not(feature = "std"))]
 /// let t1 = Timestamp::zero();
 ///
@@ -203,9 +201,9 @@ where
     ///
     /// ```
     /// use core::time::Duration;
-    /// use transforms::Registry;
+    /// use transforms::{time::Timestamp, Registry};
     ///
-    /// let mut registry: Registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
     /// ```
     pub fn new(max_age: Duration) -> Self {
         Self {
@@ -225,9 +223,9 @@ where
     /// # Examples
     ///
     /// ```
-    /// use transforms::Registry;
+    /// use transforms::{time::Timestamp, Registry};
     ///
-    /// let registry: Registry = Registry::new();
+    /// let registry = Registry::<Timestamp>::new();
     /// ```
     pub fn new() -> Self {
         Self {
@@ -241,21 +239,17 @@ where
     ///
     /// * `t` - The transform to add.
     ///
-    /// # Errors
-    ///
-    /// Returns a `BufferError` if the transform cannot be added.
-    ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{geometry::Transform, Registry};
+    /// use transforms::{geometry::Transform, time::Timestamp, Registry};
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
     /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut registry = Registry::new();
+    /// let mut registry = Registry::<Timestamp>::new();
     ///
     /// let transform = Transform::identity();
     ///
@@ -295,12 +289,12 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
     /// # #[cfg(feature = "std")]
     /// let t1 = Timestamp::now();
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut registry = Registry::new();
+    /// let mut registry = Registry::<Timestamp>::new();
     /// # #[cfg(not(feature = "std"))]
     /// let t1 = Timestamp::zero();
     ///
@@ -366,9 +360,6 @@ where
     /// * `t` - The transform to be added to the registry
     /// * `data` - Mutable reference to the data buffer where transforms are stored
     ///
-    /// # Errors
-    ///
-    /// Returns `BufferError` if there is an issue adding the transform to the buffer
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
@@ -394,9 +385,6 @@ where
     /// * `data` - Mutable reference to the data buffer where transforms are stored
     /// * `max_age` - The maximum duration for which transforms are considered valid
     ///
-    /// # Errors
-    ///
-    /// Returns `BufferError` if there is an issue adding the transform to the buffer
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
