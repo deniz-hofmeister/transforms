@@ -19,6 +19,9 @@ pub enum TransformError {
     #[error("Transform tree is empty")]
     TransformTreeEmpty,
 
+    #[error("Fixed frame '{0}' is not stationary between the requested timestamps")]
+    MovingFixedFrame(String),
+
     #[error("Timestamp error: {0}")]
     TimestampError(#[from] TimestampError),
 
