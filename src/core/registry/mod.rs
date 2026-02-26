@@ -417,11 +417,11 @@ impl Registry {
     /// // Get the position of the object (detected at t1) in the world frame at t2
     /// // This answers: "Where is the object now, given it was detected at t1?"
     /// let result = registry.get_transform_at_times(
-    ///     "world",      // target_frame
-    ///     t2,           // target_time (current time)
-    ///     "object",     // source_frame
-    ///     t1,           // source_time (when object was detected)
-    ///     "world",      // fixed_frame
+    ///     "world",  // target_frame
+    ///     t2,       // target_time (current time)
+    ///     "object", // source_frame
+    ///     t1,       // source_time (when object was detected)
+    ///     "world",  // fixed_frame
     /// );
     ///
     /// assert!(result.is_ok());
