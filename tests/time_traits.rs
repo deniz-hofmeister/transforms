@@ -3,14 +3,14 @@ use core::time::Duration;
 use transforms::{
     errors::TimestampError,
     geometry::{Quaternion, Transform, Vector3},
-    time::{Timestamp, TimestampLike},
+    time::{TimePoint, Timestamp},
     Registry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TestTime(u64);
 
-impl TimestampLike for TestTime {
+impl TimePoint for TestTime {
     fn static_timestamp() -> Self {
         Self(u64::MAX)
     }

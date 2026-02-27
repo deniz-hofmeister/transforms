@@ -30,6 +30,15 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 
+## `TimePoint` vs `Timestamp`
+
+In plain terms:
+
+- `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated.
+- `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
+
+Use `Timestamp` if you want the default behavior. Implement `TimePoint` for your own type if you need a custom clock or custom time representation.
+
 ## Installation
 
 Add to your `Cargo.toml`:
@@ -128,7 +137,7 @@ The core data structure representing a rigid body transformation:
 ```rust
 pub struct Transform<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     pub translation: Vector3,   // Position offset (x, y, z)
     pub rotation: Quaternion,   // Orientation (w, x, y, z)
@@ -145,7 +154,7 @@ Implement this trait on your own types to make them transformable:
 ```rust
 pub trait Transformable<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     fn transform(&mut self, transform: &Transform<T>) -> Result<(), TransformError>;
 }
@@ -400,7 +409,7 @@ pub fn delete_transforms_before(&mut self, timestamp: T)
 | `Vector3` | 3D vector with x, y, z components (f64) |
 | `Quaternion` | Unit quaternion for rotations with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u128) |
-| `TimestampLike` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
+| `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
 
 For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).

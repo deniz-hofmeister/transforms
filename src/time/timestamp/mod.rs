@@ -4,7 +4,7 @@ use core::{
     time::Duration,
 };
 
-use crate::time::TimestampLike;
+use crate::time::TimePoint;
 
 #[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,9 +12,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub mod error;
 pub use error::TimestampError;
 
-/// A `Timestamp` represents a point in time. It is assumed that the time is measured in
-/// nanoseconds when using feature = "std". The definition of the timestamp in a ```no_std``` environment
-/// is free to be chosen by the user.
+/// Default concrete time type used by this crate.
+///
+/// `Timestamp` stores a time value in `u128` nanoseconds.
+///
+/// In plain terms:
+/// - [`crate::time::TimePoint`] is the interface (the rules any time type must follow).
+/// - [`Timestamp`] is one concrete implementation of that interface.
+///
+/// Use `Timestamp` for the default behavior. Implement `TimePoint` on your own type
+/// when you need a custom clock or representation.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
     pub t: u128,
@@ -181,7 +188,7 @@ impl Sub<Duration> for Timestamp {
     }
 }
 
-impl TimestampLike for Timestamp {
+impl TimePoint for Timestamp {
     fn static_timestamp() -> Self {
         Timestamp::zero()
     }

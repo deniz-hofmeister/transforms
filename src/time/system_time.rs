@@ -1,8 +1,8 @@
-use crate::time::{timestamp::TimestampError, TimestampLike};
+use crate::time::{timestamp::TimestampError, TimePoint};
 use core::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-impl TimestampLike for SystemTime {
+impl TimePoint for SystemTime {
     fn static_timestamp() -> Self {
         UNIX_EPOCH
     }

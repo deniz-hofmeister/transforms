@@ -101,7 +101,7 @@ use crate::{
     core::Buffer,
     errors::TransformError,
     geometry::Transform,
-    time::{Timestamp, TimestampLike},
+    time::{TimePoint, Timestamp},
 };
 use alloc::{collections::VecDeque, string::String};
 use hashbrown::{hash_map::Entry, HashMap};
@@ -173,7 +173,7 @@ use core::time::Duration;
 /// ```
 pub struct Registry<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     pub data: HashMap<String, Buffer<T>>,
     #[cfg(feature = "std")]
@@ -182,7 +182,7 @@ where
 
 impl<T> Registry<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     #[cfg(feature = "std")]
     #[allow(clippy::new_without_default)]

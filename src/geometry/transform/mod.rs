@@ -1,6 +1,6 @@
 use crate::{
     geometry::{Quaternion, Vector3},
-    time::{Timestamp, TimestampLike},
+    time::{TimePoint, Timestamp},
 };
 use alloc::string::String;
 use approx::AbsDiffEq;
@@ -50,7 +50,7 @@ mod traits;
 #[derive(Debug, Clone)]
 pub struct Transform<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     pub translation: Vector3,
     pub rotation: Quaternion,
@@ -61,7 +61,7 @@ where
 
 impl<T> Transform<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     /// Interpolates between two transforms at a given timestamp.
     ///
@@ -290,7 +290,7 @@ where
 
 impl<T> Mul for Transform<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     type Output = Result<Transform<T>, TransformError>;
 
@@ -349,7 +349,7 @@ where
 
 impl<T> PartialEq for Transform<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     fn eq(
         &self,
@@ -364,7 +364,7 @@ where
     }
 }
 
-impl<T> Eq for Transform<T> where T: TimestampLike {}
+impl<T> Eq for Transform<T> where T: TimePoint {}
 
 #[cfg(test)]
 mod tests;
