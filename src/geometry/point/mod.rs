@@ -1,7 +1,7 @@
 use crate::{
     errors::TransformError,
     geometry::{Quaternion, Vector3},
-    time::{Timestamp, TimestampLike},
+    time::{TimePoint, Timestamp},
     Transform, Transformable,
 };
 
@@ -51,7 +51,7 @@ mod error;
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Point<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     pub position: Vector3,
     pub orientation: Quaternion,
@@ -118,7 +118,7 @@ where
 /// ```
 impl<T> Transformable<T> for Point<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     /// Applies a transformation to the `Point`.
     ///

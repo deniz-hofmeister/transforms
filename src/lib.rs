@@ -16,8 +16,16 @@
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
 //! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
-//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimestampLike`.
+//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
 //! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
+//!
+//! # `TimePoint` vs `Timestamp`
+//!
+//! In plain terms:
+//! - `time::TimePoint` is an interface: it defines what a time type must be able to do.
+//! - `time::Timestamp` is the default concrete type: it stores a time value as `u128` nanoseconds.
+//!
+//! Use `Timestamp` unless you need a custom clock or custom time representation.
 //!
 //! # Non-Goals
 //!

@@ -15,8 +15,11 @@
 //!   provide an estimated transform at the requested timestamp.
 //!
 //! - **Static Lookup Mode**: The buffer supports a static lookup mode. When the static timestamp
-//!   value is supplied (`t=0` by default), the buffer returns a static transform if available.
-//!   This is useful for scenarios where a constant transform is needed regardless of timestamp.
+//!   value is supplied (defined by `t=0` by default), the buffer returns a static transform if available.
+//!   In downstream crates, you can optionally customize what counts as the static timestamp by implementing
+//!   `TimePoint::static_timestamp()` for your timestamp type, in case the `t=0` definition causes
+//!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
+//!   Static lookup is useful for scenarios where a constant transform is needed regardless of timestamp.
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - This feature is available only when the `std` feature is enabled.
@@ -94,7 +97,7 @@
 
 use crate::{
     geometry::Transform,
-    time::{Timestamp, TimestampLike},
+    time::{TimePoint, Timestamp},
 };
 use alloc::collections::BTreeMap;
 pub use error::BufferError;
@@ -123,7 +126,7 @@ type NearestTransforms<'a, T> = (
 ///   static by supplying the static timestamp value (`t=0` by default).
 pub struct Buffer<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     data: BTreeMap<T, Transform<T>>,
     #[cfg(feature = "std")]
@@ -135,7 +138,7 @@ where
 
 impl<T> Buffer<T>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     #[cfg(not(feature = "std"))]
     #[allow(clippy::new_without_default)]

@@ -2,9 +2,14 @@ use core::time::Duration;
 
 use crate::time::timestamp::TimestampError;
 
-/// Trait describing timestamp behavior required by the transform core.
+/// Trait describing time-point behavior required by the transform core.
 ///
-/// Implementing this trait allows using custom timestamp types with
+/// In plain terms, this is the "time contract" for the library.
+///
+/// - [`TimePoint`] is the interface: it defines what a time type must do.
+/// - [`crate::time::Timestamp`] is the default concrete type that implements this interface.
+///
+/// Implementing this trait allows using custom time types with
 /// `Transform`, `Buffer`, and `Registry`.
 ///
 /// The trait requires `Copy` because transform lookups and composition are hot
@@ -17,7 +22,7 @@ use crate::time::timestamp::TimestampError;
 ///
 /// ```
 /// use core::time::Duration;
-/// use transforms::{errors::TimestampError, time::TimestampLike};
+/// use transforms::{errors::TimestampError, time::TimePoint};
 ///
 /// #[derive(Debug, Clone)]
 /// struct ExternalTime {
@@ -41,7 +46,7 @@ use crate::time::timestamp::TimestampError;
 ///     }
 /// }
 ///
-/// impl TimestampLike for CoreTime {
+/// impl TimePoint for CoreTime {
 ///     fn static_timestamp() -> Self {
 ///         Self(0)
 ///     }
@@ -82,7 +87,7 @@ use crate::time::timestamp::TimestampError;
 ///     }
 /// }
 /// ```
-pub trait TimestampLike: Copy + Ord {
+pub trait TimePoint: Copy + Ord {
     /// Returns the static timestamp value.
     ///
     /// By default this is usually `t=0`.
@@ -94,23 +99,44 @@ pub trait TimestampLike: Copy + Ord {
     }
 
     /// Returns elapsed time between two timestamps.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimestampError::DurationUnderflow` if `earlier` is later than `self`.
+    /// Implementations may return another `TimestampError` variant if conversion to
+    /// `Duration` is not possible.
     fn duration_since(
         self,
         earlier: Self,
     ) -> Result<Duration, TimestampError>;
 
     /// Adds duration to timestamp using checked arithmetic.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimestampError::DurationOverflow` if the addition exceeds the
+    /// representable range of the timestamp type.
     fn checked_add(
         self,
         rhs: Duration,
     ) -> Result<Self, TimestampError>;
 
     /// Subtracts duration from timestamp using checked arithmetic.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimestampError::DurationUnderflow` if subtraction would produce
+    /// a value smaller than the representable range of the timestamp type.
     fn checked_sub(
         self,
         rhs: Duration,
     ) -> Result<Self, TimestampError>;
 
     /// Returns timestamp represented in seconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `TimestampError` if the conversion cannot be represented according
+    /// to the implementation's precision and range guarantees.
     fn as_seconds(self) -> Result<f64, TimestampError>;
 }

@@ -1,5 +1,5 @@
 use crate::geometry::transform::{Transform, TransformError};
-use crate::time::{Timestamp, TimestampLike};
+use crate::time::{TimePoint, Timestamp};
 /// A trait for types that can be transformed between different coordinate frames.
 ///
 /// This trait provides functionality to apply spatial transformations to objects,
@@ -57,7 +57,7 @@ use crate::time::{Timestamp, TimestampLike};
 /// - Other transform-specific errors occur
 pub trait Transformable<T = Timestamp>
 where
-    T: TimestampLike,
+    T: TimePoint,
 {
     /// Applies a transform to this object, modifying it in place.
     ///
