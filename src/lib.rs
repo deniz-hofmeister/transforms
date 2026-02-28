@@ -19,17 +19,6 @@
 //! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
 //! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
 //!
-//! # `TimePoint` vs `Timestamp`
-//!
-//! `time::TimePoint` defines the required behavior for timestamp types.
-//! `time::Timestamp` is the default implementation.
-//! `Registry::new(...)` therefore uses `Timestamp` by default.
-//! If you need a custom clock, implement `TimePoint` and use
-//! `Registry::<CustomTimestamp>::new(...)`.
-//! With `std`, `std::time::SystemTime` is already supported via an existing
-//! `TimePoint` implementation.
-//! See `time` module docs for custom time-type guidance.
-//!
 //! # Non-Goals
 //!
 //! This library intentionally limits its scope to rigid body transformations (translation and rotation)
@@ -159,6 +148,17 @@
 //! optimal usage for rust software over maintaining API compatibility with ROS2's tf2. Users
 //! familiar with tf2 will find the concepts familiar, but the implementation details
 //! and API design follow Rust idioms and best practices as best as it can.
+//!
+//! # `TimePoint` vs `Timestamp`
+//!
+//! `time::TimePoint` defines the required behavior for timestamp types.
+//! `time::Timestamp` is the default implementation.
+//! `Registry::new(...)` therefore uses `Timestamp` by default.
+//! If you need a custom clock, implement `TimePoint` and use
+//! `Registry::<CustomTimestamp>::new(...)`.
+//! With `std`, `std::time::SystemTime` is already supported via an existing
+//! `TimePoint` implementation.
+//! See `time` module docs for custom time-type guidance.
 //!
 //! # Performance Considerations
 //!
