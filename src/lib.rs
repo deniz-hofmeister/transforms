@@ -165,6 +165,12 @@
 //! - Transform lookups are optimized for O(log n) time complexity
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
 //!
+//! # External Crates
+//!
+//! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
+//! (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] that wraps
+//! this crate in ROS pure-Rust ROS clients.
+//!
 //! # Safety
 //!
 //! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
