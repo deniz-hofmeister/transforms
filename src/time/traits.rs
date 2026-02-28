@@ -46,14 +46,20 @@ use crate::time::TimeError;
 ///         Self(0)
 ///     }
 ///
-///     fn duration_since(self, earlier: Self) -> Result<Duration, TimeError> {
+///     fn duration_since(
+///         self,
+///         earlier: Self,
+///     ) -> Result<Duration, TimeError> {
 ///         self.0
 ///             .checked_sub(earlier.0)
 ///             .map(Duration::from_nanos)
 ///             .ok_or(TimeError::DurationUnderflow)
 ///     }
 ///
-///     fn checked_add(self, rhs: Duration) -> Result<Self, TimeError> {
+///     fn checked_add(
+///         self,
+///         rhs: Duration,
+///     ) -> Result<Self, TimeError> {
 ///         let rhs_ns: u64 = rhs
 ///             .as_nanos()
 ///             .try_into()
@@ -65,7 +71,10 @@ use crate::time::TimeError;
 ///             .ok_or(TimeError::DurationOverflow)
 ///     }
 ///
-///     fn checked_sub(self, rhs: Duration) -> Result<Self, TimeError> {
+///     fn checked_sub(
+///         self,
+///         rhs: Duration,
+///     ) -> Result<Self, TimeError> {
 ///         let rhs_ns: u64 = rhs
 ///             .as_nanos()
 ///             .try_into()

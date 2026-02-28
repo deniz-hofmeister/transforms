@@ -37,7 +37,10 @@ In plain terms:
 - `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated.
 - `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
 
-Use `Timestamp` if you want the default behavior. Implement `TimePoint` for your own type if you need a custom clock or custom time representation.
+Use `Timestamp` if you want the default behavior.
+`Registry::new(...)` is shorthand for `Registry::<Timestamp>::new(...)`.
+If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>::new(...)`.
+With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>::new(...)` works out of the box.
 
 ## Installation
 

@@ -23,6 +23,11 @@
 //!
 //! `time::TimePoint` defines the required behavior for timestamp types.
 //! `time::Timestamp` is the default implementation.
+//! `Registry::new(...)` therefore uses `Timestamp` by default.
+//! If you need a custom clock, implement `TimePoint` and use
+//! `Registry::<CustomTimestamp>::new(...)`.
+//! With `std`, `std::time::SystemTime` is already supported via an existing
+//! `TimePoint` implementation.
 //! See `time` module docs for custom time-type guidance.
 //!
 //! # Non-Goals

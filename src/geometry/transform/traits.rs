@@ -1,5 +1,7 @@
-use crate::geometry::transform::{Transform, TransformError};
-use crate::time::{TimePoint, Timestamp};
+use crate::{
+    geometry::transform::{Transform, TransformError},
+    time::{TimePoint, Timestamp},
+};
 /// A trait for types that can be transformed between different coordinate frames.
 ///
 /// This trait provides functionality to apply spatial transformations to objects,

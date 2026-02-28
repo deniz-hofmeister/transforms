@@ -13,6 +13,18 @@
 //!
 //! The `Registry` struct is the main entry point for interacting with the registry.
 //!
+//! ## Time type selection
+//!
+//! `Registry` defaults to `Timestamp`, so `Registry::new(...)` is equivalent to
+//! `Registry::<Timestamp>::new(...)`.
+//!
+//! You can use custom timestamps by implementing `time::TimePoint` and then
+//! constructing `Registry::<CustomTimestamp>::new(...)`.
+//!
+//! With the `std` feature enabled, `std::time::SystemTime` already implements
+//! `TimePoint`, so `Registry::<SystemTime>::new(Duration::from_secs(...))`
+//! works out of the box.
+//!
 //! # Examples
 //!
 //! ```rust
@@ -26,12 +38,12 @@
 //! # #[cfg(feature = "std")]
 //! use core::time::Duration;
 //! # #[cfg(feature = "std")]
-//! let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
+//! let mut registry = Registry::new(Duration::from_secs(60));
 //! # #[cfg(feature = "std")]
 //! let t1 = Timestamp::now();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let mut registry = Registry::<Timestamp>::new();
+//! let mut registry = Registry::new();
 //! # #[cfg(not(feature = "std"))]
 //! let t1 = Timestamp::zero();
 //!
@@ -131,12 +143,12 @@ use core::time::Duration;
 /// # #[cfg(feature = "std")]
 /// use core::time::Duration;
 /// # #[cfg(feature = "std")]
-/// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
+/// let mut registry = Registry::new(Duration::from_secs(60));
 /// # #[cfg(feature = "std")]
 /// let t1 = Timestamp::now();
 ///
 /// # #[cfg(not(feature = "std"))]
-/// let mut registry = Registry::<Timestamp>::new();
+/// let mut registry = Registry::new();
 /// # #[cfg(not(feature = "std"))]
 /// let t1 = Timestamp::zero();
 ///
@@ -289,12 +301,12 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
+    /// let mut registry = Registry::new(Duration::from_secs(60));
     /// # #[cfg(feature = "std")]
     /// let t1 = Timestamp::now();
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut registry = Registry::<Timestamp>::new();
+    /// let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
     /// let t1 = Timestamp::zero();
     ///
@@ -359,7 +371,6 @@ where
     ///
     /// * `t` - The transform to be added to the registry
     /// * `data` - Mutable reference to the data buffer where transforms are stored
-    ///
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
@@ -384,7 +395,6 @@ where
     /// * `t` - The transform to be added to the registry
     /// * `data` - Mutable reference to the data buffer where transforms are stored
     /// * `max_age` - The maximum duration for which transforms are considered valid
-    ///
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
