@@ -21,11 +21,9 @@
 //!
 //! # `TimePoint` vs `Timestamp`
 //!
-//! In plain terms:
-//! - `time::TimePoint` is an interface: it defines what a time type must be able to do.
-//! - `time::Timestamp` is the default concrete type: it stores a time value as `u128` nanoseconds.
-//!
-//! Use `Timestamp` unless you need a custom clock or custom time representation.
+//! `time::TimePoint` defines the required behavior for timestamp types.
+//! `time::Timestamp` is the default implementation.
+//! See `time` module docs for custom time-type guidance.
 //!
 //! # Non-Goals
 //!
