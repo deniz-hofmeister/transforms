@@ -5,6 +5,8 @@
 //!
 //! If you need a custom clock, implement `TimePoint` for your own `Copy + Ord`
 //! type and use `Registry<YourTimeType>`.
+//! With `std`, `std::time::SystemTime` already implements `TimePoint`, so
+//! `Registry::<SystemTime>` is ready to use.
 
 pub mod error;
 pub mod timestamp;

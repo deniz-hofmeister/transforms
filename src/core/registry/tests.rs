@@ -80,8 +80,8 @@ mod registry_tests {
 
         let r = registry.get_transform("a", "c", t_a_b.timestamp);
 
-        debug!("Result: {:?}", r);
-        debug!("Desired: {:?}", t_a_c);
+        debug!("Result: {r:?}");
+        debug!("Desired: {t_a_c:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -163,8 +163,8 @@ mod registry_tests {
 
         let r = registry.get_transform("c", "a", t_a_b.timestamp);
 
-        debug!("Result: {:?}", r);
-        debug!("Desired: {:?}", t_c_a);
+        debug!("Result: {r:?}");
+        debug!("Desired: {t_c_a:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -264,8 +264,8 @@ mod registry_tests {
         };
         let r = registry.get_transform("a", "d", t_a_b.timestamp);
 
-        debug!("Result: {:?}", r);
-        debug!("Desired: {:?}", t_a_d);
+        debug!("Result: {r:?}");
+        debug!("Desired: {t_a_d:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -331,7 +331,7 @@ mod registry_tests {
 
         let r = registry.get_transform("a", "b", t_a_b.timestamp);
 
-        debug!("{:?}", r);
+        debug!("{r:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -342,7 +342,7 @@ mod registry_tests {
 
         let r = registry.get_transform("a", "c", t_a_c.timestamp);
 
-        debug!("{:?}", r);
+        debug!("{r:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -407,7 +407,7 @@ mod registry_tests {
         registry.add_transform(t_a_b_1.clone());
 
         let middle_timestamp = Timestamp {
-            t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
+            t: u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t),
         };
 
         let t_a_b_2 = Transform {
@@ -420,8 +420,8 @@ mod registry_tests {
 
         let r = registry.get_transform("a", "b", middle_timestamp);
 
-        debug!("Result: {:?}", r);
-        debug!("Expected: {:?}", t_a_b_2);
+        debug!("Result: {r:?}");
+        debug!("Expected: {t_a_b_2:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -522,7 +522,7 @@ mod registry_tests {
         registry.add_transform(t_b_c_1.clone());
 
         let middle_timestamp = Timestamp {
-            t: (t_a_b_0.timestamp.t + t_a_b_1.timestamp.t) / 2,
+            t: u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t),
         };
 
         let t_a_c = Transform {
@@ -544,8 +544,8 @@ mod registry_tests {
 
         let r = registry.get_transform("a", "c", middle_timestamp);
 
-        debug!("Result: {:?}", r);
-        debug!("Expected: {:?}", t_a_c);
+        debug!("Result: {r:?}");
+        debug!("Expected: {t_a_c:?}");
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_eq!(
@@ -651,7 +651,7 @@ mod registry_tests {
 
         assert_eq!(t_c_d, t_c_d_expected);
 
-        debug!("{:?}", t_c_d);
+        debug!("{t_c_d:?}");
     }
 
     #[test]
@@ -742,6 +742,6 @@ mod registry_tests {
         Registry::truncate_at_common_parent(&mut from, &mut to);
         let result = Registry::combine_transforms(from, to);
 
-        debug!("{:?}", result);
+        debug!("{result:?}");
     }
 }
