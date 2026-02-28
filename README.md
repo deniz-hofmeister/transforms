@@ -16,7 +16,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 **Key characteristics:**
 
-- **Middleware-independent**: No ROS2, DDS, or any communication layer dependencies. Use it standalone or wrap it with your own pub-sub system.
+- **Middleware-independent**: No ROS2, DDS, or any communication layer dependencies. Use it standalone or wrap it with your own pub-sub system. Checkout [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) if you are looking for a wrapped system.
 - **`no_std` compatible**: Works in embedded and resource-constrained environments.
 - **Memory safe**: Uses `#![forbid(unsafe_code)]` throughout.
 - **Inspired by tf2**: Familiar concepts for robotics developers, but with a Rust-first API.
@@ -345,7 +345,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 
 ### Middleware Independence
 
-A core design principle of this library is **middleware independence**. Unlike tf2, which is deeply integrated with ROS2's DDS-based communication layer, this library has zero middleware dependencies.
+A core design principle of this library is **middleware independence**. Unlike tf2, which is deeply integrated with ROS2's DDS-based communication layer, this library has zero middleware dependencies. If you are looking for a crate which drop in integrates with ROS (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] is an option.
 
 This means:
 
