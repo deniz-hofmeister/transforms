@@ -1,7 +1,7 @@
 use core::time::Duration;
 
 use transforms::{
-    errors::TimestampError,
+    errors::TimeError,
     geometry::{Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
     Registry,
@@ -18,42 +18,42 @@ impl TimePoint for TestTime {
     fn duration_since(
         self,
         earlier: Self,
-    ) -> Result<Duration, TimestampError> {
+    ) -> Result<Duration, TimeError> {
         self.0
             .checked_sub(earlier.0)
             .map(Duration::from_nanos)
-            .ok_or(TimestampError::DurationUnderflow)
+            .ok_or(TimeError::DurationUnderflow)
     }
 
     fn checked_add(
         self,
         rhs: Duration,
-    ) -> Result<Self, TimestampError> {
+    ) -> Result<Self, TimeError> {
         let rhs_ns = rhs
             .as_nanos()
             .try_into()
-            .map_err(|_| TimestampError::DurationOverflow)?;
+            .map_err(|_| TimeError::DurationOverflow)?;
         self.0
             .checked_add(rhs_ns)
             .map(Self)
-            .ok_or(TimestampError::DurationOverflow)
+            .ok_or(TimeError::DurationOverflow)
     }
 
     fn checked_sub(
         self,
         rhs: Duration,
-    ) -> Result<Self, TimestampError> {
+    ) -> Result<Self, TimeError> {
         let rhs_ns = rhs
             .as_nanos()
             .try_into()
-            .map_err(|_| TimestampError::DurationOverflow)?;
+            .map_err(|_| TimeError::DurationOverflow)?;
         self.0
             .checked_sub(rhs_ns)
             .map(Self)
-            .ok_or(TimestampError::DurationUnderflow)
+            .ok_or(TimeError::DurationUnderflow)
     }
 
-    fn as_seconds(self) -> Result<f64, TimestampError> {
+    fn as_seconds(self) -> Result<f64, TimeError> {
         Ok(self.0 as f64 / 1_000_000_000.0)
     }
 }
