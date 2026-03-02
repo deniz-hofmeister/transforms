@@ -1,7 +1,7 @@
 use crate::{
     errors::TransformError,
     geometry::{Quaternion, Vector3},
-    time::Timestamp,
+    time::{TimePoint, Timestamp},
     Transform, Transformable,
 };
 
@@ -49,10 +49,13 @@ mod error;
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub struct Point {
+pub struct Point<T = Timestamp>
+where
+    T: TimePoint,
+{
     pub position: Vector3,
     pub orientation: Quaternion,
-    pub timestamp: Timestamp,
+    pub timestamp: T,
     pub frame: String,
 }
 
@@ -113,7 +116,10 @@ pub struct Point {
 /// assert_eq!(point.frame, "a");
 /// assert_eq!(point.position.x, 3.0);
 /// ```
-impl Transformable for Point {
+impl<T> Transformable<T> for Point<T>
+where
+    T: TimePoint,
+{
     /// Applies a transformation to the `Point`.
     ///
     /// # Arguments
@@ -126,16 +132,15 @@ impl Transformable for Point {
     /// * `Err(TransformError)` if the frames are incompatible or the timestamps do not match.
     fn transform(
         &mut self,
-        transform: &Transform,
+        transform: &Transform<T>,
     ) -> Result<(), TransformError> {
         if self.frame != transform.child {
             return Err(TransformError::IncompatibleFrames);
         }
         if self.timestamp != transform.timestamp {
-            #[allow(clippy::cast_precision_loss)]
             return Err(TransformError::TimestampMismatch(
-                self.timestamp.t as f64,
-                transform.timestamp.t as f64,
+                self.timestamp.as_seconds()?,
+                transform.timestamp.as_seconds()?,
             ));
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;

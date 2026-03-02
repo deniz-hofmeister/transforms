@@ -185,7 +185,7 @@ mod transform_tests {
         let t_b_a = t_a_b.clone().inverse().unwrap();
         let result = (t_a_b * t_b_a).unwrap();
 
-        let identity = Transform::identity();
+        let identity = Transform::<Timestamp>::identity();
         assert!(result.translation.x.abs() < 1e-10);
         assert!(result.translation.y.abs() < 1e-10);
         assert!(result.translation.z.abs() < 1e-10);

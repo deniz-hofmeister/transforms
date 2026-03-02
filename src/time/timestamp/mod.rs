@@ -4,15 +4,21 @@ use core::{
     time::Duration,
 };
 
+use crate::time::{TimeError, TimePoint};
+
 #[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod error;
+#[allow(deprecated)]
 pub use error::TimestampError;
 
-/// A `Timestamp` represents a point in time. It is assumed that the time is measured in
-/// nanoseconds when using feature = "std". The definition of the timestamp in a ```no_std``` environment
-/// is free to be chosen by the user.
+/// Default concrete time type used by this crate.
+///
+/// `Timestamp` stores a time value in `u128` nanoseconds.
+///
+/// For custom clocks, implement `crate::time::TimePoint` on your own type and
+/// use it with `Registry<T>`.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
     pub t: u128,
@@ -85,8 +91,8 @@ impl Timestamp {
     ///
     /// # Errors
     ///
-    /// Returns `TimestampError::AccuracyLoss` if the conversion is not exact.
-    pub fn as_seconds(&self) -> Result<f64, TimestampError> {
+    /// Returns `TimeError::AccuracyLoss` if the conversion is not exact.
+    pub fn as_seconds(&self) -> Result<f64, TimeError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         #[allow(clippy::cast_precision_loss)]
         let seconds = self.t as f64 / NANOSECONDS_PER_SECOND;
@@ -96,7 +102,7 @@ impl Timestamp {
         if (seconds * NANOSECONDS_PER_SECOND) as u128 == self.t {
             Ok(seconds)
         } else {
-            Err(TimestampError::AccuracyLoss)
+            Err(TimeError::AccuracyLoss)
         }
     }
 
@@ -122,14 +128,14 @@ impl Timestamp {
 }
 
 impl Sub<Timestamp> for Timestamp {
-    type Output = Result<Duration, TimestampError>;
+    type Output = Result<Duration, TimeError>;
 
     fn sub(
         self,
         other: Timestamp,
     ) -> Self::Output {
         match self.t.cmp(&other.t) {
-            Ordering::Less => Err(TimestampError::DurationUnderflow),
+            Ordering::Less => Err(TimeError::DurationUnderflow),
             Ordering::Equal => Ok(Duration::from_secs(0)),
             Ordering::Greater => {
                 let diff = self.t - other.t;
@@ -137,7 +143,7 @@ impl Sub<Timestamp> for Timestamp {
                 let nanos = (diff % 1_000_000_000) as u32;
 
                 if seconds > u128::from(u64::MAX) {
-                    return Err(TimestampError::DurationOverflow);
+                    return Err(TimeError::DurationOverflow);
                 }
 
                 #[allow(clippy::cast_possible_truncation)]
@@ -148,7 +154,7 @@ impl Sub<Timestamp> for Timestamp {
 }
 
 impl Add<Duration> for Timestamp {
-    type Output = Result<Timestamp, TimestampError>;
+    type Output = Result<Timestamp, TimeError>;
 
     fn add(
         self,
@@ -159,12 +165,12 @@ impl Add<Duration> for Timestamp {
             .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_add(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
-            .ok_or(TimestampError::DurationOverflow)
+            .ok_or(TimeError::DurationOverflow)
     }
 }
 
 impl Sub<Duration> for Timestamp {
-    type Output = Result<Timestamp, TimestampError>;
+    type Output = Result<Timestamp, TimeError>;
 
     fn sub(
         self,
@@ -175,7 +181,38 @@ impl Sub<Duration> for Timestamp {
             .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
             .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
-            .ok_or(TimestampError::DurationUnderflow)
+            .ok_or(TimeError::DurationUnderflow)
+    }
+}
+
+impl TimePoint for Timestamp {
+    fn static_timestamp() -> Self {
+        Timestamp::zero()
+    }
+
+    fn duration_since(
+        self,
+        earlier: Self,
+    ) -> Result<Duration, TimeError> {
+        self - earlier
+    }
+
+    fn checked_add(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimeError> {
+        self + rhs
+    }
+
+    fn checked_sub(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimeError> {
+        self - rhs
+    }
+
+    fn as_seconds(self) -> Result<f64, TimeError> {
+        Timestamp::as_seconds(&self)
     }
 }
 

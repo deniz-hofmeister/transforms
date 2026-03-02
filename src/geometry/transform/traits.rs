@@ -1,4 +1,7 @@
-use crate::geometry::transform::{Transform, TransformError};
+use crate::{
+    geometry::transform::{Transform, TransformError},
+    time::{TimePoint, Timestamp},
+};
 /// A trait for types that can be transformed between different coordinate frames.
 ///
 /// This trait provides functionality to apply spatial transformations to objects,
@@ -54,7 +57,10 @@ use crate::geometry::transform::{Transform, TransformError};
 /// - The frames are incompatible (transform's child frame doesn't match the object's frame)
 /// - The timestamps don't match
 /// - Other transform-specific errors occur
-pub trait Transformable {
+pub trait Transformable<T = Timestamp>
+where
+    T: TimePoint,
+{
     /// Applies a transform to this object, modifying it in place.
     ///
     /// # Arguments
@@ -73,6 +79,6 @@ pub trait Transformable {
     /// - The timestamps of the object and the transform do not match.
     fn transform(
         &mut self,
-        transform: &Transform,
+        transform: &Transform<T>,
     ) -> Result<(), TransformError>;
 }
