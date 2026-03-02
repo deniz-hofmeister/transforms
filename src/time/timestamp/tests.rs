@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod timestamp_tests {
-    use crate::{errors::TimestampError, time::Timestamp};
+    use crate::{errors::TimeError, time::Timestamp};
     use approx::assert_relative_eq;
 
     #[test]
@@ -38,7 +38,7 @@ mod timestamp_tests {
         let timestamp = Timestamp { t: u128::MAX - 1 };
         assert!(matches!(
             timestamp.as_seconds(),
-            Err(TimestampError::AccuracyLoss)
+            Err(TimeError::AccuracyLoss)
         ));
     }
 }

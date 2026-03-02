@@ -1,6 +1,6 @@
 use crate::{
     geometry::{Quaternion, Vector3},
-    time::Timestamp,
+    time::{TimePoint, Timestamp},
 };
 use alloc::string::String;
 use approx::AbsDiffEq;
@@ -20,10 +20,13 @@ mod traits;
 /// # Examples
 ///
 /// ```
-/// use transforms::geometry::{Quaternion, Transform, Vector3};
+/// use transforms::{
+///     geometry::{Quaternion, Transform, Vector3},
+///     time::Timestamp,
+/// };
 ///
 /// // Create an identity transform
-/// let identity = Transform::identity();
+/// let identity = Transform::<Timestamp>::identity();
 ///
 /// assert_eq!(
 ///     identity.translation,
@@ -45,15 +48,21 @@ mod traits;
 /// );
 /// ```
 #[derive(Debug, Clone)]
-pub struct Transform {
+pub struct Transform<T = Timestamp>
+where
+    T: TimePoint,
+{
     pub translation: Vector3,
     pub rotation: Quaternion,
-    pub timestamp: Timestamp,
+    pub timestamp: T,
     pub parent: String,
     pub child: String,
 }
 
-impl Transform {
+impl<T> Transform<T>
+where
+    T: TimePoint,
+{
     /// Interpolates between two transforms at a given timestamp.
     ///
     /// Returns a new `Transform` that is the interpolation between `from` and `to`
@@ -127,10 +136,10 @@ impl Transform {
     /// assert_eq!(result, interpolated);
     /// ```
     pub fn interpolate(
-        from: &Transform,
-        to: &Transform,
-        timestamp: Timestamp,
-    ) -> Result<Transform, TransformError> {
+        from: &Transform<T>,
+        to: &Transform<T>,
+        timestamp: T,
+    ) -> Result<Transform<T>, TransformError> {
         if from.timestamp > to.timestamp || timestamp < from.timestamp || timestamp > to.timestamp {
             return Err(TransformError::TimestampMismatch(
                 to.timestamp.as_seconds()?,
@@ -141,14 +150,13 @@ impl Transform {
             return Err(TransformError::IncompatibleFrames);
         }
 
-        let range = to.timestamp.t - from.timestamp.t;
-        if range == 0 {
+        let range = to.timestamp.duration_since(from.timestamp)?;
+        if range.is_zero() {
             return Ok(from.clone());
         }
 
-        let diff = timestamp.t - from.timestamp.t;
-        #[allow(clippy::cast_precision_loss)]
-        let ratio = diff as f64 / range as f64;
+        let diff = timestamp.duration_since(from.timestamp)?;
+        let ratio = diff.as_secs_f64() / range.as_secs_f64();
 
         Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
@@ -165,6 +173,9 @@ impl Transform {
     /// The identity transform has no translation or rotation and is often used
     /// as a neutral element in transformations.
     ///
+    /// The timestamp is set to the static timestamp value for the active
+    /// timestamp type (`Timestamp::zero()` by default).
+    ///
     /// # Examples
     ///
     /// ```
@@ -173,7 +184,7 @@ impl Transform {
     ///     time::Timestamp,
     /// };
     ///
-    /// let identity = Transform::identity();
+    /// let identity = Transform::<Timestamp>::identity();
     /// let transform = Transform {
     ///     translation: Vector3 {
     ///         x: 0.0,
@@ -206,7 +217,7 @@ impl Transform {
                 y: 0.0,
                 z: 0.0,
             },
-            timestamp: Timestamp::zero(),
+            timestamp: T::static_timestamp(),
             parent: String::new(),
             child: String::new(),
         }
@@ -252,7 +263,7 @@ impl Transform {
     /// assert_eq!(inverse.child, "a");
     ///
     /// // Verify that applying the inverse transformation results in the identity
-    /// let identity = Transform::identity();
+    /// let identity = Transform::<Timestamp>::identity();
     /// let result = (transform * inverse).unwrap();
     /// assert_eq!(result.translation, identity.translation);
     /// assert_eq!(result.rotation, identity.rotation);
@@ -277,22 +288,25 @@ impl Transform {
     }
 }
 
-impl Mul for Transform {
-    type Output = Result<Transform, TransformError>;
+impl<T> Mul for Transform<T>
+where
+    T: TimePoint,
+{
+    type Output = Result<Transform<T>, TransformError>;
 
     #[inline]
     fn mul(
         self,
-        rhs: Transform,
+        rhs: Transform<T>,
     ) -> Self::Output {
-        let is_self_static = self.timestamp.t == 0;
-        let is_rhs_static = rhs.timestamp.t == 0;
+        let is_self_static = self.timestamp.is_static();
+        let is_rhs_static = rhs.timestamp.is_static();
 
         let duration = if !is_self_static && !is_rhs_static {
             let d = match self.timestamp.cmp(&rhs.timestamp) {
                 Ordering::Equal => Ok(Duration::from_secs(0)),
-                Ordering::Greater => self.timestamp - rhs.timestamp,
-                Ordering::Less => rhs.timestamp - self.timestamp,
+                Ordering::Greater => self.timestamp.duration_since(rhs.timestamp),
+                Ordering::Less => rhs.timestamp.duration_since(self.timestamp),
             }?;
 
             if d.as_secs_f64() > 2.0 * f64::EPSILON {
@@ -325,7 +339,7 @@ impl Mul for Transform {
             } else if is_rhs_static {
                 self.timestamp
             } else {
-                (self.timestamp + (duration.div_f64(2.0)))?
+                self.timestamp.checked_add(duration.div_f64(2.0))?
             },
             parent: self.parent,
             child: rhs.child,
@@ -333,7 +347,10 @@ impl Mul for Transform {
     }
 }
 
-impl PartialEq for Transform {
+impl<T> PartialEq for Transform<T>
+where
+    T: TimePoint,
+{
     fn eq(
         &self,
         other: &Self,
@@ -347,7 +364,7 @@ impl PartialEq for Transform {
     }
 }
 
-impl Eq for Transform {}
+impl<T> Eq for Transform<T> where T: TimePoint {}
 
 #[cfg(test)]
 mod tests;

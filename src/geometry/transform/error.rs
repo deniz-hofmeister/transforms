@@ -1,4 +1,4 @@
-use crate::errors::{QuaternionError, TimestampError};
+use crate::errors::{QuaternionError, TimeError};
 use alloc::string::String;
 use thiserror::Error;
 
@@ -20,7 +20,7 @@ pub enum TransformError {
     TransformTreeEmpty,
 
     #[error("Timestamp error: {0}")]
-    TimestampError(#[from] TimestampError),
+    TimestampError(#[from] TimeError),
 
     #[error("Quaternion error: {0}")]
     QuaternionError(#[from] QuaternionError),

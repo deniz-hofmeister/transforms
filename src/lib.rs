@@ -15,7 +15,8 @@
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Submitting a timestamp at t=0 will short-circuit the lookup and always return the t=0 transform.
+//! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
+//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
 //! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
 //!
 //! # Non-Goals
@@ -148,14 +149,27 @@
 //! familiar with tf2 will find the concepts familiar, but the implementation details
 //! and API design follow Rust idioms and best practices as best as it can.
 //!
-//! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
-//! (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] that wraps
-//! this crate in ROS pure-Rust ROS clients.
+//! # `TimePoint` vs `Timestamp`
+//!
+//! `time::TimePoint` defines the required behavior for timestamp types.
+//! `time::Timestamp` is the default implementation.
+//! `Registry::new(...)` therefore uses `Timestamp` by default.
+//! If you need a custom clock, implement `TimePoint` and use
+//! `Registry::<CustomTimestamp>::new(...)`.
+//! With `std`, `std::time::SystemTime` is already supported via an existing
+//! `TimePoint` implementation.
+//! See `time` module docs for custom time-type guidance.
 //!
 //! # Performance Considerations
 //!
 //! - Transform lookups are optimized for O(log n) time complexity
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
+//!
+//! # External Crates
+//!
+//! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
+//! (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] that wraps
+//! this crate in ROS pure-Rust ROS clients.
 //!
 //! # Safety
 //!
