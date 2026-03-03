@@ -746,217 +746,18 @@ mod registry_tests {
     }
 
     #[test]
-    fn time_travel_conveyor_belt() {
-        // This test simulates a robot arm on a moving base:
-        // - The arm detects an object at t1 (with the base at one position)
-        // - We want to transform that detection into the map frame at t2 (when the base has moved)
-        // - The fixed frame is "map" (stationary reference)
-        let _ = env_logger::try_init();
-
-        #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t1 = Timestamp::zero();
-        #[cfg(not(feature = "std"))]
-        let t2 = Timestamp { t: 1_000_000_000 }; // 1 second later
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t1 = Timestamp::now();
-        #[cfg(feature = "std")]
-        let t2 = (t1 + Duration::from_secs(1)).unwrap();
-
-        // Map -> Base at t1: robot base is at x=1
-        let map_to_base_t1 = Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "map".into(),
-            child: "base".into(),
-        };
-
-        // Map -> Base at t2: robot has moved to x=2
-        let map_to_base_t2 = Transform {
-            translation: Vector3 {
-                x: 2.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "map".into(),
-            child: "base".into(),
-        };
-
-        // Base -> Camera at t1: camera is at y=0.5 relative to base
-        let base_to_camera_t1 = Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 0.5,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "base".into(),
-            child: "camera".into(),
-        };
-
-        // Base -> Camera at t2: camera still at same position relative to base
-        let base_to_camera_t2 = Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 0.5,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "base".into(),
-            child: "camera".into(),
-        };
-
-        registry.add_transform(map_to_base_t1);
-        registry.add_transform(map_to_base_t2);
-        registry.add_transform(base_to_camera_t1);
-        registry.add_transform(base_to_camera_t2);
-
-        // At t1, camera should be at map position (1, 0.5, 0)
-        let map_to_camera_t1 = registry.get_transform("map", "camera", t1);
-        assert!(map_to_camera_t1.is_ok());
-        let tf = map_to_camera_t1.unwrap();
-        debug!("Camera at t1: {:?}", tf);
-        assert!(
-            (tf.translation.x - 1.0).abs() < f64::EPSILON,
-            "Expected x=1.0, got {}",
-            tf.translation.x
-        );
-        assert!(
-            (tf.translation.y - 0.5).abs() < f64::EPSILON,
-            "Expected y=0.5, got {}",
-            tf.translation.y
-        );
-
-        // At t2, camera should be at map position (2, 0.5, 0) - robot moved
-        let map_to_camera_t2 = registry.get_transform("map", "camera", t2);
-        assert!(map_to_camera_t2.is_ok());
-        let tf = map_to_camera_t2.unwrap();
-        debug!("Camera at t2: {:?}", tf);
-        assert!(
-            (tf.translation.x - 2.0).abs() < f64::EPSILON,
-            "Expected x=2.0, got {}",
-            tf.translation.x
-        );
-
-        // Time travel: express camera frame at t1 in the map frame at t2
-        // Since "map" is fixed and doesn't move between t1 and t2,
-        // the camera's position in map at t1 (which was 1, 0.5, 0) remains (1, 0.5, 0)
-        // when expressed in map at t2.
-        let result = registry.get_transform_at_times(
-            "map",    // target_frame
-            t2,       // target_time
-            "camera", // source_frame
-            t1,       // source_time
-            "map",    // fixed_frame
-        );
-
-        assert!(
-            result.is_ok(),
-            "get_transform_at_times failed: {:?}",
-            result
-        );
-        let tf = result.unwrap();
-
-        debug!("Time travel result: {:?}", tf);
-
-        // The camera was at (1, 0.5, 0) in map at t1.
-        // Map doesn't move, so expressing "camera at t1" in "map at t2" gives (1, 0.5, 0)
-        assert!(
-            (tf.translation.x - 1.0).abs() < f64::EPSILON,
-            "Expected x=1.0, got {}",
-            tf.translation.x
-        );
-        assert!(
-            (tf.translation.y - 0.5).abs() < f64::EPSILON,
-            "Expected y=0.5, got {}",
-            tf.translation.y
-        );
-    }
-
-    #[test]
-    fn time_travel_same_time() {
-        // When source_time == target_time, should behave like get_transform
-        let _ = env_logger::try_init();
-
-        #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
-
-        let world_to_robot = Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 2.,
-                z: 3.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t,
-            parent: "world".into(),
-            child: "robot".into(),
-        };
-
-        registry.add_transform(world_to_robot.clone());
-
-        // Time travel with same time should give same result as regular get_transform
-        let regular = registry.get_transform("world", "robot", t);
-        let time_travel = registry.get_transform_at_times("world", t, "robot", t, "world");
-
-        assert!(regular.is_ok());
-        assert!(time_travel.is_ok());
-
-        let regular_tf = regular.unwrap();
-        let time_travel_tf = time_travel.unwrap();
-
-        assert_eq!(regular_tf.translation, time_travel_tf.translation);
-        assert_eq!(regular_tf.rotation, time_travel_tf.rotation);
-    }
-
-    #[test]
-    fn time_travel_with_rotation() {
-        // Test time travel when frames have different rotations
+    fn time_travel_different_frames() {
+        // All three frames (fixed, target, source) are different, so both
+        // process_get_transform lookups are non-trivial (no identity shortcut).
+        //
+        // Tree: fixed -> a -> b
+        // At t1: a at x=1 in fixed, b at y=1 in a  → b in fixed = (1,1,0)
+        // At t2: a at x=2 in fixed, b at y=2 in a  → a in fixed = (2,0,0)
+        //
+        // get_transform_at("a", t2, "b", t1, "fixed")
+        //   = "b-at-t1 expressed in a-at-t2"
+        //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
+        //   = (-2,0,0) + (1,1,0) = (-1, 1, 0)
         let _ = env_logger::try_init();
 
         #[cfg(not(feature = "std"))]
@@ -973,8 +774,8 @@ mod registry_tests {
         #[cfg(feature = "std")]
         let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
-        // World -> Sensor at t1: sensor is at x=1, no rotation
-        let world_to_sensor_t1 = Transform {
+        // fixed -> a at t1: a is at x=1
+        registry.add_transform(Transform {
             translation: Vector3 {
                 x: 1.,
                 y: 0.,
@@ -987,16 +788,214 @@ mod registry_tests {
                 z: 0.,
             },
             timestamp: t1,
-            parent: "world".into(),
-            child: "sensor".into(),
-        };
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
 
-        // World -> Sensor at t2: sensor has moved and rotated 90 degrees around z
-        let theta = core::f64::consts::PI / 2.0;
-        let world_to_sensor_t2 = Transform {
+        // fixed -> a at t2: a has moved to x=2
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 2.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
+
+        // a -> b at t1: b is at y=1 relative to a
+        registry.add_transform(Transform {
             translation: Vector3 {
                 x: 0.,
                 y: 1.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t1,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+
+        // a -> b at t2: b is at y=2 relative to a
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 2.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+
+        let result = registry.get_transform_at(
+            "a",     // target_frame
+            t2,      // target_time
+            "b",     // source_frame
+            t1,      // source_time
+            "fixed", // fixed_frame
+        );
+
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        debug!("Time travel result: {tf:?}");
+
+        assert!(
+            (tf.translation.x - (-1.0)).abs() < f64::EPSILON,
+            "Expected x=-1.0, got {}",
+            tf.translation.x
+        );
+        assert!(
+            (tf.translation.y - 1.0).abs() < f64::EPSILON,
+            "Expected y=1.0, got {}",
+            tf.translation.y
+        );
+        assert!(
+            tf.translation.z.abs() < f64::EPSILON,
+            "Expected z=0.0, got {}",
+            tf.translation.z
+        );
+    }
+
+    #[test]
+    fn time_travel_same_time() {
+        // When source_time == target_time, time travel should match get_transform.
+        // Uses target != fixed so both lookups are non-trivial.
+        //
+        // Tree: fixed -> a -> b, all at time t
+        let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t,
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
+
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 1.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+
+        let regular = registry.get_transform("a", "b", t);
+        let time_travel = registry.get_transform_at("a", t, "b", t, "fixed");
+
+        assert!(regular.is_ok());
+        assert!(time_travel.is_ok());
+
+        let regular_tf = regular.unwrap();
+        let time_travel_tf = time_travel.unwrap();
+
+        assert_eq!(regular_tf.translation, time_travel_tf.translation);
+        assert_eq!(regular_tf.rotation, time_travel_tf.rotation);
+    }
+
+    #[test]
+    fn time_travel_with_rotation() {
+        // All three frames different, with rotation on the target frame.
+        //
+        // Tree: fixed -> a -> b
+        // At t1: a at (1,0,0) no rotation, b at (0.5,0,0) in a
+        //   → b in fixed at t1 = (1.5, 0, 0)
+        // At t2: a at origin rotated 90° CCW around z, b at (0.5,0,0) in a
+        //
+        // get_transform_at("a", t2, "b", t1, "fixed")
+        //   = "b-at-t1 expressed in a-at-t2"
+        //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
+        //   a-in-fixed@t2 = {t: (0,0,0), R: 90°}  → inverse = {t: (0,0,0), R: -90°}
+        //   R(-90°) * (1.5, 0, 0) = (0, -1.5, 0)
+        let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t1 = Timestamp::zero();
+        #[cfg(not(feature = "std"))]
+        let t2 = Timestamp { t: 1_000_000_000 };
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t1 = Timestamp::now();
+        #[cfg(feature = "std")]
+        let t2 = (t1 + Duration::from_secs(1)).unwrap();
+
+        let theta = core::f64::consts::PI / 2.0;
+
+        // fixed -> a at t1: at (1,0,0), no rotation
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t1,
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
+
+        // fixed -> a at t2: at origin, rotated 90° CCW around z
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 0.,
                 z: 0.,
             },
             rotation: Quaternion {
@@ -1006,44 +1005,213 @@ mod registry_tests {
                 z: (theta / 2.0).sin(),
             },
             timestamp: t2,
-            parent: "world".into(),
-            child: "sensor".into(),
-        };
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
 
-        registry.add_transform(world_to_sensor_t1);
-        registry.add_transform(world_to_sensor_t2);
+        // a -> b at t1: b is at (0.5, 0, 0) relative to a
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.5,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t1,
+            parent: "a".into(),
+            child: "b".into(),
+        });
 
-        // Time travel: sensor position at t1 relative to world at t2
-        let result = registry.get_transform_at_times(
-            "world",  // target_frame
-            t2,       // target_time
-            "sensor", // source_frame
-            t1,       // source_time
-            "world",  // fixed_frame
+        // a -> b at t2: b still at (0.5, 0, 0) relative to a
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.5,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+
+        let result = registry.get_transform_at(
+            "a",     // target_frame
+            t2,      // target_time
+            "b",     // source_frame
+            t1,      // source_time
+            "fixed", // fixed_frame
         );
 
         assert!(
             result.is_ok(),
-            "Time travel with rotation failed: {:?}",
-            result
+            "Time travel with rotation failed: {result:?}"
         );
         let tf = result.unwrap();
 
-        debug!("Time travel with rotation result: {:?}", tf);
+        debug!("Time travel with rotation result: {tf:?}");
 
-        // The sensor was at (1, 0, 0) at t1
-        // At t2, the world frame hasn't moved (it's fixed), so the result
-        // should still be (1, 0, 0) when expressed in world frame
+        // b was at (1.5, 0, 0) in fixed at t1.
+        // a is at origin rotated 90° CCW at t2.
+        // In a's frame at t2: R(-90°) * (1.5, 0, 0) = (0, -1.5, 0)
         assert!(
-            (tf.translation.x - 1.0).abs() < 1e-10,
-            "Expected x=1.0, got {}",
+            tf.translation.x.abs() < 1e-10,
+            "Expected x=0.0, got {}",
             tf.translation.x
         );
         assert!(
-            tf.translation.y.abs() < 1e-10,
-            "Expected y=0.0, got {}",
+            (tf.translation.y - (-1.5)).abs() < 1e-10,
+            "Expected y=-1.5, got {}",
             tf.translation.y
+        );
+        assert!(
+            tf.translation.z.abs() < 1e-10,
+            "Expected z=0.0, got {}",
+            tf.translation.z
         );
     }
 
+    #[test]
+    fn time_travel_branching_tree() {
+        // Tree is a <- fixed -> b (source and target on separate branches).
+        //
+        // At t1: fixed->a is (1,0,0), fixed->b is (0,1,0)
+        //   → b in fixed at t1 = (0,1,0)
+        // At t2: fixed->a is (2,0,0), fixed->b is (0,2,0)
+        //   → a in fixed at t2 = (2,0,0)
+        //
+        // get_transform_at("a", t2, "b", t1, "fixed")
+        //   = "b-at-t1 expressed in a-at-t2"
+        //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
+        //   = (-2,0,0) + (0,1,0) = (-2, 1, 0)
+        let _ = env_logger::try_init();
+
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t1 = Timestamp::zero();
+        #[cfg(not(feature = "std"))]
+        let t2 = Timestamp { t: 1_000_000_000 };
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t1 = Timestamp::now();
+        #[cfg(feature = "std")]
+        let t2 = (t1 + Duration::from_secs(1)).unwrap();
+
+        // fixed -> a at t1
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t1,
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
+
+        // fixed -> a at t2
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 2.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "fixed".into(),
+            child: "a".into(),
+        });
+
+        // fixed -> b at t1
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 1.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t1,
+            parent: "fixed".into(),
+            child: "b".into(),
+        });
+
+        // fixed -> b at t2
+        registry.add_transform(Transform {
+            translation: Vector3 {
+                x: 0.,
+                y: 2.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "fixed".into(),
+            child: "b".into(),
+        });
+
+        let result = registry.get_transform_at(
+            "a",     // target_frame
+            t2,      // target_time
+            "b",     // source_frame
+            t1,      // source_time
+            "fixed", // fixed_frame
+        );
+
+        assert!(
+            result.is_ok(),
+            "Time travel with branching tree failed: {result:?}"
+        );
+        let tf = result.unwrap();
+
+        debug!("Time travel branching tree result: {tf:?}");
+
+        assert!(
+            (tf.translation.x - (-2.0)).abs() < f64::EPSILON,
+            "Expected x=-2.0, got {}",
+            tf.translation.x
+        );
+        assert!(
+            (tf.translation.y - 1.0).abs() < f64::EPSILON,
+            "Expected y=1.0, got {}",
+            tf.translation.y
+        );
+        assert!(
+            tf.translation.z.abs() < f64::EPSILON,
+            "Expected z=0.0, got {}",
+            tf.translation.z
+        );
+    }
 }
