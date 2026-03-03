@@ -366,13 +366,19 @@ where
     /// * `source_frame` - The source frame for the transform
     /// * `source_time` - The time at which to evaluate the source frame's position
     /// * `fixed_frame` - A frame that does not change over time, used as an intermediate
-    ///                   reference point (typically a world or map frame)
+    ///   reference point (typically a world or map frame)
+    ///
+    /// # Safety
+    ///
+    /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
+    /// between `source_time` and `target_time`.** Passing a frame that moves between the
+    /// two timestamps will produce a mathematically meaningless result without any error.
+    /// Root frames (e.g., `"world"`, `"map"`) that have no parent are always safe choices.
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if:
-    /// - The fixed frame is not reachable from both source and target frames
-    /// - Any of the required transforms cannot be found at the specified times
+    /// Returns a `TransformError` if any of the required transforms cannot be found
+    /// at the specified times.
     ///
     /// # Examples
     ///
@@ -399,50 +405,74 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// let t2 = Timestamp { t: 1_000_000_000 };
     ///
-    /// // World frame is static
-    /// let world_to_conveyor_t1 = Transform {
-    ///     translation: Vector3::new(1.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: t1,
-    ///     parent: "world".into(),
-    ///     child: "conveyor".into(),
-    /// };
+    /// // Tree: fixed -> a -> b
     ///
-    /// // Conveyor has moved by t2
-    /// let world_to_conveyor_t2 = Transform {
-    ///     translation: Vector3::new(2.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
+    /// // fixed -> a at t1: a is at x=1
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: t1,
+    ///     parent: "fixed".into(),
+    ///     child: "a".into(),
+    /// });
+    ///
+    /// // fixed -> a at t2: a has moved to x=2
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 2.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: t2,
-    ///     parent: "world".into(),
-    ///     child: "conveyor".into(),
-    /// };
+    ///     parent: "fixed".into(),
+    ///     child: "a".into(),
+    /// });
     ///
-    /// // Object is at a fixed position relative to conveyor
-    /// let conveyor_to_object_t1 = Transform {
-    ///     translation: Vector3::new(0.0, 0.5, 0.0),
-    ///     rotation: Quaternion::identity(),
+    /// // a -> b at t1: b is at y=1 relative to a
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 0.0,
+    ///         y: 1.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
     ///     timestamp: t1,
-    ///     parent: "conveyor".into(),
-    ///     child: "object".into(),
-    /// };
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
+    /// });
     ///
-    /// registry.add_transform(world_to_conveyor_t1);
-    /// registry.add_transform(world_to_conveyor_t2);
-    /// registry.add_transform(conveyor_to_object_t1);
-    ///
-    /// // Get the position of the object (detected at t1) in the world frame at t2
-    /// // This answers: "Where is the object now, given it was detected at t1?"
-    /// let result = registry.get_transform_at_times(
-    ///     "world",  // target_frame
-    ///     t2,       // target_time (current time)
-    ///     "object", // source_frame
-    ///     t1,       // source_time (when object was detected)
-    ///     "world",  // fixed_frame
+    /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
+    /// let result = registry.get_transform_at(
+    ///     "a",     // target_frame
+    ///     t2,      // target_time
+    ///     "b",     // source_frame
+    ///     t1,      // source_time
+    ///     "fixed", // fixed_frame
     /// );
     ///
     /// assert!(result.is_ok());
     /// ```
-    pub fn get_transform_at_times(
+    pub fn get_transform_at(
         &mut self,
         target_frame: &str,
         target_time: T,
@@ -450,7 +480,7 @@ where
         source_time: T,
         fixed_frame: &str,
     ) -> Result<Transform<T>, TransformError> {
-        Self::process_get_transform_at_times(
+        Self::process_get_transform_at(
             target_frame,
             target_time,
             source_frame,
@@ -566,8 +596,8 @@ where
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
     ///
     /// This implements "time travel" by:
-    /// 1. Getting the transform from source_frame to fixed_frame at source_time
-    /// 2. Getting the transform from fixed_frame to target_frame at target_time
+    /// 1. Getting the transform from `source_frame` to `fixed_frame` at `source_time`
+    /// 2. Getting the transform from `fixed_frame` to `target_frame` at `target_time`
     /// 3. Chaining these together
     ///
     /// # Arguments
@@ -581,9 +611,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::FixedFrameNotInChain` if the fixed frame is not reachable
-    /// from both source and target frames
-    fn process_get_transform_at_times(
+    /// * `TransformError::NotFound` - If no valid transform chain is found between a frame and the fixed frame
+    /// * Other variants of `TransformError` resulting from transform operations
+    fn process_get_transform_at(
         target_frame: &str,
         target_time: T,
         source_frame: &str,
