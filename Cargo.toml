@@ -45,6 +45,16 @@ name = "std_full"
 path = "examples/std_full.rs"
 required-features = ["std"]
 
+[[example]]
+name = "std_advanced"
+path = "examples/std_advanced.rs"
+required-features = ["std"]
+
+[[example]]
+name = "no_std_advanced"
+path = "examples/no_std_advanced.rs"
+required-features = []
+
 [[bench]]
 name = "benchmarks"
 harness = false
