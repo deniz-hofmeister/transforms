@@ -373,7 +373,6 @@ where
     /// Returns a `TransformError` if:
     /// - The fixed frame is not reachable from both source and target frames
     /// - Any of the required transforms cannot be found at the specified times
-    /// - The fixed frame is not stationary between the two timestamps
     ///
     /// # Examples
     ///
@@ -446,11 +445,11 @@ where
     pub fn get_transform_at_times(
         &mut self,
         target_frame: &str,
-        target_time: Timestamp,
+        target_time: T,
         source_frame: &str,
-        source_time: Timestamp,
+        source_time: T,
         fixed_frame: &str,
-    ) -> Result<Transform, TransformError> {
+    ) -> Result<Transform<T>, TransformError> {
         Self::process_get_transform_at_times(
             target_frame,
             target_time,
@@ -586,26 +585,16 @@ where
     /// from both source and target frames
     fn process_get_transform_at_times(
         target_frame: &str,
-        target_time: Timestamp,
+        target_time: T,
         source_frame: &str,
-        source_time: Timestamp,
+        source_time: T,
         fixed_frame: &str,
-        data: &mut HashMap<String, Buffer>,
-    ) -> Result<Transform, TransformError> {
+        data: &mut HashMap<String, Buffer<T>>,
+    ) -> Result<Transform<T>, TransformError> {
         // Following tf2's algorithm:
         // 1. Get transform expressing source_frame in fixed_frame at source_time
         // 2. Get transform expressing target_frame in fixed_frame at target_time
         // 3. Compute: T_target_to_fixed.inverse() * T_source_to_fixed
-
-        // Validate that the fixed frame is actually stationary between the two timestamps.
-        // A frame is considered fixed if:
-        // - It has no parent (is root of transform tree), OR
-        // - Its transform to its parent is static (timestamp = 0), OR
-        // - Its transform to its parent doesn't change between source_time and target_time
-        // Note: If this transform is not static we COULD add it to the transform chain and get
-        // a somewhat valid transform, but that API is so difficult to use correctly that it's
-        // better to just fail.
-        Self::validate_fixed_frame(fixed_frame, source_time, target_time, data)?;
 
         // Step 1: Get transform expressing source_frame in fixed_frame at source_time
         // process_get_transform(parent, child) returns "child expressed in parent"
@@ -639,76 +628,15 @@ where
         };
 
         // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
-        // with their timestamps set to zero.
-        source_to_fixed.timestamp = Timestamp::zero();
-        target_to_fixed.timestamp = Timestamp::zero();
+        // with their timestamps set to the static value.
+        source_to_fixed.timestamp = T::static_timestamp();
+        target_to_fixed.timestamp = T::static_timestamp();
 
         let mut result = (target_to_fixed.inverse()? * source_to_fixed)?;
         // We set the final timestamp to the target_time as per the API contract.
         result.timestamp = target_time;
 
         Ok(result)
-    }
-
-    /// Validates that the fixed frame is stationary between two timestamps.
-    ///
-    /// A frame is considered stationary if:
-    /// - It has no parent (is root of transform tree), OR
-    /// - Its transform to its parent is static (timestamp = 0), OR
-    /// - Its transform to its parent doesn't change between the two timestamps
-    ///
-    /// # Arguments
-    ///
-    /// * `fixed_frame` - The frame to validate as stationary
-    /// * `source_time` - The first timestamp
-    /// * `target_time` - The second timestamp
-    /// * `data` - Reference to the data buffer containing transforms
-    ///
-    /// # Errors
-    ///
-    /// Returns `TransformError::MovingFixedFrame` if the fixed frame is not stationary
-    fn validate_fixed_frame(
-        fixed_frame: &str,
-        source_time: Timestamp,
-        target_time: Timestamp,
-        data: &HashMap<String, Buffer>,
-    ) -> Result<(), TransformError> {
-        // If timestamps are the same, no validation needed
-        if source_time == target_time {
-            return Ok(());
-        }
-
-        // Check if the fixed frame has a parent (i.e., is stored in the data map)
-        let Some(frame_buffer) = data.get(fixed_frame) else {
-            // No buffer for this frame means it's a root frame - it's fixed by definition
-            return Ok(());
-        };
-
-        // Try to get the transform at both timestamps
-        let tf_at_source = frame_buffer.get(&source_time);
-        let tf_at_target = frame_buffer.get(&target_time);
-
-        match (tf_at_source, tf_at_target) {
-            (Ok(tf1), Ok(tf2)) => {
-                // Both transforms exist - check if they're the same
-                // Static transforms (timestamp = 0) are always considered fixed
-                if tf1.timestamp == Timestamp::zero() && tf2.timestamp == Timestamp::zero() {
-                    return Ok(());
-                }
-
-                // Check for equality using PartialEq which internally implements an epsilon tolerance
-                // This is really to cover the case of users constantly publishing the same transform as pseudo-static
-                if tf1 != tf2 {
-                    return Err(TransformError::MovingFixedFrame(fixed_frame.into()));
-                }
-
-                Ok(())
-            }
-            // If we can't get a transform at one or both times, the frame might be
-            // partially defined - we allow this case (the actual lookup will fail later
-            // if the transform truly doesn't exist)
-            _ => Ok(()),
-        }
     }
 
     /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
