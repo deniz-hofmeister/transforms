@@ -347,6 +347,149 @@ where
         Self::process_get_transform(from, to, timestamp, &mut self.data)
     }
 
+    /// Retrieves a transform between two frames at different timestamps using a fixed frame.
+    ///
+    /// This is the "time travel" API that allows you to get the transform from a source frame
+    /// at one time to a target frame at a different time. This is useful for scenarios like
+    /// tracking an object that was detected on a moving platform (e.g., a conveyor belt) and
+    /// getting its current position in a static world frame.
+    ///
+    /// The algorithm works by:
+    /// 1. Computing the transform from `source_frame` to `fixed_frame` at `source_time`
+    /// 2. Computing the transform from `fixed_frame` to `target_frame` at `target_time`
+    /// 3. Chaining these transforms together
+    ///
+    /// # Arguments
+    ///
+    /// * `target_frame` - The destination frame for the transform
+    /// * `target_time` - The time at which to evaluate the target frame's position
+    /// * `source_frame` - The source frame for the transform
+    /// * `source_time` - The time at which to evaluate the source frame's position
+    /// * `fixed_frame` - A frame that does not change over time, used as an intermediate
+    ///   reference point (typically a world or map frame)
+    ///
+    /// # Safety
+    ///
+    /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
+    /// between `source_time` and `target_time`.** Passing a frame that moves between the
+    /// two timestamps will produce a mathematically meaningless result without any error.
+    /// Root frames (e.g., `"world"`, `"map"`) that have no parent are always safe choices.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `TransformError` if any of the required transforms cannot be found
+    /// at the specified times.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    ///     Registry,
+    /// };
+    /// # #[cfg(feature = "std")]
+    /// use core::time::Duration;
+    ///
+    /// # #[cfg(feature = "std")]
+    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// # #[cfg(feature = "std")]
+    /// let t1 = Timestamp::now();
+    /// # #[cfg(feature = "std")]
+    /// let t2 = (t1 + Duration::from_secs(1)).unwrap();
+    ///
+    /// # #[cfg(not(feature = "std"))]
+    /// let mut registry = Registry::new();
+    /// # #[cfg(not(feature = "std"))]
+    /// let t1 = Timestamp::zero();
+    /// # #[cfg(not(feature = "std"))]
+    /// let t2 = Timestamp { t: 1_000_000_000 };
+    ///
+    /// // Tree: fixed -> a -> b
+    ///
+    /// // fixed -> a at t1: a is at x=1
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 1.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: t1,
+    ///     parent: "fixed".into(),
+    ///     child: "a".into(),
+    /// });
+    ///
+    /// // fixed -> a at t2: a has moved to x=2
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 2.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: t2,
+    ///     parent: "fixed".into(),
+    ///     child: "a".into(),
+    /// });
+    ///
+    /// // a -> b at t1: b is at y=1 relative to a
+    /// registry.add_transform(Transform {
+    ///     translation: Vector3 {
+    ///         x: 0.0,
+    ///         y: 1.0,
+    ///         z: 0.0,
+    ///     },
+    ///     rotation: Quaternion {
+    ///         w: 1.0,
+    ///         x: 0.0,
+    ///         y: 0.0,
+    ///         z: 0.0,
+    ///     },
+    ///     timestamp: t1,
+    ///     parent: "a".into(),
+    ///     child: "b".into(),
+    /// });
+    ///
+    /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
+    /// let result = registry.get_transform_at(
+    ///     "a",     // target_frame
+    ///     t2,      // target_time
+    ///     "b",     // source_frame
+    ///     t1,      // source_time
+    ///     "fixed", // fixed_frame
+    /// );
+    ///
+    /// assert!(result.is_ok());
+    /// ```
+    pub fn get_transform_at(
+        &mut self,
+        target_frame: &str,
+        target_time: T,
+        source_frame: &str,
+        source_time: T,
+        fixed_frame: &str,
+    ) -> Result<Transform<T>, TransformError> {
+        Self::process_get_transform_at(
+            target_frame,
+            target_time,
+            source_frame,
+            source_time,
+            fixed_frame,
+            &mut self.data,
+        )
+    }
+
     /// Removes transforms from every buffer based on the given threshold.
     ///
     /// Iterates over all buffers and deletes all entries with a
@@ -448,6 +591,82 @@ where
             }
             (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
         }
+    }
+
+    /// Retrieves a transform between two frames at different timestamps using a fixed frame.
+    ///
+    /// This implements "time travel" by:
+    /// 1. Getting the transform from `source_frame` to `fixed_frame` at `source_time`
+    /// 2. Getting the transform from `fixed_frame` to `target_frame` at `target_time`
+    /// 3. Chaining these together
+    ///
+    /// # Arguments
+    ///
+    /// * `target_frame` - The destination frame
+    /// * `target_time` - The time at which to evaluate the target frame
+    /// * `source_frame` - The source frame
+    /// * `source_time` - The time at which to evaluate the source frame
+    /// * `fixed_frame` - A frame that doesn't change over time (e.g., "world")
+    /// * `data` - The transform data buffer
+    ///
+    /// # Errors
+    ///
+    /// * `TransformError::NotFound` - If no valid transform chain is found between a frame and the fixed frame
+    /// * Other variants of `TransformError` resulting from transform operations
+    fn process_get_transform_at(
+        target_frame: &str,
+        target_time: T,
+        source_frame: &str,
+        source_time: T,
+        fixed_frame: &str,
+        data: &mut HashMap<String, Buffer<T>>,
+    ) -> Result<Transform<T>, TransformError> {
+        // Following tf2's algorithm:
+        // 1. Get transform expressing source_frame in fixed_frame at source_time
+        // 2. Get transform expressing target_frame in fixed_frame at target_time
+        // 3. Compute: T_target_to_fixed.inverse() * T_source_to_fixed
+
+        // Step 1: Get transform expressing source_frame in fixed_frame at source_time
+        // process_get_transform(parent, child) returns "child expressed in parent"
+        // So process_get_transform(fixed, source) returns "source expressed in fixed"
+        let mut source_to_fixed = if source_frame == fixed_frame {
+            // Identity transform if source_frame is the same as fixed_frame
+            Transform {
+                translation: crate::geometry::Vector3::new(0.0, 0.0, 0.0),
+                rotation: crate::geometry::Quaternion::identity(),
+                timestamp: source_time,
+                parent: fixed_frame.into(),
+                child: source_frame.into(),
+            }
+        } else {
+            Self::process_get_transform(fixed_frame, source_frame, source_time, data)?
+        };
+
+        // Step 2: Get transform expressing target_frame in fixed_frame at target_time
+        // process_get_transform(fixed, target) returns "target expressed in fixed"
+        let mut target_to_fixed = if target_frame == fixed_frame {
+            // Identity transform if target_frame is the same as fixed_frame
+            Transform {
+                translation: crate::geometry::Vector3::new(0.0, 0.0, 0.0),
+                rotation: crate::geometry::Quaternion::identity(),
+                timestamp: target_time,
+                parent: fixed_frame.into(),
+                child: target_frame.into(),
+            }
+        } else {
+            Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
+        };
+
+        // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
+        // with their timestamps set to the static value.
+        source_to_fixed.timestamp = T::static_timestamp();
+        target_to_fixed.timestamp = T::static_timestamp();
+
+        let mut result = (target_to_fixed.inverse()? * source_to_fixed)?;
+        // We set the final timestamp to the target_time as per the API contract.
+        result.timestamp = target_time;
+
+        Ok(result)
     }
 
     /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
