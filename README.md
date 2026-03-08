@@ -400,7 +400,7 @@ pub fn new(max_age: Duration) -> Self
 pub fn new() -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>)
-pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
 ```
 
