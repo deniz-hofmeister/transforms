@@ -120,6 +120,14 @@ impl<T> Transformable<T> for Point<T>
 where
     T: TimePoint,
 {
+    fn frame(&self) -> &str {
+        &self.frame
+    }
+
+    fn timestamp(&self) -> T {
+        self.timestamp
+    }
+
     /// Applies a transformation to the `Point`.
     ///
     /// # Arguments
