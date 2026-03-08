@@ -57,7 +57,7 @@ async fn main() {
     let reader = tokio::spawn(async move {
         loop {
             // Request a transform in the future, which initially will fail
-            let mut r = registry_reader.lock().await;
+            let r = registry_reader.lock().await;
 
             // Poll the registry for the transform
             let result = r.get_transform("a", "b", Timestamp::now());

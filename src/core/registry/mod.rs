@@ -100,7 +100,7 @@
 //!   - **Arguments**
 //!     - `t`: The transform to add.
 //!
-//! - `get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>`
+//! - `get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>`
 //!   - Retrieves a transform from the registry.
 //!   - **Arguments**
 //!     - `from`: The source frame.
@@ -339,12 +339,12 @@ where
     /// assert_eq!(result.unwrap(), t_a_b_2);
     /// ```
     pub fn get_transform(
-        &mut self,
+        &self,
         from: &str,
         to: &str,
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
-        Self::process_get_transform(from, to, timestamp, &mut self.data)
+        Self::process_get_transform(from, to, timestamp, &self.data)
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
@@ -473,7 +473,7 @@ where
     /// assert!(result.is_ok());
     /// ```
     pub fn get_transform_at(
-        &mut self,
+        &self,
         target_frame: &str,
         target_time: T,
         source_frame: &str,
@@ -486,7 +486,7 @@ where
             source_frame,
             source_time,
             fixed_frame,
-            &mut self.data,
+            &self.data,
         )
     }
 
@@ -562,7 +562,7 @@ where
     /// * `from` - The source frame identifier
     /// * `to` - The target frame identifier
     /// * `timestamp` - The time for which the transform is requested
-    /// * `data` - Mutable reference to the data buffer containing transforms
+    /// * `data` - Reference to the data buffer containing transforms
     ///
     /// # Errors
     ///
@@ -573,7 +573,7 @@ where
         from: &str,
         to: &str,
         timestamp: T,
-        data: &mut HashMap<String, Buffer<T>>,
+        data: &HashMap<String, Buffer<T>>,
     ) -> Result<Transform<T>, TransformError> {
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
         let to_chain = Self::get_transform_chain(to, from, timestamp, data);
@@ -619,7 +619,7 @@ where
         source_frame: &str,
         source_time: T,
         fixed_frame: &str,
-        data: &mut HashMap<String, Buffer<T>>,
+        data: &HashMap<String, Buffer<T>>,
     ) -> Result<Transform<T>, TransformError> {
         // Following tf2's algorithm:
         // 1. Get transform expressing source_frame in fixed_frame at source_time
