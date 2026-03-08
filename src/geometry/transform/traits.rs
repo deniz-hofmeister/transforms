@@ -61,6 +61,12 @@ pub trait Transformable<T = Timestamp>
 where
     T: TimePoint,
 {
+    /// Returns the object's current frame identifier.
+    fn frame(&self) -> &str;
+
+    /// Returns the object's timestamp.
+    fn timestamp(&self) -> T;
+
     /// Applies a transform to this object, modifying it in place.
     ///
     /// # Arguments
