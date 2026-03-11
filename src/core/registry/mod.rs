@@ -112,7 +112,7 @@
 use crate::{
     core::Buffer,
     errors::TransformError,
-    geometry::Transform,
+    geometry::{Localized, Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
 };
 use alloc::{collections::VecDeque, string::String};
@@ -345,6 +345,37 @@ where
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
         Self::process_get_transform(from, to, timestamp, &mut self.data)
+    }
+
+    /// Retrieves a transform for a specific value into `target_frame`.
+    ///
+    /// The source frame and timestamp are taken from the value.
+    ///
+    /// If the value is already in `target_frame`, this returns an identity transform
+    /// with `parent == child == target_frame` and the value's timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `TransformError` if a transform cannot be resolved.
+    pub fn get_transform_for<U>(
+        &mut self,
+        value: &U,
+        target_frame: &str,
+    ) -> Result<Transform<T>, TransformError>
+    where
+        U: Localized<T>,
+    {
+        if value.frame() == target_frame {
+            return Ok(Transform {
+                translation: Vector3::new(0.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: value.timestamp(),
+                parent: target_frame.into(),
+                child: target_frame.into(),
+            });
+        }
+
+        self.get_transform(target_frame, value.frame(), value.timestamp())
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.

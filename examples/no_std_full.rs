@@ -69,18 +69,20 @@ fn main() {
     registry.add_transform(base_to_map);
     info!("Added transforms to registry");
 
-    // Get transform from camera to map frame
-    match registry.get_transform("camera", "map", time) {
+    // Lookup transform for the point, then apply it
+    match registry.get_transform_for(&point, "map") {
         Ok(transform) => {
-            info!("Retrieved transform from camera to map: {:?}", transform);
+            info!(
+                "Retrieved transform from point frame to map: {:?}",
+                transform
+            );
 
-            // Apply transform to point
-            match point.transform(&transform.inverse().expect("Failed to invert transform")) {
+            match point.transform(&transform) {
                 Ok(()) => info!("Successfully transformed point to map frame: {:?}", point),
-                Err(e) => error!("Failed to transform point: {:?}", e),
+                Err(e) => error!("Failed to apply transform to point: {:?}", e),
             }
         }
-        Err(e) => error!("Failed to get transform: {:?}", e),
+        Err(e) => error!("Failed to resolve transform for point: {:?}", e),
     }
 
     // The no_std version of this package does not automatically wipe old transforms
