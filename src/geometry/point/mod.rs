@@ -2,7 +2,7 @@ use crate::{
     errors::TransformError,
     geometry::{Quaternion, Vector3},
     time::{TimePoint, Timestamp},
-    Transform, Transformable,
+    Localized, Transform, Transformable,
 };
 
 use alloc::string::String;
@@ -116,7 +116,7 @@ where
 /// assert_eq!(point.frame, "a");
 /// assert_eq!(point.position.x, 3.0);
 /// ```
-impl<T> Transformable<T> for Point<T>
+impl<T> Localized<T> for Point<T>
 where
     T: TimePoint,
 {
@@ -127,7 +127,12 @@ where
     fn timestamp(&self) -> T {
         self.timestamp
     }
+}
 
+impl<T> Transformable<T> for Point<T>
+where
+    T: TimePoint,
+{
     /// Applies a transformation to the `Point`.
     ///
     /// # Arguments

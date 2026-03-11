@@ -29,7 +29,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Time-based Buffer Management**: Automatic cleanup of old transforms (with `std` feature) or manual cleanup (for `no_std`).
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
-- **Transform Into**: Resolve and apply transforms directly from a `Transformable` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
+- **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 
 ## `TimePoint` vs `Timestamp`
 
@@ -49,7 +49,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "1.2.0"
+transforms = "1.3.0"
 ```
 
 ### Feature Flags
@@ -62,7 +62,7 @@ For `no_std` environments:
 
 ```toml
 [dependencies]
-transforms = { version = "1.2.0", default-features = false }
+transforms = { version = "1.3.0", default-features = false }
 ```
 
 ## Quick Start
@@ -151,22 +151,28 @@ where
 }
 ```
 
-### Transformable Trait
+### Localized and Transformable Traits
 
-Implement this trait on your own types to make them transformable:
+Implement `Transformable` on your own types to make them transformable, and `Localized` to enable automatic transform lookup via `get_transform_for`:
 
 ```rust
-pub trait Transformable<T = Timestamp>
+pub trait Localized<T = Timestamp>
 where
     T: TimePoint,
 {
     fn frame(&self) -> &str;
     fn timestamp(&self) -> T;
+}
+
+pub trait Transformable<T = Timestamp>
+where
+    T: TimePoint,
+{
     fn transform(&mut self, transform: &Transform<T>) -> Result<(), TransformError>;
 }
 ```
 
-The `frame()` and `timestamp()` methods allow the registry to automatically resolve transforms for a value (see `get_transform_for`). The library provides a `Point` type as a reference implementation.
+The `Localized` trait provides frame and timestamp introspection, while `Transformable` handles applying transforms. They are separate so that pure geometry types can implement `Transformable` without needing frame/timestamp metadata. The library provides a `Point` type as a reference implementation of both traits.
 
 ## Usage Examples
 
@@ -271,7 +277,7 @@ point.transform(&transform)?;
 // point.frame is now "map"
 ```
 
-If the point is already in the target frame, an identity transform is returned. This works with any type that implements `Transformable`.
+If the point is already in the target frame, an identity transform is returned. This works with any type that implements `Localized`.
 
 ### Inverse Transforms
 
@@ -425,7 +431,7 @@ pub fn new() -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>)
 pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
-pub fn get_transform_for<U: Transformable<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
+pub fn get_transform_for<U: Localized<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
 ```
 

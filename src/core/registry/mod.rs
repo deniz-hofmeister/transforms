@@ -112,7 +112,7 @@
 use crate::{
     core::Buffer,
     errors::TransformError,
-    geometry::{Quaternion, Transform, Transformable, Vector3},
+    geometry::{Localized, Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
 };
 use alloc::{collections::VecDeque, string::String};
@@ -363,7 +363,7 @@ where
         target_frame: &str,
     ) -> Result<Transform<T>, TransformError>
     where
-        U: Transformable<T>,
+        U: Localized<T>,
     {
         if value.frame() == target_frame {
             return Ok(Transform {
