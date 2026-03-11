@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod registry_tests {
     use crate::{
-        geometry::{Quaternion, Transform, Vector3},
+        errors::TransformError,
+        geometry::{Point, Quaternion, Transform, Vector3},
         time::Timestamp,
-        Registry,
+        Registry, Transformable,
     };
     use core::time::Duration;
     use log::debug;
@@ -1213,5 +1214,109 @@ mod registry_tests {
             "Expected z=0.0, got {}",
             tf.translation.z
         );
+    }
+
+    #[test]
+    fn get_transform_for_success_with_point() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        registry.add_transform(Transform {
+            translation: Vector3::new(2.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "map".into(),
+            child: "camera".into(),
+        });
+
+        let mut point = Point {
+            position: Vector3::new(1.0, 0.0, 0.0),
+            orientation: Quaternion::identity(),
+            timestamp: t,
+            frame: "camera".into(),
+        };
+
+        let transform = registry.get_transform_for(&point, "map");
+
+        assert!(transform.is_ok(), "get_transform_for failed: {transform:?}");
+        let transform = transform.unwrap();
+        assert_eq!(transform.parent, "map");
+        assert_eq!(transform.child, "camera");
+        assert_eq!(transform.timestamp, t);
+
+        let result = point.transform(&transform);
+        assert!(result.is_ok(), "transform apply failed: {result:?}");
+        assert_eq!(point.frame, "map");
+        assert_eq!(point.timestamp, t);
+        assert_eq!(point.position, Vector3::new(3.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn get_transform_for_same_frame_returns_identity_on_empty_registry() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        let mut point = Point {
+            position: Vector3::new(1.0, 2.0, 3.0),
+            orientation: Quaternion::identity(),
+            timestamp: t,
+            frame: "camera".into(),
+        };
+
+        let transform = registry.get_transform_for(&point, "camera");
+
+        assert!(
+            transform.is_ok(),
+            "same-frame get_transform_for should be Ok: {transform:?}"
+        );
+        let transform = transform.unwrap();
+        assert_eq!(transform.parent, "camera");
+        assert_eq!(transform.child, "camera");
+        assert_eq!(transform.timestamp, t);
+        assert_eq!(transform.translation, Vector3::new(0.0, 0.0, 0.0));
+        assert_eq!(transform.rotation, Quaternion::identity());
+
+        let result = point.transform(&transform);
+        assert!(result.is_ok(), "identity apply failed: {result:?}");
+        assert_eq!(point.frame, "camera");
+        assert_eq!(point.position, Vector3::new(1.0, 2.0, 3.0));
+    }
+
+    #[test]
+    fn get_transform_for_propagates_lookup_error() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        let point = Point {
+            position: Vector3::new(0.0, 0.0, 0.0),
+            orientation: Quaternion::identity(),
+            timestamp: t,
+            frame: "camera".into(),
+        };
+
+        let result = registry.get_transform_for(&point, "map");
+
+        assert!(matches!(result, Err(TransformError::NotFound(_, _))));
     }
 }
