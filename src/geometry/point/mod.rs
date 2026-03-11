@@ -63,8 +63,6 @@ where
 /// using a `Transform`. Implementors of this trait can apply a transformation to
 /// themselves, modifying their position and orientation.
 ///
-/// Below is an example of how to implement the `Transformable` trait for a `Point`.
-///
 /// # Examples
 ///
 /// ```
@@ -74,61 +72,26 @@ where
 ///     Transform, Transformable,
 /// };
 ///
-/// let position = Vector3 {
-///     x: 1.0,
-///     y: 2.0,
-///     z: 3.0,
-/// };
-/// let orientation = Quaternion {
-///     w: 1.0,
-///     x: 0.0,
-///     y: 0.0,
-///     z: 0.0,
-/// };
-/// let timestamp = Timestamp { t: 0 };
-/// let frame = String::from("b");
-///
 /// let mut point = Point {
-///     position,
-///     orientation,
-///     timestamp,
-///     frame,
+///     position: Vector3::new(1.0, 2.0, 3.0),
+///     orientation: Quaternion::identity(),
+///     timestamp: Timestamp::zero(),
+///     frame: "b".into(),
 /// };
 ///
 /// let transform = Transform {
-///     translation: Vector3 {
-///         x: 2.0,
-///         y: 0.0,
-///         z: 0.0,
-///     },
-///     rotation: Quaternion {
-///         w: 1.0,
-///         x: 0.0,
-///         y: 0.0,
-///         z: 0.0,
-///     },
-///     timestamp: Timestamp { t: 0 },
+///     translation: Vector3::new(2.0, 0.0, 0.0),
+///     rotation: Quaternion::identity(),
+///     timestamp: Timestamp::zero(),
 ///     parent: "a".into(),
 ///     child: "b".into(),
 /// };
+///
 /// let r = point.transform(&transform);
 /// assert!(r.is_ok());
 /// assert_eq!(point.frame, "a");
 /// assert_eq!(point.position.x, 3.0);
 /// ```
-impl<T> Localized<T> for Point<T>
-where
-    T: TimePoint,
-{
-    fn frame(&self) -> &str {
-        &self.frame
-    }
-
-    fn timestamp(&self) -> T {
-        self.timestamp
-    }
-}
-
 impl<T> Transformable<T> for Point<T>
 where
     T: TimePoint,
@@ -160,6 +123,57 @@ where
         self.orientation = transform.rotation * self.orientation;
         self.frame.clone_from(&transform.parent);
         Ok(())
+    }
+}
+
+/// The `Localized` trait provides frame and timestamp introspection for a `Point`,
+/// enabling automatic transform lookup via
+/// [`Registry::get_transform_for`](crate::core::Registry::get_transform_for).
+///
+/// # Examples
+///
+/// ```
+/// use core::time::Duration;
+/// use transforms::{
+///     geometry::{Point, Quaternion, Transform, Vector3},
+///     time::Timestamp,
+///     Registry, Transformable,
+/// };
+///
+/// let mut registry = Registry::new(Duration::from_secs(10));
+/// let t = Timestamp::now();
+///
+/// registry.add_transform(Transform {
+///     translation: Vector3::new(1.0, 0.0, 0.0),
+///     rotation: Quaternion::identity(),
+///     timestamp: t,
+///     parent: "map".into(),
+///     child: "camera".into(),
+/// });
+///
+/// let mut point = Point {
+///     position: Vector3::new(1.0, 0.0, 0.0),
+///     orientation: Quaternion::identity(),
+///     timestamp: t,
+///     frame: "camera".into(),
+/// };
+///
+/// // Localized lets the registry extract frame and timestamp automatically
+/// let tf = registry.get_transform_for(&point, "map").unwrap();
+/// point.transform(&tf).unwrap();
+/// assert_eq!(point.frame, "map");
+/// assert_eq!(point.position.x, 2.0);
+/// ```
+impl<T> Localized<T> for Point<T>
+where
+    T: TimePoint,
+{
+    fn frame(&self) -> &str {
+        &self.frame
+    }
+
+    fn timestamp(&self) -> T {
+        self.timestamp
     }
 }
 
