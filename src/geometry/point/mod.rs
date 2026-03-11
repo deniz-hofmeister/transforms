@@ -133,6 +133,7 @@ where
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "std")]
 /// use core::time::Duration;
 /// use transforms::{
 ///     geometry::{Point, Quaternion, Transform, Vector3},
@@ -140,8 +141,14 @@ where
 ///     Registry, Transformable,
 /// };
 ///
+/// # #[cfg(feature = "std")]
 /// let mut registry = Registry::new(Duration::from_secs(10));
+/// # #[cfg(not(feature = "std"))]
+/// # let mut registry = Registry::new();
+/// # #[cfg(feature = "std")]
 /// let t = Timestamp::now();
+/// # #[cfg(not(feature = "std"))]
+/// # let t = Timestamp::zero();
 ///
 /// registry.add_transform(Transform {
 ///     translation: Vector3::new(1.0, 0.0, 0.0),
