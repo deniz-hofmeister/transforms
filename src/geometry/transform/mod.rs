@@ -6,7 +6,7 @@ use alloc::string::String;
 use approx::AbsDiffEq;
 use core::{cmp::Ordering, ops::Mul, time::Duration};
 pub use error::TransformError;
-pub use traits::Transformable;
+pub use traits::{Localized, Transformable};
 
 mod error;
 mod traits;

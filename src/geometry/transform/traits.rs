@@ -2,6 +2,44 @@ use crate::{
     geometry::transform::{Transform, TransformError},
     time::{TimePoint, Timestamp},
 };
+
+/// A trait for types that are localized in a specific coordinate frame at a specific time.
+///
+/// This trait provides frame and timestamp introspection, enabling automatic transform
+/// lookup via [`Registry::get_transform_for`](crate::core::Registry::get_transform_for).
+///
+/// Separate from [`Transformable`] so that types without frame/timestamp metadata
+/// can still implement `Transformable` independently.
+///
+/// # Examples
+///
+/// ```
+/// use transforms::{
+///     geometry::{Point, Quaternion, Vector3},
+///     time::Timestamp,
+///     Localized,
+/// };
+///
+/// let point = Point {
+///     position: Vector3::new(1.0, 0.0, 0.0),
+///     orientation: Quaternion::identity(),
+///     timestamp: Timestamp::zero(),
+///     frame: "camera".into(),
+/// };
+///
+/// assert_eq!(point.frame(), "camera");
+/// ```
+pub trait Localized<T = Timestamp>
+where
+    T: TimePoint,
+{
+    /// Returns the object's current frame identifier.
+    fn frame(&self) -> &str;
+
+    /// Returns the object's timestamp.
+    fn timestamp(&self) -> T;
+}
+
 /// A trait for types that can be transformed between different coordinate frames.
 ///
 /// This trait provides functionality to apply spatial transformations to objects,
@@ -61,12 +99,6 @@ pub trait Transformable<T = Timestamp>
 where
     T: TimePoint,
 {
-    /// Returns the object's current frame identifier.
-    fn frame(&self) -> &str;
-
-    /// Returns the object's timestamp.
-    fn timestamp(&self) -> T;
-
     /// Applies a transform to this object, modifying it in place.
     ///
     /// # Arguments

@@ -180,6 +180,7 @@
 #![warn(clippy::std_instead_of_core)]
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(test, allow(clippy::too_many_lines))]
+#![cfg_attr(test, allow(clippy::duration_suboptimal_units))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
@@ -188,4 +189,4 @@ pub mod errors;
 pub mod geometry;
 pub mod time;
 pub use core::Registry;
-pub use geometry::{Transform, Transformable};
+pub use geometry::{Localized, Transform, Transformable};
