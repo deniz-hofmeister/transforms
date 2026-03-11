@@ -29,6 +29,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Time-based Buffer Management**: Automatic cleanup of old transforms (with `std` feature) or manual cleanup (for `no_std`).
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
+- **Transform Into**: Resolve and apply transforms directly from a `Transformable` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 
 ## `TimePoint` vs `Timestamp`
 
@@ -159,11 +160,13 @@ pub trait Transformable<T = Timestamp>
 where
     T: TimePoint,
 {
+    fn frame(&self) -> &str;
+    fn timestamp(&self) -> T;
     fn transform(&mut self, transform: &Transform<T>) -> Result<(), TransformError>;
 }
 ```
 
-The library provides a `Point` type as a reference implementation.
+The `frame()` and `timestamp()` methods allow the registry to automatically resolve transforms for a value (see `get_transform_for`). The library provides a `Point` type as a reference implementation.
 
 ## Usage Examples
 
@@ -248,6 +251,27 @@ let transform = registry.get_transform("camera", "base", point.timestamp)?;
 // Transform the point (mutates point.frame to "base")
 point.transform(&transform)?;
 ```
+
+### Transform Into Target Frame
+
+Use `get_transform_for` to resolve and apply a transform in one step, without manually specifying the source frame or timestamp:
+
+```rust
+// Create a point in the camera frame
+let mut point = Point {
+    position: Vector3::new(1.0, 0.0, 0.0),
+    orientation: Quaternion::identity(),
+    timestamp: Timestamp::now(),
+    frame: "camera".into(),
+};
+
+// Resolve transform from the point's frame to map, then apply it
+let transform = registry.get_transform_for(&point, "map")?;
+point.transform(&transform)?;
+// point.frame is now "map"
+```
+
+If the point is already in the target frame, an identity transform is returned. This works with any type that implements `Transformable`.
 
 ### Inverse Transforms
 
@@ -401,6 +425,7 @@ pub fn new() -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>)
 pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn get_transform_for<U: Transformable<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
 ```
 
