@@ -1261,12 +1261,12 @@ mod registry_tests {
     #[test]
     fn get_transform_for_same_frame_returns_identity_on_empty_registry() {
         #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
+        let registry = Registry::new();
         #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let registry = Registry::new(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -1299,12 +1299,12 @@ mod registry_tests {
     #[test]
     fn get_transform_for_propagates_lookup_error() {
         #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
+        let registry = Registry::new();
         #[cfg(not(feature = "std"))]
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let registry = Registry::new(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 

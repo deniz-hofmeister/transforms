@@ -1,4 +1,7 @@
-/// This example demonstrates the use of the registry in an async main.
+/// This example demonstrates the use of the registry in an async context
+/// with concurrent readers and a single writer, using an `RwLock` to allow
+/// multiple readers to query transforms simultaneously without blocking
+/// each other.
 
 #[tokio::main]
 #[cfg(feature = "std")]
@@ -6,14 +9,13 @@ async fn main() {
     use core::time::Duration;
     use log::{error, info};
     use std::sync::Arc;
-    use tokio::sync::Mutex;
+    use tokio::sync::RwLock;
     use transforms::{
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
         Registry,
     };
 
-    // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();
         let y = t.as_seconds_unchecked().cos();
@@ -35,37 +37,31 @@ async fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    let registry = Arc::new(Mutex::new(Registry::new(Duration::from_secs(10))));
+    let registry = Arc::new(RwLock::new(Registry::new(Duration::from_secs(10))));
 
-    // Writer task - generates and adds transforms
+    // Writer task - generates and adds transforms (requires exclusive access)
     let registry_writer = registry.clone();
     let writer = tokio::spawn(async move {
         loop {
             let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
             let t = generate_transform(time);
-            let mut r = registry_writer.lock().await;
-
-            // Add the transform to the registry
-            r.add_transform(t.clone());
-            drop(r);
+            registry_writer.write().await.add_transform(t);
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });
 
-    // Reader task - uses get_transform to poll for transforms
+    // Reader task - queries transforms (shared access, does not block other readers)
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
         loop {
-            // Request a transform in the future, which initially will fail
-            let mut r = registry_reader.lock().await;
-
-            // Poll the registry for the transform
-            let result = r.get_transform("a", "b", Timestamp::now());
+            let result = registry_reader
+                .read()
+                .await
+                .get_transform("a", "b", Timestamp::now());
             match result {
                 Ok(tf) => info!("Found transform: {:?}", tf),
                 Err(e) => error!("Transform not found: {:?}", e),
             }
-            drop(r);
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });
