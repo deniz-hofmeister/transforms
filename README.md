@@ -43,6 +43,60 @@ Use `Timestamp` if you want the default behavior.
 If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>::new(...)`.
 With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>::new(...)` works out of the box.
 
+## What's New
+
+### v1.4.0 — Read-only getters
+
+`get_transform`, `get_transform_for`, and `get_transform_at` now take `&self` instead of `&mut self`, making concurrent reads possible without exclusive access.
+
+```rust
+// No &mut needed — share the registry freely
+let registry: &Registry = /* ... */;
+let tf = registry.get_transform("base", "sensor", timestamp)?;
+```
+
+### v1.3.0 — `get_transform_for` and `Localized` trait
+
+Resolve and apply a transform directly from any type that implements `Localized`, without manual frame/timestamp bookkeeping.
+
+```rust
+let point = Point { position: Vector3::new(1.0, 0.0, 0.0), orientation: Quaternion::identity(), timestamp, frame: "camera".into() };
+let tf = registry.get_transform_for(&point, "map")?;
+```
+
+### v1.2.0 — `TimePoint` trait and `get_transform_at`
+
+All core types are now generic over time via the `TimePoint` trait. `std::time::SystemTime` works out of the box. A new `get_transform_at` API enables querying transforms at different timestamps per frame ("time travel").
+
+```rust
+// Use SystemTime instead of Timestamp
+let mut registry = Registry::<SystemTime>::new(Duration::from_secs(60));
+
+// Time travel: source at t1, target at t2, through a fixed frame
+let tf = registry.get_transform_at("target", t2, "source", t1, "world")?;
+```
+
+### v1.1.0 — Static/dynamic mixing fix
+
+Fixed a bug where static transforms (timestamp = 0) and dynamic transforms could not coexist in the same tree. Buffer expiration now uses the latest inserted timestamp instead of wall-clock time.
+
+```rust
+// Static sensor mount + dynamic robot pose now work together
+registry.add_transform(static_camera_mount);  // timestamp = 0
+registry.add_transform(dynamic_robot_pose);    // timestamp = now
+let tf = registry.get_transform("map", "camera", Timestamp::now())?;
+```
+
+### v1.0.0 — Stable release
+
+First stable release with `no_std` support, transform chaining, SLERP interpolation, `Transformable` trait, and automatic buffer cleanup.
+
+```rust
+let mut registry = Registry::new(Duration::from_secs(60));
+registry.add_transform(transform);
+let result = registry.get_transform("base", "sensor", timestamp)?;
+```
+
 ## Installation
 
 Add to your `Cargo.toml`:
