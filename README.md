@@ -31,18 +31,6 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 
-## `TimePoint` vs `Timestamp`
-
-In plain terms:
-
-- `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated.
-- `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
-
-Use `Timestamp` if you want the default behavior.
-`Registry::new(...)` is shorthand for `Registry::<Timestamp>::new(...)`.
-If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>::new(...)`.
-With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>::new(...)` works out of the box.
-
 ## What's New
 
 ### v1.4.0 — Read-only getters
@@ -151,6 +139,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## API Reference
+
+### Registry
+
+```rust
+// std feature
+pub fn new(max_age: Duration) -> Self
+
+// no_std
+pub fn new() -> Self
+
+pub fn add_transform(&mut self, transform: Transform<T>)
+pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn get_transform_for<U: Localized<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
+pub fn delete_transforms_before(&mut self, timestamp: T)
+```
+
+### Core Types
+
+| Type | Description |
+|------|-------------|
+| `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
+| `Vector3` | 3D vector with x, y, z components (f64) |
+| `Quaternion` | Unit quaternion for rotations with w, x, y, z components (f64) |
+| `Timestamp` | Time representation in nanoseconds (u128) |
+| `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
+| `Point` | Example transformable type with position, orientation, timestamp, frame |
+
+For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).
 
 ## Architecture
 
@@ -445,6 +463,18 @@ This design makes the library suitable for:
 - Simulations and testing without ROS2
 - Applications with custom communication requirements
 
+## `TimePoint` vs `Timestamp`
+
+In plain terms:
+
+- `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated.
+- `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
+
+Use `Timestamp` if you want the default behavior.
+`Registry::new(...)` is shorthand for `Registry::<Timestamp>::new(...)`.
+If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>::new(...)`.
+With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>::new(...)` works out of the box.
+
 ## Performance
 
 - **O(log n) lookups**: Transforms are stored in `BTreeMap` indexed by timestamp
@@ -471,36 +501,6 @@ This library intentionally limits its scope to **rigid body transformations** (t
 - Extrapolation
 
 This focused scope keeps the library fast, predictable, and specialized for robotics applications. For more general transformation needs, consider a linear algebra or computer graphics library.
-
-## API Reference
-
-### Registry
-
-```rust
-// std feature
-pub fn new(max_age: Duration) -> Self
-
-// no_std
-pub fn new() -> Self
-
-pub fn add_transform(&mut self, transform: Transform<T>)
-pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
-pub fn get_transform_for<U: Localized<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
-pub fn delete_transforms_before(&mut self, timestamp: T)
-```
-
-### Core Types
-
-| Type | Description |
-|------|-------------|
-| `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
-| `Vector3` | 3D vector with x, y, z components (f64) |
-| `Quaternion` | Unit quaternion for rotations with w, x, y, z components (f64) |
-| `Timestamp` | Time representation in nanoseconds (u128) |
-| `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
-| `Point` | Example transformable type with position, orientation, timestamp, frame |
-
-For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).
 
 ## Examples
 
