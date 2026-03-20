@@ -91,7 +91,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "1.4.0"
+transforms = "1.4.1"
 ```
 
 ### Feature Flags
@@ -104,7 +104,7 @@ For `no_std` environments:
 
 ```toml
 [dependencies]
-transforms = { version = "1.4.0", default-features = false }
+transforms = { version = "1.4.1", default-features = false }
 ```
 
 ## Quick Start
