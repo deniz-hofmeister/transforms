@@ -438,4 +438,23 @@ mod quaternion_tests {
             "Slerp result should be normalized"
         );
     }
+
+    #[test]
+    fn slerp_uses_shortest_path_for_antipodal_quaternions() {
+        let q1 = Quaternion::identity();
+        let q2 = Quaternion {
+            w: -1.0,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+
+        let result = q1.slerp(q2, 0.5);
+
+        assert_relative_eq!(result.w, 1.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.x, 0.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.y, 0.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.z, 0.0, epsilon = f64::EPSILON);
+        assert_relative_eq!(result.norm(), 1.0, epsilon = f64::EPSILON);
+    }
 }
