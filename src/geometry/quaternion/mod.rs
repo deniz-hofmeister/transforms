@@ -281,14 +281,27 @@ impl Quaternion {
         other: Quaternion,
         t: f64,
     ) -> Quaternion {
-        let dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
+        let mut other = other;
+        let mut dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
+
+        if dot < 0.0 {
+            other = other.scale(-1.0);
+            dot = -dot;
+        }
 
         let dot = dot.clamp(-1.0, 1.0);
-        let theta = dot.acos();
 
-        if theta.abs() < f64::EPSILON {
-            return self.scale(1.0 - t) + other.scale(t);
+        if dot > 1.0 - f64::EPSILON {
+            let blended = self.scale(1.0 - t) + other.scale(t);
+            let norm = blended.norm();
+            return if norm < f64::EPSILON {
+                blended
+            } else {
+                blended.scale(1.0 / norm)
+            };
         }
+
+        let theta = dot.acos();
 
         let sin_theta = theta.sin();
         let scale_self = ((1.0 - t) * theta).sin() / sin_theta;
