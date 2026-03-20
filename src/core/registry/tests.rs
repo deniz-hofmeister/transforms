@@ -1319,4 +1319,36 @@ mod registry_tests {
 
         assert!(matches!(result, Err(TransformError::NotFound(_, _))));
     }
+
+    #[test]
+    fn get_transform_returns_not_found_for_cyclic_graph() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp::zero();
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        registry.add_transform(Transform {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+        registry.add_transform(Transform {
+            translation: Vector3::new(0.0, 1.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "b".into(),
+            child: "a".into(),
+        });
+
+        let result = registry.get_transform("a", "c", t);
+
+        assert!(matches!(result, Err(TransformError::NotFound(_, _))));
+    }
 }

@@ -115,7 +115,10 @@ use crate::{
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
 };
-use alloc::{collections::VecDeque, string::String};
+use alloc::{
+    collections::{BTreeSet, VecDeque},
+    string::String,
+};
 use hashbrown::{hash_map::Entry, HashMap};
 
 mod error;
@@ -719,9 +722,14 @@ where
         data: &HashMap<String, Buffer<T>>,
     ) -> Result<VecDeque<Transform<T>>, TransformError> {
         let mut transforms = VecDeque::new();
+        let mut visited = BTreeSet::new();
         let mut current_frame: String = from.into();
 
         while let Some(frame_buffer) = data.get(&current_frame) {
+            if !visited.insert(current_frame.clone()) {
+                return Err(TransformError::NotFound(from.into(), to.into()));
+            }
+
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
                     transforms.push_back(tf.clone());
