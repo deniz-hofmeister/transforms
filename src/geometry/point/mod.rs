@@ -150,13 +150,15 @@ where
 /// # #[cfg(not(feature = "std"))]
 /// # let t = Timestamp::zero();
 ///
-/// registry.add_transform(Transform {
-///     translation: Vector3::new(1.0, 0.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: t,
-///     parent: "map".into(),
-///     child: "camera".into(),
-/// });
+/// registry
+///     .add_transform(Transform {
+///         translation: Vector3::new(1.0, 0.0, 0.0),
+///         rotation: Quaternion::identity(),
+///         timestamp: t,
+///         parent: "map".into(),
+///         child: "camera".into(),
+///     })
+///     .unwrap();
 ///
 /// let mut point = Point {
 ///     position: Vector3::new(1.0, 0.0, 0.0),

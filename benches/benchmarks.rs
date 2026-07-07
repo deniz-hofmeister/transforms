@@ -42,7 +42,7 @@ fn benchmark_transforms(c: &mut Criterion) {
         b.iter(|| {
             let transform = create_sample_transform();
             let t = transform.timestamp;
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
             let _ = black_box(registry.get_transform("a", "b", t));
         });
     });
@@ -64,13 +64,13 @@ fn benchmark_transforms_with_preparation(c: &mut Criterion) {
         // Prepare registry with 1000 transforms
         for _ in 0..1000 {
             let transform = create_sample_transform();
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
         }
 
         b.iter(|| {
             let transform = create_sample_transform();
             let t = transform.timestamp;
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
             let _ = black_box(registry.get_transform("a", "b", t));
         });
     });
@@ -94,7 +94,7 @@ fn benchmark_tree_climb(c: &mut Criterion) {
             let mut transform = Transform::identity();
             transform.parent = i.to_string();
             transform.child = (i + 1).to_string();
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
         }
 
         b.iter(|| {
@@ -120,28 +120,28 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
         let mut transform = Transform::identity();
         transform.parent = "a_999".to_string();
         transform.child = "b_0".to_string();
-        registry.add_transform(transform);
+        registry.add_transform(transform).unwrap();
 
         let mut transform = Transform::identity();
         transform.parent = "a_999".to_string();
         transform.child = "c_0".to_string();
-        registry.add_transform(transform);
+        registry.add_transform(transform).unwrap();
 
         for i in 0..1000 {
             let mut transform = Transform::identity();
             transform.parent = "a_".to_string() + &i.to_string();
             transform.child = "a_".to_string() + &(i + 1).to_string();
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
 
             let mut transform = Transform::identity();
             transform.parent = "b_".to_string() + &i.to_string();
             transform.child = "b_".to_string() + &(i + 1).to_string();
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
 
             let mut transform = Transform::identity();
             transform.parent = "c_".to_string() + &i.to_string();
             transform.child = "c_".to_string() + &(i + 1).to_string();
-            registry.add_transform(transform);
+            registry.add_transform(transform).unwrap();
         }
 
         b.iter(|| {

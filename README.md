@@ -33,6 +33,26 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 ## What's New
 
+### Unreleased — Stricter validation of lookups, inserts, and composition
+
+Three correctness fixes, one of which changes the `add_transform` signature:
+
+- `get_transform` now verifies that the resolved chain actually connects the two
+  requested frames. Previously, querying a frame name that did not exist in the
+  tree could silently return the transform to the tree root instead of an error.
+- `add_transform` now returns `Result` and rejects mixing static (`t=0`) and
+  dynamic transforms for the same child frame, which previously corrupted
+  interpolation or silently shadowed data. A child frame is either static or
+  dynamic, never both.
+- `Transform` multiplication now only accepts valid compositions
+  (`t_a_b * t_b_c`); the reversed operand order previously produced a
+  frame-inconsistent result.
+
+```rust
+// add_transform is now fallible
+registry.add_transform(transform)?;
+```
+
 ### v1.4.0 — Read-only getters
 
 `get_transform`, `get_transform_for`, and `get_transform_at` now take `&self` instead of `&mut self`, making concurrent reads possible without exclusive access.
@@ -132,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Add and retrieve the transform
-    registry.add_transform(transform);
+    registry.add_transform(transform)?;
     let result = registry.get_transform("base", "sensor", timestamp)?;
 
     println!("Transform: {:?}", result);
@@ -151,9 +171,10 @@ pub fn new(max_age: Duration) -> Self
 // no_std
 pub fn new() -> Self
 
-pub fn add_transform(&mut self, transform: Transform<T>)
-pub fn get_transform(&mut self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
-pub fn get_transform_for<U: Localized<T>>(&mut self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
+pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferError>
+pub fn get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
+pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
 ```
 
@@ -250,7 +271,9 @@ The `Localized` trait provides frame and timestamp introspection, while `Transfo
 
 ### Static vs Dynamic Transforms
 
-Static transforms (timestamp = 0) are ideal for fixed relationships like sensor mounts:
+Static transforms (timestamp = 0) are ideal for fixed relationships like sensor mounts.
+A given child frame is either static or dynamic: mixing the two kinds for the same
+child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 
 ```rust
 // Static transform: camera mount position (never changes)
@@ -278,9 +301,9 @@ Query transforms between frames that aren't directly connected:
 
 ```rust
 // Add transforms: map -> base -> arm -> gripper
-registry.add_transform(map_to_base);
-registry.add_transform(base_to_arm);
-registry.add_transform(arm_to_gripper);
+registry.add_transform(map_to_base)?;
+registry.add_transform(base_to_arm)?;
+registry.add_transform(arm_to_gripper)?;
 
 // Query: map -> gripper (automatically chains through base and arm)
 let result = registry.get_transform("map", "gripper", timestamp)?;
@@ -294,8 +317,8 @@ When querying at a timestamp between two stored transforms, the library interpol
 
 ```rust
 // Store transforms at t=0 and t=2
-registry.add_transform(transform_at_t0);
-registry.add_transform(transform_at_t2);
+registry.add_transform(transform_at_t0)?;
+registry.add_transform(transform_at_t2)?;
 
 // Query at t=1: automatically interpolates between t=0 and t=2
 let interpolated = registry.get_transform("a", "b", timestamp_at_t1)?;
@@ -386,7 +409,7 @@ let transform = Transform {
     child: "b".into(),
 };
 
-registry.add_transform(transform);
+registry.add_transform(transform).unwrap();
 
 // Manual cleanup required in no_std
 let cutoff = (Timestamp::zero() + Duration::from_secs(50)).unwrap();
@@ -407,7 +430,7 @@ let registry = Arc::new(Mutex::new(Registry::new(Duration::from_secs(60))));
 let registry_writer = registry.clone();
 tokio::spawn(async move {
     let mut r = registry_writer.lock().await;
-    r.add_transform(transform);
+    r.add_transform(transform).unwrap();
 });
 
 // Reader task

@@ -34,11 +34,11 @@ fn main() {
     let mut registry = Registry::new();
 
     // Create a transform
-    let time = Timestamp::zero();
+    let time = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
     let transform = generate_transform(time);
 
     // Add the transform
-    registry.add_transform(transform.clone());
+    registry.add_transform(transform.clone()).unwrap();
 
     // Request a transform that is in the future and therefore doesn't exist
     let time_future = (time + Duration::from_secs(1)).unwrap();

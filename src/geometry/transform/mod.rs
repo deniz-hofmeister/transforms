@@ -4,7 +4,7 @@ use crate::{
 };
 use alloc::string::String;
 use approx::AbsDiffEq;
-use core::{cmp::Ordering, ops::Mul, time::Duration};
+use core::ops::Mul;
 pub use error::TransformError;
 pub use traits::{Localized, Transformable};
 
@@ -294,6 +294,12 @@ where
 {
     type Output = Result<Transform<T>, TransformError>;
 
+    /// Composes two transforms: `t_a_b * t_b_c` yields `t_a_c`.
+    ///
+    /// The left-hand side's child frame must equal the right-hand side's
+    /// parent frame; any other pairing is not a valid composition and
+    /// returns an error. Unless one operand is static, both timestamps
+    /// must be equal.
     #[inline]
     fn mul(
         self,
@@ -302,29 +308,18 @@ where
         let is_self_static = self.timestamp.is_static();
         let is_rhs_static = rhs.timestamp.is_static();
 
-        let duration = if !is_self_static && !is_rhs_static {
-            let d = match self.timestamp.cmp(&rhs.timestamp) {
-                Ordering::Equal => Ok(Duration::from_secs(0)),
-                Ordering::Greater => self.timestamp.duration_since(rhs.timestamp),
-                Ordering::Less => rhs.timestamp.duration_since(self.timestamp),
-            }?;
-
-            if d.as_secs_f64() > 2.0 * f64::EPSILON {
-                return Err(TransformError::TimestampMismatch(
-                    self.timestamp.as_seconds()?,
-                    rhs.timestamp.as_seconds()?,
-                ));
-            }
-            d
-        } else {
-            Duration::from_secs(0)
-        };
+        if !is_self_static && !is_rhs_static && self.timestamp != rhs.timestamp {
+            return Err(TransformError::TimestampMismatch(
+                self.timestamp.as_seconds()?,
+                rhs.timestamp.as_seconds()?,
+            ));
+        }
 
         if self.child == rhs.child {
             return Err(TransformError::SameFrameMultiplication);
         }
 
-        if self.child != rhs.parent && self.parent != rhs.child {
+        if self.child != rhs.parent {
             return Err(TransformError::IncompatibleFrames);
         }
 
@@ -336,10 +331,8 @@ where
             rotation: r,
             timestamp: if is_self_static {
                 rhs.timestamp
-            } else if is_rhs_static {
-                self.timestamp
             } else {
-                self.timestamp.checked_add(duration.div_f64(2.0))?
+                self.timestamp
             },
             parent: self.parent,
             child: rhs.child,

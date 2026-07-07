@@ -45,7 +45,7 @@ async fn main() {
         loop {
             let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
             let t = generate_transform(time);
-            registry_writer.write().await.add_transform(t);
+            registry_writer.write().await.add_transform(t).unwrap();
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     });

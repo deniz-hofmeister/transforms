@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod registry_tests {
     use crate::{
-        errors::TransformError,
+        errors::{BufferError, TransformError},
         geometry::{Point, Quaternion, Transform, Vector3},
         time::Timestamp,
         Registry, Transformable,
@@ -59,8 +59,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone());
-        registry.add_transform(t_b_c.clone());
+        registry.add_transform(t_a_b.clone()).unwrap();
+        registry.add_transform(t_b_c.clone()).unwrap();
 
         let t_a_c = Transform {
             translation: Vector3 {
@@ -142,8 +142,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone());
-        registry.add_transform(t_b_c.clone());
+        registry.add_transform(t_a_b.clone()).unwrap();
+        registry.add_transform(t_b_c.clone()).unwrap();
 
         let t_c_a = Transform {
             translation: Vector3 {
@@ -243,9 +243,9 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b.clone());
-        registry.add_transform(t_b_c.clone());
-        registry.add_transform(t_c_d.clone());
+        registry.add_transform(t_a_b.clone()).unwrap();
+        registry.add_transform(t_b_c.clone()).unwrap();
+        registry.add_transform(t_c_d.clone()).unwrap();
 
         let t_a_d = Transform {
             translation: Vector3 {
@@ -327,8 +327,8 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b.clone());
-        registry.add_transform(t_a_c.clone());
+        registry.add_transform(t_a_b.clone()).unwrap();
+        registry.add_transform(t_a_c.clone()).unwrap();
 
         let r = registry.get_transform("a", "b", t_a_b.timestamp);
 
@@ -360,7 +360,7 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
+        let t = Timestamp { t: 1_000_000_000 };
 
         #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(10));
@@ -404,8 +404,8 @@ mod registry_tests {
             child: "b".into(),
         };
 
-        registry.add_transform(t_a_b_0.clone());
-        registry.add_transform(t_a_b_1.clone());
+        registry.add_transform(t_a_b_0.clone()).unwrap();
+        registry.add_transform(t_a_b_1.clone()).unwrap();
 
         let middle_timestamp = Timestamp {
             t: u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t),
@@ -439,7 +439,7 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
+        let t = Timestamp { t: 1_000_000_000 };
 
         #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(10));
@@ -517,10 +517,10 @@ mod registry_tests {
             child: "c".into(),
         };
 
-        registry.add_transform(t_a_b_0.clone());
-        registry.add_transform(t_a_b_1.clone());
-        registry.add_transform(t_b_c_0.clone());
-        registry.add_transform(t_b_c_1.clone());
+        registry.add_transform(t_a_b_0.clone()).unwrap();
+        registry.add_transform(t_a_b_1.clone()).unwrap();
+        registry.add_transform(t_b_c_0.clone()).unwrap();
+        registry.add_transform(t_b_c_1.clone()).unwrap();
 
         let middle_timestamp = Timestamp {
             t: u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t),
@@ -624,9 +624,9 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b);
-        registry.add_transform(t_b_c);
-        registry.add_transform(t_b_d);
+        registry.add_transform(t_a_b).unwrap();
+        registry.add_transform(t_b_c).unwrap();
+        registry.add_transform(t_b_d).unwrap();
 
         let result = registry.get_transform("c", "d", t);
 
@@ -723,9 +723,9 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        registry.add_transform(t_a_b);
-        registry.add_transform(t_b_c);
-        registry.add_transform(t_b_d);
+        registry.add_transform(t_a_b).unwrap();
+        registry.add_transform(t_b_c).unwrap();
+        registry.add_transform(t_b_d).unwrap();
 
         let from_chain = Registry::get_transform_chain("d", "a", t, &registry.data);
         let mut to_chain = Registry::get_transform_chain("c", "a", t, &registry.data);
@@ -764,9 +764,9 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(not(feature = "std"))]
-        let t1 = Timestamp::zero();
+        let t1 = Timestamp { t: 1_000_000_000 };
         #[cfg(not(feature = "std"))]
-        let t2 = Timestamp { t: 1_000_000_000 };
+        let t2 = Timestamp { t: 2_000_000_000 };
 
         #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(10));
@@ -776,76 +776,84 @@ mod registry_tests {
         let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
         // fixed -> a at t1: a is at x=1
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // fixed -> a at t2: a has moved to x=2
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 2.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 2.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t2,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // a -> b at t1: b is at y=1 relative to a
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 1.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "a".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 1.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         // a -> b at t2: b is at y=2 relative to a
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 2.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "a".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 2.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t2,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         let result = registry.get_transform_at(
             "a",     // target_frame
@@ -895,39 +903,43 @@ mod registry_tests {
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 1.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t,
-            parent: "a".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 1.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         let regular = registry.get_transform("a", "b", t);
         let time_travel = registry.get_transform_at("a", t, "b", t, "fixed");
@@ -961,9 +973,9 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(not(feature = "std"))]
-        let t1 = Timestamp::zero();
+        let t1 = Timestamp { t: 1_000_000_000 };
         #[cfg(not(feature = "std"))]
-        let t2 = Timestamp { t: 1_000_000_000 };
+        let t2 = Timestamp { t: 2_000_000_000 };
 
         #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(10));
@@ -975,76 +987,84 @@ mod registry_tests {
         let theta = core::f64::consts::PI / 2.0;
 
         // fixed -> a at t1: at (1,0,0), no rotation
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // fixed -> a at t2: at origin, rotated 90° CCW around z
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: (theta / 2.0).cos(),
-                x: 0.,
-                y: 0.,
-                z: (theta / 2.0).sin(),
-            },
-            timestamp: t2,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: (theta / 2.0).cos(),
+                    x: 0.,
+                    y: 0.,
+                    z: (theta / 2.0).sin(),
+                },
+                timestamp: t2,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // a -> b at t1: b is at (0.5, 0, 0) relative to a
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.5,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "a".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.5,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         // a -> b at t2: b still at (0.5, 0, 0) relative to a
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.5,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "a".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.5,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t2,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         let result = registry.get_transform_at(
             "a",     // target_frame
@@ -1100,9 +1120,9 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(not(feature = "std"))]
-        let t1 = Timestamp::zero();
+        let t1 = Timestamp { t: 1_000_000_000 };
         #[cfg(not(feature = "std"))]
-        let t2 = Timestamp { t: 1_000_000_000 };
+        let t2 = Timestamp { t: 2_000_000_000 };
 
         #[cfg(feature = "std")]
         let mut registry = Registry::new(Duration::from_secs(10));
@@ -1112,76 +1132,84 @@ mod registry_tests {
         let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
         // fixed -> a at t1
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 1.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // fixed -> a at t2
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 2.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "fixed".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 2.,
+                    y: 0.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t2,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         // fixed -> b at t1
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 1.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t1,
-            parent: "fixed".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 1.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         // fixed -> b at t2
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 2.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t2,
-            parent: "fixed".into(),
-            child: "b".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 2.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t2,
+                parent: "fixed".into(),
+                child: "b".into(),
+            })
+            .unwrap();
 
         let result = registry.get_transform_at(
             "a",     // target_frame
@@ -1228,13 +1256,15 @@ mod registry_tests {
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
-        registry.add_transform(Transform {
-            translation: Vector3::new(2.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: t,
-            parent: "map".into(),
-            child: "camera".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(2.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "map".into(),
+                child: "camera".into(),
+            })
+            .unwrap();
 
         let mut point = Point {
             position: Vector3::new(1.0, 0.0, 0.0),
@@ -1332,23 +1362,167 @@ mod registry_tests {
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
-        registry.add_transform(Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: t,
-            parent: "a".into(),
-            child: "b".into(),
-        });
-        registry.add_transform(Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: t,
-            parent: "b".into(),
-            child: "a".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "b".into(),
+                child: "a".into(),
+            })
+            .unwrap();
 
         let result = registry.get_transform("a", "c", t);
 
         assert!(matches!(result, Err(TransformError::NotFound(_, _))));
+    }
+
+    #[test]
+    fn get_transform_unknown_frame_returns_not_found() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t = Timestamp { t: 1_000_000_000 };
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t = Timestamp::now();
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // The requested frame does not exist. The walk from "b" still resolves
+        // up to the root "a", but that partial answer must not be returned as
+        // if it were the requested transform.
+        let result = registry.get_transform("b", "does_not_exist", t);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for unknown target frame, got {result:?}"
+        );
+
+        let result = registry.get_transform("does_not_exist", "b", t);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for unknown source frame, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_partial_chain_returns_not_found() {
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(not(feature = "std"))]
+        let t0 = Timestamp { t: 1_000_000_000 };
+
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+        #[cfg(feature = "std")]
+        let t0 = Timestamp::now();
+
+        let t1 = (t0 + Duration::from_secs(1)).unwrap();
+
+        // a -> b is only known at t0; b -> c is known at t0 and t1.
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t0,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+        for &t in &[t0, t1] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(0.0, 1.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "b".into(),
+                    child: "c".into(),
+                })
+                .unwrap();
+        }
+
+        // At t1 only the c -> b hop can be resolved; the chain to "a" is
+        // incomplete and must not be returned as a c -> a transform.
+        let result = registry.get_transform("c", "a", t1);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for partially resolvable chain, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn add_transform_rejects_static_dynamic_mixing() {
+        #[cfg(not(feature = "std"))]
+        let t_dynamic = Timestamp { t: 1_000_000_000 };
+        #[cfg(feature = "std")]
+        let t_dynamic = Timestamp::now();
+
+        let static_tf = Transform {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Timestamp::zero(),
+            parent: "a".into(),
+            child: "b".into(),
+        };
+        let dynamic_tf = Transform {
+            translation: Vector3::new(2.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t_dynamic,
+            parent: "a".into(),
+            child: "b".into(),
+        };
+
+        // Static first, then dynamic.
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+
+        registry.add_transform(static_tf.clone()).unwrap();
+        assert!(
+            matches!(
+                registry.add_transform(dynamic_tf.clone()),
+                Err(BufferError::StaticDynamicConflict)
+            ),
+            "dynamic insert into a static child frame must be rejected"
+        );
+
+        // Dynamic first, then static.
+        #[cfg(not(feature = "std"))]
+        let mut registry = Registry::new();
+        #[cfg(feature = "std")]
+        let mut registry = Registry::new(Duration::from_secs(10));
+
+        registry.add_transform(dynamic_tf.clone()).unwrap();
+        assert!(
+            matches!(
+                registry.add_transform(static_tf),
+                Err(BufferError::StaticDynamicConflict)
+            ),
+            "static insert into a dynamic child frame must be rejected"
+        );
+
+        // The registry state is untouched by the rejected insert.
+        let result = registry.get_transform("a", "b", t_dynamic);
+        assert_eq!(result.unwrap(), dynamic_tf);
     }
 }

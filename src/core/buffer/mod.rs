@@ -74,7 +74,7 @@
 //!     child,
 //! };
 //!
-//! buffer.insert(transform);
+//! buffer.insert(transform).unwrap();
 //!
 //! let result = buffer.get(&timestamp);
 //! match result {
@@ -122,8 +122,10 @@ type NearestTransforms<'a, T> = (
 /// - `data`: A `BTreeMap` where each key is a timestamp `T` and each value is a `Transform<T>`.
 /// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
 ///   defines the ``max_age`` for each entry, determining how long entries remain valid.
-/// - `is_static`: A boolean flag that determines if the buffer is a static. It can be set to
-///   static by supplying the static timestamp value (`t=0` by default).
+/// - `is_static`: A boolean flag that determines if the buffer is static. It is set by the
+///   first transform inserted into an empty buffer: a transform carrying the static timestamp
+///   value (`t=0` by default) makes the buffer static. Later inserts of the opposite kind
+///   are rejected with `BufferError::StaticDynamicConflict`.
 pub struct Buffer<T = Timestamp>
 where
     T: TimePoint,
@@ -190,6 +192,17 @@ where
 
     /// Adds a transform to the buffer.
     ///
+    /// The first transform inserted into an empty buffer determines whether
+    /// the buffer is static (timestamp equal to `T::static_timestamp()`) or
+    /// dynamic. Subsequent inserts must be of the same kind.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
+    /// (static or dynamic) does not match the transforms already stored in
+    /// this buffer. Mixing the two would silently corrupt interpolation, as
+    /// the static timestamp would be treated as a regular data point.
+    ///
     /// # Examples
     ///
     /// ```
@@ -233,14 +246,21 @@ where
     ///     child,
     /// };
     ///
-    /// buffer.insert(transform);
+    /// buffer.insert(transform).unwrap();
     /// ```
     pub fn insert(
         &mut self,
         transform: Transform<T>,
-    ) {
+    ) -> Result<(), BufferError> {
         let timestamp = transform.timestamp;
-        self.is_static = timestamp.is_static();
+        let is_static = timestamp.is_static();
+
+        if self.data.is_empty() {
+            self.is_static = is_static;
+        } else if self.is_static != is_static {
+            return Err(BufferError::StaticDynamicConflict);
+        }
+
         self.data.insert(timestamp, transform);
 
         #[cfg(feature = "std")]
@@ -251,6 +271,8 @@ where
             });
             self.delete_expired();
         };
+
+        Ok(())
     }
 
     /// Retrieves a transform from the buffer at the specified timestamp.
@@ -297,7 +319,7 @@ where
     ///     child,
     /// };
     ///
-    /// buffer.insert(transform);
+    /// buffer.insert(transform).unwrap();
     ///
     /// let result = buffer.get(&timestamp);
     /// match result {

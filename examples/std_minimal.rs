@@ -63,9 +63,9 @@ fn main() {
     };
 
     // Add transforms to registry
-    registry.add_transform(camera_to_base_t0);
-    registry.add_transform(camera_to_base_t1);
-    registry.add_transform(base_to_map);
+    registry.add_transform(camera_to_base_t0).unwrap();
+    registry.add_transform(camera_to_base_t1).unwrap();
+    registry.add_transform(base_to_map).unwrap();
     info!("Added transforms to registry");
 
     // Lookup transform for the point, then apply it

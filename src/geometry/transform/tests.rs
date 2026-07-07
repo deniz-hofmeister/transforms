@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod transform_tests {
     use crate::{
+        errors::TransformError,
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
     };
@@ -315,6 +316,65 @@ mod transform_tests {
         assert_eq!(
             result, t_a_c_expected,
             "Timestamped * Static should produce timestamped result"
+        );
+    }
+
+    fn transform_at(
+        parent: &str,
+        child: &str,
+        t: Timestamp,
+    ) -> Transform {
+        Transform {
+            translation: Vector3 {
+                x: 1.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: parent.into(),
+            child: child.into(),
+        }
+    }
+
+    #[test]
+    fn mul_rejects_reversed_composition() {
+        // Only `t_a_b * t_b_c` (lhs child == rhs parent) is a valid
+        // composition. The reversed order composes the underlying math in the
+        // wrong order and must be rejected.
+        let t = Timestamp { t: 1_000_000_000 };
+        let t_a_b = transform_at("a", "b", t);
+        let t_b_c = transform_at("b", "c", t);
+
+        let result = t_b_c * t_a_b;
+        assert!(
+            matches!(result, Err(TransformError::IncompatibleFrames)),
+            "reversed composition must be rejected, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn mul_rejects_unrelated_frames() {
+        let t = Timestamp { t: 1_000_000_000 };
+        let t_a_b = transform_at("a", "b", t);
+        let t_c_d = transform_at("c", "d", t);
+
+        let result = t_a_b * t_c_d;
+        assert!(
+            matches!(result, Err(TransformError::IncompatibleFrames)),
+            "unrelated frames must be rejected, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn mul_rejects_mismatched_timestamps() {
+        let t_a_b = transform_at("a", "b", Timestamp { t: 1_000_000_000 });
+        let t_b_c = transform_at("b", "c", Timestamp { t: 2_000_000_000 });
+
+        let result = t_a_b * t_b_c;
+        assert!(
+            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            "dynamic transforms with different timestamps must be rejected, got {result:?}"
         );
     }
 }

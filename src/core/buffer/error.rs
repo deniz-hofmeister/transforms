@@ -9,6 +9,12 @@ pub enum BufferError {
     #[error("No transforms available matching your criteria")]
     NoTransformAvailable,
 
+    #[error(
+        "Cannot mix static and dynamic transforms for the same child frame; \
+         the buffer already contains transforms of the other kind"
+    )]
+    StaticDynamicConflict,
+
     #[error("Transform error: {0}")]
     TransformError(#[from] TransformError),
 }

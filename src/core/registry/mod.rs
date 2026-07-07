@@ -71,7 +71,7 @@
 //! let t_a_b_2 = t_a_b_1.clone();
 //!
 //! // Add the transform to the registry
-//! registry.add_transform(t_a_b_1);
+//! registry.add_transform(t_a_b_1).unwrap();
 //!
 //! // Retrieve the transform from "a" to "b"
 //! let result = registry.get_transform("a", "b", t2);
@@ -95,10 +95,13 @@
 //!   - **Returns**
 //!     - A new instance of `Registry`.
 //!
-//! - `add_transform(&mut self, t: Transform<T>)`
+//! - `add_transform(&mut self, t: Transform<T>) -> Result<(), BufferError>`
 //!   - Adds a transform to the registry.
 //!   - **Arguments**
 //!     - `t`: The transform to add.
+//!   - **Errors**
+//!     - Returns a `BufferError::StaticDynamicConflict` if the child frame already
+//!       holds transforms of the opposite kind (static vs. dynamic).
 //!
 //! - `get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>`
 //!   - Retrieves a transform from the registry.
@@ -111,7 +114,7 @@
 
 use crate::{
     core::Buffer,
-    errors::TransformError,
+    errors::{BufferError, TransformError},
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
 };
@@ -179,7 +182,7 @@ use core::time::Duration;
 /// let t_a_b_2 = t_a_b_1.clone();
 ///
 /// // Add the transform to the registry
-/// registry.add_transform(t_a_b_1);
+/// registry.add_transform(t_a_b_1).unwrap();
 ///
 /// // Retrieve the transform from "a" to "b"
 /// let result = registry.get_transform("a", "b", t2);
@@ -254,6 +257,13 @@ where
     ///
     /// * `t` - The transform to add.
     ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::StaticDynamicConflict` if the transform's child
+    /// frame already holds transforms of the opposite kind: a child frame is
+    /// either static (timestamp equal to the static timestamp value, `t=0` by
+    /// default) or dynamic, never both.
+    ///
     /// # Examples
     ///
     /// ```
@@ -268,16 +278,20 @@ where
     ///
     /// let transform = Transform::identity();
     ///
-    /// registry.add_transform(transform);
+    /// registry.add_transform(transform).unwrap();
     /// ```
     pub fn add_transform(
         &mut self,
         t: Transform<T>,
-    ) {
+    ) -> Result<(), BufferError> {
         #[cfg(not(feature = "std"))]
-        Self::process_add_transform(t, &mut self.data);
+        {
+            Self::process_add_transform(t, &mut self.data)
+        }
         #[cfg(feature = "std")]
-        Self::process_add_transform(t, &mut self.data, self.max_age);
+        {
+            Self::process_add_transform(t, &mut self.data, self.max_age)
+        }
     }
 
     /// Retrieves a transform from the registry.
@@ -335,7 +349,7 @@ where
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
-    /// registry.add_transform(t_a_b_1);
+    /// registry.add_transform(t_a_b_1).unwrap();
     ///
     /// let result = registry.get_transform("a", "b", t2);
     /// assert!(result.is_ok());
@@ -435,65 +449,71 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
-    /// let t1 = Timestamp::zero();
+    /// let t1 = Timestamp { t: 1_000_000_000 };
     /// # #[cfg(not(feature = "std"))]
-    /// let t2 = Timestamp { t: 1_000_000_000 };
+    /// let t2 = Timestamp { t: 2_000_000_000 };
     ///
     /// // Tree: fixed -> a -> b
     ///
     /// // fixed -> a at t1: a is at x=1
-    /// registry.add_transform(Transform {
-    ///     translation: Vector3 {
-    ///         x: 1.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: t1,
-    ///     parent: "fixed".into(),
-    ///     child: "a".into(),
-    /// });
+    /// registry
+    ///     .add_transform(Transform {
+    ///         translation: Vector3 {
+    ///             x: 1.0,
+    ///             y: 0.0,
+    ///             z: 0.0,
+    ///         },
+    ///         rotation: Quaternion {
+    ///             w: 1.0,
+    ///             x: 0.0,
+    ///             y: 0.0,
+    ///             z: 0.0,
+    ///         },
+    ///         timestamp: t1,
+    ///         parent: "fixed".into(),
+    ///         child: "a".into(),
+    ///     })
+    ///     .unwrap();
     ///
     /// // fixed -> a at t2: a has moved to x=2
-    /// registry.add_transform(Transform {
-    ///     translation: Vector3 {
-    ///         x: 2.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: t2,
-    ///     parent: "fixed".into(),
-    ///     child: "a".into(),
-    /// });
+    /// registry
+    ///     .add_transform(Transform {
+    ///         translation: Vector3 {
+    ///             x: 2.0,
+    ///             y: 0.0,
+    ///             z: 0.0,
+    ///         },
+    ///         rotation: Quaternion {
+    ///             w: 1.0,
+    ///             x: 0.0,
+    ///             y: 0.0,
+    ///             z: 0.0,
+    ///         },
+    ///         timestamp: t2,
+    ///         parent: "fixed".into(),
+    ///         child: "a".into(),
+    ///     })
+    ///     .unwrap();
     ///
     /// // a -> b at t1: b is at y=1 relative to a
-    /// registry.add_transform(Transform {
-    ///     translation: Vector3 {
-    ///         x: 0.0,
-    ///         y: 1.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: t1,
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// });
+    /// registry
+    ///     .add_transform(Transform {
+    ///         translation: Vector3 {
+    ///             x: 0.0,
+    ///             y: 1.0,
+    ///             z: 0.0,
+    ///         },
+    ///         rotation: Quaternion {
+    ///             w: 1.0,
+    ///             x: 0.0,
+    ///             y: 0.0,
+    ///             z: 0.0,
+    ///         },
+    ///         timestamp: t1,
+    ///         parent: "a".into(),
+    ///         child: "b".into(),
+    ///     })
+    ///     .unwrap();
     ///
     /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
     /// let result = registry.get_transform_at(
@@ -548,18 +568,21 @@ where
     ///
     /// * `t` - The transform to be added to the registry
     /// * `data` - Mutable reference to the data buffer where transforms are stored
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
+    /// already holds transforms of the opposite kind (static vs. dynamic).
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
-    ) {
+    ) -> Result<(), BufferError> {
         match data.entry(t.child.clone()) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().insert(t);
-            }
+            Entry::Occupied(mut entry) => entry.get_mut().insert(t),
             Entry::Vacant(entry) => {
                 let buffer = Buffer::new();
                 let buffer = entry.insert(buffer);
-                buffer.insert(t);
+                buffer.insert(t)
             }
         }
     }
@@ -572,19 +595,22 @@ where
     /// * `t` - The transform to be added to the registry
     /// * `data` - Mutable reference to the data buffer where transforms are stored
     /// * `max_age` - The maximum duration for which transforms are considered valid
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
+    /// already holds transforms of the opposite kind (static vs. dynamic).
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
         max_age: Duration,
-    ) {
+    ) -> Result<(), BufferError> {
         match data.entry(t.child.clone()) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().insert(t);
-            }
+            Entry::Occupied(mut entry) => entry.get_mut().insert(t),
             Entry::Vacant(entry) => {
                 let buffer = Buffer::new(max_age);
                 let buffer = entry.insert(buffer);
-                buffer.insert(t);
+                buffer.insert(t)
             }
         }
     }
@@ -612,7 +638,7 @@ where
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
         let to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
-        match (from_chain, to_chain) {
+        let result = match (from_chain, to_chain) {
             (Ok(mut from_chain), Ok(mut to_chain)) => {
                 Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
                 Self::reverse_and_invert_transforms(&mut to_chain)?;
@@ -624,7 +650,17 @@ where
                 Self::combine_transforms(VecDeque::new(), to_chain)
             }
             (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
+        }?;
+
+        // A chain can resolve without ever reaching the requested frame, for
+        // example when `to` does not exist in the tree and the walk stopped at
+        // the root instead. Verify the combined transform answers the exact
+        // question asked; otherwise report it as not found.
+        if result.parent != from || result.child != to {
+            return Err(TransformError::NotFound(from.into(), to.into()));
         }
+
+        Ok(result)
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.

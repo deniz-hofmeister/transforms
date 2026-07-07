@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod buffer_tests {
     use crate::{
-        core::Buffer,
+        core::{buffer::BufferError, Buffer},
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
     };
@@ -44,7 +44,7 @@ mod buffer_tests {
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
         let transform = create_transform(t);
-        buffer.insert(transform.clone());
+        buffer.insert(transform.clone()).unwrap();
 
         let mut r = buffer.get(&transform.timestamp);
 
@@ -69,7 +69,7 @@ mod buffer_tests {
         let t = Timestamp::zero();
         let transform = create_transform(t);
 
-        buffer.insert(transform.clone());
+        buffer.insert(transform.clone()).unwrap();
 
         let mut r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
 
@@ -97,9 +97,9 @@ mod buffer_tests {
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
         let p3 = create_transform((t + Duration::from_secs(3)).unwrap());
 
-        buffer.insert(p1.clone());
-        buffer.insert(p2.clone());
-        buffer.insert(p3.clone());
+        buffer.insert(p1.clone()).unwrap();
+        buffer.insert(p2.clone()).unwrap();
+        buffer.insert(p3.clone()).unwrap();
 
         // Exact match
         let (before, after) = buffer.get_nearest(&p2.timestamp);
@@ -159,8 +159,8 @@ mod buffer_tests {
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
 
-        buffer.insert(p1.clone());
-        buffer.insert(p2.clone());
+        buffer.insert(p1.clone()).unwrap();
+        buffer.insert(p2.clone()).unwrap();
 
         assert!(buffer.get(&p1.timestamp).is_ok());
         assert!(buffer.get(&p2.timestamp).is_ok());
@@ -181,9 +181,9 @@ mod buffer_tests {
         let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
         let p3 = create_transform((t + Duration::from_secs(2)).unwrap());
 
-        buffer.insert(p1.clone());
-        buffer.insert(p2.clone());
-        buffer.insert(p3.clone());
+        buffer.insert(p1.clone()).unwrap();
+        buffer.insert(p2.clone()).unwrap();
+        buffer.insert(p3.clone()).unwrap();
 
         let get_1 = buffer.get(&(t - Duration::from_secs(2)).unwrap());
         let get_2 = buffer.get(&(t - Duration::from_secs(1)).unwrap());
@@ -208,7 +208,7 @@ mod buffer_tests {
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
         let point = create_transform(t);
-        buffer.insert(point.clone());
+        buffer.insert(point.clone()).unwrap();
 
         // Before the point
         let (before, after) = buffer.get_nearest(&(t - Duration::from_secs(1)).unwrap());
@@ -224,5 +224,46 @@ mod buffer_tests {
         let (before, after) = buffer.get_nearest(&(t + Duration::from_secs(1)).unwrap());
         assert_eq!(before.unwrap(), (&point.timestamp, &point));
         assert!(after.is_none());
+    }
+
+    #[test]
+    fn insert_rejects_static_dynamic_mixing() {
+        #[cfg(not(feature = "std"))]
+        let t_dynamic = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+        #[cfg(feature = "std")]
+        let t_dynamic = Timestamp::now();
+
+        let static_tf = create_transform(Timestamp::zero());
+        let dynamic_tf = create_transform(t_dynamic);
+
+        // Static first, then dynamic.
+        #[cfg(not(feature = "std"))]
+        let mut buffer = Buffer::new();
+        #[cfg(feature = "std")]
+        let mut buffer = Buffer::new(Duration::from_secs(10));
+
+        buffer.insert(static_tf.clone()).unwrap();
+        assert!(matches!(
+            buffer.insert(dynamic_tf.clone()),
+            Err(BufferError::StaticDynamicConflict)
+        ));
+
+        // The static transform is still served after the rejected insert.
+        assert_eq!(buffer.get(&t_dynamic).unwrap(), static_tf);
+
+        // Dynamic first, then static.
+        #[cfg(not(feature = "std"))]
+        let mut buffer = Buffer::new();
+        #[cfg(feature = "std")]
+        let mut buffer = Buffer::new(Duration::from_secs(10));
+
+        buffer.insert(dynamic_tf.clone()).unwrap();
+        assert!(matches!(
+            buffer.insert(static_tf),
+            Err(BufferError::StaticDynamicConflict)
+        ));
+
+        // The dynamic transform is still served after the rejected insert.
+        assert_eq!(buffer.get(&t_dynamic).unwrap(), dynamic_tf);
     }
 }

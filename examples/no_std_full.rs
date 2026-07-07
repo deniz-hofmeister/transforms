@@ -20,13 +20,13 @@ fn main() {
 
     // Create a transform registry
     let mut registry = Registry::new();
-    let time = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+    let time = (Timestamp::zero() + Duration::from_secs(2)).unwrap();
 
     // Create a point in the camera frame
     let mut point = Point {
         position: Vector3::new(0.0, 0.0, 1.0),
         orientation: Quaternion::identity(),
-        // 1 second
+        // 2 seconds
         timestamp: time,
         frame: "camera".into(),
     };
@@ -64,9 +64,9 @@ fn main() {
     };
 
     // Add transforms to registry
-    registry.add_transform(camera_to_base_t0);
-    registry.add_transform(camera_to_base_t1);
-    registry.add_transform(base_to_map);
+    registry.add_transform(camera_to_base_t0).unwrap();
+    registry.add_transform(camera_to_base_t1).unwrap();
+    registry.add_transform(base_to_map).unwrap();
     info!("Added transforms to registry");
 
     // Lookup transform for the point, then apply it

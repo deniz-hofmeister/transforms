@@ -66,7 +66,7 @@
 //! };
 //!
 //! // Add the transform to the registry
-//! registry.add_transform(transform);
+//! registry.add_transform(transform).unwrap();
 //!
 //! // Retrieve the transform
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();

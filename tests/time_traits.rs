@@ -78,7 +78,7 @@ fn default_timestamp_api_remains_usable() {
         child: "base".into(),
     };
 
-    registry.add_transform(transform.clone());
+    registry.add_transform(transform.clone()).unwrap();
     let result = registry.get_transform("map", "base", t).unwrap();
     assert_eq!(result, transform);
 }
@@ -110,8 +110,8 @@ fn registry_supports_system_time() {
         child: "b".into(),
     };
 
-    registry.add_transform(from);
-    registry.add_transform(to);
+    registry.add_transform(from).unwrap();
+    registry.add_transform(to).unwrap();
 
     let mid = registry.get_transform("a", "b", t1).unwrap();
     assert_eq!(mid.timestamp, t1);
@@ -133,7 +133,7 @@ fn custom_timestamp_static_policy_is_respected() {
         child: "sensor".into(),
     };
 
-    registry.add_transform(static_transform.clone());
+    registry.add_transform(static_transform.clone()).unwrap();
 
     let result = registry
         .get_transform("map", "sensor", TestTime(5))

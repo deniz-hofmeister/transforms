@@ -22,51 +22,15 @@ fn main() {
 
     let mut registry = Registry::new();
 
-    let t1 = Timestamp::zero();
+    let t1 = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
     let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
     // The conveyor belt is at x=1 in the map frame at t1
-    registry.add_transform(Transform {
-        translation: Vector3 {
-            x: 1.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
-        timestamp: t1,
-        parent: "map".into(),
-        child: "conveyor".into(),
-    });
-
-    // By t2 the conveyor has moved to x=3
-    registry.add_transform(Transform {
-        translation: Vector3 {
-            x: 3.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
-        timestamp: t2,
-        parent: "map".into(),
-        child: "conveyor".into(),
-    });
-
-    // The object sits at y=0.5 on the conveyor (same at both times)
-    for &t in &[t1, t2] {
-        registry.add_transform(Transform {
+    registry
+        .add_transform(Transform {
             translation: Vector3 {
-                x: 0.,
-                y: 0.5,
+                x: 1.,
+                y: 0.,
                 z: 0.,
             },
             rotation: Quaternion {
@@ -75,30 +39,74 @@ fn main() {
                 y: 0.,
                 z: 0.,
             },
-            timestamp: t,
-            parent: "conveyor".into(),
-            child: "object".into(),
-        });
+            timestamp: t1,
+            parent: "map".into(),
+            child: "conveyor".into(),
+        })
+        .unwrap();
+
+    // By t2 the conveyor has moved to x=3
+    registry
+        .add_transform(Transform {
+            translation: Vector3 {
+                x: 3.,
+                y: 0.,
+                z: 0.,
+            },
+            rotation: Quaternion {
+                w: 1.,
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
+            timestamp: t2,
+            parent: "map".into(),
+            child: "conveyor".into(),
+        })
+        .unwrap();
+
+    // The object sits at y=0.5 on the conveyor (same at both times)
+    for &t in &[t1, t2] {
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 0.5,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "conveyor".into(),
+                child: "object".into(),
+            })
+            .unwrap();
     }
 
     // The camera is fixed in the map frame at (0, 2, 0)
     for &t in &[t1, t2] {
-        registry.add_transform(Transform {
-            translation: Vector3 {
-                x: 0.,
-                y: 2.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
-            timestamp: t,
-            parent: "map".into(),
-            child: "camera".into(),
-        });
+        registry
+            .add_transform(Transform {
+                translation: Vector3 {
+                    x: 0.,
+                    y: 2.,
+                    z: 0.,
+                },
+                rotation: Quaternion {
+                    w: 1.,
+                    x: 0.,
+                    y: 0.,
+                    z: 0.,
+                },
+                timestamp: t,
+                parent: "map".into(),
+                child: "camera".into(),
+            })
+            .unwrap();
     }
 
     // --- Regular lookups ---
