@@ -6,10 +6,10 @@ cargo build --no-default-features
 cargo build
 cargo test --no-default-features
 cargo test
-cargo clippy --all-targets --no-default-features
-cargo clippy --all-targets
+cargo clippy --all-targets --no-default-features -- -D warnings
+cargo clippy --all-targets -- -D warnings
 rustup run nightly cargo fmt --check
-cargo doc --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo run --example no_std_minimal --no-default-features
 cargo run --example no_std_full --no-default-features
 cargo run --example no_std_advanced --no-default-features

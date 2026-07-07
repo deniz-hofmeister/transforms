@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -27,80 +31,118 @@ jobs:
       - name: Rustfmt Check
         uses: actions-rust-lang/rustfmt@559aa3035a47390ba96088dffa783b5d26da9326
 
-  build-no-std:
+  clippy:
+    name: clippy
     runs-on: ubuntu-latest
-    name: build-no-std
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build --no-default-features
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          components: clippy
+          toolchain: stable
+      - name: Clippy (std)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy (no_std)
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
 
-  build-no-std-bare-metal:
+  tests:
+    name: tests
     runs-on: ubuntu-latest
-    name: build-no-std-bare-metal
     steps:
       - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Run tests (std)
+        run: cargo test
+      - name: Run tests (no_std)
+        run: cargo test --no-default-features
+
+  doc:
+    name: doc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Build docs
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: "1.86"
+      - name: Check (std)
+        run: cargo check --all-targets
+      - name: Check (no_std)
+        run: cargo check --all-targets --no-default-features
+
+  examples:
+    name: examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Run example std_minimal
+        run: cargo run --example std_minimal
+      - name: Run example std_full
+        run: cargo run --example std_full
+      - name: Run example std_advanced
+        run: cargo run --example std_advanced
+      - name: Run example no_std_minimal
+        run: cargo run --example no_std_minimal --no-default-features
+      - name: Run example no_std_full
+        run: cargo run --example no_std_full --no-default-features
+      - name: Run example no_std_advanced
+        run: cargo run --example no_std_advanced --no-default-features
+
+  benches:
+    name: benches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Bench smoke test (std)
+        run: cargo bench -- --test
+      - name: Bench smoke test (no_std)
+        run: cargo bench --no-default-features -- --test
+
+  bare-metal:
+    name: bare-metal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
       - name: Install bare-metal target
         run: rustup target add thumbv7em-none-eabihf
       - name: Build for thumbv7em-none-eabihf
         run: cargo build --no-default-features --target thumbv7em-none-eabihf
 
-  build:
+  security:
+    name: security
     runs-on: ubuntu-latest
-    name: build
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
-      - name: Build
-        run: cargo build
-
-  tests-no-std:
-    runs-on: ubuntu-latest
-    name: tests-no-std
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: cargo test --no-default-features
-
-  tests:
-    runs-on: ubuntu-latest
-    name: tests
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: cargo test
-
-  examples-no-std:
-    runs-on: ubuntu-latest
-    name: examples-no-std
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run example no_std_minimal
-        run: cargo run --example no_std_minimal --no-default-features
-      - name: Run example no_std_full
-        run: cargo run --example no_std_full --no-default-features
-
-  examples:
-    runs-on: ubuntu-latest
-    name: examples
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run example std_minimal
-        run: cargo run --example std_minimal
-      - name: Run example std_full
-        run: cargo run --example std_full
-
-  benchmarks-no-std:
-    runs-on: ubuntu-latest
-    name: benchmarks-no-std
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run bench
-        run: cargo bench --no-default-features
-
-  benchmarks:
-    runs-on: ubuntu-latest
-    name: benchmarks
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run bench
-        run: cargo bench
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: Audit dependencies
+        run: cargo audit

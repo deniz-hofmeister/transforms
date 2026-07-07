@@ -5,11 +5,13 @@ authors = ["Deniz Hofmeister"]
 license = "MIT"
 version = "2.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.86"
 repository = "https://github.com/deniz-hofmeister/transforms"
+documentation = "https://docs.rs/transforms"
 keywords = ["robotics", "transform", "3d", "coordinate"]
 categories = ["science::robotics", "no-std", "simulation", "mathematics"]
 readme = "README.md"
+include = ["/src", "/Cargo.toml", "/README.md", "/LICENSE"]
 
 [features]
 default = ["std"]
@@ -60,6 +62,10 @@ required-features = []
 [[bench]]
 name = "benchmarks"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [profile.release]
 codegen-units = 1

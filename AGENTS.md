@@ -101,7 +101,7 @@ code in the same commit.
 The gate below machine-checks lints, formatting, and docs; everything else in
 this section is convention, enforced in review — follow it anyway.
 
-- Edition 2024, `rust-version = "1.85"`. `#![warn(missing_docs)]` and
+- Edition 2024, `rust-version = "1.86"` (verified by a CI job). `#![warn(missing_docs)]` and
   `#![warn(clippy::pedantic)]` must stay at **zero warnings** in both feature
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
   standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
@@ -126,13 +126,11 @@ this section is convention, enforced in review — follow it anyway.
   (Rust API guideline C-GOOD-ERR). Every variant carries a doc comment. Error
   types live in a private `mod error;` re-exported via `pub use`.
 - Tests: no logging (no `env_logger`, no `debug!` — logging belongs in
-  `examples/`), `assert_eq!`/`assert_ne!` over `assert!(a == b)`,
-  behavior-descriptive snake_case names, and the dual-setup pattern with the
-  `#[cfg(not(feature = "std"))]` block first. In `no_std` setups,
-  `Timestamp::zero()` is fine for a single static sample, but never use it as
-  the base of a *dynamic* time series — `t = 0` is the static sentinel, and a
-  series starting there mixes kinds. Use `Timestamp::from_nanos(1_000_000_000)`
-  or similar as the dynamic base.
+  `examples/`), `assert_eq!`/`assert_ne!` over `assert!(a == b)`, and
+  behavior-descriptive snake_case names. Tests are deterministic: fixed
+  `Timestamp::from_nanos` fixtures, never `Timestamp::now()`. `Timestamp::zero()`
+  is fine for a single static sample, but never as the base of a *dynamic*
+  time series — `t = 0` is the static sentinel.
 - Strings into `String` fields: `"a".into()`. Format strings use inline
   captures: `{x}` / `{x:?}`.
 
@@ -144,10 +142,10 @@ All of the following must pass before a change is complete
 ```bash
 cargo test
 cargo test --no-default-features
-cargo clippy --all-targets                          # zero warnings
-cargo clippy --all-targets --no-default-features    # zero warnings
+cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --no-default-features -- -D warnings
 rustup run nightly cargo fmt --check                # repo uses nightly rustfmt options
-cargo doc --no-deps                                 # zero warnings
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo run --example std_minimal                     # and the other std examples
 cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
 cargo bench -- --test
@@ -156,6 +154,8 @@ cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std
 ```
 
 (`rustup target add thumbv7em-none-eabihf` once, if the target is missing.)
+CI additionally checks the MSRV (`cargo check` on Rust 1.86) and runs
+`cargo audit` against the RustSec advisory database.
 
 Docs are part of the change: the README (API Reference, What's New, examples
 table) and rustdoc must be updated in the same commit as the code they
