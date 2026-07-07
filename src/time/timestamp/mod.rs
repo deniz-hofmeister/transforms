@@ -18,6 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// For custom clocks, implement `crate::time::TimePoint` on your own type and
 /// use it with `Registry<T>`.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Timestamp {
     /// Nanoseconds since the epoch of the chosen clock.
     pub t: u128,
@@ -41,6 +42,7 @@ impl Timestamp {
     /// assert!(now.t > 0);
     /// ```
     #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[must_use]
     #[allow(
         clippy::expect_used,

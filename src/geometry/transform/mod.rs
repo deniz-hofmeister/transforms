@@ -34,6 +34,7 @@ mod traits;
 /// assert_eq!(identity.rotation, Quaternion::identity());
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transform<T = Timestamp>
 where
     T: TimePoint,

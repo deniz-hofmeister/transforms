@@ -35,6 +35,7 @@ use alloc::string::String;
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point<T = Timestamp>
 where
     T: TimePoint,

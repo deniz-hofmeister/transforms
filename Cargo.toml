@@ -16,15 +16,18 @@ include = ["/src", "/Cargo.toml", "/README.md", "/LICENSE"]
 [features]
 default = ["std"]
 std = []
+serde = ["dep:serde"]
 
 [dependencies]
 thiserror = { version = "2.0.12", default-features = false }
 approx = { version = "0.5.1", default-features = false }
 hashbrown = "0.17.1"
 libm = { version = "0.2.15", default-features = false }
+serde = { version = "1.0.219", default-features = false, features = ["alloc", "derive"], optional = true }
 
 [dev-dependencies]
 env_logger = "0.11.8"
+serde_json = "1.0.140"
 log = "0.4.27"
 criterion = "0.8.0"
 tokio = { version = "1.46.1", features = ["full"] }

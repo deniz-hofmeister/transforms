@@ -58,6 +58,19 @@ jobs:
       - name: Run tests (no_std)
         run: cargo test --no-default-features
 
+  serde:
+    name: serde
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8
+        with:
+          toolchain: stable
+      - name: Run tests (std + serde)
+        run: cargo test --features serde
+      - name: Run tests (no_std + serde)
+        run: cargo test --no-default-features --features serde
+
   doc:
     name: doc
     runs-on: ubuntu-latest

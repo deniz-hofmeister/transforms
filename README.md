@@ -143,6 +143,12 @@ transforms = "2.0.0"
 | Feature | Default | Description |
 |---------|---------|-------------|
 | `std` | Yes | Enables `Timestamp::now()` and the `SystemTime` time type |
+| `serde` | No | `Serialize`/`Deserialize` for the geometry and time types |
+
+Note on `serde`: `Timestamp` serializes its nanosecond value as a `u128`,
+which not every serde format supports (JSON via `serde_json` does).
+Deserialization does not validate — like hand-built transforms, deserialized
+ones are validated when they enter a `Registry`.
 
 For `no_std` environments (requires a heap allocator; float math falls back to
 [libm](https://crates.io/crates/libm)):

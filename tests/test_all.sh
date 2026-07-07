@@ -5,6 +5,8 @@ set -e
 cargo build --no-default-features
 cargo build
 cargo test --no-default-features
+cargo test --features serde
+cargo test --no-default-features --features serde
 cargo test
 cargo clippy --all-targets --no-default-features -- -D warnings
 cargo clippy --all-targets -- -D warnings

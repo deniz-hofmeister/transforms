@@ -36,16 +36,18 @@ Its priorities, in this order:
 
 - `#![forbid(unsafe_code)]`. No exceptions.
 - No new dependencies without maintainer approval. Middleware independence is
-  the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, and `libm`
-  (the `no_std` float-math fallback) are the entire runtime dependency list.
-  (The `[dev-dependencies]` — `log`/`env_logger` for examples, `tokio` for the
-  async example, `criterion` for benches — are expected and do not contradict
-  this.)
+  the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, `libm`
+  (the `no_std` float-math fallback), and the optional, default-off `serde`
+  are the entire runtime dependency list. (The `[dev-dependencies]` —
+  `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
+  for benches, `serde_json` for serde roundtrips — are expected and do not
+  contradict this.)
 - `no_std` parity: every change must build and pass tests with
   `--no-default-features`, and build for a real bare-metal target (the gate
   builds `thumbv7em-none-eabihf`). `no_std` requires a heap allocator (`alloc`).
   Features must be additive: the same API exists in both modes; the only
-  feature-gated items are `Timestamp::now()` and the `SystemTime` time type.
+  feature-gated items are `Timestamp::now()`, the `SystemTime` time type
+  (`std`), and the serde derives (`serde`, default-off).
 - The README **Non-Goals** section is load-bearing. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity. Do not implement these even if an
@@ -142,6 +144,8 @@ All of the following must pass before a change is complete
 ```bash
 cargo test
 cargo test --no-default-features
+cargo test --features serde
+cargo test --no-default-features --features serde
 cargo clippy --all-targets -- -D warnings
 cargo clippy --all-targets --no-default-features -- -D warnings
 rustup run nightly cargo fmt --check                # repo uses nightly rustfmt options

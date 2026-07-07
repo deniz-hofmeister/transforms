@@ -4,6 +4,7 @@ use crate::time::{TimeError, TimePoint};
 use core::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl TimePoint for SystemTime {
     fn static_timestamp() -> Self {
         UNIX_EPOCH

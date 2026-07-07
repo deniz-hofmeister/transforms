@@ -20,6 +20,7 @@
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
 //!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
 //!   is called. Both work with and without `std`.
+//! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
 //!
 //! # Non-Goals
 //!
@@ -206,6 +207,7 @@
 )]
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 pub mod core;

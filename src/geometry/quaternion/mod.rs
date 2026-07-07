@@ -51,6 +51,7 @@ mod math {
 
 /// A quaternion representing a rotation in 3D space.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion {
     /// The scalar (real) part of the quaternion.
     pub w: f64,
