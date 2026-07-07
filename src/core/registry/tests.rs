@@ -911,16 +911,9 @@ mod registry_tests {
     }
 
     #[test]
-    fn get_transform_returns_not_found_for_cyclic_graph() {
-        #[cfg(not(feature = "std"))]
+    fn add_transform_rejects_cycles() {
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
             .add_transform(Transform {
@@ -931,19 +924,124 @@ mod registry_tests {
                 child: "b".into(),
             })
             .unwrap();
+
+        // Two-frame cycle: a -> b already exists, so b -> a must be rejected.
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(0.0, 1.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "b".into(),
+            child: "a".into(),
+        });
+        assert!(matches!(result, Err(BufferError::CycleDetected)));
+
+        // The direct lookup keeps working; the poisoning path is gone.
+        assert!(registry.get_transform("a", "b", t).is_ok());
+
+        // Three-frame cycle: extend the chain, then try to close it.
         registry
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 1.0, 0.0),
                 rotation: Quaternion::identity(),
                 timestamp: t,
                 parent: "b".into(),
-                child: "a".into(),
+                child: "c".into(),
+            })
+            .unwrap();
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(0.0, 0.0, 1.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "c".into(),
+            child: "a".into(),
+        });
+        assert!(matches!(result, Err(BufferError::CycleDetected)));
+    }
+
+    #[test]
+    fn add_transform_rejects_self_referential_frames() {
+        let mut registry = Registry::new();
+
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Timestamp::from_nanos(1_000_000_000),
+            parent: "a".into(),
+            child: "a".into(),
+        });
+        assert!(matches!(result, Err(BufferError::SelfReferentialFrame)));
+    }
+
+    #[test]
+    fn add_transform_rejects_reparenting() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "world".into(),
+                child: "object".into(),
             })
             .unwrap();
 
-        let result = registry.get_transform("a", "c", t);
+        // The object is "picked up": its parent changes. Not supported;
+        // the frame must be removed first.
+        let reparented = Transform {
+            translation: Vector3::new(0.0, 0.5, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t2,
+            parent: "gripper".into(),
+            child: "object".into(),
+        };
+        let result = registry.add_transform(reparented.clone());
+        assert!(matches!(
+            result,
+            Err(BufferError::ReparentingNotSupported(parent)) if parent == "world"
+        ));
 
-        assert!(matches!(result, Err(TransformError::NotFound(_, _))));
+        // remove_frame is the escape hatch: after removal the new parent is
+        // accepted.
+        assert!(registry.remove_frame("object"));
+        assert!(!registry.remove_frame("object"));
+        registry.add_transform(reparented).unwrap();
+        assert!(registry.get_transform("gripper", "object", t2).is_ok());
+        assert!(registry.get_transform("world", "object", t1).is_err());
+    }
+
+    #[test]
+    fn delete_transforms_before_prunes_empty_frames() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "world".into(),
+                child: "object".into(),
+            })
+            .unwrap();
+
+        // Wiping every transform of a frame releases the frame itself, so
+        // the registry does not accumulate dead frames — and the frame can
+        // come back under a new parent.
+        registry.delete_transforms_before(t2);
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 0.5, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t2,
+                parent: "gripper".into(),
+                child: "object".into(),
+            })
+            .unwrap();
+        assert!(registry.get_transform("gripper", "object", t2).is_ok());
     }
 
     #[test]
@@ -1256,5 +1354,47 @@ mod registry_tests {
         }
         assert!(registry.get_transform("a", "b", t1).is_ok());
         assert!(registry.get_transform("a", "b", t2).is_ok());
+    }
+
+    #[test]
+    fn failed_insert_does_not_bypass_cycle_detection() {
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        // A rejected insert must not leave an empty frame behind in the
+        // registry map...
+        let invalid = Transform {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::new(2.0, 0.0, 0.0, 0.0),
+            timestamp: t,
+            parent: "b".into(),
+            child: "a".into(),
+        };
+        assert!(registry.add_transform(invalid).is_err());
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // ...otherwise this valid insert would close the cycle a <-> b
+        // without ever hitting the cycle check.
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(-1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "b".into(),
+            child: "a".into(),
+        });
+        assert!(matches!(result, Err(BufferError::CycleDetected)));
+
+        // The stored transform still resolves, unpoisoned.
+        let result = registry.get_transform("a", "b", t).unwrap();
+        assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
     }
 }

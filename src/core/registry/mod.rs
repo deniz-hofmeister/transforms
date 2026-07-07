@@ -83,7 +83,7 @@ use alloc::{
     collections::{BTreeSet, VecDeque},
     string::String,
 };
-use hashbrown::{HashMap, hash_map::Entry};
+use hashbrown::HashMap;
 
 use core::time::Duration;
 
@@ -203,13 +203,31 @@ where
     /// either static (timestamp equal to the static timestamp value, `t=0` by
     /// default) or dynamic, never both.
     ///
+    /// Returns `BufferError::TransformError` if the transform fails
+    /// validation (non-finite values or a non-unit rotation),
+    /// `BufferError::SelfReferentialFrame` if its parent and child are the
+    /// same frame, `BufferError::ReparentingNotSupported` if the child frame
+    /// already has a different parent (remove the frame first with
+    /// [`Registry::remove_frame`]), and `BufferError::CycleDetected` if the
+    /// new relationship would create a cycle in the frame tree.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{Registry, geometry::Transform, time::Timestamp};
+    /// use transforms::{
+    ///     Registry,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
     ///
     /// let mut registry = Registry::<Timestamp>::new();
-    /// let transform = Transform::identity();
+    /// let transform = Transform {
+    ///     translation: Vector3::new(1.0, 0.0, 0.0),
+    ///     rotation: Quaternion::identity(),
+    ///     timestamp: Timestamp::zero(),
+    ///     parent: "base".into(),
+    ///     child: "sensor".into(),
+    /// };
     ///
     /// registry.add_transform(transform).unwrap();
     /// ```
@@ -429,6 +447,9 @@ where
     /// timestamp lower than the input argument. Static transforms are
     /// preserved: they are valid for all time, so cleaning them up by
     /// timestamp would silently destroy them.
+    ///
+    /// Frames left without any transforms are removed entirely, so the
+    /// registry does not grow without bound as frames come and go.
     pub fn delete_transforms_before(
         &mut self,
         timestamp: T,
@@ -436,6 +457,19 @@ where
         for buffer in self.data.values_mut() {
             buffer.delete_before(timestamp);
         }
+        self.data.retain(|_, buffer| !buffer.is_empty());
+    }
+
+    /// Removes a child frame and all of its transforms from the registry.
+    ///
+    /// Returns `true` if the frame existed. This is also the escape hatch
+    /// for re-parenting, which `add_transform` rejects: remove the frame,
+    /// then re-add it under its new parent.
+    pub fn remove_frame(
+        &mut self,
+        child: &str,
+    ) -> bool {
+        self.data.remove(child).is_some()
     }
 
     /// Adds a transform to the data buffer.
@@ -449,17 +483,59 @@ where
         data: &mut HashMap<String, Buffer<T>>,
         max_age: Option<Duration>,
     ) -> Result<(), BufferError> {
-        match data.entry(t.child.clone()) {
-            Entry::Occupied(mut entry) => entry.get_mut().insert(t),
-            Entry::Vacant(entry) => {
-                let buffer = match max_age {
-                    Some(max_age) => Buffer::with_max_age(max_age),
-                    None => Buffer::new(),
-                };
-                let buffer = entry.insert(buffer);
-                buffer.insert(t)
+        // A new child->parent relationship changes the tree topology; reject
+        // it if it would close a cycle. (Existing buffers have their parent
+        // pinned, so occupied inserts cannot.)
+        if !data.contains_key(&t.child) && Self::creates_cycle(&t.child, &t.parent, data) {
+            return Err(BufferError::CycleDetected);
+        }
+
+        if let Some(buffer) = data.get_mut(&t.child) {
+            return buffer.insert(t);
+        }
+
+        // New frame: fill the buffer BEFORE registering it in the map, so a
+        // failed insert cannot leave an empty, parentless frame behind —
+        // which would bypass the cycle check on a later insert of the same
+        // child frame.
+        let mut buffer = match max_age {
+            Some(max_age) => Buffer::with_max_age(max_age),
+            None => Buffer::new(),
+        };
+        let child = t.child.clone();
+        buffer.insert(t)?;
+        data.insert(child, buffer);
+        Ok(())
+    }
+
+    /// Returns `true` if adding the relationship `child -> parent` would
+    /// create a cycle in the frame tree.
+    ///
+    /// Walks upward from `parent` through the pinned buffer parents. The
+    /// existing tree is acyclic (every insert passes this check), so the walk
+    /// terminates at a root; the visited set is a defensive bound only.
+    fn creates_cycle(
+        child: &str,
+        parent: &str,
+        data: &HashMap<String, Buffer<T>>,
+    ) -> bool {
+        let mut visited = BTreeSet::new();
+        let mut current = parent;
+        while let Some(buffer) = data.get(current) {
+            if !visited.insert(current) {
+                return true;
+            }
+            match buffer.parent() {
+                Some(next) => {
+                    if next == child {
+                        return true;
+                    }
+                    current = next;
+                }
+                None => return false,
             }
         }
+        false
     }
 
     /// Retrieves and computes the transform between two frames at a specific timestamp.

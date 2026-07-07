@@ -80,7 +80,7 @@ use crate::{
     geometry::Transform,
     time::{TimePoint, Timestamp},
 };
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, string::String};
 use core::time::Duration;
 pub use error::BufferError;
 mod error;
@@ -101,6 +101,10 @@ type NearestTransforms<'a, T> = (
 /// value (`t=0` by default) makes the buffer static. Later inserts of the
 /// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
+/// The first insert also pins the buffer's parent frame: every later insert
+/// must carry the same parent. Re-parenting is rejected with
+/// `BufferError::ReparentingNotSupported`.
+///
 /// When constructed with [`Buffer::with_max_age`], entries older than
 /// `max_age` relative to the latest inserted timestamp are removed
 /// automatically on insert. A buffer created with [`Buffer::new`] never
@@ -113,6 +117,7 @@ where
     max_age: Option<Duration>,
     latest_timestamp: Option<T>,
     is_static: bool,
+    parent: Option<String>,
 }
 
 impl<T> Buffer<T>
@@ -137,6 +142,7 @@ where
             max_age: None,
             latest_timestamp: None,
             is_static: false,
+            parent: None,
         }
     }
 
@@ -161,7 +167,24 @@ where
             max_age: Some(max_age),
             latest_timestamp: None,
             is_static: false,
+            parent: None,
         }
+    }
+
+    /// Returns the buffer's parent frame, pinned by the first insert.
+    ///
+    /// `None` for a buffer that has never held a transform. The parent stays
+    /// pinned even if all entries are removed; drop the whole buffer
+    /// (`Registry::remove_frame`) to release it.
+    #[must_use]
+    pub fn parent(&self) -> Option<&str> {
+        self.parent.as_deref()
+    }
+
+    /// Returns `true` if the buffer holds no transforms.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     /// Adds a transform to the buffer.
@@ -183,6 +206,11 @@ where
     /// (static or dynamic) does not match the transforms already stored in
     /// this buffer. Mixing the two would silently corrupt interpolation, as
     /// the static timestamp would be treated as a regular data point.
+    ///
+    /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
+    /// and child are the same frame, and
+    /// `BufferError::ReparentingNotSupported` if the buffer's parent frame
+    /// (pinned by the first insert) differs from the transform's parent.
     ///
     /// # Examples
     ///
@@ -225,6 +253,17 @@ where
         transform: Transform<T>,
     ) -> Result<(), BufferError> {
         transform.validate()?;
+
+        if transform.parent == transform.child {
+            return Err(BufferError::SelfReferentialFrame);
+        }
+        if let Some(parent) = &self.parent {
+            if *parent != transform.parent {
+                return Err(BufferError::ReparentingNotSupported(parent.clone()));
+            }
+        } else {
+            self.parent = Some(transform.parent.clone());
+        }
 
         let timestamp = transform.timestamp;
         let is_static = timestamp.is_static();
