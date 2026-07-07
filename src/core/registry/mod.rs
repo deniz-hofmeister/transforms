@@ -558,21 +558,42 @@ where
             });
         }
 
-        let from_chain = Self::get_transform_chain(from, to, timestamp, data);
-        let to_chain = Self::get_transform_chain(to, from, timestamp, data);
+        let reached = |chain: &VecDeque<Transform<T>>, target: &str| {
+            chain.back().is_some_and(|tf| tf.parent == target)
+        };
 
-        let result = match (from_chain, to_chain) {
-            (Ok(mut from_chain), Ok(mut to_chain)) => {
-                Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
-                Self::reverse_and_invert_transforms(&mut to_chain)?;
-                Self::combine_transforms(from_chain, to_chain)
+        let from_chain = Self::get_transform_chain(from, to, timestamp, data);
+
+        let result = match from_chain {
+            // `to` is an ancestor of `from`: the from-side chain spans the
+            // whole path, no to-side walk is needed.
+            Ok(from_chain) if reached(&from_chain, to) => {
+                Self::combine_transforms(from_chain, VecDeque::new())
             }
-            (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
-            (Err(_), Ok(mut to_chain)) => {
-                Self::reverse_and_invert_transforms(&mut to_chain)?;
-                Self::combine_transforms(VecDeque::new(), to_chain)
-            }
-            (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
+            from_chain => match (
+                from_chain,
+                Self::get_transform_chain(to, from, timestamp, data),
+            ) {
+                // `from` is an ancestor of `to`: the to-side chain spans the
+                // whole path by itself.
+                (_, Ok(mut to_chain)) if reached(&to_chain, from) => {
+                    Self::reverse_and_invert_transforms(&mut to_chain)?;
+                    Self::combine_transforms(VecDeque::new(), to_chain)
+                }
+                // Both chains ran to the root: drop the shared suffix above
+                // the common parent and combine the remainders.
+                (Ok(mut from_chain), Ok(mut to_chain)) => {
+                    Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
+                    Self::reverse_and_invert_transforms(&mut to_chain)?;
+                    Self::combine_transforms(from_chain, to_chain)
+                }
+                (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
+                (Err(_), Ok(mut to_chain)) => {
+                    Self::reverse_and_invert_transforms(&mut to_chain)?;
+                    Self::combine_transforms(VecDeque::new(), to_chain)
+                }
+                (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
+            },
         }?;
 
         // A chain can resolve without ever reaching the requested frame, for
@@ -673,20 +694,30 @@ where
         data: &HashMap<String, Buffer<T>>,
     ) -> Result<VecDeque<Transform<T>>, TransformError> {
         let mut transforms = VecDeque::new();
-        let mut visited = BTreeSet::new();
         let mut current_frame: String = from.into();
 
+        // The frame tree is acyclic by construction (cycles are rejected at
+        // insertion), so the walk terminates at a root; the depth bound is a
+        // defensive backstop only.
+        let mut remaining = data.len();
         while let Some(frame_buffer) = data.get(&current_frame) {
-            if !visited.insert(current_frame.clone()) {
+            if remaining == 0 {
                 return Err(TransformError::NotFound(from.into(), to.into()));
             }
+            remaining -= 1;
 
             match frame_buffer.get(&timestamp) {
                 Ok(tf) => {
-                    transforms.push_back(tf.clone());
                     current_frame.clone_from(&tf.parent);
+                    transforms.push_back(tf);
                 }
                 Err(_) => break,
+            }
+
+            // Reaching `to` completes the chain; walking on to the root would
+            // only add work that truncate_at_common_parent discards again.
+            if current_frame == to {
+                break;
             }
         }
 
