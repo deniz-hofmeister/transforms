@@ -11,7 +11,7 @@ documentation = "https://docs.rs/transforms"
 keywords = ["robotics", "transform", "3d", "coordinate"]
 categories = ["science::robotics", "no-std", "simulation", "mathematics"]
 readme = "README.md"
-include = ["/src", "/Cargo.toml", "/README.md", "/LICENSE"]
+include = ["/src", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE"]
 
 [features]
 default = ["std"]

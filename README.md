@@ -33,114 +33,25 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 ## What's New
 
-### v2.0.0 — Stricter validation and a Rust-first API cleanup
+Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
-Correctness fixes, boundary validation, a real `no_std` story, and a
-Rust-first API cleanup; `add_transform` is now fallible:
+### v2.0.0 highlights
 
-- `get_transform` now verifies that the resolved chain actually connects the two
-  requested frames. Previously, querying a frame name that did not exist in the
-  tree could silently return the transform to the tree root instead of an error.
-- `add_transform` now returns `Result` and rejects mixing static (`t=0`) and
-  dynamic transforms for the same child frame, which previously corrupted
-  interpolation or silently shadowed data. A child frame is either static or
-  dynamic, never both.
-- `Transform` multiplication now only accepts valid compositions
-  (`t_a_b * t_b_c`); the reversed operand order previously produced a
-  frame-inconsistent result.
-- Removed the deprecated `TimestampError` alias (use `TimeError`) and the
-  never-produced `BufferError::MaxAgeInvalid` variant.
-- Added `Quaternion::new(w, x, y, z)` and `Timestamp::from_nanos(nanos)`.
-- `no_std` `Registry` and `Buffer` now implement `Default`.
-- Error `Display` messages are now lowercase per the Rust API guidelines.
-- Crate upgraded to edition 2024 with `rust-version` 1.86 declared.
-- `no_std` now works on real bare-metal targets (CI builds
-  `thumbv7em-none-eabihf`): float math falls back to `libm`, and dependencies
-  no longer pull in `std`.
-- The `std` feature is additive: `Registry::new()` / `Buffer::new()` (no
-  automatic cleanup) and `Registry::with_max_age` / `Buffer::with_max_age`
-  (automatic cleanup) exist in both modes, as does `Default`.
-- Transforms are validated on insertion: non-finite values and non-unit
-  rotations (beyond `Transform::UNIT_NORM_TOLERANCE`) are rejected instead of
-  silently corrupting later lookups. `Transform::validate` is public.
-- Manual cleanup (`delete_transforms_before`) no longer destroys static
-  transforms.
-- `==` on geometry types is now exact; tolerant comparison moved to the
-  `approx` traits (`assert_abs_diff_eq!`). The unsound `Eq` impl on
-  `Transform` and the meaningless `PartialOrd` derives on `Quaternion`,
-  `Vector3`, and `Point` are gone.
-- `Registry`'s internal storage is private; error enums are
-  `#[non_exhaustive]`; added `Timestamp::as_nanos()`.
-- The frame tree is strict: re-parenting, self-referential frames, and cycles
-  are rejected at insertion; `Registry::remove_frame` removes a frame (and is
-  the escape hatch for re-parenting); manual cleanup prunes empty frames.
-- `get_transform(x, x, t)` returns the identity; lookup results always carry
-  the requested timestamp (also over static chains), and static transforms
-  apply to data of any timestamp through `Transformable`.
-- Error diagnostics survive wall-clock timestamps (`TimePoint::as_seconds_lossy`),
-  and out-of-range interpolation reports `TimestampOutOfRange` with the
-  requested time and both range endpoints.
-- Panic policy enforced with clippy restriction lints and documented in a new
-  crate-level Reliability section; all public types are `Send + Sync`.
-- Optional `serde` feature; property-based test suite (proptest);
-  deterministic test fixtures; rewritten, non-mutating benchmarks.
-- MSRV is 1.86, verified in CI alongside clippy/doc/audit/bare-metal jobs.
+- **Correct by construction**: transforms are validated on insertion (finite
+  values, unit rotations), the frame tree is strict (single pinned parent,
+  no cycles), and lookups either answer the exact question asked or return an
+  error — the silent-wrong-answer failure modes of 1.x are gone.
+- **Real `no_std`**: builds for bare-metal targets (CI proves it on
+  `thumbv7em-none-eabihf`); the `std` feature is additive, and automatic
+  cleanup (`with_max_age`) works in both modes.
+- **Rust-first API cleanup**: exact `==` with tolerant comparison in the
+  `approx` traits, `#[non_exhaustive]` errors, private internals, optional
+  `serde` support, an enforced panic policy, and MSRV 1.86.
+
+`add_transform` is now fallible — the headline migration for 1.x users:
 
 ```rust
-// add_transform is now fallible
 registry.add_transform(transform)?;
-```
-
-### v1.4.0 — Read-only getters
-
-`get_transform`, `get_transform_for`, and `get_transform_at` now take `&self` instead of `&mut self`, making concurrent reads possible without exclusive access.
-
-```rust
-// No &mut needed — share the registry freely
-let registry: &Registry = /* ... */;
-let tf = registry.get_transform("base", "sensor", timestamp)?;
-```
-
-### v1.3.0 — `get_transform_for` and `Localized` trait
-
-Resolve and apply a transform directly from any type that implements `Localized`, without manual frame/timestamp bookkeeping.
-
-```rust
-let point = Point { position: Vector3::new(1.0, 0.0, 0.0), orientation: Quaternion::identity(), timestamp, frame: "camera".into() };
-let tf = registry.get_transform_for(&point, "map")?;
-```
-
-### v1.2.0 — `TimePoint` trait and `get_transform_at`
-
-All core types are now generic over time via the `TimePoint` trait. `std::time::SystemTime` works out of the box. A new `get_transform_at` API enables querying transforms at different timestamps per frame ("time travel").
-
-```rust
-// Use SystemTime instead of Timestamp
-let mut registry = Registry::<SystemTime>::new(Duration::from_secs(60));
-
-// Time travel: source at t1, target at t2, through a fixed frame
-let tf = registry.get_transform_at("target", t2, "source", t1, "world")?;
-```
-
-### v1.1.0 — Static/dynamic mixing fix
-
-Fixed a bug where static transforms (timestamp = 0) and dynamic transforms could not coexist in the same tree. Buffer expiration now uses the latest inserted timestamp instead of wall-clock time.
-
-```rust
-// Static sensor mount + dynamic robot pose now work together
-registry.add_transform(static_camera_mount); // timestamp = 0
-registry.add_transform(dynamic_robot_pose); // timestamp = now
-let tf = registry.get_transform("map", "camera", Timestamp::now())?;
-```
-
-### v1.0.0 — Stable release
-
-First stable release with `no_std` support, transform chaining, SLERP interpolation, `Transformable` trait, and automatic buffer cleanup.
-
-```rust
-let mut registry = Registry::new(Duration::from_secs(60));
-registry.add_transform(transform);
-let result = registry.get_transform("base", "sensor", timestamp)?;
 ```
 
 ## Installation
@@ -326,7 +237,8 @@ child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 The frame tree is strict: a child frame's parent is pinned by its first
 transform (re-parenting is rejected — remove the frame with
 `Registry::remove_frame` and re-add it to change its parent), a frame cannot
-be its own parent, and cycles are rejected at insertion.
+be its own parent, and cycles are rejected at insertion. Native re-parenting
+support may become a feature in a later release.
 
 ```rust
 // Static transform: camera mount position (never changes)
