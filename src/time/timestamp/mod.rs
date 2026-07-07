@@ -42,6 +42,10 @@ impl Timestamp {
     /// ```
     #[cfg(feature = "std")]
     #[must_use]
+    #[allow(
+        clippy::expect_used,
+        reason = "the pre-epoch panic is documented above; no meaningful recovery exists"
+    )]
     pub fn now() -> Self {
         let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)

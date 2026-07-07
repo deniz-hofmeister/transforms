@@ -176,14 +176,34 @@
 //! [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) that wraps
 //! this crate for pure-Rust ROS clients.
 //!
-//! # Safety
+//! # Reliability
 //!
-//! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
+//! - **Memory safety**: `#![forbid(unsafe_code)]` — pure Rust throughout.
+//! - **Panic policy**: library code does not panic on reachable paths; the
+//!   single documented exception is `Timestamp::now()` on a system clock
+//!   before the Unix epoch. This is enforced with clippy's `unwrap_used`,
+//!   `expect_used`, `panic`, and `indexing_slicing` restriction lints.
+//! - **Checked arithmetic**: all time arithmetic is checked; overflow and
+//!   underflow surface as errors, never as wraparound.
+//! - **Validated inputs**: transforms are validated at the registry boundary
+//!   (finite values, unit rotations, an acyclic single-parent frame tree);
+//!   invalid data is rejected with an error rather than corrupting lookups.
+//! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
+//!   your preferred lock for concurrent use (see the README for an example).
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::alloc_instead_of_core)]
 #![warn(clippy::std_instead_of_core)]
+#![cfg_attr(
+    not(test),
+    warn(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(not(feature = "std"), no_std)]
 

@@ -1484,4 +1484,16 @@ mod registry_tests {
         assert_eq!(point.frame, "base");
         assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
     }
+
+    #[test]
+    fn public_types_are_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Registry>();
+        assert_send_sync::<crate::core::Buffer>();
+        assert_send_sync::<Transform>();
+        assert_send_sync::<Point>();
+        assert_send_sync::<Vector3>();
+        assert_send_sync::<Quaternion>();
+        assert_send_sync::<Timestamp>();
+    }
 }
