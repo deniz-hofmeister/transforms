@@ -1,3 +1,5 @@
+//! Traits for locating values in a frame and applying transforms to them.
+
 use crate::{
     geometry::transform::{Transform, TransformError},
     time::{TimePoint, Timestamp},
@@ -15,9 +17,9 @@ use crate::{
 ///
 /// ```
 /// use transforms::{
+///     Localized,
 ///     geometry::{Point, Quaternion, Vector3},
 ///     time::Timestamp,
-///     Localized,
 /// };
 ///
 /// let point = Point {
@@ -60,6 +62,13 @@ where
 /// a sensor frame), while the parent frame is typically the more general/global frame
 /// (e.g., map or world frame).
 ///
+/// # Errors
+///
+/// Returns `TransformError` if:
+/// - The frames are incompatible (transform's child frame doesn't match the object's frame)
+/// - The timestamps don't match
+/// - Other transform-specific errors occur
+///
 /// # Examples
 ///
 /// ```
@@ -86,29 +95,13 @@ where
 /// // Transform the point from camera frame to base frame
 /// point
 ///     .transform(&transform)
-///     .expect("Failed to transform point");
+///     .expect("failed to transform point");
 /// ```
-///
-/// # Errors
-///
-/// Returns `TransformError` if:
-/// - The frames are incompatible (transform's child frame doesn't match the object's frame)
-/// - The timestamps don't match
-/// - Other transform-specific errors occur
 pub trait Transformable<T = Timestamp>
 where
     T: TimePoint,
 {
     /// Applies a transform to this object, modifying it in place.
-    ///
-    /// # Arguments
-    ///
-    /// * `transform` - The transform to apply to this object
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the transformation was successful
-    /// * `Err(TransformError)` if the transformation failed
     ///
     /// # Errors
     ///

@@ -8,12 +8,13 @@
 //! With `std`, `std::time::SystemTime` already implements `TimePoint`, so
 //! `Registry::<SystemTime>` is ready to use.
 
-pub mod error;
+/// Error types for time operations.
+mod error;
+/// The default [`Timestamp`] time type.
 pub mod timestamp;
+/// The [`TimePoint`] trait for custom time types.
 pub mod traits;
 pub use error::TimeError;
-#[allow(deprecated)]
-pub use error::TimestampError;
 pub use timestamp::Timestamp;
 pub use traits::TimePoint;
 

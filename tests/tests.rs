@@ -1,19 +1,16 @@
-use log::debug;
 use std::time::Duration;
 use transforms::{
+    Registry,
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
-    Registry,
 };
 
 #[test]
 fn test_matching_tree() {
-    let _ = env_logger::try_init();
-
     #[cfg(not(feature = "std"))]
     let mut registry = Registry::new();
     #[cfg(not(feature = "std"))]
-    let t = Timestamp { t: 1_000_000_000 };
+    let t = Timestamp::from_nanos(1_000_000_000);
 
     #[cfg(feature = "std")]
     let mut registry = Registry::new(Duration::from_secs(10));
@@ -22,17 +19,8 @@ fn test_matching_tree() {
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {
-        translation: Vector3 {
-            x: 1.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(1.0, 0.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: t,
         parent: "a".into(),
         child: "b".into(),
@@ -40,34 +28,16 @@ fn test_matching_tree() {
 
     // Child frame B at t=1, x=2m without rotation
     let t_a_b_1 = Transform {
-        translation: Vector3 {
-            x: 2.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
-        timestamp: (t + Duration::from_millis(1000)).unwrap(),
+        translation: Vector3::new(2.0, 0.0, 0.0),
+        rotation: Quaternion::identity(),
+        timestamp: (t + Duration::from_secs(1)).unwrap(),
         parent: "a".into(),
         child: "b".into(),
     };
     // Child frame C at t=0, y=1m without rotation
     let t_b_c_0 = Transform {
-        translation: Vector3 {
-            x: 0.,
-            y: 1.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(0.0, 1.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: (t + Duration::from_millis(500)).unwrap(),
         parent: "b".into(),
         child: "c".into(),
@@ -75,17 +45,8 @@ fn test_matching_tree() {
 
     // Child frame B at t=1, y=2m without rotation
     let t_b_c_1 = Transform {
-        translation: Vector3 {
-            x: 0.,
-            y: 2.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(0.0, 2.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: (t + Duration::from_millis(1500)).unwrap(),
         parent: "b".into(),
         child: "c".into(),
@@ -98,17 +59,8 @@ fn test_matching_tree() {
 
     let middle_timestamp = (t + Duration::from_millis(750)).unwrap();
     let t_a_c = Transform {
-        translation: Vector3 {
-            x: 1.75,
-            y: 1.25,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(1.75, 1.25, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: middle_timestamp,
         parent: "a".into(),
         child: "c".into(),
@@ -116,25 +68,16 @@ fn test_matching_tree() {
 
     let r = registry.get_transform("a", "c", middle_timestamp);
 
-    debug!("Result: {:?}", r);
-    debug!("Expected: {:?}", t_a_c);
-
-    assert!(r.is_ok(), "Registry returned Error, expected Ok");
-    assert_eq!(
-        r.unwrap(),
-        t_a_c,
-        "Registry returned a transform that is different"
-    );
+    assert!(r.is_ok(), "expected Ok, got {r:?}");
+    assert_eq!(r.unwrap(), t_a_c);
 }
 
 #[test]
 fn test_non_matching_tree() {
-    let _ = env_logger::try_init();
-
     #[cfg(not(feature = "std"))]
     let mut registry = Registry::new();
     #[cfg(not(feature = "std"))]
-    let t = Timestamp { t: 1_000_000_000 };
+    let t = Timestamp::from_nanos(1_000_000_000);
 
     #[cfg(feature = "std")]
     let mut registry = Registry::new(Duration::from_secs(10));
@@ -143,17 +86,8 @@ fn test_non_matching_tree() {
 
     // Child frame B at t=0, x=1m without rotation
     let t_a_b_0 = Transform {
-        translation: Vector3 {
-            x: 1.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(1.0, 0.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: t,
         parent: "a".into(),
         child: "b".into(),
@@ -161,17 +95,8 @@ fn test_non_matching_tree() {
 
     // Child frame B at t=1, x=2m without rotation
     let t_a_b_1 = Transform {
-        translation: Vector3 {
-            x: 2.,
-            y: 0.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(2.0, 0.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: (t + Duration::from_secs(1)).unwrap(),
         parent: "a".into(),
         child: "b".into(),
@@ -179,17 +104,8 @@ fn test_non_matching_tree() {
 
     // Child frame C at t=0, y=1m without rotation
     let t_b_c_0 = Transform {
-        translation: Vector3 {
-            x: 0.,
-            y: 1.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(0.0, 1.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: (t + Duration::from_secs(2)).unwrap(),
         parent: "b".into(),
         child: "c".into(),
@@ -197,17 +113,8 @@ fn test_non_matching_tree() {
 
     // Child frame B at t=1, y=2m without rotation
     let t_b_c_1 = Transform {
-        translation: Vector3 {
-            x: 0.,
-            y: 2.,
-            z: 0.,
-        },
-        rotation: Quaternion {
-            w: 1.,
-            x: 0.,
-            y: 0.,
-            z: 0.,
-        },
+        translation: Vector3::new(0.0, 2.0, 0.0),
+        rotation: Quaternion::identity(),
         timestamp: (t + Duration::from_secs(3)).unwrap(),
         parent: "b".into(),
         child: "c".into(),
@@ -220,7 +127,5 @@ fn test_non_matching_tree() {
 
     let r = registry.get_transform("a", "c", t);
 
-    debug!("Result: {:?}", r);
-
-    assert!(r.is_err(), "Registry returned Ok, expected Err");
+    assert!(r.is_err(), "expected Err, got {r:?}");
 }

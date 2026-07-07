@@ -5,37 +5,37 @@ mod timestamp_tests {
 
     #[test]
     fn creation() {
-        let _ = Timestamp { t: 1 };
+        let _ = Timestamp::from_nanos(1);
     }
 
     #[test]
     fn ordering() {
-        let t1 = Timestamp { t: 1 };
-        let t2 = Timestamp { t: 2 };
-        let t3 = Timestamp { t: 2 };
+        let t1 = Timestamp::from_nanos(1);
+        let t2 = Timestamp::from_nanos(2);
+        let t3 = Timestamp::from_nanos(2);
 
         assert!(t1 < t2);
         assert!(t2 > t1);
-        assert!(t2 == t3);
+        assert_eq!(t2, t3);
         assert!(t2 >= t1);
         assert!(t1 <= t2);
     }
 
     #[test]
     fn as_seconds() {
-        let timestamp = Timestamp { t: 1_500_000_000 };
+        let timestamp = Timestamp::from_nanos(1_500_000_000);
         assert_relative_eq!(timestamp.as_seconds().unwrap(), 1.5);
 
-        let timestamp = Timestamp { t: 0 };
+        let timestamp = Timestamp::zero();
         assert_relative_eq!(timestamp.as_seconds().unwrap(), 0.0);
 
-        let timestamp = Timestamp { t: 1_000_000_000 };
+        let timestamp = Timestamp::from_nanos(1_000_000_000);
         assert_relative_eq!(timestamp.as_seconds().unwrap(), 1.0);
     }
 
     #[test]
     fn as_seconds_accuracy_loss() {
-        let timestamp = Timestamp { t: u128::MAX - 1 };
+        let timestamp = Timestamp::from_nanos(u128::MAX - 1);
         assert!(matches!(
             timestamp.as_seconds(),
             Err(TimeError::AccuracyLoss)

@@ -1,24 +1,15 @@
 #[cfg(test)]
 mod buffer_tests {
     use crate::{
-        core::{buffer::BufferError, Buffer},
+        core::{Buffer, buffer::BufferError},
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
     };
     use core::time::Duration;
 
     fn create_transform(t: Timestamp) -> Transform {
-        let translation = Vector3 {
-            x: 1.0,
-            y: 2.0,
-            z: 3.0,
-        };
-        let rotation = Quaternion {
-            w: 1.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        };
+        let translation = Vector3::new(1.0, 2.0, 3.0);
+        let rotation = Quaternion::identity();
         let timestamp = t;
         let parent = "map".into();
         let child = "base".into();
@@ -48,14 +39,14 @@ mod buffer_tests {
 
         let mut r = buffer.get(&transform.timestamp);
 
-        assert!(r.is_ok(), "transform not found");
+        assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
 
         r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
-        assert!(r.is_err(), "transform found, but shouldn't have");
+        assert!(r.is_err(), "expected no transform, got {r:?}");
 
         r = buffer.get(&(transform.timestamp - Duration::from_secs(1)).unwrap());
-        assert!(r.is_err(), "transform found, but shouldn't have");
+        assert!(r.is_err(), "expected no transform, got {r:?}");
     }
 
     #[test]
@@ -73,11 +64,11 @@ mod buffer_tests {
 
         let mut r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
 
-        assert!(r.is_ok(), "transform not found");
+        assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
 
         r = buffer.get(&(transform.timestamp + Duration::from_secs(2)).unwrap());
-        assert!(r.is_ok(), "transform not found");
+        assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
     }
 
@@ -113,13 +104,13 @@ mod buffer_tests {
         assert_eq!(after.unwrap(), (&p2.timestamp, &p2));
 
         // Before first point
-        let p_0 = (p1.timestamp - Duration::from_millis(1000)).unwrap();
+        let p_0 = (p1.timestamp - Duration::from_secs(1)).unwrap();
         let (before, after) = buffer.get_nearest(&p_0);
         assert_eq!(before, None);
         assert_eq!(after.unwrap(), (&p1.timestamp, &p1));
 
         // After last point
-        let p_4 = (p3.timestamp + Duration::from_millis(1000)).unwrap();
+        let p_4 = (p3.timestamp + Duration::from_secs(1)).unwrap();
         let (before, after) = buffer.get_nearest(&p_4);
         assert_eq!(before.unwrap(), (&p3.timestamp, &p3));
         assert_eq!(after, None);
@@ -143,9 +134,9 @@ mod buffer_tests {
         #[cfg(feature = "std")]
         let buffer = Buffer::new(Duration::from_secs(10));
 
-        assert!(buffer.get(&Timestamp { t: 1000 }).is_err());
+        assert!(buffer.get(&Timestamp::from_nanos(1000)).is_err());
 
-        let (before, after) = buffer.get_nearest(&Timestamp { t: 1000 });
+        let (before, after) = buffer.get_nearest(&Timestamp::from_nanos(1000));
         assert!(before.is_none());
         assert!(after.is_none());
     }
@@ -165,7 +156,7 @@ mod buffer_tests {
         assert!(buffer.get(&p1.timestamp).is_ok());
         assert!(buffer.get(&p2.timestamp).is_ok());
 
-        buffer.delete_before(Timestamp { t: 2_000_000_000 });
+        buffer.delete_before(Timestamp::from_nanos(2_000_000_000));
 
         assert!(buffer.get(&p1.timestamp).is_err());
         assert!(buffer.get(&p2.timestamp).is_ok());

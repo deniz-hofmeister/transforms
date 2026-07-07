@@ -1,3 +1,5 @@
+//! The default nanosecond-resolution timestamp type.
+
 use core::{
     cmp::Ordering,
     ops::{Add, Sub},
@@ -9,10 +11,6 @@ use crate::time::{TimeError, TimePoint};
 #[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub mod error;
-#[allow(deprecated)]
-pub use error::TimestampError;
-
 /// Default concrete time type used by this crate.
 ///
 /// `Timestamp` stores a time value in `u128` nanoseconds.
@@ -21,14 +19,18 @@ pub use error::TimestampError;
 /// use it with `Registry<T>`.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Timestamp {
+    /// Nanoseconds since the epoch of the chosen clock.
     pub t: u128,
 }
 
 impl Timestamp {
-    #[cfg(feature = "std")]
-    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized to the current time.
+    ///
     /// This functionality is useful for dynamic transforms.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
     ///
     /// # Examples
     ///
@@ -38,22 +40,20 @@ impl Timestamp {
     /// let now = Timestamp::now();
     /// assert!(now.t > 0);
     /// ```
-    ///
-    /// # Panics
-    ///
-    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
+    #[cfg(feature = "std")]
+    #[must_use]
     pub fn now() -> Self {
         let duration_since_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
+            .expect("time went backwards");
 
         Timestamp {
             t: duration_since_epoch.as_nanos(),
         }
     }
 
-    #[must_use = "this returns the result of the operation"]
     /// Returns a `Timestamp` initialized at zero.
+    ///
     /// This functionality is especially useful for static transforms.
     ///
     /// # Examples
@@ -64,34 +64,47 @@ impl Timestamp {
     /// let zero = Timestamp::zero();
     /// assert_eq!(zero.t, 0);
     /// ```
-    pub fn zero() -> Self {
+    #[must_use]
+    pub const fn zero() -> Self {
         Timestamp { t: 0 }
     }
 
-    /// Converts the `Timestamp` to seconds as a floating-point number.
-    ///
-    /// Returns an error if the conversion results in accuracy loss.
+    /// Creates a `Timestamp` from a number of nanoseconds.
     ///
     /// # Examples
     ///
     /// ```
     /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp { t: 1_000_000_000 };
-    /// let result = timestamp.as_seconds();
-    /// assert!(result.is_ok());
-    /// assert_eq!(result.unwrap(), 1.0);
-    ///
-    /// let timestamp = Timestamp {
-    ///     t: 1_000_000_000_000_000_001,
-    /// };
-    /// let result = timestamp.as_seconds();
-    /// assert!(result.is_err());
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+    /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
     /// ```
+    #[must_use]
+    pub const fn from_nanos(nanos: u128) -> Self {
+        Timestamp { t: nanos }
+    }
+
+    /// Converts the `Timestamp` to seconds as a floating-point number.
     ///
     /// # Errors
     ///
     /// Returns `TimeError::AccuracyLoss` if the conversion is not exact.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+    /// let result = timestamp.as_seconds();
+    /// assert!(result.is_ok());
+    /// assert_eq!(result.unwrap(), 1.0);
+    ///
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
+    /// let result = timestamp.as_seconds();
+    /// assert!(result.is_err());
+    /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn as_seconds(&self) -> Result<f64, TimeError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         #[allow(clippy::cast_precision_loss)]
@@ -106,7 +119,6 @@ impl Timestamp {
         }
     }
 
-    #[must_use = "this returns the result of the operation"]
     /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
     ///
     /// # Examples
@@ -114,12 +126,11 @@ impl Timestamp {
     /// ```
     /// use transforms::time::Timestamp;
     ///
-    /// let timestamp = Timestamp {
-    ///     t: 1_000_000_000_000_000_001,
-    /// };
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
     /// let seconds = timestamp.as_seconds_unchecked();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[allow(clippy::cast_precision_loss)]
     pub fn as_seconds_unchecked(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;

@@ -1,27 +1,58 @@
+//! Quaternions for representing rotations in 3D space.
+
 use crate::geometry::Vector3;
-use core::ops::{Add, Div, Mul, Sub};
-pub mod error;
 use approx::AbsDiffEq;
+use core::ops::{Add, Div, Mul, Sub};
 pub use error::QuaternionError;
+
+mod error;
 
 /// A quaternion representing a rotation in 3D space.
 #[derive(Debug, Clone, Copy, PartialOrd)]
 pub struct Quaternion {
+    /// The scalar (real) part of the quaternion.
     pub w: f64,
+    /// The `x` component of the vector part.
     pub x: f64,
+    /// The `y` component of the vector part.
     pub y: f64,
+    /// The `z` component of the vector part.
     pub z: f64,
 }
 
-// Optional: Implement Default trait which returns identity
 impl Default for Quaternion {
+    /// Returns the identity quaternion.
     fn default() -> Self {
         Self::identity()
     }
 }
 
 impl Quaternion {
-    #[must_use = "Quaternion must be assigned to a variable to be used"]
+    /// Creates a new quaternion from its `w`, `x`, `y`, and `z` components.
+    ///
+    /// The scalar part `w` comes first, matching the field order of this type.
+    /// No normalization is performed; rotations are expected to be unit
+    /// quaternions, so call [`Quaternion::normalize`] if the components do not
+    /// already form one.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::Quaternion;
+    ///
+    /// let q = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+    /// assert_eq!(q, Quaternion::identity());
+    /// ```
+    #[must_use]
+    pub const fn new(
+        w: f64,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> Self {
+        Self { w, x, y, z }
+    }
+
     /// Creates an identity quaternion representing no rotation.
     ///
     /// Returns a quaternion with w=1 and x=y=z=0, which represents the identity rotation
@@ -38,7 +69,8 @@ impl Quaternion {
     /// assert_eq!(q.y, 0.0);
     /// assert_eq!(q.z, 0.0);
     /// ```
-    pub fn identity() -> Self {
+    #[must_use]
+    pub const fn identity() -> Self {
         Self {
             w: 1.0,
             x: 0.0,
@@ -47,7 +79,6 @@ impl Quaternion {
         }
     }
 
-    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Returns the conjugate of the quaternion.
     ///
     /// # Examples
@@ -55,22 +86,10 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion {
-    ///     w: 1.0,
-    ///     x: 2.0,
-    ///     y: 3.0,
-    ///     z: 4.0,
-    /// };
-    /// assert_eq!(
-    ///     q.conjugate(),
-    ///     Quaternion {
-    ///         w: 1.0,
-    ///         x: -2.0,
-    ///         y: -3.0,
-    ///         z: -4.0
-    ///     }
-    /// );
+    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.conjugate(), Quaternion::new(1.0, -2.0, -3.0, -4.0));
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn conjugate(self) -> Quaternion {
         Quaternion {
@@ -92,21 +111,11 @@ impl Quaternion {
     /// ```
     /// use transforms::{errors::QuaternionError, geometry::Quaternion};
     ///
-    /// let q = Quaternion {
-    ///     w: 1.0,
-    ///     x: 2.0,
-    ///     y: 3.0,
-    ///     z: 4.0,
-    /// };
+    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
     /// let normalized = q.normalize().unwrap();
     /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
     ///
-    /// let zero_q = Quaternion {
-    ///     w: 0.0,
-    ///     x: 0.0,
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
+    /// let zero_q = Quaternion::new(0.0, 0.0, 0.0, 0.0);
     /// assert!(matches!(
     ///     zero_q.normalize(),
     ///     Err(QuaternionError::ZeroLengthNormalization)
@@ -121,7 +130,6 @@ impl Quaternion {
         Ok(self.scale(1.0 / norm))
     }
 
-    #[must_use = "f64 must be assigned to a variable to be used"]
     /// Computes the norm (magnitude) of the quaternion.
     ///
     /// # Examples
@@ -129,20 +137,15 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion {
-    ///     w: 1.0,
-    ///     x: 1.0,
-    ///     y: 1.0,
-    ///     z: 1.0,
-    /// };
+    /// let q = Quaternion::new(1.0, 1.0, 1.0, 1.0);
     /// assert_eq!(q.norm(), 2.0);
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn norm(self) -> f64 {
         (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
 
-    #[must_use = "f64 must be assigned to a variable to be used"]
     /// Computes the squared norm of the quaternion.
     ///
     /// This is the sum of the squares of the components.
@@ -152,20 +155,15 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion {
-    ///     w: 1.0,
-    ///     x: 2.0,
-    ///     y: 2.0,
-    ///     z: 2.0,
-    /// };
+    /// let q = Quaternion::new(1.0, 2.0, 2.0, 2.0);
     /// assert_eq!(q.norm_squared(), 13.0);
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn norm_squared(self) -> f64 {
         self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z
     }
 
-    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Scales the quaternion by a given factor.
     ///
     /// Multiplies each component of the quaternion by the factor.
@@ -175,8 +173,10 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion { w: 1.0, x: 2.0, y: 3.0, z: 4.0 };
-    /// assert_eq!(q.scale(2.0), Quaternion { w: 2.0, x: 4.0, y: 6.0, z: 8.0 });
+    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.scale(2.0), Quaternion::new(2.0, 4.0, 6.0, 8.0));
+    /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn scale(
         self,
@@ -190,7 +190,6 @@ impl Quaternion {
         }
     }
 
-    #[must_use = "Vector must be assigned to a variable to be used"]
     /// Rotates a vector by the quaternion.
     ///
     /// The vector is treated as a pure quaternion with a real part of zero.
@@ -201,26 +200,16 @@ impl Quaternion {
     /// use transforms::geometry::{Quaternion, Vector3};
     /// # use approx::assert_relative_eq;
     ///
-    /// let q = Quaternion {
-    ///     w: (core::f64::consts::PI / 4.0).cos(),
-    ///     x: 0.0,
-    ///     y: 0.0,
-    ///     z: (core::f64::consts::PI / 4.0).sin(),
-    /// };
-    /// let v = Vector3 {
-    ///     x: 1.0,
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
-    /// assert_relative_eq!(
-    ///     q.rotate_vector(v),
-    ///     Vector3 {
-    ///         x: 0.0,
-    ///         y: 1.0,
-    ///         z: 0.0
-    ///     }
+    /// let q = Quaternion::new(
+    ///     (core::f64::consts::PI / 4.0).cos(),
+    ///     0.0,
+    ///     0.0,
+    ///     (core::f64::consts::PI / 4.0).sin(),
     /// );
+    /// let v = Vector3::new(1.0, 0.0, 0.0);
+    /// assert_relative_eq!(q.rotate_vector(v), Vector3::new(0.0, 1.0, 0.0));
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn rotate_vector(
         self,
@@ -240,7 +229,6 @@ impl Quaternion {
         }
     }
 
-    #[must_use = "Quaternion must be assigned to a variable to be used"]
     /// Performs spherical linear interpolation (slerp) between two quaternions.
     ///
     /// Interpolates between `self` and `other` by the factor `t`.
@@ -251,30 +239,16 @@ impl Quaternion {
     /// use transforms::geometry::Quaternion;
     /// # use approx::assert_relative_eq;
     ///
-    /// let q1 = Quaternion {
-    ///     w: 1.0,
-    ///     x: 0.0,
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
-    /// let q2 = Quaternion {
-    ///     w: 0.0,
-    ///     x: 1.0,
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
+    /// let q1 = Quaternion::identity();
+    /// let q2 = Quaternion::new(0.0, 1.0, 0.0, 0.0);
     /// let result = q1.slerp(q2, 0.5);
-    /// let expected = Quaternion {
-    ///     w: (0.5_f64).sqrt(),
-    ///     x: (0.5_f64).sqrt(),
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
+    /// let expected = Quaternion::new((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
     /// assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.z, expected.z, epsilon = f64::EPSILON);
     /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn slerp(
         self,

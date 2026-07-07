@@ -1,6 +1,6 @@
 #[cfg(feature = "std")]
 use core::time::Duration;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
@@ -9,23 +9,14 @@ use transforms::{
 
 fn create_sample_transform() -> Transform {
     Transform {
-        translation: Vector3 {
-            x: 1.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        rotation: Quaternion {
-            w: 1.0,
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
+        translation: Vector3::new(1.0, 0.0, 0.0),
+        rotation: Quaternion::identity(),
         #[cfg(not(feature = "std"))]
         timestamp: Timestamp::zero(),
         #[cfg(feature = "std")]
         timestamp: Timestamp::now(),
-        parent: "a".to_string(),
-        child: "b".to_string(),
+        parent: "a".into(),
+        child: "b".into(),
     }
 }
 
@@ -118,29 +109,31 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
 
         // Prepare registry with 1000 transforms
         let mut transform = Transform::identity();
-        transform.parent = "a_999".to_string();
-        transform.child = "b_0".to_string();
+        transform.parent = "a_999".into();
+        transform.child = "b_0".into();
         registry.add_transform(transform).unwrap();
 
         let mut transform = Transform::identity();
-        transform.parent = "a_999".to_string();
-        transform.child = "c_0".to_string();
+        transform.parent = "a_999".into();
+        transform.child = "c_0".into();
         registry.add_transform(transform).unwrap();
 
         for i in 0..1000 {
+            let next = i + 1;
+
             let mut transform = Transform::identity();
-            transform.parent = "a_".to_string() + &i.to_string();
-            transform.child = "a_".to_string() + &(i + 1).to_string();
+            transform.parent = format!("a_{i}");
+            transform.child = format!("a_{next}");
             registry.add_transform(transform).unwrap();
 
             let mut transform = Transform::identity();
-            transform.parent = "b_".to_string() + &i.to_string();
-            transform.child = "b_".to_string() + &(i + 1).to_string();
+            transform.parent = format!("b_{i}");
+            transform.child = format!("b_{next}");
             registry.add_transform(transform).unwrap();
 
             let mut transform = Transform::identity();
-            transform.parent = "c_".to_string() + &i.to_string();
-            transform.child = "c_".to_string() + &(i + 1).to_string();
+            transform.parent = format!("c_{i}");
+            transform.child = format!("c_{next}");
             registry.add_transform(transform).unwrap();
         }
 

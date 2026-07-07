@@ -33,9 +33,9 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 ## What's New
 
-### Unreleased — Stricter validation of lookups, inserts, and composition
+### v2.0.0 — Stricter validation and a Rust-first API cleanup
 
-Three correctness fixes, one of which changes the `add_transform` signature:
+Three correctness fixes and an API cleanup; `add_transform` is now fallible:
 
 - `get_transform` now verifies that the resolved chain actually connects the two
   requested frames. Previously, querying a frame name that did not exist in the
@@ -47,6 +47,12 @@ Three correctness fixes, one of which changes the `add_transform` signature:
 - `Transform` multiplication now only accepts valid compositions
   (`t_a_b * t_b_c`); the reversed operand order previously produced a
   frame-inconsistent result.
+- Removed the deprecated `TimestampError` alias (use `TimeError`) and the
+  never-produced `BufferError::MaxAgeInvalid` variant.
+- Added `Quaternion::new(w, x, y, z)` and `Timestamp::from_nanos(nanos)`.
+- `no_std` `Registry` and `Buffer` now implement `Default`.
+- Error `Display` messages are now lowercase per the Rust API guidelines.
+- Crate upgraded to edition 2024 with `rust-version` 1.85 declared.
 
 ```rust
 // add_transform is now fallible
@@ -90,8 +96,8 @@ Fixed a bug where static transforms (timestamp = 0) and dynamic transforms could
 
 ```rust
 // Static sensor mount + dynamic robot pose now work together
-registry.add_transform(static_camera_mount);  // timestamp = 0
-registry.add_transform(dynamic_robot_pose);    // timestamp = now
+registry.add_transform(static_camera_mount); // timestamp = 0
+registry.add_transform(dynamic_robot_pose); // timestamp = now
 let tf = registry.get_transform("map", "camera", Timestamp::now())?;
 ```
 
@@ -111,7 +117,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "1.4.1"
+transforms = "2.0.0"
 ```
 
 ### Feature Flags
@@ -124,7 +130,7 @@ For `no_std` environments:
 
 ```toml
 [dependencies]
-transforms = { version = "1.4.1", default-features = false }
+transforms = { version = "2.0.0", default-features = false }
 ```
 
 ## Quick Start
@@ -155,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     registry.add_transform(transform)?;
     let result = registry.get_transform("base", "sensor", timestamp)?;
 
-    println!("Transform: {:?}", result);
+    println!("Transform: {result:?}");
     Ok(())
 }
 ```
@@ -168,7 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // std feature
 pub fn new(max_age: Duration) -> Self
 
-// no_std
+// no_std (also available via Default)
 pub fn new() -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferError>
@@ -184,7 +190,7 @@ pub fn delete_transforms_before(&mut self, timestamp: T)
 |------|-------------|
 | `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
 | `Vector3` | 3D vector with x, y, z components (f64) |
-| `Quaternion` | Unit quaternion for rotations with w, x, y, z components (f64) |
+| `Quaternion` | Quaternion for rotations (expected unit norm) with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u128) |
 | `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
@@ -205,9 +211,9 @@ The library is organized around three core components:
 │  │  │ parent: "a" │  │ parent: "b" │               │    │
 │  │  │ ┌─────────┐ │  │ ┌─────────┐ │               │    │
 │  │  │ │Transform│ │  │ │Transform│ │               │    │
-│  │  │ │  @ t=0  │ │  │ │  @ t=1  │ │               │    │
+│  │  │ │  @ t=1  │ │  │ │  @ t=1  │ │               │    │
 │  │  │ │Transform│ │  │ │Transform│ │               │    │
-│  │  │ │  @ t=1  │ │  │ │  @ t=2  │ │               │    │
+│  │  │ │  @ t=2  │ │  │ │  @ t=2  │ │               │    │
 │  │  │ └─────────┘ │  │ └─────────┘ │               │    │
 │  │  └─────────────┘  └─────────────┘               │    │
 │  └─────────────────────────────────────────────────┘    │
@@ -346,8 +352,8 @@ let mut point = Point {
     frame: "camera".into(),
 };
 
-// Get transform from camera to base
-let transform = registry.get_transform("camera", "base", point.timestamp)?;
+// Get the transform that maps camera-frame coordinates into the base frame
+let transform = registry.get_transform("base", "camera", point.timestamp)?;
 
 // Transform the point (mutates point.frame to "base")
 point.transform(&transform)?;
@@ -470,7 +476,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 
 ### Middleware Independence
 
-A core design principle of this library is **middleware independence**. Unlike tf2, which is deeply integrated with ROS2's DDS-based communication layer, this library has zero middleware dependencies. If you are looking for a crate which drop in integrates with ROS (roslibrust_transforms)[https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/] is an option.
+A core design principle of this library is **middleware independence**. Unlike tf2, which is deeply integrated with ROS2's DDS-based communication layer, this library has zero middleware dependencies. If you are looking for a crate which drop in integrates with ROS [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) is an option.
 
 This means:
 
@@ -531,10 +537,12 @@ The `examples/` directory contains complete working examples:
 
 | Example | Description |
 |---------|-------------|
-| `std_minimal.rs` | Basic async usage with Tokio |
-| `std_full.rs` | Complete feature demonstration |
-| `no_std_minimal.rs` | Minimal no_std usage |
-| `no_std_full.rs` | Full no_std features with manual cleanup |
+| `std_minimal.rs` | Registry basics: transform a point between frames, with interpolation |
+| `std_full.rs` | Concurrent async usage with Tokio (parallel readers and a writer) |
+| `std_advanced.rs` | Time travel between frames with `get_transform_at` |
+| `no_std_minimal.rs` | Minimal `no_std` usage: add and retrieve a transform |
+| `no_std_full.rs` | Point transform and interpolation with manual cleanup |
+| `no_std_advanced.rs` | Time travel in `no_std` with manual cleanup |
 
 Run examples with:
 

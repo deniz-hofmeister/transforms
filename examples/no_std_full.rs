@@ -11,9 +11,9 @@ fn main() {
     use log::{error, info};
     use std::time::Duration;
     use transforms::{
+        Registry, Transform, Transformable,
         geometry::{Point, Quaternion, Vector3},
         time::Timestamp,
-        Registry, Transform, Transformable,
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -30,7 +30,7 @@ fn main() {
         timestamp: time,
         frame: "camera".into(),
     };
-    info!("Created point in camera frame: {:?}", point);
+    info!("Created point in camera frame: {point:?}");
 
     // Create transform from camera to base frame, 1 second ago
     let camera_to_base_t0 = Transform {
@@ -72,17 +72,14 @@ fn main() {
     // Lookup transform for the point, then apply it
     match registry.get_transform_for(&point, "map") {
         Ok(transform) => {
-            info!(
-                "Retrieved transform from point frame to map: {:?}",
-                transform
-            );
+            info!("Retrieved transform from point frame to map: {transform:?}");
 
             match point.transform(&transform) {
-                Ok(()) => info!("Successfully transformed point to map frame: {:?}", point),
-                Err(e) => error!("Failed to apply transform to point: {:?}", e),
+                Ok(()) => info!("Successfully transformed point to map frame: {point:?}"),
+                Err(e) => error!("Failed to apply transform to point: {e:?}"),
             }
         }
-        Err(e) => error!("Failed to resolve transform for point: {:?}", e),
+        Err(e) => error!("Failed to resolve transform for point: {e:?}"),
     }
 
     // The no_std version of this package does not automatically wipe old transforms

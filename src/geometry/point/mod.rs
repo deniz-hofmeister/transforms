@@ -1,13 +1,13 @@
+//! A point in 3D space with position, orientation, timestamp, and reference frame.
+
 use crate::{
+    Localized, Transform, Transformable,
     errors::TransformError,
     geometry::{Quaternion, Vector3},
     time::{TimePoint, Timestamp},
-    Localized, Transform, Transformable,
 };
 
 use alloc::string::String;
-
-mod error;
 
 /// Represents a point in space with a position, orientation, timestamp, and its frame of reference.
 ///
@@ -24,25 +24,11 @@ mod error;
 ///     time::Timestamp,
 /// };
 ///
-/// let position = Vector3 {
-///     x: 1.0,
-///     y: 2.0,
-///     z: 3.0,
-/// };
-/// let orientation = Quaternion {
-///     w: 1.0,
-///     x: 0.0,
-///     y: 0.0,
-///     z: 0.0,
-/// };
-/// let timestamp = Timestamp::zero();
-/// let frame = String::from("a");
-///
 /// let point = Point {
-///     position,
-///     orientation,
-///     timestamp,
-///     frame,
+///     position: Vector3::new(1.0, 2.0, 3.0),
+///     orientation: Quaternion::identity(),
+///     timestamp: Timestamp::zero(),
+///     frame: "a".into(),
 /// };
 ///
 /// assert_eq!(point.position.x, 1.0);
@@ -53,9 +39,13 @@ pub struct Point<T = Timestamp>
 where
     T: TimePoint,
 {
+    /// The 3D position of the point.
     pub position: Vector3,
+    /// The orientation of the point.
     pub orientation: Quaternion,
+    /// The time at which the point was recorded.
     pub timestamp: T,
+    /// The reference frame the point's data is relative to.
     pub frame: String,
 }
 
@@ -67,9 +57,9 @@ where
 ///
 /// ```
 /// use transforms::{
+///     Transform, Transformable,
 ///     geometry::{Point, Quaternion, Vector3},
 ///     time::Timestamp,
-///     Transform, Transformable,
 /// };
 ///
 /// let mut point = Point {
@@ -96,16 +86,12 @@ impl<T> Transformable<T> for Point<T>
 where
     T: TimePoint,
 {
-    /// Applies a transformation to the `Point`.
+    /// Applies a transformation to the `Point`, updating its position, orientation, and frame.
     ///
-    /// # Arguments
+    /// # Errors
     ///
-    /// * `transform` - A reference to the `Transform` to be applied.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the transformation is successfully applied.
-    /// * `Err(TransformError)` if the frames are incompatible or the timestamps do not match.
+    /// Returns a [`TransformError`] if the point's frame does not match the transform's child
+    /// frame, or if the timestamps do not match.
     fn transform(
         &mut self,
         transform: &Transform<T>,
@@ -136,9 +122,9 @@ where
 /// # #[cfg(feature = "std")]
 /// use core::time::Duration;
 /// use transforms::{
+///     Registry, Transformable,
 ///     geometry::{Point, Quaternion, Transform, Vector3},
 ///     time::Timestamp,
-///     Registry, Transformable,
 /// };
 ///
 /// # #[cfg(feature = "std")]

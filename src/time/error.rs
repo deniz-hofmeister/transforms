@@ -3,13 +3,13 @@ use thiserror::Error;
 /// Error type for timestamp and time-point operations.
 #[derive(Error, Debug)]
 pub enum TimeError {
-    #[error("Duration underflow")]
+    /// Subtracting would produce a time before the representable range.
+    #[error("duration underflow")]
     DurationUnderflow,
-    #[error("Duration overflow")]
+    /// Adding would produce a time beyond the representable range.
+    #[error("duration overflow")]
     DurationOverflow,
-    #[error("Conversion to seconds lost accuracy")]
+    /// Converting to seconds could not be done exactly.
+    #[error("conversion to seconds lost accuracy")]
     AccuracyLoss,
 }
-
-#[deprecated(since = "1.2.0", note = "use time::TimeError instead")]
-pub type TimestampError = TimeError;

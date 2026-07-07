@@ -13,9 +13,9 @@ fn main() {
     use core::time::Duration;
     use log::info;
     use transforms::{
+        Registry,
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
-        Registry,
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -28,17 +28,8 @@ fn main() {
     // The conveyor belt is at x=1 in the map frame at t1
     registry
         .add_transform(Transform {
-            translation: Vector3 {
-                x: 1.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
             timestamp: t1,
             parent: "map".into(),
             child: "conveyor".into(),
@@ -48,17 +39,8 @@ fn main() {
     // By t2 the conveyor has moved to x=3
     registry
         .add_transform(Transform {
-            translation: Vector3 {
-                x: 3.,
-                y: 0.,
-                z: 0.,
-            },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
+            translation: Vector3::new(3.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
             timestamp: t2,
             parent: "map".into(),
             child: "conveyor".into(),
@@ -69,17 +51,8 @@ fn main() {
     for &t in &[t1, t2] {
         registry
             .add_transform(Transform {
-                translation: Vector3 {
-                    x: 0.,
-                    y: 0.5,
-                    z: 0.,
-                },
-                rotation: Quaternion {
-                    w: 1.,
-                    x: 0.,
-                    y: 0.,
-                    z: 0.,
-                },
+                translation: Vector3::new(0.0, 0.5, 0.0),
+                rotation: Quaternion::identity(),
                 timestamp: t,
                 parent: "conveyor".into(),
                 child: "object".into(),
@@ -91,17 +64,8 @@ fn main() {
     for &t in &[t1, t2] {
         registry
             .add_transform(Transform {
-                translation: Vector3 {
-                    x: 0.,
-                    y: 2.,
-                    z: 0.,
-                },
-                rotation: Quaternion {
-                    w: 1.,
-                    x: 0.,
-                    y: 0.,
-                    z: 0.,
-                },
+                translation: Vector3::new(0.0, 2.0, 0.0),
+                rotation: Quaternion::identity(),
                 timestamp: t,
                 parent: "map".into(),
                 child: "camera".into(),

@@ -1,3 +1,5 @@
+//! Rigid-body transforms between coordinate frames, with composition, inversion, and interpolation.
+
 use crate::{
     geometry::{Quaternion, Vector3},
     time::{TimePoint, Timestamp},
@@ -28,34 +30,23 @@ mod traits;
 /// // Create an identity transform
 /// let identity = Transform::<Timestamp>::identity();
 ///
-/// assert_eq!(
-///     identity.translation,
-///     Vector3 {
-///         x: 0.0,
-///         y: 0.0,
-///         z: 0.0
-///     }
-/// );
-///
-/// assert_eq!(
-///     identity.rotation,
-///     Quaternion {
-///         w: 1.0,
-///         x: 0.0,
-///         y: 0.0,
-///         z: 0.0
-///     }
-/// );
+/// assert_eq!(identity.translation, Vector3::zero());
+/// assert_eq!(identity.rotation, Quaternion::identity());
 /// ```
 #[derive(Debug, Clone)]
 pub struct Transform<T = Timestamp>
 where
     T: TimePoint,
 {
+    /// The translational component of the transform.
     pub translation: Vector3,
+    /// The rotational component of the transform.
     pub rotation: Quaternion,
+    /// The time at which the transform is valid.
     pub timestamp: T,
+    /// The target frame; the transform maps child-frame coordinates into this frame.
     pub parent: String,
+    /// The source frame whose coordinates are mapped into the parent frame.
     pub child: String,
 }
 
@@ -83,54 +74,27 @@ where
     /// };
     ///
     /// let from = Transform {
-    ///     translation: Vector3 {
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: Timestamp { t: 0 },
+    ///     translation: Vector3::zero(),
+    ///     rotation: Quaternion::identity(),
+    ///     timestamp: Timestamp::zero(),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let to = Transform {
-    ///     translation: Vector3 {
-    ///         x: 2.0,
-    ///         y: 2.0,
-    ///         z: 2.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: Timestamp { t: 2_000_000_000 },
+    ///     translation: Vector3::new(2.0, 2.0, 2.0),
+    ///     rotation: Quaternion::identity(),
+    ///     timestamp: Timestamp::from_nanos(2_000_000_000),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let result = Transform {
-    ///     translation: Vector3 {
-    ///         x: 1.0,
-    ///         y: 1.0,
-    ///         z: 1.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: Timestamp { t: 1_000_000_000 },
+    ///     translation: Vector3::new(1.0, 1.0, 1.0),
+    ///     rotation: Quaternion::identity(),
+    ///     timestamp: Timestamp::from_nanos(1_000_000_000),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
-    /// let timestamp = Timestamp { t: 1_000_000_000 };
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
     ///
     /// let interpolated = Transform::interpolate(&from, &to, timestamp).unwrap();
     /// assert_eq!(result, interpolated);
@@ -167,7 +131,6 @@ where
         })
     }
 
-    #[must_use = "Returns a new transform"]
     /// Returns the identity transform.
     ///
     /// The identity transform has no translation or rotation and is often used
@@ -186,37 +149,20 @@ where
     ///
     /// let identity = Transform::<Timestamp>::identity();
     /// let transform = Transform {
-    ///     translation: Vector3 {
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     timestamp: Timestamp { t: 0 },
+    ///     translation: Vector3::zero(),
+    ///     rotation: Quaternion::identity(),
+    ///     timestamp: Timestamp::zero(),
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };
     ///
     /// assert_eq!(identity, transform);
     /// ```
+    #[must_use]
     pub fn identity() -> Self {
         Transform {
-            translation: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            rotation: Quaternion {
-                w: 1.0,
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
+            translation: Vector3::zero(),
+            rotation: Quaternion::identity(),
             timestamp: T::static_timestamp(),
             parent: String::new(),
             child: String::new(),
@@ -226,6 +172,11 @@ where
     /// Computes the inverse of the transform.
     ///
     /// Returns a new `Transform` that is the inverse of the current transform.
+    ///
+    /// # Errors
+    ///
+    /// This function returns a `TransformError` if:
+    /// - The quaternion normalization fails, resulting in a `QuaternionError`.
     ///
     /// # Examples
     ///
@@ -237,19 +188,8 @@ where
     ///
     /// // Create a transform with specific translation and rotation
     /// let transform = Transform {
-    ///     translation: Vector3 {
-    ///         x: 1.0,
-    ///         y: 2.0,
-    ///         z: 3.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 0.0,
-    ///         x: 1.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     }
-    ///     .normalize()
-    ///     .unwrap(),
+    ///     translation: Vector3::new(1.0, 2.0, 3.0),
+    ///     rotation: Quaternion::new(0.0, 1.0, 0.0, 0.0).normalize().unwrap(),
     ///     timestamp: Timestamp::zero(),
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -268,11 +208,6 @@ where
     /// assert_eq!(result.translation, identity.translation);
     /// assert_eq!(result.rotation, identity.rotation);
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// This function returns a `TransformError` if:
-    /// - The quaternion normalization fails, resulting in a `QuaternionError`.
     pub fn inverse(&self) -> Result<Self, TransformError> {
         let q = self.rotation.normalize()?;
         let inverse_rotation = q.conjugate();

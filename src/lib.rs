@@ -1,4 +1,4 @@
-//! A blazingly fast and efficient coordinate transform library for robotics and computer vision applications.
+//! A fast, middleware-independent coordinate transform library for robotics and computer vision applications.
 //!
 //! This library provides functionality for managing coordinate transformations between different frames
 //! of reference.
@@ -17,7 +17,7 @@
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
 //! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
 //! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
-//! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as ```no_std``` then manual cleanup is required. See the examples.
+//! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as `no_std` then manual cleanup is required. See the examples.
 //!
 //! # Non-Goals
 //!
@@ -39,9 +39,9 @@
 //!
 //! ```rust
 //! use transforms::{
+//!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
-//!     Registry,
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -88,9 +88,9 @@
 //! trait. This allows you to easily transform your data using the transforms stored in the registry.
 //! ```rust
 //! use transforms::{
+//!     Transformable,
 //!     geometry::{Point, Quaternion, Transform, Vector3},
 //!     time::Timestamp,
-//!     Transformable,
 //! };
 //!
 //! // Create a point in the camera frame
@@ -169,18 +169,17 @@
 //!
 //! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
 //! [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) that wraps
-//! this crate in ROS pure-Rust ROS clients.
+//! this crate for pure-Rust ROS clients.
 //!
 //! # Safety
 //!
 //! This crate uses `#![forbid(unsafe_code)]` to ensure memory safety through pure Rust implementations.
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::alloc_instead_of_core)]
 #![warn(clippy::std_instead_of_core)]
 #![cfg_attr(test, allow(clippy::similar_names))]
-#![cfg_attr(test, allow(clippy::too_many_lines))]
-#![cfg_attr(test, allow(clippy::duration_suboptimal_units))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;

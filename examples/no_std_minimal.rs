@@ -1,28 +1,24 @@
-/// An example on how to add and retrieve transforms
+//! An example on how to add and retrieve transforms.
+
 #[cfg(not(feature = "std"))]
 fn main() {
     use core::time::Duration;
     use log::{error, info};
     use transforms::{
+        Registry,
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
-        Registry,
     };
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();
         let y = t.as_seconds_unchecked().cos();
-        let z = 0.;
+        let z = 0.0;
 
         Transform {
-            translation: Vector3 { x, y, z },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
+            translation: Vector3::new(x, y, z),
+            rotation: Quaternion::identity(),
             parent: "a".into(),
             child: "b".into(),
             timestamp: t,
@@ -44,15 +40,15 @@ fn main() {
     let time_future = (time + Duration::from_secs(1)).unwrap();
     let result = registry.get_transform("a", "b", time_future);
     match result {
-        Ok(tf) => info!("Found transform: {:?}", tf),
-        Err(e) => error!("Transform not found: {:?}", e),
+        Ok(tf) => info!("Found transform: {tf:?}"),
+        Err(e) => error!("Transform not found: {e:?}"),
     }
 
     // Request the transform that exists
     let result = registry.get_transform("a", "b", time);
     match result {
-        Ok(tf) => info!("Found transform: {:?}", tf),
-        Err(e) => error!("Transform not found: {:?}", e),
+        Ok(tf) => info!("Found transform: {tf:?}"),
+        Err(e) => error!("Transform not found: {e:?}"),
     }
 
     // Delete all transforms before a certain time

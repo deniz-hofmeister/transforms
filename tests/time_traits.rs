@@ -1,10 +1,10 @@
 use core::time::Duration;
 
 use transforms::{
+    Registry,
     errors::TimeError,
     geometry::{Quaternion, Transform, Vector3},
     time::{TimePoint, Timestamp},
-    Registry,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

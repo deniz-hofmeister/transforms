@@ -1,27 +1,39 @@
-use crate::errors::{QuaternionError, TimeError};
 use alloc::string::String;
+
 use thiserror::Error;
 
+use crate::errors::{QuaternionError, TimeError};
+
+/// Error type for transform lookup, composition, and application.
 #[derive(Error, Debug)]
 pub enum TransformError {
-    #[error("Transform timestamps do not match (lhs: {0}, rhs: {1})")]
+    /// Two timestamps that must agree do not (given in seconds): composed
+    /// transforms with differing timestamps, an interpolation request outside
+    /// the covered range, or applying a transform to a value from another time.
+    #[error("transform timestamps do not match (lhs: {0}, rhs: {1})")]
     TimestampMismatch(f64, f64),
 
-    #[error("Cannot multiply transforms with the same frame")]
+    /// Both transforms describe the same child frame.
+    #[error("cannot multiply transforms with the same frame")]
     SameFrameMultiplication,
 
-    #[error("Frames do not have a parent-child relationship")]
+    /// The frames do not form a valid parent-child composition.
+    #[error("frames do not have a parent-child relationship")]
     IncompatibleFrames,
 
-    #[error("Transform not found from {0} to {1}")]
+    /// No transform chain connects the two frames at the requested time.
+    #[error("transform not found from {0} to {1}")]
     NotFound(String, String),
 
-    #[error("Transform tree is empty")]
+    /// The transform chain was empty after processing.
+    #[error("transform tree is empty")]
     TransformTreeEmpty,
 
-    #[error("Timestamp error: {0}")]
+    /// A timestamp operation failed.
+    #[error("timestamp error: {0}")]
     TimestampError(#[from] TimeError),
 
-    #[error("Quaternion error: {0}")]
+    /// A quaternion operation failed.
+    #[error("quaternion error: {0}")]
     QuaternionError(#[from] QuaternionError),
 }

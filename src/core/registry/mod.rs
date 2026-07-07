@@ -30,9 +30,9 @@
 //! ```rust
 //! # {
 //! use transforms::{
+//!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
 //!     time::Timestamp,
-//!     Registry,
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -47,21 +47,12 @@
 //! # #[cfg(not(feature = "std"))]
 //! let t1 = Timestamp::zero();
 //!
-//! let t2 = t1.clone();
+//! let t2 = t1;
 //!
 //! // Define a transform from frame "a" to frame "b"
 //! let t_a_b_1 = Transform {
-//!     translation: Vector3 {
-//!         x: 1.0,
-//!         y: 0.0,
-//!         z: 0.0,
-//!     },
-//!     rotation: Quaternion {
-//!         w: 1.0,
-//!         x: 0.0,
-//!         y: 0.0,
-//!         z: 0.0,
-//!     },
+//!     translation: Vector3::new(1.0, 0.0, 0.0),
+//!     rotation: Quaternion::identity(),
 //!     timestamp: t1,
 //!     parent: "a".into(),
 //!     child: "b".into(),
@@ -79,38 +70,6 @@
 //! assert_eq!(result.unwrap(), t_a_b_2);
 //! # }
 //! ```
-//!
-//! ## Structs
-//!
-//! ### `Registry`
-//!
-//! The `Registry` struct provides methods to add and retrieve transforms between frames.
-//!
-//! #### Methods
-//!
-//! - `new(max_age: Duration) -> Self`
-//!   - Creates a new `Registry` with the specified ``max_age`` duration.
-//!   - **Arguments**
-//!     - `max_age`: The duration for which transforms are considered valid.
-//!   - **Returns**
-//!     - A new instance of `Registry`.
-//!
-//! - `add_transform(&mut self, t: Transform<T>) -> Result<(), BufferError>`
-//!   - Adds a transform to the registry.
-//!   - **Arguments**
-//!     - `t`: The transform to add.
-//!   - **Errors**
-//!     - Returns a `BufferError::StaticDynamicConflict` if the child frame already
-//!       holds transforms of the opposite kind (static vs. dynamic).
-//!
-//! - `get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>`
-//!   - Retrieves a transform from the registry.
-//!   - **Arguments**
-//!     - `from`: The source frame.
-//!     - `to`: The destination frame.
-//!     - `timestamp`: The timestamp for which the transform is requested.
-//!   - **Errors**
-//!     - Returns a `TransformError` if the transform cannot be found.
 
 use crate::{
     core::Buffer,
@@ -122,9 +81,7 @@ use alloc::{
     collections::{BTreeSet, VecDeque},
     string::String,
 };
-use hashbrown::{hash_map::Entry, HashMap};
-
-mod error;
+use hashbrown::{HashMap, hash_map::Entry};
 
 #[cfg(feature = "std")]
 use core::time::Duration;
@@ -135,15 +92,15 @@ use core::time::Duration;
 /// lies in between.
 ///
 /// The `Registry` struct provides methods to add and retrieve transforms
-/// between frames
+/// between frames.
 ///
 /// # Examples
 ///
 /// ```
 /// use transforms::{
+///     Registry,
 ///     geometry::{Quaternion, Transform, Vector3},
 ///     time::Timestamp,
-///     Registry,
 /// };
 ///
 /// # #[cfg(feature = "std")]
@@ -158,21 +115,12 @@ use core::time::Duration;
 /// # #[cfg(not(feature = "std"))]
 /// let t1 = Timestamp::zero();
 ///
-/// let t2 = t1.clone();
+/// let t2 = t1;
 ///
 /// // Define a transform from frame "a" to frame "b"
 /// let t_a_b_1 = Transform {
-///     translation: Vector3 {
-///         x: 1.0,
-///         y: 0.0,
-///         z: 0.0,
-///     },
-///     rotation: Quaternion {
-///         w: 1.0,
-///         x: 0.0,
-///         y: 0.0,
-///         z: 0.0,
-///     },
+///     translation: Vector3::new(1.0, 0.0, 0.0),
+///     rotation: Quaternion::identity(),
 ///     timestamp: t1,
 ///     parent: "a".into(),
 ///     child: "b".into(),
@@ -193,6 +141,7 @@ pub struct Registry<T = Timestamp>
 where
     T: TimePoint,
 {
+    /// Maps a child frame name to the buffer of transforms into that frame.
     pub data: HashMap<String, Buffer<T>>,
     #[cfg(feature = "std")]
     max_age: Duration,
@@ -202,49 +151,38 @@ impl<T> Registry<T>
 where
     T: TimePoint,
 {
-    #[cfg(feature = "std")]
-    #[allow(clippy::new_without_default)]
-    #[must_use = "The Registry should be used to manage transforms."]
-    /// Creates a new `Registry` with the specified ``max_age`` duration.
+    /// Creates a new `Registry` with the specified `max_age` duration.
     ///
-    /// # Arguments
-    ///
-    /// * `max_age` - The duration for which transforms are considered valid.
-    ///
-    /// # Returns
-    ///
-    /// A new instance of `Registry`.
+    /// Transforms are considered valid for `max_age` before becoming
+    /// eligible for automatic cleanup.
     ///
     /// # Examples
     ///
     /// ```
     /// use core::time::Duration;
-    /// use transforms::{time::Timestamp, Registry};
+    /// use transforms::{Registry, time::Timestamp};
     ///
     /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
     /// ```
+    #[cfg(feature = "std")]
+    #[must_use]
     pub fn new(max_age: Duration) -> Self {
         Self {
             data: HashMap::new(),
             max_age,
         }
     }
-    #[allow(clippy::new_without_default)]
-    #[cfg(not(feature = "std"))]
-    #[must_use = "The Registry should be used to manage transforms."]
     /// Creates a new `Registry`.
-    ///
-    /// # Returns
-    ///
-    /// A new instance of `Registry`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{time::Timestamp, Registry};
+    /// use transforms::{Registry, time::Timestamp};
     ///
     /// let registry = Registry::<Timestamp>::new();
     /// ```
+    #[cfg(not(feature = "std"))]
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: HashMap::new(),
@@ -252,10 +190,6 @@ where
     }
 
     /// Adds a transform to the registry.
-    ///
-    /// # Arguments
-    ///
-    /// * `t` - The transform to add.
     ///
     /// # Errors
     ///
@@ -267,7 +201,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use transforms::{geometry::Transform, time::Timestamp, Registry};
+    /// use transforms::{Registry, geometry::Transform, time::Timestamp};
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
     /// # #[cfg(feature = "std")]
@@ -294,13 +228,8 @@ where
         }
     }
 
-    /// Retrieves a transform from the registry.
-    ///
-    /// # Arguments
-    ///
-    /// * `from` - The source frame.
-    /// * `to` - The destination frame.
-    /// * `timestamp` - The timestamp for which the transform is requested.
+    /// Retrieves the transform from the `from` frame to the `to` frame at
+    /// the requested timestamp.
     ///
     /// # Errors
     ///
@@ -310,9 +239,9 @@ where
     ///
     /// ```
     /// use transforms::{
+    ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
-    ///     Registry,
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -327,21 +256,12 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// let t1 = Timestamp::zero();
     ///
-    /// let t2 = t1.clone();
+    /// let t2 = t1;
     ///
     /// // Define a transform from frame "a" to frame "b"
     /// let t_a_b_1 = Transform {
-    ///     translation: Vector3 {
-    ///         x: 1.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
-    ///     rotation: Quaternion {
-    ///         w: 1.0,
-    ///         x: 0.0,
-    ///         y: 0.0,
-    ///         z: 0.0,
-    ///     },
+    ///     translation: Vector3::new(1.0, 0.0, 0.0),
+    ///     rotation: Quaternion::identity(),
     ///     timestamp: t1,
     ///     parent: "a".into(),
     ///     child: "b".into(),
@@ -403,20 +323,14 @@ where
     /// getting its current position in a static world frame.
     ///
     /// The algorithm works by:
-    /// 1. Computing the transform from `source_frame` to `fixed_frame` at `source_time`
-    /// 2. Computing the transform from `fixed_frame` to `target_frame` at `target_time`
-    /// 3. Chaining these transforms together
+    /// 1. Computing the transform that expresses `source_frame` in `fixed_frame` at `source_time`
+    /// 2. Computing the transform that expresses `target_frame` in `fixed_frame` at `target_time`
+    /// 3. Combining the two into the requested transform
     ///
-    /// # Arguments
+    /// `fixed_frame` is a frame that does not change over time, used as an
+    /// intermediate reference point (typically a world or map frame).
     ///
-    /// * `target_frame` - The destination frame for the transform
-    /// * `target_time` - The time at which to evaluate the target frame's position
-    /// * `source_frame` - The source frame for the transform
-    /// * `source_time` - The time at which to evaluate the source frame's position
-    /// * `fixed_frame` - A frame that does not change over time, used as an intermediate
-    ///   reference point (typically a world or map frame)
-    ///
-    /// # Safety
+    /// # Choosing the fixed frame
     ///
     /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
     /// between `source_time` and `target_time`.** Passing a frame that moves between the
@@ -432,9 +346,9 @@ where
     ///
     /// ```
     /// use transforms::{
+    ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::Timestamp,
-    ///     Registry,
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -449,26 +363,17 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
-    /// let t1 = Timestamp { t: 1_000_000_000 };
+    /// let t1 = Timestamp::from_nanos(1_000_000_000);
     /// # #[cfg(not(feature = "std"))]
-    /// let t2 = Timestamp { t: 2_000_000_000 };
+    /// let t2 = Timestamp::from_nanos(2_000_000_000);
     ///
     /// // Tree: fixed -> a -> b
     ///
     /// // fixed -> a at t1: a is at x=1
     /// registry
     ///     .add_transform(Transform {
-    ///         translation: Vector3 {
-    ///             x: 1.0,
-    ///             y: 0.0,
-    ///             z: 0.0,
-    ///         },
-    ///         rotation: Quaternion {
-    ///             w: 1.0,
-    ///             x: 0.0,
-    ///             y: 0.0,
-    ///             z: 0.0,
-    ///         },
+    ///         translation: Vector3::new(1.0, 0.0, 0.0),
+    ///         rotation: Quaternion::identity(),
     ///         timestamp: t1,
     ///         parent: "fixed".into(),
     ///         child: "a".into(),
@@ -478,17 +383,8 @@ where
     /// // fixed -> a at t2: a has moved to x=2
     /// registry
     ///     .add_transform(Transform {
-    ///         translation: Vector3 {
-    ///             x: 2.0,
-    ///             y: 0.0,
-    ///             z: 0.0,
-    ///         },
-    ///         rotation: Quaternion {
-    ///             w: 1.0,
-    ///             x: 0.0,
-    ///             y: 0.0,
-    ///             z: 0.0,
-    ///         },
+    ///         translation: Vector3::new(2.0, 0.0, 0.0),
+    ///         rotation: Quaternion::identity(),
     ///         timestamp: t2,
     ///         parent: "fixed".into(),
     ///         child: "a".into(),
@@ -498,17 +394,8 @@ where
     /// // a -> b at t1: b is at y=1 relative to a
     /// registry
     ///     .add_transform(Transform {
-    ///         translation: Vector3 {
-    ///             x: 0.0,
-    ///             y: 1.0,
-    ///             z: 0.0,
-    ///         },
-    ///         rotation: Quaternion {
-    ///             w: 1.0,
-    ///             x: 0.0,
-    ///             y: 0.0,
-    ///             z: 0.0,
-    ///         },
+    ///         translation: Vector3::new(0.0, 1.0, 0.0),
+    ///         rotation: Quaternion::identity(),
     ///         timestamp: t1,
     ///         parent: "a".into(),
     ///         child: "b".into(),
@@ -548,10 +435,6 @@ where
     ///
     /// Iterates over all buffers and deletes all entries with a
     /// timestamp lower than the input argument.
-    ///
-    /// # Fields
-    ///
-    /// - `timestamp`: the time to compare all entries in the buffer with.
     pub fn delete_transforms_before(
         &mut self,
         timestamp: T,
@@ -561,18 +444,13 @@ where
         }
     }
 
-    #[cfg(not(feature = "std"))]
     /// Adds a transform to the data buffer.
-    ///
-    /// # Arguments
-    ///
-    /// * `t` - The transform to be added to the registry
-    /// * `data` - Mutable reference to the data buffer where transforms are stored
     ///
     /// # Errors
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
     /// already holds transforms of the opposite kind (static vs. dynamic).
+    #[cfg(not(feature = "std"))]
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
@@ -587,19 +465,16 @@ where
         }
     }
 
-    #[cfg(feature = "std")]
     /// Adds a transform to the data buffer.
     ///
-    /// # Arguments
-    ///
-    /// * `t` - The transform to be added to the registry
-    /// * `data` - Mutable reference to the data buffer where transforms are stored
-    /// * `max_age` - The maximum duration for which transforms are considered valid
+    /// New buffers are created with `max_age`, the maximum duration for
+    /// which their transforms are considered valid.
     ///
     /// # Errors
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
     /// already holds transforms of the opposite kind (static vs. dynamic).
+    #[cfg(feature = "std")]
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
@@ -616,13 +491,6 @@ where
     }
 
     /// Retrieves and computes the transform between two frames at a specific timestamp.
-    ///
-    /// # Arguments
-    ///
-    /// * `from` - The source frame identifier
-    /// * `to` - The target frame identifier
-    /// * `timestamp` - The time for which the transform is requested
-    /// * `data` - Reference to the data buffer containing transforms
     ///
     /// # Errors
     ///
@@ -666,18 +534,11 @@ where
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
     ///
     /// This implements "time travel" by:
-    /// 1. Getting the transform from `source_frame` to `fixed_frame` at `source_time`
-    /// 2. Getting the transform from `fixed_frame` to `target_frame` at `target_time`
-    /// 3. Chaining these together
+    /// 1. Getting the transform that expresses `source_frame` in `fixed_frame` at `source_time`
+    /// 2. Getting the transform that expresses `target_frame` in `fixed_frame` at `target_time`
+    /// 3. Combining the two into the requested transform
     ///
-    /// # Arguments
-    ///
-    /// * `target_frame` - The destination frame
-    /// * `target_time` - The time at which to evaluate the target frame
-    /// * `source_frame` - The source frame
-    /// * `source_time` - The time at which to evaluate the source frame
-    /// * `fixed_frame` - A frame that doesn't change over time (e.g., "world")
-    /// * `data` - Reference to the transform data buffer
+    /// `fixed_frame` must be a frame that doesn't change over time (e.g., "world").
     ///
     /// # Errors
     ///
@@ -741,13 +602,6 @@ where
 
     /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
     ///
-    /// # Arguments
-    ///
-    /// * `from` - The starting frame identifier
-    /// * `to` - The target frame identifier
-    /// * `timestamp` - The time for which the transforms are requested
-    /// * `data` - Reference to the data buffer containing transforms
-    ///
     /// # Errors
     ///
     /// Returns `TransformError::NotFound` if no transform chain can be found from the starting frame to the target frame
@@ -783,11 +637,6 @@ where
     }
 
     /// Truncates two transform chains at their common parent frame to optimize the transformation computation.
-    ///
-    /// # Arguments
-    ///
-    /// * `from_chain` - Mutable reference to the transform chain originating from the source frame
-    /// * `to_chain` - Mutable reference to the transform chain originating from the target frame
     fn truncate_at_common_parent(
         from_chain: &mut VecDeque<Transform<T>>,
         to_chain: &mut VecDeque<Transform<T>>,
@@ -808,10 +657,9 @@ where
 
     /// Combines two transform chains into a single transform representing the transformation from the source frame to the target frame.
     ///
-    /// # Arguments
-    ///
-    /// * `from_chain` - The transform chain from the source frame toward the common ancestor
-    /// * `to_chain` - The inverted and reversed transform chain from the target frame toward the common ancestor
+    /// `from_chain` runs from the source frame toward the common ancestor;
+    /// `to_chain` must already be reversed and inverted (from the target frame
+    /// toward the common ancestor).
     ///
     /// # Errors
     ///
@@ -838,10 +686,6 @@ where
 
     /// Reverses a transform chain and inverts each transform within it.
     ///
-    /// # Arguments
-    ///
-    /// * `chain` - Mutable reference to the transform chain to be reversed and inverted
-    ///
     /// # Errors
     ///
     /// Returns `TransformError` if any transform in the chain cannot be inverted
@@ -856,6 +700,16 @@ where
 
         *chain = reversed_and_inverted;
         Ok(())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<T> Default for Registry<T>
+where
+    T: TimePoint,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

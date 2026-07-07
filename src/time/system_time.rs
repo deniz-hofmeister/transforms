@@ -1,3 +1,5 @@
+//! `TimePoint` implementation for `std::time::SystemTime`.
+
 use crate::time::{TimeError, TimePoint};
 use core::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};

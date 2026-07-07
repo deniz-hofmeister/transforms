@@ -1,3 +1,5 @@
+//! Geometric primitives: transforms, vectors, quaternions, and an example transformable Point type.
+
 pub mod point;
 pub mod quaternion;
 pub mod transform;

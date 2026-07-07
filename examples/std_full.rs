@@ -1,7 +1,7 @@
-/// This example demonstrates the use of the registry in an async context
-/// with concurrent readers and a single writer, using an `RwLock` to allow
-/// multiple readers to query transforms simultaneously without blocking
-/// each other.
+//! This example demonstrates the use of the registry in an async context
+//! with concurrent readers and a single writer, using an `RwLock` to allow
+//! multiple readers to query transforms simultaneously without blocking
+//! each other.
 
 #[tokio::main]
 #[cfg(feature = "std")]
@@ -11,24 +11,19 @@ async fn main() {
     use std::sync::Arc;
     use tokio::sync::RwLock;
     use transforms::{
+        Registry,
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
-        Registry,
     };
 
     fn generate_transform(t: Timestamp) -> Transform {
         let x = t.as_seconds_unchecked().sin();
         let y = t.as_seconds_unchecked().cos();
-        let z = 0.;
+        let z = 0.0;
 
         Transform {
-            translation: Vector3 { x, y, z },
-            rotation: Quaternion {
-                w: 1.,
-                x: 0.,
-                y: 0.,
-                z: 0.,
-            },
+            translation: Vector3::new(x, y, z),
+            rotation: Quaternion::identity(),
             parent: "a".into(),
             child: "b".into(),
             timestamp: t,
@@ -59,8 +54,8 @@ async fn main() {
                 .await
                 .get_transform("a", "b", Timestamp::now());
             match result {
-                Ok(tf) => info!("Found transform: {:?}", tf),
-                Err(e) => error!("Transform not found: {:?}", e),
+                Ok(tf) => info!("Found transform: {tf:?}"),
+                Err(e) => error!("Transform not found: {e:?}"),
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
         }

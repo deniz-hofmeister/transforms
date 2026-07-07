@@ -14,19 +14,20 @@
 //!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
 //!   provide an estimated transform at the requested timestamp.
 //!
-//! - **Static Lookup Mode**: The buffer supports a static lookup mode. When the static timestamp
-//!   value is supplied (defined by `t=0` by default), the buffer returns a static transform if available.
-//!   In downstream crates, you can optionally customize what counts as the static timestamp by implementing
+//! - **Static Buffers**: A buffer is either static or dynamic, decided by the first transform
+//!   inserted: a transform carrying the static timestamp value (`t=0` by default) makes the buffer
+//!   static, and a static buffer returns its single transform for any requested timestamp.
+//!   In downstream crates, you can customize what counts as the static timestamp by implementing
 //!   `TimePoint::static_timestamp()` for your timestamp type, in case the `t=0` definition causes
 //!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
-//!   Static lookup is useful for scenarios where a constant transform is needed regardless of timestamp.
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - This feature is available only when the `std` feature is enabled.
-//!   - The buffer can automatically remove expired transforms based on a specified ``max_age``.
+//!   - On every insert of a dynamic transform, entries older than `max_age` relative to the
+//!     latest inserted timestamp are removed automatically.
 //!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
 //!     within the specified duration.
-//!   - the ``no_std`` variant requires manual cleanup through the `delete_before` method.
+//!   - The `no_std` variant requires manual cleanup through the `delete_before` method.
 //!
 //! # Examples
 //!
@@ -47,17 +48,8 @@
 //! # #[cfg(feature = "std")]
 //! let mut buffer = Buffer::new(max_age);
 //!
-//! let translation = Vector3 {
-//!     x: 1.0,
-//!     y: 2.0,
-//!     z: 3.0,
-//! };
-//! let rotation = Quaternion {
-//!     w: 1.0,
-//!     x: 0.0,
-//!     y: 0.0,
-//!     z: 0.0,
-//! };
+//! let translation = Vector3::new(1.0, 2.0, 3.0);
+//! let rotation = Quaternion::identity();
 //!
 //! # #[cfg(not(feature = "std"))]
 //! let timestamp = Timestamp::zero();
@@ -78,22 +70,10 @@
 //!
 //! let result = buffer.get(&timestamp);
 //! match result {
-//!     Ok(transform) => println!("Transform found: {:?}", transform),
+//!     Ok(transform) => println!("Transform found: {transform:?}"),
 //!     Err(_) => println!("No transform available"),
 //! }
 //! ```
-//!
-//! # Modules
-//!
-//! - `error`: Contains the `BufferError` type for error handling.
-//!
-//! # Structs
-//!
-//! - `Buffer`: The main struct for managing the buffer of transforms.
-//!
-//! # Types
-//!
-//! - `NearestTransforms`: A type alias for a tuple containing the nearest transforms before and after a given timestamp.
 
 use crate::{
     geometry::Transform,
@@ -117,15 +97,13 @@ type NearestTransforms<'a, T> = (
 /// each associated with a timestamp. It uses a binary tree to efficiently
 /// store and retrieve transforms based on their timestamps.
 ///
-/// # Fields
+/// A buffer is either static or dynamic, determined by the first transform
+/// inserted into an empty buffer: a transform carrying the static timestamp
+/// value (`t=0` by default) makes the buffer static. Later inserts of the
+/// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
-/// - `data`: A `BTreeMap` where each key is a timestamp `T` and each value is a `Transform<T>`.
-/// - `max_age`: This feature is available only when the `std` feature is enabled. A `Duration` that
-///   defines the ``max_age`` for each entry, determining how long entries remain valid.
-/// - `is_static`: A boolean flag that determines if the buffer is static. It is set by the
-///   first transform inserted into an empty buffer: a transform carrying the static timestamp
-///   value (`t=0` by default) makes the buffer static. Later inserts of the opposite kind
-///   are rejected with `BufferError::StaticDynamicConflict`.
+/// When the `std` feature is enabled, entries older than `max_age` relative
+/// to the latest inserted timestamp are removed automatically on insert.
 pub struct Buffer<T = Timestamp>
 where
     T: TimePoint,
@@ -142,9 +120,6 @@ impl<T> Buffer<T>
 where
     T: TimePoint,
 {
-    #[cfg(not(feature = "std"))]
-    #[allow(clippy::new_without_default)]
-    #[must_use = "The Buffer should be used to store transforms."]
     /// Creates a new `Buffer` in a `no_std` environment.
     ///
     /// This variant does **not** track or remove entries based on their age,
@@ -157,6 +132,8 @@ where
     /// use transforms::core::Buffer;
     /// let buffer: Buffer = Buffer::new();
     /// ```
+    #[cfg(not(feature = "std"))]
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: BTreeMap::new(),
@@ -164,13 +141,10 @@ where
         }
     }
 
-    #[cfg(feature = "std")]
-    #[allow(clippy::new_without_default)]
-    #[must_use = "The Buffer should be used to store transforms."]
     /// Creates a new `Buffer` in a `std` environment with a specified `max_age`.
     ///
-    /// Entries older than `max_age` can be removed automatically, depending on
-    /// how you implement your cleanup logic.
+    /// Entries older than `max_age` relative to the latest inserted timestamp
+    /// are removed automatically whenever a dynamic transform is inserted.
     ///
     /// # Examples
     ///
@@ -181,6 +155,8 @@ where
     /// let max_age = Duration::from_secs(10);
     /// let buffer: Buffer = Buffer::new(max_age);
     /// ```
+    #[cfg(feature = "std")]
+    #[must_use]
     pub fn new(max_age: Duration) -> Self {
         Self {
             data: BTreeMap::new(),
@@ -224,17 +200,8 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// let timestamp = Timestamp::zero();
     ///
-    /// let translation = Vector3 {
-    ///     x: 1.0,
-    ///     y: 2.0,
-    ///     z: 3.0,
-    /// };
-    /// let rotation = Quaternion {
-    ///     w: 1.0,
-    ///     x: 0.0,
-    ///     y: 0.0,
-    ///     z: 0.0,
-    /// };
+    /// let translation = Vector3::new(1.0, 2.0, 3.0);
+    /// let rotation = Quaternion::identity();
     /// let parent = "a".into();
     /// let child = "b".into();
     ///
@@ -277,6 +244,12 @@ where
 
     /// Retrieves a transform from the buffer at the specified timestamp.
     ///
+    /// # Errors
+    ///
+    /// This function returns a `BufferError::NoTransformAvailable` if:
+    /// - The buffer is static and no transform is available at the static timestamp value.
+    /// - There are no transforms available to interpolate between for the given timestamp.
+    ///
     /// # Examples
     ///
     /// ```
@@ -297,17 +270,8 @@ where
     /// # #[cfg(not(feature = "std"))]
     /// # let timestamp = Timestamp::zero();
     /// #
-    /// # let translation = Vector3 {
-    /// #       x: 1.0,
-    /// #       y: 2.0,
-    /// #       z: 3.0,
-    /// #   };
-    /// # let rotation = Quaternion {
-    /// #       w: 1.0,
-    /// #       x: 0.0,
-    /// #       y: 0.0,
-    /// #       z: 0.0,
-    /// #   };
+    /// # let translation = Vector3::new(1.0, 2.0, 3.0);
+    /// # let rotation = Quaternion::identity();
     /// # let parent = "a".into();
     /// # let child = "b".into();
     /// #
@@ -323,16 +287,10 @@ where
     ///
     /// let result = buffer.get(&timestamp);
     /// match result {
-    ///     Ok(transform) => println!("Transform found: {:?}", transform),
+    ///     Ok(transform) => println!("Transform found: {transform:?}"),
     ///     Err(_) => println!("No transform available"),
     /// }
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// This function returns a `BufferError::NoTransformAvailable` if:
-    /// - The buffer is static and no transform is available at the static timestamp value.
-    /// - There are no transforms available to interpolate between for the given timestamp.
     pub fn get(
         &self,
         timestamp: &T,
@@ -357,11 +315,7 @@ where
     /// Removes transforms from the buffer based on the given threshold.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp lower than the input argument.
-    ///
-    /// # Fields
-    ///
-    /// - `timestamp`: the time to compare all entries in the buffer with.
+    /// timestamp lower than the given timestamp.
     pub fn delete_before(
         &mut self,
         timestamp: T,
@@ -390,7 +344,7 @@ where
         (before, after)
     }
 
-    /// Removes expired transforms from the buffer based on the ``max_age``.
+    /// Removes expired transforms from the buffer based on the `max_age`.
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than `(latest inserted timestamp - max_age)`.
@@ -402,6 +356,16 @@ where
                 self.data.retain(|&k, _| k >= threshold);
             }
         }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<T> Default for Buffer<T>
+where
+    T: TimePoint,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

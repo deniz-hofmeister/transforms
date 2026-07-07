@@ -1,5 +1,7 @@
+//! A 3D vector type with basic arithmetic, dot, and cross products.
+
 use core::ops::{Add, Div, Mul, Sub};
-mod error;
+
 use approx::{AbsDiffEq, RelativeEq};
 
 /// A 3D vector with `x`, `y`, and `z` components.
@@ -11,21 +13,24 @@ use approx::{AbsDiffEq, RelativeEq};
 /// ```
 /// use transforms::geometry::Vector3;
 ///
-/// let vector = Vector3 { x: 1.0, y: 2.0, z: 3.0 };
+/// let vector = Vector3::new(1.0, 2.0, 3.0);
 ///
 /// assert_eq!(vector.x, 1.0);
 /// assert_eq!(vector.y, 2.0);
 /// assert_eq!(vector.z, 3.0);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Vector3 {
+    /// The x component.
     pub x: f64,
+    /// The y component.
     pub y: f64,
+    /// The z component.
     pub z: f64,
 }
 
 impl Vector3 {
-    #[must_use = "this method does not mutate the original Vector3"]
-    /// Creates a new Vector3 with the given x, y, z coordinates.
+    /// Creates a new `Vector3` with the given x, y, z coordinates.
     ///
     /// # Examples
     ///
@@ -36,7 +41,8 @@ impl Vector3 {
     /// assert_eq!(v.y, 2.0);
     /// assert_eq!(v.z, 3.0);
     /// ```
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         x: f64,
         y: f64,
         z: f64,
@@ -44,24 +50,72 @@ impl Vector3 {
         Self { x, y, z }
     }
 
-    #[must_use = "this method does not mutate the original Vector3"]
-    pub fn zero() -> Self {
+    /// Returns the zero vector `(0.0, 0.0, 0.0)`.
+    #[must_use]
+    pub const fn zero() -> Self {
         Self::new(0.0, 0.0, 0.0)
     }
 
-    #[must_use = "this method does not mutate the original Vector3"]
-    pub fn unit_x() -> Self {
+    /// Returns the unit vector along the x-axis `(1.0, 0.0, 0.0)`.
+    #[must_use]
+    pub const fn unit_x() -> Self {
         Self::new(1.0, 0.0, 0.0)
     }
 
-    #[must_use = "this method does not mutate the original Vector3"]
-    pub fn unit_y() -> Self {
+    /// Returns the unit vector along the y-axis `(0.0, 1.0, 0.0)`.
+    #[must_use]
+    pub const fn unit_y() -> Self {
         Self::new(0.0, 1.0, 0.0)
     }
 
-    #[must_use = "this method does not mutate the original Vector3"]
-    pub fn unit_z() -> Self {
+    /// Returns the unit vector along the z-axis `(0.0, 0.0, 1.0)`.
+    #[must_use]
+    pub const fn unit_z() -> Self {
         Self::new(0.0, 0.0, 1.0)
+    }
+
+    /// Computes the dot product of two vectors, the sum of the products of their components.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::Vector3;
+    ///
+    /// let a = Vector3::new(1.0, 2.0, 3.0);
+    /// let b = Vector3::new(4.0, 5.0, 6.0);
+    /// assert_eq!(a.dot(b), 32.0);
+    /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
+    pub fn dot(
+        self,
+        other: Self,
+    ) -> f64 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+
+    /// Computes the cross product of two vectors, a vector perpendicular to both operands.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::Vector3;
+    ///
+    /// let a = Vector3::new(1.0, 0.0, 0.0);
+    /// let b = Vector3::new(0.0, 1.0, 0.0);
+    /// assert_eq!(a.cross(b), Vector3::new(0.0, 0.0, 1.0));
+    /// ```
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
+    pub fn cross(
+        self,
+        other: Self,
+    ) -> Self {
+        Self {
+            x: self.y * other.z - self.z * other.y,
+            y: self.z * other.x - self.x * other.z,
+            z: self.x * other.y - self.y * other.x,
+        }
     }
 }
 
@@ -145,29 +199,6 @@ impl Div<f64> for Vector3 {
     }
 }
 
-impl Vector3 {
-    #[must_use = "this method does not mutate the original Vector3"]
-    #[inline]
-    pub fn dot(
-        self,
-        other: Self,
-    ) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-
-    #[must_use = "this method does not mutate the original Vector3"]
-    #[inline]
-    pub fn cross(
-        self,
-        other: Self,
-    ) -> Self {
-        Self {
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x,
-        }
-    }
-}
 impl AbsDiffEq for Vector3 {
     type Epsilon = f64;
 

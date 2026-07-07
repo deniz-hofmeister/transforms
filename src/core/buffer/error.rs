@@ -1,20 +1,20 @@
-use crate::errors::TransformError;
 use thiserror::Error;
 
+use crate::errors::TransformError;
+
+/// Error type for buffer insertion and retrieval.
 #[derive(Error, Debug)]
 pub enum BufferError {
-    #[error("Max age in seconds of {0} must be > 0 and <= {1}")]
-    MaxAgeInvalid(f64, f64),
-
-    #[error("No transforms available matching your criteria")]
+    /// No stored transforms match the requested timestamp.
+    #[error("no transforms available matching your criteria")]
     NoTransformAvailable,
 
-    #[error(
-        "Cannot mix static and dynamic transforms for the same child frame; \
-         the buffer already contains transforms of the other kind"
-    )]
+    /// The buffer already holds transforms of the other kind; a child frame
+    /// is either static or dynamic, never both.
+    #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
 
-    #[error("Transform error: {0}")]
+    /// A transform operation failed during retrieval.
+    #[error("transform error: {0}")]
     TransformError(#[from] TransformError),
 }
