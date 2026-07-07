@@ -1,95 +1,146 @@
-#[cfg(feature = "std")]
 use core::time::Duration;
-use criterion::{Criterion, criterion_group, criterion_main};
-use std::hint::black_box;
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use std::{cell::Cell, hint::black_box};
 use transforms::{
+    Registry,
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
 };
 
-fn create_sample_transform() -> Transform {
+/// Base timestamp for dynamic samples; `t = 0` is the static sentinel.
+const BASE_NANOS: u128 = 1_000_000_000;
+/// Nanoseconds between consecutive samples in the prepared registries.
+const SAMPLE_INTERVAL_NANOS: u128 = 1_000_000;
+
+fn transform_at(
+    parent: &str,
+    child: &str,
+    nanos: u128,
+) -> Transform {
     Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        #[cfg(not(feature = "std"))]
-        timestamp: Timestamp::zero(),
-        #[cfg(feature = "std")]
-        timestamp: Timestamp::now(),
-        parent: "a".into(),
-        child: "b".into(),
+        timestamp: Timestamp::from_nanos(nanos),
+        parent: parent.into(),
+        child: child.into(),
     }
 }
 
-fn benchmark_transforms(c: &mut Criterion) {
-    use transforms::Registry;
+/// A registry pre-warmed with `samples` dynamic transforms between "a" and
+/// "b", spaced `SAMPLE_INTERVAL_NANOS` apart starting at `BASE_NANOS`.
+/// Returns the registry and the first free timestamp after the samples.
+fn prewarmed_registry(samples: u128) -> (Registry, u128) {
+    let mut registry = Registry::new();
+    let mut nanos = BASE_NANOS;
+    for _ in 0..samples {
+        registry
+            .add_transform(transform_at("a", "b", nanos))
+            .unwrap();
+        nanos += SAMPLE_INTERVAL_NANOS;
+    }
+    (registry, nanos)
+}
+
+/// Steady-state insert: the registry is pre-warmed and bounded by `max_age`,
+/// each iteration inserts the next sample of the stream. The transform is
+/// built in the batch setup so only `add_transform` is measured.
+fn benchmark_add_transform(c: &mut Criterion) {
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
-    group.bench_function("add_and_get_transform", |b| {
-        #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(60));
-        b.iter(|| {
-            let transform = create_sample_transform();
-            let t = transform.timestamp;
-            registry.add_transform(transform).unwrap();
-            let _ = black_box(registry.get_transform("a", "b", t));
-        });
+    group.bench_function("add_transform_prewarmed_1k", |b| {
+        let mut registry = Registry::with_max_age(Duration::from_secs(1));
+        let mut nanos = BASE_NANOS;
+        for _ in 0..1000 {
+            registry
+                .add_transform(transform_at("a", "b", nanos))
+                .unwrap();
+            nanos += SAMPLE_INTERVAL_NANOS;
+        }
+
+        let next = Cell::new(nanos);
+        b.iter_batched(
+            || {
+                let nanos = next.get();
+                next.set(nanos + SAMPLE_INTERVAL_NANOS);
+                transform_at("a", "b", nanos)
+            },
+            |transform| registry.add_transform(black_box(transform)).unwrap(),
+            BatchSize::SmallInput,
+        );
     });
 
     group.finish();
 }
 
-fn benchmark_transforms_with_preparation(c: &mut Criterion) {
-    use transforms::Registry;
+/// Lookup at an exactly stored timestamp in a buffer of 1000 samples.
+fn benchmark_get_transform(c: &mut Criterion) {
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
-    group.bench_function("add_and_get_transform_1k", |b| {
-        #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(60));
+    group.bench_function("get_transform_1k", |b| {
+        let (registry, next) = prewarmed_registry(1000);
+        let query = Timestamp::from_nanos(next - SAMPLE_INTERVAL_NANOS);
 
-        // Prepare registry with 1000 transforms
-        for _ in 0..1000 {
-            let transform = create_sample_transform();
-            registry.add_transform(transform).unwrap();
-        }
-
-        b.iter(|| {
-            let transform = create_sample_transform();
-            let t = transform.timestamp;
-            registry.add_transform(transform).unwrap();
-            let _ = black_box(registry.get_transform("a", "b", t));
-        });
+        b.iter(|| black_box(registry.get_transform("a", "b", query)).unwrap());
     });
 
     group.finish();
+}
+
+/// Lookup between two stored samples, forcing interpolation.
+fn benchmark_get_transform_interpolated(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    group.bench_function("get_transform_interpolated_1k", |b| {
+        let (registry, _) = prewarmed_registry(1000);
+        let query = Timestamp::from_nanos(
+            BASE_NANOS + 500 * SAMPLE_INTERVAL_NANOS + SAMPLE_INTERVAL_NANOS / 2,
+        );
+
+        b.iter(|| black_box(registry.get_transform("a", "b", query)).unwrap());
+    });
+
+    group.finish();
+}
+
+/// Builds a 1000-deep static chain "0" -> "1" -> ... -> "1000".
+fn deep_static_chain() -> Registry {
+    let mut registry = Registry::new();
+    for i in 0..1000 {
+        let mut transform = Transform::identity();
+        transform.parent = i.to_string();
+        transform.child = (i + 1).to_string();
+        registry.add_transform(transform).unwrap();
+    }
+    registry
 }
 
 fn benchmark_tree_climb(c: &mut Criterion) {
-    use transforms::Registry;
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k", |b| {
-        #[cfg(not(feature = "std"))]
-        let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(60));
+        let registry = deep_static_chain();
 
-        // Prepare registry with 1000 transforms
-        for i in 0..1000 {
-            let mut transform = Transform::identity();
-            transform.parent = i.to_string();
-            transform.child = (i + 1).to_string();
-            registry.add_transform(transform).unwrap();
-        }
+        b.iter(|| black_box(registry.get_transform("0", "999", Timestamp::zero())).unwrap());
+    });
+
+    group.finish();
+}
+
+/// Worst-case failed lookup: the walk from the deepest leaf climbs the whole
+/// chain to the root before the query is reported as `NotFound`.
+fn benchmark_not_found_worst_case(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    group.bench_function("not_found_unknown_frame_1k", |b| {
+        let registry = deep_static_chain();
 
         b.iter(|| {
-            let _ = black_box(registry.get_transform("0", "999", Timestamp::zero()));
+            black_box(registry.get_transform("1000", "unknown", Timestamp::zero())).unwrap_err()
         });
     });
 
@@ -97,17 +148,12 @@ fn benchmark_tree_climb(c: &mut Criterion) {
 }
 
 fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
-    use transforms::Registry;
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
 
     group.bench_function("tree_climb_1k_common_parent_elim", |b| {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(60));
 
-        // Prepare registry with 1000 transforms
         let mut transform = Transform::identity();
         transform.parent = "a_999".into();
         transform.child = "b_0".into();
@@ -137,9 +183,7 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
             registry.add_transform(transform).unwrap();
         }
 
-        b.iter(|| {
-            let _ = black_box(registry.get_transform("b_999", "c_999", Timestamp::zero()));
-        });
+        b.iter(|| black_box(registry.get_transform("b_999", "c_999", Timestamp::zero())).unwrap());
     });
 
     group.finish();
@@ -147,10 +191,12 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    benchmark_transforms,
-    benchmark_transforms_with_preparation,
+    benchmark_add_transform,
+    benchmark_get_transform,
+    benchmark_get_transform_interpolated,
     benchmark_tree_climb,
-    benchmark_tree_climb_common_parent_elim
+    benchmark_tree_climb_common_parent_elim,
+    benchmark_not_found_worst_case
 );
 
 criterion_main!(benches);

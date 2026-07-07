@@ -60,15 +60,8 @@ impl TimePoint for TestTime {
 
 #[test]
 fn default_timestamp_api_remains_usable() {
-    #[cfg(not(feature = "std"))]
     let mut registry = Registry::new();
-    #[cfg(not(feature = "std"))]
-    let t = Timestamp::zero();
-
-    #[cfg(feature = "std")]
-    let mut registry = Registry::with_max_age(Duration::from_secs(10));
-    #[cfg(feature = "std")]
-    let t = Timestamp::now();
+    let t = Timestamp::from_nanos(1_000_000_000);
 
     let transform = Transform {
         translation: Vector3::new(1.0, 2.0, 3.0),
@@ -120,10 +113,7 @@ fn registry_supports_system_time() {
 
 #[test]
 fn custom_timestamp_static_policy_is_respected() {
-    #[cfg(not(feature = "std"))]
     let mut registry = Registry::<TestTime>::new();
-    #[cfg(feature = "std")]
-    let mut registry = Registry::<TestTime>::with_max_age(Duration::from_secs(10));
 
     let static_transform = Transform::<TestTime> {
         translation: Vector3::new(1.0, 0.0, 0.0),
@@ -149,4 +139,41 @@ fn custom_timestamp_static_policy_is_respected() {
 fn identity_uses_custom_static_timestamp() {
     let identity = Transform::<TestTime>::identity();
     assert_eq!(identity.timestamp, TestTime::static_timestamp());
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn system_time_pre_epoch_errs_and_epoch_is_static() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // A pre-epoch time point cannot be expressed as seconds since the epoch;
+    // the checked conversion must err and the lossy one must yield NaN.
+    let pre_epoch = UNIX_EPOCH.checked_sub(Duration::from_secs(1)).unwrap();
+    assert!(matches!(
+        TimePoint::as_seconds(pre_epoch),
+        Err(TimeError::DurationUnderflow)
+    ));
+    assert!(TimePoint::as_seconds_lossy(pre_epoch).is_nan());
+    assert!(!pre_epoch.is_static());
+
+    // UNIX_EPOCH is the static sentinel for SystemTime: a transform stored
+    // there is served for any query time, and the result carries the query
+    // time.
+    assert!(UNIX_EPOCH.is_static());
+
+    let mut registry = Registry::<SystemTime>::new();
+    registry
+        .add_transform(Transform::<SystemTime> {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: UNIX_EPOCH,
+            parent: "map".into(),
+            child: "sensor".into(),
+        })
+        .unwrap();
+
+    let query = UNIX_EPOCH.checked_add(Duration::from_secs(5)).unwrap();
+    let result = registry.get_transform("map", "sensor", query).unwrap();
+    assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
+    assert_eq!(result.timestamp, query);
 }

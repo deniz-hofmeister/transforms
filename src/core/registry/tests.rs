@@ -11,15 +11,8 @@ mod registry_tests {
 
     #[test]
     fn basic_chain_linear() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -58,15 +51,8 @@ mod registry_tests {
 
     #[test]
     fn basic_chain_linear_reverse() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -105,15 +91,8 @@ mod registry_tests {
 
     #[test]
     fn basic_chain_rotation() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -162,15 +141,8 @@ mod registry_tests {
 
     #[test]
     fn basic_exact_match() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
         let t_a_b = Transform {
@@ -207,15 +179,8 @@ mod registry_tests {
 
     #[test]
     fn basic_interpolation() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t = Timestamp::from_nanos(1_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
 
         // Child frame B at x=1m without rotation
         let t_a_b_0 = Transform {
@@ -258,15 +223,8 @@ mod registry_tests {
 
     #[test]
     fn basic_chained_interpolation() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t = Timestamp::from_nanos(1_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
 
         // Child frame B at t=0, x=1m without rotation
         let t_a_b_0 = Transform {
@@ -327,15 +285,8 @@ mod registry_tests {
 
     #[test]
     fn basic_branch_navigation() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at t=0, y=1m without rotation
         let t_a_b = Transform {
@@ -386,15 +337,8 @@ mod registry_tests {
 
     #[test]
     fn basic_common_parent_elimination() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at t=0, y=1m without rotation
         let t_a_b = Transform {
@@ -459,19 +403,9 @@ mod registry_tests {
         //   = "b-at-t1 expressed in a-at-t2"
         //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
         //   = (-2,0,0) + (1,1,0) = (-1, 1, 0)
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t1 = Timestamp::from_nanos(1_000_000_000);
-        #[cfg(not(feature = "std"))]
         let t2 = Timestamp::from_nanos(2_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t1 = Timestamp::now();
-        #[cfg(feature = "std")]
-        let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
         // fixed -> a at t1: a is at x=1
         registry
@@ -551,15 +485,8 @@ mod registry_tests {
         // Uses target != fixed so both lookups are non-trivial.
         //
         // Tree: fixed -> a -> b, all at time t
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
             .add_transform(Transform {
@@ -608,19 +535,9 @@ mod registry_tests {
         //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
         //   a-in-fixed@t2 = {t: (0,0,0), R: 90°}  → inverse = {t: (0,0,0), R: -90°}
         //   R(-90°) * (1.5, 0, 0) = (0, -1.5, 0)
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t1 = Timestamp::from_nanos(1_000_000_000);
-        #[cfg(not(feature = "std"))]
         let t2 = Timestamp::from_nanos(2_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t1 = Timestamp::now();
-        #[cfg(feature = "std")]
-        let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
         let theta = core::f64::consts::PI / 2.0;
 
@@ -715,19 +632,9 @@ mod registry_tests {
         //   = "b-at-t1 expressed in a-at-t2"
         //   = inverse(a-in-fixed@t2) * (b-in-fixed@t1)
         //   = (-2,0,0) + (0,1,0) = (-2, 1, 0)
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t1 = Timestamp::from_nanos(1_000_000_000);
-        #[cfg(not(feature = "std"))]
         let t2 = Timestamp::from_nanos(2_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t1 = Timestamp::now();
-        #[cfg(feature = "std")]
-        let t2 = (t1 + Duration::from_secs(1)).unwrap();
 
         // fixed -> a at t1
         registry
@@ -805,16 +712,93 @@ mod registry_tests {
     }
 
     #[test]
-    fn get_transform_for_success_with_point() {
-        #[cfg(not(feature = "std"))]
+    fn get_transform_at_unknown_fixed_frame_returns_not_found() {
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
 
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        // Tree: fixed -> a -> b, known at both times.
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(0.0, 1.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "a".into(),
+                    child: "b".into(),
+                })
+                .unwrap();
+        }
+
+        // The fixed frame is not part of the tree: neither leg of the time
+        // travel can resolve, so the whole query must fail loudly instead of
+        // silently picking another reference.
+        let result = registry.get_transform_at("a", t2, "b", t1, "nowhere");
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for unknown fixed frame, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_at_missing_data_at_requested_times_returns_error() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+
+        // fixed -> a is known at t1 and t2; a -> b only at t1.
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+        }
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // The source frame has no data at the requested source time: the
+        // b -> fixed leg cannot resolve at t2.
+        let result = registry.get_transform_at("a", t1, "b", t2, "fixed");
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for missing source data, got {result:?}"
+        );
+
+        // The target frame has no data at the requested target time: the
+        // a -> fixed leg cannot resolve at t3 (no extrapolation).
+        let result = registry.get_transform_at("a", t3, "b", t1, "fixed");
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for missing target data, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_for_success_with_point() {
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
             .add_transform(Transform {
@@ -850,15 +834,8 @@ mod registry_tests {
 
     #[test]
     fn get_transform_for_same_frame_returns_identity_on_empty_registry() {
-        #[cfg(not(feature = "std"))]
         let registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let mut point = Point {
             position: Vector3::new(1.0, 2.0, 3.0),
@@ -888,15 +865,8 @@ mod registry_tests {
 
     #[test]
     fn get_transform_for_propagates_lookup_error() {
-        #[cfg(not(feature = "std"))]
         let registry = Registry::new();
-        #[cfg(not(feature = "std"))]
-        let t = Timestamp::zero();
-
-        #[cfg(feature = "std")]
-        let registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let point = Point {
             position: Vector3::new(0.0, 0.0, 0.0),
@@ -1046,15 +1016,8 @@ mod registry_tests {
 
     #[test]
     fn get_transform_unknown_frame_returns_not_found() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t = Timestamp::from_nanos(1_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = Timestamp::now();
 
         registry
             .add_transform(Transform {
@@ -1084,15 +1047,8 @@ mod registry_tests {
 
     #[test]
     fn get_transform_partial_chain_returns_not_found() {
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(not(feature = "std"))]
         let t0 = Timestamp::from_nanos(1_000_000_000);
-
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t0 = Timestamp::now();
 
         let t1 = (t0 + Duration::from_secs(1)).unwrap();
 
@@ -1129,10 +1085,7 @@ mod registry_tests {
 
     #[test]
     fn add_transform_rejects_static_dynamic_mixing() {
-        #[cfg(not(feature = "std"))]
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
-        #[cfg(feature = "std")]
-        let t_dynamic = Timestamp::now();
 
         let static_tf = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
@@ -1150,10 +1103,7 @@ mod registry_tests {
         };
 
         // Static first, then dynamic.
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
         registry.add_transform(static_tf.clone()).unwrap();
         assert!(
@@ -1165,10 +1115,7 @@ mod registry_tests {
         );
 
         // Dynamic first, then static.
-        #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
-        #[cfg(feature = "std")]
-        let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
         registry.add_transform(dynamic_tf.clone()).unwrap();
         assert!(

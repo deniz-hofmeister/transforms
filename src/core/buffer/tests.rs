@@ -24,15 +24,8 @@ mod buffer_tests {
 
     #[test]
     fn insert_and_get() {
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-        #[cfg(not(feature = "std"))]
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
-
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let transform = create_transform(t);
         buffer.insert(transform.clone()).unwrap();
@@ -51,11 +44,7 @@ mod buffer_tests {
 
     #[test]
     fn insert_and_get_static() {
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         let t = Timestamp::zero();
         let transform = create_transform(t);
@@ -74,15 +63,8 @@ mod buffer_tests {
 
     #[test]
     fn get_nearest() {
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-        #[cfg(not(feature = "std"))]
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
-
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let p1 = create_transform((t + Duration::from_secs(1)).unwrap());
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
@@ -128,11 +110,7 @@ mod buffer_tests {
 
     #[test]
     fn empty_buffer() {
-        #[cfg(not(feature = "std"))]
         let buffer = Buffer::new();
-
-        #[cfg(feature = "std")]
-        let buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         assert!(buffer.get(&Timestamp::from_nanos(1000)).is_err());
 
@@ -142,10 +120,9 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "std"))]
     fn delete_before() {
         let mut buffer = Buffer::new();
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(2)).unwrap());
@@ -163,10 +140,9 @@ mod buffer_tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn delete_expired() {
         let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+        let t = Timestamp::from_nanos(20_000_000_000);
 
         let p1 = create_transform(t);
         let p2 = create_transform((t + Duration::from_secs(1)).unwrap());
@@ -181,22 +157,15 @@ mod buffer_tests {
         let get_3 = buffer.get(&t);
 
         assert!(get_1.is_err());
-        // The following is not found because by this time, it has expired.
+        // Before the earliest stored sample: nothing to interpolate from.
         assert!(get_2.is_err());
         assert!(get_3.is_ok());
     }
 
     #[test]
     fn single_point_buffer() {
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-        #[cfg(not(feature = "std"))]
-        let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
-
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-        #[cfg(feature = "std")]
-        let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
+        let t = Timestamp::from_nanos(1_000_000_000);
 
         let point = create_transform(t);
         buffer.insert(point.clone()).unwrap();
@@ -219,19 +188,13 @@ mod buffer_tests {
 
     #[test]
     fn insert_rejects_static_dynamic_mixing() {
-        #[cfg(not(feature = "std"))]
-        let t_dynamic = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
-        #[cfg(feature = "std")]
-        let t_dynamic = Timestamp::now();
+        let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 
         let static_tf = create_transform(Timestamp::zero());
         let dynamic_tf = create_transform(t_dynamic);
 
         // Static first, then dynamic.
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         buffer.insert(static_tf.clone()).unwrap();
         assert!(matches!(
@@ -243,10 +206,7 @@ mod buffer_tests {
         assert_eq!(buffer.get(&t_dynamic).unwrap(), static_tf);
 
         // Dynamic first, then static.
-        #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
-        #[cfg(feature = "std")]
-        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         buffer.insert(dynamic_tf.clone()).unwrap();
         assert!(matches!(

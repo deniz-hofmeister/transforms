@@ -40,8 +40,8 @@ Its priorities, in this order:
   (the `no_std` float-math fallback), and the optional, default-off `serde`
   are the entire runtime dependency list. (The `[dev-dependencies]` —
   `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
-  for benches, `serde_json` for serde roundtrips — are expected and do not
-  contradict this.)
+  for benches, `proptest` for property tests, `serde_json` for serde
+  roundtrips — are expected and do not contradict this.)
 - `no_std` parity: every change must build and pass tests with
   `--no-default-features`, and build for a real bare-metal target (the gate
   builds `thumbv7em-none-eabihf`). `no_std` requires a heap allocator (`alloc`).
@@ -130,9 +130,11 @@ this section is convention, enforced in review — follow it anyway.
 - Tests: no logging (no `env_logger`, no `debug!` — logging belongs in
   `examples/`), `assert_eq!`/`assert_ne!` over `assert!(a == b)`, and
   behavior-descriptive snake_case names. Tests are deterministic: fixed
-  `Timestamp::from_nanos` fixtures, never `Timestamp::now()`. `Timestamp::zero()`
-  is fine for a single static sample, but never as the base of a *dynamic*
-  time series — `t = 0` is the static sentinel.
+  `Timestamp::from_nanos` fixtures, never `Timestamp::now()` (one dedicated
+  std-only smoke test covers `now()` itself). `Timestamp::zero()` is fine for
+  a single static sample, but never as the base of a *dynamic* time series —
+  `t = 0` is the static sentinel. Invariants ideally get a property test in
+  `tests/properties.rs` alongside the example-based ones.
 - Strings into `String` fields: `"a".into()`. Format strings use inline
   captures: `{x}` / `{x:?}`.
 
