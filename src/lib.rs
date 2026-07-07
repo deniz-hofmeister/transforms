@@ -30,6 +30,9 @@
 //! - Perspective transformations
 //! - Non-rigid transformations
 //! - Affine transformations beyond rigid body motion
+//! - API parity with ROS2 tf2
+//! - Non-linear interpolation
+//! - Extrapolation
 //!
 //! This decision helps maintain the library's focus on its core purpose: providing fast and efficient
 //! rigid body transformations for robotics applications. For more general transformation needs,

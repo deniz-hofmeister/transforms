@@ -551,9 +551,36 @@ cargo run --example std_full
 cargo run --example no_std_minimal --no-default-features
 ```
 
+## AI-Assisted Development
+
+Parts of this library have been developed with AI assistance (Claude Code),
+including some work that predates v2.0.0. Starting with v2.0.0, AI-assisted
+contributions follow a formal framework:
+
+- Every AI-assisted commit is disclosed with an `Assisted-by:` commit trailer
+  (following the Linux kernel convention, e.g.
+  `Assisted-by: Claude:claude-fable-5`), making AI involvement
+  machine-queryable from v2.0.0 onward:
+
+  ```bash
+  git log --grep="Assisted-by:"
+  ```
+
+- The standards, invariants, and conventions that AI agents must follow when
+  working on this repository are documented in [AGENTS.md](AGENTS.md).
+- Every AI-assisted change is reviewed, tested, and understood by the
+  maintainer before merging.
+
+I take full responsibility for every line in this repository, however it was
+produced.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
+
+This applies to contributors as well as the maintainer: AI-assisted
+contributions must follow the standards in [AGENTS.md](AGENTS.md) and carry the
+`Assisted-by:` commit trailer described above.
 
 ## License
 
