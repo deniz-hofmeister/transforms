@@ -259,6 +259,42 @@ mod buffer_tests {
     }
 
     #[test]
+    fn insert_expires_entries_older_than_max_age() {
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(1));
+
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(6_000_000_000);
+
+        buffer.insert(create_transform(t1)).unwrap();
+        buffer.insert(create_transform(t2)).unwrap();
+
+        // t1 is more than max_age older than the latest inserted timestamp,
+        // so it must have been expired by the second insert.
+        assert!(
+            buffer.get(&t1).is_err(),
+            "entry older than max_age must expire on insert"
+        );
+        assert!(buffer.get(&t2).is_ok());
+    }
+
+    #[test]
+    fn new_buffer_never_expires_entries() {
+        let mut buffer: Buffer = Buffer::new();
+
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_600_000_000_000);
+
+        buffer.insert(create_transform(t1)).unwrap();
+        buffer.insert(create_transform(t2)).unwrap();
+
+        assert!(
+            buffer.get(&t1).is_ok(),
+            "Buffer::new must not expire entries"
+        );
+        assert!(buffer.get(&t2).is_ok());
+    }
+
+    #[test]
     fn delete_before_preserves_static_transforms() {
         let mut buffer: Buffer = Buffer::new();
 
@@ -308,4 +344,22 @@ mod buffer_tests {
         assert!(buffer.insert(f32_grade).is_ok());
     }
 
+    #[test]
+    fn out_of_order_insert_does_not_regress_latest_timestamp() {
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(1));
+
+        let t_new = Timestamp::from_nanos(5_000_000_000);
+        let t_old = Timestamp::from_nanos(1_000_000_000);
+
+        buffer.insert(create_transform(t_new)).unwrap();
+        // Late-arriving old sample: the expiry reference must remain t_new,
+        // so this entry is already outside max_age and gets dropped.
+        buffer.insert(create_transform(t_old)).unwrap();
+
+        assert!(
+            buffer.get(&t_old).is_err(),
+            "expiry must be measured against the latest timestamp, not the last insert"
+        );
+        assert!(buffer.get(&t_new).is_ok());
+    }
 }

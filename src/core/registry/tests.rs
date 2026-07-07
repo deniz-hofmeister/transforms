@@ -1087,6 +1087,33 @@ mod registry_tests {
     }
 
     #[test]
+    fn delete_transforms_before_removes_old_dynamic_transforms() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "a".into(),
+                    child: "b".into(),
+                })
+                .unwrap();
+        }
+
+        registry.delete_transforms_before(Timestamp::from_nanos(2_000_000_000));
+
+        assert!(
+            registry.get_transform("a", "b", t1).is_err(),
+            "transforms before the cutoff must be deleted"
+        );
+        assert!(registry.get_transform("a", "b", t2).is_ok());
+    }
+
+    #[test]
     fn delete_transforms_before_preserves_static_transforms() {
         let mut registry = Registry::new();
 
@@ -1109,6 +1136,48 @@ mod registry_tests {
             static_tf,
             "static transforms must survive manual cleanup"
         );
+    }
+
+    #[test]
+    fn mixed_static_dynamic_chain_resolves_and_interpolates() {
+        let mut registry = Registry::new();
+
+        // Static sensor mount: lidar sits 0.5 m ahead of base.
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.5, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: Timestamp::zero(),
+                parent: "base".into(),
+                child: "lidar".into(),
+            })
+            .unwrap();
+
+        // Dynamic robot pose: base moves from x=1 to x=3 between t1 and t2.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+        for (t, x) in [(t1, 1.0), (t2, 3.0)] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(x, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "map".into(),
+                    child: "base".into(),
+                })
+                .unwrap();
+        }
+
+        // Query mid-way: the dynamic hop interpolates to x=2, the static hop
+        // contributes its fixed 0.5 offset, and the result carries the query
+        // timestamp.
+        let mid = Timestamp::from_nanos(2_000_000_000);
+        let result = registry.get_transform("map", "lidar", mid).unwrap();
+
+        assert_eq!(result.parent, "map");
+        assert_eq!(result.child, "lidar");
+        assert_eq!(result.timestamp, mid);
+        assert_abs_diff_eq!(result.translation, Vector3::new(2.5, 0.0, 0.0));
     }
 
     #[test]
@@ -1148,4 +1217,44 @@ mod registry_tests {
         assert!(registry.get_transform("a", "b", t).is_err());
     }
 
+    #[test]
+    fn with_max_age_expires_old_transforms_on_insert() {
+        let mut registry = Registry::with_max_age(Duration::from_secs(1));
+
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(6_000_000_000);
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "a".into(),
+                    child: "b".into(),
+                })
+                .unwrap();
+        }
+
+        assert!(
+            registry.get_transform("a", "b", t1).is_err(),
+            "with_max_age registries must expire entries older than max_age"
+        );
+        assert!(registry.get_transform("a", "b", t2).is_ok());
+
+        // A registry without max_age keeps everything.
+        let mut registry = Registry::new();
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "a".into(),
+                    child: "b".into(),
+                })
+                .unwrap();
+        }
+        assert!(registry.get_transform("a", "b", t1).is_ok());
+        assert!(registry.get_transform("a", "b", t2).is_ok());
+    }
 }

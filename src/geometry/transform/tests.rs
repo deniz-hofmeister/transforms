@@ -242,6 +242,46 @@ mod transform_tests {
     }
 
     #[test]
+    fn interpolate_rejects_out_of_range_timestamps() {
+        let from = transform_at("a", "b", Timestamp::from_nanos(1_000_000_000));
+        let mut to = transform_at("a", "b", Timestamp::from_nanos(2_000_000_000));
+        to.translation = Vector3::new(2.0, 0.0, 0.0);
+
+        // Before the covered range: extrapolation must be rejected.
+        let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(500_000_000));
+        assert!(
+            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            "interpolation before the range must fail, got {result:?}"
+        );
+
+        // After the covered range: extrapolation must be rejected.
+        let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(3_000_000_000));
+        assert!(
+            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            "interpolation after the range must fail, got {result:?}"
+        );
+
+        // Swapped endpoints must be rejected.
+        let result = Transform::interpolate(&to, &from, Timestamp::from_nanos(1_500_000_000));
+        assert!(
+            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            "swapped endpoints must fail, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn interpolate_rejects_mismatched_frames() {
+        let from = transform_at("a", "b", Timestamp::from_nanos(1_000_000_000));
+        let to = transform_at("a", "c", Timestamp::from_nanos(2_000_000_000));
+
+        let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(1_500_000_000));
+        assert!(
+            matches!(result, Err(TransformError::IncompatibleFrames)),
+            "interpolating between different frame pairs must fail, got {result:?}"
+        );
+    }
+
+    #[test]
     fn validate_enforces_finite_unit_rotations() {
         let t = Timestamp::from_nanos(1_000_000_000);
 

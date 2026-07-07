@@ -35,7 +35,8 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 ### v2.0.0 — Stricter validation and a Rust-first API cleanup
 
-Three correctness fixes and an API cleanup; `add_transform` is now fallible:
+Correctness fixes, boundary validation, a real `no_std` story, and a
+Rust-first API cleanup; `add_transform` is now fallible:
 
 - `get_transform` now verifies that the resolved chain actually connects the two
   requested frames. Previously, querying a frame name that did not exist in the
@@ -53,6 +54,23 @@ Three correctness fixes and an API cleanup; `add_transform` is now fallible:
 - `no_std` `Registry` and `Buffer` now implement `Default`.
 - Error `Display` messages are now lowercase per the Rust API guidelines.
 - Crate upgraded to edition 2024 with `rust-version` 1.85 declared.
+- `no_std` now works on real bare-metal targets (CI builds
+  `thumbv7em-none-eabihf`): float math falls back to `libm`, and dependencies
+  no longer pull in `std`.
+- The `std` feature is additive: `Registry::new()` / `Buffer::new()` (no
+  automatic cleanup) and `Registry::with_max_age` / `Buffer::with_max_age`
+  (automatic cleanup) exist in both modes, as does `Default`.
+- Transforms are validated on insertion: non-finite values and non-unit
+  rotations (beyond `Transform::UNIT_NORM_TOLERANCE`) are rejected instead of
+  silently corrupting later lookups. `Transform::validate` is public.
+- Manual cleanup (`delete_transforms_before`) no longer destroys static
+  transforms.
+- `==` on geometry types is now exact; tolerant comparison moved to the
+  `approx` traits (`assert_abs_diff_eq!`). The unsound `Eq` impl on
+  `Transform` and the meaningless `PartialOrd` derives on `Quaternion`,
+  `Vector3`, and `Point` are gone.
+- `Registry`'s internal storage is private; error enums are
+  `#[non_exhaustive]`; added `Timestamp::as_nanos()`.
 
 ```rust
 // add_transform is now fallible
