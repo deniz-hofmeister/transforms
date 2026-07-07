@@ -54,6 +54,70 @@ impl<T> Transform<T>
 where
     T: TimePoint,
 {
+    /// The accepted deviation of a rotation's norm from 1 in
+    /// [`Transform::validate`].
+    ///
+    /// Loose enough to accept unit quaternions that were stored or
+    /// transmitted as `f32` and widened to `f64`, tight enough to reject
+    /// genuinely denormalized rotations, which would otherwise corrupt every
+    /// lookup they take part in without any error.
+    pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
+
+    /// Checks that the transform is usable for composition and lookup.
+    ///
+    /// A valid transform has finite translation and rotation components and a
+    /// rotation whose norm is within [`Transform::UNIT_NORM_TOLERANCE`] of
+    /// `1.0`. The registry enforces this on insertion; call it directly when
+    /// composing hand-built transforms with `*` or applying them via
+    /// `Transformable`, which do not validate.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransformError::NonFiniteValues` if any component is NaN or
+    /// infinite, and `TransformError::NonUnitRotation` if the rotation is not
+    /// a unit quaternion within the tolerance.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     errors::TransformError,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
+    ///
+    /// let mut transform = Transform::<Timestamp>::identity();
+    /// assert!(transform.validate().is_ok());
+    ///
+    /// transform.rotation = Quaternion::new(2.0, 0.0, 0.0, 0.0);
+    /// assert!(matches!(
+    ///     transform.validate(),
+    ///     Err(TransformError::NonUnitRotation(_))
+    /// ));
+    /// ```
+    pub fn validate(&self) -> Result<(), TransformError> {
+        let t = self.translation;
+        let q = self.rotation;
+
+        let finite = t.x.is_finite()
+            && t.y.is_finite()
+            && t.z.is_finite()
+            && q.w.is_finite()
+            && q.x.is_finite()
+            && q.y.is_finite()
+            && q.z.is_finite();
+        if !finite {
+            return Err(TransformError::NonFiniteValues);
+        }
+
+        let norm = q.norm();
+        if (norm - 1.0).abs() > Self::UNIT_NORM_TOLERANCE {
+            return Err(TransformError::NonUnitRotation(norm));
+        }
+
+        Ok(())
+    }
+
     /// Interpolates between two transforms at a given timestamp.
     ///
     /// Returns a new `Transform` that is the interpolation between `from` and `to`

@@ -423,10 +423,12 @@ where
         )
     }
 
-    /// Removes transforms from every buffer based on the given threshold.
+    /// Removes dynamic transforms older than the given threshold.
     ///
-    /// Iterates over all buffers and deletes all entries with a
-    /// timestamp lower than the input argument.
+    /// Iterates over all buffers and deletes their dynamic entries with a
+    /// timestamp lower than the input argument. Static transforms are
+    /// preserved: they are valid for all time, so cleaning them up by
+    /// timestamp would silently destroy them.
     pub fn delete_transforms_before(
         &mut self,
         timestamp: T,

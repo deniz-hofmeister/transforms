@@ -7,6 +7,14 @@ use crate::errors::{QuaternionError, TimeError};
 /// Error type for transform lookup, composition, and application.
 #[derive(Error, Debug)]
 pub enum TransformError {
+    /// The rotation is not a unit quaternion within the accepted tolerance.
+    #[error("rotation is not a unit quaternion (norm: {0})")]
+    NonUnitRotation(f64),
+
+    /// The transform contains non-finite (NaN or infinite) components.
+    #[error("transform contains non-finite values")]
+    NonFiniteValues,
+
     /// Two timestamps that must agree do not (given in seconds): composed
     /// transforms with differing timestamps, an interpolation request outside
     /// the covered range, or applying a transform to a value from another time.

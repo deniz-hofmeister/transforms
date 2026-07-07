@@ -1112,4 +1112,66 @@ mod registry_tests {
         let result = registry.get_transform("a", "b", t_dynamic);
         assert_eq!(result.unwrap(), dynamic_tf);
     }
+
+    #[test]
+    fn delete_transforms_before_preserves_static_transforms() {
+        let mut registry = Registry::new();
+
+        let static_tf = Transform {
+            translation: Vector3::new(0.5, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Timestamp::zero(),
+            parent: "base".into(),
+            child: "lidar".into(),
+        };
+        registry.add_transform(static_tf.clone()).unwrap();
+
+        // The documented manual-cleanup workflow must not destroy static
+        // transforms: they are valid for all time.
+        registry.delete_transforms_before(Timestamp::from_nanos(5_000_000_000));
+
+        let result = registry.get_transform("base", "lidar", Timestamp::from_nanos(9_000_000_000));
+        assert_eq!(
+            result.unwrap(),
+            static_tf,
+            "static transforms must survive manual cleanup"
+        );
+    }
+
+    #[test]
+    fn add_transform_rejects_invalid_rotations() {
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        // Rotation-equivalent to identity but non-unit: if accepted, it
+        // would silently scale every lookup.
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(1.0, 0.0, 0.0),
+            rotation: Quaternion::new(2.0, 0.0, 0.0, 0.0),
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+        assert!(matches!(
+            result,
+            Err(BufferError::TransformError(
+                TransformError::NonUnitRotation(_)
+            ))
+        ));
+
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(f64::NAN, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        });
+        assert!(matches!(
+            result,
+            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+        ));
+
+        // Nothing was stored by the rejected inserts.
+        assert!(registry.get_transform("a", "b", t).is_err());
+    }
 }

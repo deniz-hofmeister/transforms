@@ -244,4 +244,13 @@ mod quaternion_tests {
         assert_relative_eq!(result.z, 0.0, epsilon = f64::EPSILON);
         assert_relative_eq!(result.norm(), 1.0, epsilon = f64::EPSILON);
     }
+
+    #[test]
+    fn normalize_rejects_non_finite_quaternions() {
+        let nan = Quaternion::new(f64::NAN, 0.0, 0.0, 0.0);
+        assert!(matches!(nan.normalize(), Err(QuaternionError::NonFinite)));
+
+        let inf = Quaternion::new(f64::INFINITY, 0.0, 0.0, 0.0);
+        assert!(matches!(inf.normalize(), Err(QuaternionError::NonFinite)));
+    }
 }

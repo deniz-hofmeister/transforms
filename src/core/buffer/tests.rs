@@ -257,4 +257,54 @@ mod buffer_tests {
         // The dynamic transform is still served after the rejected insert.
         assert_eq!(buffer.get(&t_dynamic).unwrap(), dynamic_tf);
     }
+
+    #[test]
+    fn delete_before_preserves_static_transforms() {
+        let mut buffer: Buffer = Buffer::new();
+
+        let static_tf = create_transform(Timestamp::zero());
+        buffer.insert(static_tf.clone()).unwrap();
+
+        // Manual cleanup with any cutoff must not destroy a static transform:
+        // it is valid for all time, not just before the cutoff.
+        buffer.delete_before(Timestamp::from_nanos(5_000_000_000));
+
+        assert_eq!(
+            buffer.get(&Timestamp::from_nanos(9_000_000_000)).unwrap(),
+            static_tf,
+            "static transforms must survive manual cleanup"
+        );
+    }
+
+    #[test]
+    fn insert_rejects_invalid_transforms() {
+        use crate::errors::TransformError;
+
+        let mut buffer: Buffer = Buffer::new();
+
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        // A rotation-equivalent but non-unit quaternion would silently scale
+        // every lookup it takes part in.
+        let mut non_unit = create_transform(t);
+        non_unit.rotation = Quaternion::new(2.0, 0.0, 0.0, 0.0);
+        assert!(matches!(
+            buffer.insert(non_unit),
+            Err(BufferError::TransformError(
+                TransformError::NonUnitRotation(_)
+            ))
+        ));
+
+        let mut non_finite = create_transform(t);
+        non_finite.translation = Vector3::new(f64::NAN, 0.0, 0.0);
+        assert!(matches!(
+            buffer.insert(non_finite),
+            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+        ));
+
+        // Unit-norm rotations with f32-grade precision loss must be accepted.
+        let mut f32_grade = create_transform(t);
+        f32_grade.rotation = Quaternion::new(1.0 + 1e-8, 0.0, 0.0, 0.0);
+        assert!(buffer.insert(f32_grade).is_ok());
+    }
 }

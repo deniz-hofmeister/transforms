@@ -240,4 +240,38 @@ mod transform_tests {
             "dynamic transforms with different timestamps must be rejected, got {result:?}"
         );
     }
+
+    #[test]
+    fn validate_enforces_finite_unit_rotations() {
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        assert!(transform_at("a", "b", t).validate().is_ok());
+
+        // f32-grade precision loss on a unit rotation is accepted.
+        let mut f32_grade = transform_at("a", "b", t);
+        f32_grade.rotation = Quaternion::new(1.0 + 1e-8, 0.0, 0.0, 0.0);
+        assert!(f32_grade.validate().is_ok());
+
+        // A genuinely denormalized rotation is rejected with its norm.
+        let mut denormalized = transform_at("a", "b", t);
+        denormalized.rotation = Quaternion::new(1.001, 0.0, 0.0, 0.0);
+        assert!(matches!(
+            denormalized.validate(),
+            Err(TransformError::NonUnitRotation(_))
+        ));
+
+        let mut non_finite = transform_at("a", "b", t);
+        non_finite.rotation = Quaternion::new(f64::NAN, 0.0, 0.0, 0.0);
+        assert!(matches!(
+            non_finite.validate(),
+            Err(TransformError::NonFiniteValues)
+        ));
+
+        let mut inf_translation = transform_at("a", "b", t);
+        inf_translation.translation = Vector3::new(f64::INFINITY, 0.0, 0.0);
+        assert!(matches!(
+            inf_translation.validate(),
+            Err(TransformError::NonFiniteValues)
+        ));
+    }
 }

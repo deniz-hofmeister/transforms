@@ -146,7 +146,9 @@ impl Quaternion {
     ///
     /// # Errors
     ///
-    /// Returns `QuaternionError::ZeroLengthNormalization` if the quaternion is zero-length.
+    /// Returns `QuaternionError::ZeroLengthNormalization` if the quaternion is
+    /// zero-length, and `QuaternionError::NonFinite` if any component is NaN
+    /// or infinite.
     ///
     /// # Examples
     ///
@@ -166,6 +168,9 @@ impl Quaternion {
     #[inline]
     pub fn normalize(self) -> Result<Quaternion, QuaternionError> {
         let norm = self.norm();
+        if !norm.is_finite() {
+            return Err(QuaternionError::NonFinite);
+        }
         if norm < f64::EPSILON {
             return Err(QuaternionError::ZeroLengthNormalization);
         }

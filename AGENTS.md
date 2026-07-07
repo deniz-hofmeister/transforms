@@ -74,11 +74,19 @@ would produce) a silent wrong answer:
 - Interpolation happens only between stored samples; a query outside the covered
   time range fails. There is no extrapolation.
 - Buffer expiry is data-driven: entries older than
-  (latest **inserted** timestamp − `max_age`) are removed on insert. Wall-clock
-  time is never consulted.
+  (latest **inserted** timestamp − `max_age`) are removed on insert (only for
+  buffers built `with_max_age`). Wall-clock time is never consulted. Manual
+  cleanup (`delete_before` / `delete_transforms_before`) never touches static
+  buffers — a static transform is valid for all time.
+- Transforms are validated at insertion (`Transform::validate`, called by
+  `Buffer::insert`): non-finite components and rotations whose norm deviates
+  from 1 by more than `Transform::UNIT_NORM_TOLERANCE` are rejected. A
+  denormalized rotation would silently corrupt every lookup it takes part in.
 - Rotations are expected to be unit quaternions; `Quaternion::new` does not
   normalize. Anything that inverts a rotation must normalize first (see
-  `Transform::inverse`).
+  `Transform::inverse`). Direct `Transform * Transform` composition and
+  `Transformable::transform` do not validate — the fields are public — so the
+  registry boundary is where the invariant is enforced.
 
 When you fix a correctness bug, ship the regression test that fails on the old
 code in the same commit.

@@ -166,11 +166,18 @@ where
 
     /// Adds a transform to the buffer.
     ///
-    /// The first transform inserted into an empty buffer determines whether
-    /// the buffer is static (timestamp equal to `T::static_timestamp()`) or
-    /// dynamic. Subsequent inserts must be of the same kind.
+    /// The transform is validated first: it must have finite components and
+    /// a unit rotation (see [`Transform::validate`]). The first transform
+    /// inserted into an empty buffer determines whether the buffer is static
+    /// (timestamp equal to `T::static_timestamp()`) or dynamic. Subsequent
+    /// inserts must be of the same kind.
     ///
     /// # Errors
+    ///
+    /// Returns `BufferError::TransformError` wrapping
+    /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
+    /// if the transform fails validation — storing such a transform would
+    /// make later lookups return silently wrong results.
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
     /// (static or dynamic) does not match the transforms already stored in
@@ -217,6 +224,8 @@ where
         &mut self,
         transform: Transform<T>,
     ) -> Result<(), BufferError> {
+        transform.validate()?;
+
         let timestamp = transform.timestamp;
         let is_static = timestamp.is_static();
 
@@ -312,11 +321,16 @@ where
     /// Removes dynamic transforms older than the given timestamp.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp lower than the given timestamp.
+    /// timestamp lower than the given timestamp. Static buffers are left
+    /// untouched: a static transform is valid for all time, so cleaning it up
+    /// by timestamp would silently destroy it.
     pub fn delete_before(
         &mut self,
         timestamp: T,
     ) {
+        if self.is_static {
+            return;
+        }
         self.data.retain(|&k, _| k >= timestamp);
     }
 
