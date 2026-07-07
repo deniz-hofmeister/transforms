@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a defect in the transforms crate
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        A self-contained snippet that reproduces the problem. A snippet that
+        builds a Registry, inserts Transforms, and performs the failing
+        lookup is ideal.
+      render: rust
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual behavior
+      description: What you expected to happen, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and feature flags
+      placeholder: "2.0.0, default features"
+    validations:
+      required: true
+  - type: dropdown
+    id: failure-mode
+    attributes:
+      label: Failure mode
+      description: >-
+        How does the bug manifest? A wrong result returned silently is this
+        crate's highest-severity class of bug — flagging it correctly helps
+        triage.
+      options:
+        - "wrong result (silent)"
+        - "unexpected error"
+        - "panic"
+        - "build failure"
+        - "other"
+    validations:
+      required: true

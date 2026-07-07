@@ -213,3 +213,20 @@ describe. Documentation drift is treated as a bug.
   dependency, or touching the Non-Goals, stop and ask the maintainer.
 - Read the git history of the code you are changing; several invariants above
   are scars from specific bugs, and the commit messages explain them.
+
+## Releasing
+
+Releases are cut by the maintainer. The checklist, in order:
+
+- Finalize `CHANGELOG.md`: replace the version's `Unreleased` marker with the
+  release date and repoint its compare link to the tag.
+  version number with the release date.
+- Confirm the `version` in `Cargo.toml` matches the release.
+- Run the full verification gate (`tests/test_all.sh`).
+- `cargo publish --dry-run` and inspect the file list — nothing missing,
+  nothing that should not ship.
+- Tag `vX.Y.Z` and push the tag.
+- `cargo publish`.
+- After 2.0.0 is published: add a `cargo-semver-checks` CI job so accidental
+  breaking changes are caught against the published baseline. This is
+  deliberately not added pre-release — everything is breaking against 1.4.1.

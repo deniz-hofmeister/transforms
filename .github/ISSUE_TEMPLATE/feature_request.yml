@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose an addition or change to the transforms crate
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Before proposing, check the README's **Non-Goals** section — it is
+        load-bearing. Scaling, skew, affine, non-rigid, and perspective
+        transforms, extrapolation, non-linear interpolation, and tf2 API parity are
+        deliberately out of scope and will not be implemented. Re-parenting
+        support is a known future-feature candidate.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Problem / use case
+      description: >-
+        What problem does this solve? Describe what you are trying to do,
+        not only the feature you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: api-sketch
+    attributes:
+      label: Proposed API sketch
+      description: Optional — a rough sketch of the API you would expect.
+      render: rust
+    validations:
+      required: false
