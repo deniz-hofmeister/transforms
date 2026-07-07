@@ -35,6 +35,16 @@ jobs:
       - name: Build
         run: cargo build --no-default-features
 
+  build-no-std-bare-metal:
+    runs-on: ubuntu-latest
+    name: build-no-std-bare-metal
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bare-metal target
+        run: rustup target add thumbv7em-none-eabihf
+      - name: Build for thumbv7em-none-eabihf
+        run: cargo build --no-default-features --target thumbv7em-none-eabihf
+
   build:
     runs-on: ubuntu-latest
     name: build

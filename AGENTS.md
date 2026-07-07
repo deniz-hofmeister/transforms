@@ -36,13 +36,15 @@ Its priorities, in this order:
 
 - `#![forbid(unsafe_code)]`. No exceptions.
 - No new dependencies without maintainer approval. Middleware independence is
-  the crate's reason to exist; `thiserror`, `approx`, and `hashbrown` are the
-  entire runtime dependency list. (The `[dev-dependencies]` — `log`/`env_logger`
+  the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, and `libm`
+  (the `no_std` float-math fallback) are the entire runtime dependency list. (The `[dev-dependencies]` — `log`/`env_logger`
   for examples, `tokio` for the async example, `criterion` for benches — are
   expected and do not contradict this.)
 - `no_std` parity: every change must build and pass tests with
-  `--no-default-features`. Feature-gated asymmetries (such as automatic buffer
-  cleanup, `Timestamp::now()`) must be documented on both sides.
+  `--no-default-features`, and build for a real bare-metal target (the gate
+  builds `thumbv7em-none-eabihf`). `no_std` requires a heap allocator (`alloc`).
+  Feature-gated asymmetries (such as automatic buffer cleanup,
+  `Timestamp::now()`) must be documented on both sides.
 - The README **Non-Goals** section is load-bearing. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity. Do not implement these even if an
@@ -136,7 +138,10 @@ cargo run --example std_minimal                     # and the other std examples
 cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
 cargo bench -- --test
 cargo bench --no-default-features -- --test         # CI also builds no_std benches
+cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std proof
 ```
+
+(`rustup target add thumbv7em-none-eabihf` once, if the target is missing.)
 
 Docs are part of the change: the README (API Reference, What's New, examples
 table) and rustdoc must be updated in the same commit as the code they

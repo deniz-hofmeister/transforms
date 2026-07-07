@@ -126,7 +126,8 @@ transforms = "2.0.0"
 |---------|---------|-------------|
 | `std` | Yes | Enables automatic buffer cleanup and `Timestamp::now()` |
 
-For `no_std` environments:
+For `no_std` environments (requires a heap allocator; float math falls back to
+[libm](https://crates.io/crates/libm)):
 
 ```toml
 [dependencies]

@@ -7,6 +7,48 @@ pub use error::QuaternionError;
 
 mod error;
 
+/// Float math that works with and without `std`.
+///
+/// `f64::sqrt`, `sin`, and `acos` are `std` methods rather than `core`
+/// intrinsics; without `std` the equivalent `libm` implementations are used.
+mod math {
+    #[inline]
+    pub fn sqrt(x: f64) -> f64 {
+        #[cfg(feature = "std")]
+        {
+            x.sqrt()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm::sqrt(x)
+        }
+    }
+
+    #[inline]
+    pub fn sin(x: f64) -> f64 {
+        #[cfg(feature = "std")]
+        {
+            x.sin()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm::sin(x)
+        }
+    }
+
+    #[inline]
+    pub fn acos(x: f64) -> f64 {
+        #[cfg(feature = "std")]
+        {
+            x.acos()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm::acos(x)
+        }
+    }
+}
+
 /// A quaternion representing a rotation in 3D space.
 #[derive(Debug, Clone, Copy, PartialOrd)]
 pub struct Quaternion {
@@ -143,7 +185,7 @@ impl Quaternion {
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn norm(self) -> f64 {
-        (self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+        math::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
     /// Computes the squared norm of the quaternion.
@@ -275,11 +317,11 @@ impl Quaternion {
             };
         }
 
-        let theta = dot.acos();
+        let theta = math::acos(dot);
 
-        let sin_theta = theta.sin();
-        let scale_self = ((1.0 - t) * theta).sin() / sin_theta;
-        let scale_other = (t * theta).sin() / sin_theta;
+        let sin_theta = math::sin(theta);
+        let scale_self = math::sin((1.0 - t) * theta) / sin_theta;
+        let scale_other = math::sin(t * theta) / sin_theta;
 
         self.scale(scale_self) + other.scale(scale_other)
     }
