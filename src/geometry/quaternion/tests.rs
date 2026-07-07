@@ -4,7 +4,7 @@ mod quaternion_tests {
         errors::QuaternionError,
         geometry::{Quaternion, Vector3},
     };
-    use approx::assert_relative_eq;
+    use approx::{assert_abs_diff_eq, assert_relative_eq};
     use core::f64;
 
     #[test]
@@ -252,5 +252,16 @@ mod quaternion_tests {
 
         let inf = Quaternion::new(f64::INFINITY, 0.0, 0.0, 0.0);
         assert!(matches!(inf.normalize(), Err(QuaternionError::NonFinite)));
+    }
+
+    #[test]
+    fn slerp_clamps_t_to_the_unit_interval() {
+        let theta = core::f64::consts::PI / 2.0;
+        let q1 = Quaternion::identity();
+        let q2 = Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
+
+        // No extrapolation: out-of-range factors saturate at the endpoints.
+        assert_abs_diff_eq!(q1.slerp(q2, 2.0), q1.slerp(q2, 1.0));
+        assert_abs_diff_eq!(q1.slerp(q2, -0.5), q1.slerp(q2, 0.0));
     }
 }

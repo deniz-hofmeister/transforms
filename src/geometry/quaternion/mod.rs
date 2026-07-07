@@ -279,7 +279,10 @@ impl Quaternion {
 
     /// Performs spherical linear interpolation (slerp) between two quaternions.
     ///
-    /// Interpolates between `self` and `other` by the factor `t`.
+    /// Interpolates between `self` and `other` by the factor `t`, which is
+    /// clamped to `[0.0, 1.0]` — there is no extrapolation, matching the
+    /// crate-wide policy. Infinite factors saturate to the corresponding
+    /// endpoint; a NaN factor yields a NaN result.
     ///
     /// # Examples
     ///
@@ -303,6 +306,8 @@ impl Quaternion {
         other: Quaternion,
         t: f64,
     ) -> Quaternion {
+        let t = t.clamp(0.0, 1.0);
+
         let mut other = other;
         let mut dot = self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z;
 

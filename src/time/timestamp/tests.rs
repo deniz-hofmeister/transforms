@@ -51,4 +51,14 @@ mod timestamp_tests {
         assert!(now.t > 0);
         assert!(!now.is_static());
     }
+
+    #[test]
+    fn as_seconds_accuracy_boundary_is_2_pow_53_nanos() {
+        assert!(Timestamp::from_nanos(1 << 53).as_seconds().is_ok());
+        assert!(Timestamp::from_nanos((1 << 53) + 1).as_seconds().is_err());
+
+        // Best-effort conversions keep working beyond the boundary.
+        let big = Timestamp::from_nanos((1 << 53) + 1);
+        assert!(big.as_seconds_unchecked().is_finite());
+    }
 }

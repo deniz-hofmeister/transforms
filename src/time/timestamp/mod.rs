@@ -107,9 +107,17 @@ impl Timestamp {
 
     /// Converts the `Timestamp` to seconds as a floating-point number.
     ///
+    /// `f64` has a 53-bit mantissa, so timestamps up to 2^53 nanoseconds
+    /// (about 104 days) convert with sub-nanosecond accuracy; beyond that the
+    /// conversion silently loses precision, which this method refuses to do.
+    /// Use [`Timestamp::as_seconds_unchecked`] (or
+    /// [`TimePoint::as_seconds_lossy`]) for a best-effort conversion of
+    /// larger values, such as wall-clock times.
+    ///
     /// # Errors
     ///
-    /// Returns `TimeError::AccuracyLoss` if the conversion is not exact.
+    /// Returns `TimeError::AccuracyLoss` if the timestamp exceeds 2^53
+    /// nanoseconds.
     ///
     /// # Examples
     ///
@@ -117,27 +125,23 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp::from_nanos(1_000_000_000);
-    /// let result = timestamp.as_seconds();
-    /// assert!(result.is_ok());
-    /// assert_eq!(result.unwrap(), 1.0);
+    /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
     ///
+    /// // Beyond 2^53 ns, sub-nanosecond accuracy is unrepresentable.
     /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
-    /// let result = timestamp.as_seconds();
-    /// assert!(result.is_err());
+    /// assert!(timestamp.as_seconds().is_err());
     /// ```
-    #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn as_seconds(&self) -> Result<f64, TimeError> {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
-        #[allow(clippy::cast_precision_loss)]
-        let seconds = self.t as f64 / NANOSECONDS_PER_SECOND;
+        /// 2^53: the largest range in which `f64` represents every integer
+        /// nanosecond count exactly.
+        const MAX_ACCURATE_NANOS: u128 = 1 << 53;
 
-        #[allow(clippy::cast_possible_truncation)]
-        #[allow(clippy::cast_sign_loss)]
-        if (seconds * NANOSECONDS_PER_SECOND) as u128 == self.t {
-            Ok(seconds)
-        } else {
-            Err(TimeError::AccuracyLoss)
+        if self.t > MAX_ACCURATE_NANOS {
+            return Err(TimeError::AccuracyLoss);
         }
+        #[allow(clippy::cast_precision_loss)]
+        Ok(self.t as f64 / NANOSECONDS_PER_SECOND)
     }
 
     /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
