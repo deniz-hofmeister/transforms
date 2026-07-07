@@ -70,11 +70,21 @@ would produce) a silent wrong answer:
   kind; a mismatched later insert must fail with
   `BufferError::StaticDynamicConflict`. The static sentinel is
   `T::static_timestamp()` (`t = 0` for `Timestamp`).
+- The frame tree is strict: the first insert also pins a child frame's parent
+  (re-parenting fails with `ReparentingNotSupported`; `Registry::remove_frame`
+  is the escape hatch), a frame cannot be its own parent, and inserts that
+  would close a cycle fail with `CycleDetected`. Chain resolution relies on
+  this — the topology is time-invariant and acyclic.
 - A lookup must return a transform whose `parent`/`child` match the requested
   frames exactly; a chain that resolves only partway (unknown frame, timestamp
-  gap mid-chain) must return `NotFound`, never a partial result.
-- Interpolation happens only between stored samples; a query outside the covered
-  time range fails. There is no extrapolation.
+  gap mid-chain) must return `NotFound`, never a partial result. Results
+  always carry the requested timestamp (also over static chains), and a frame
+  relative to itself is the identity.
+- Interpolation happens only between stored samples; a query outside the
+  covered time range fails with `TimestampOutOfRange`. There is no
+  extrapolation.
+- Error formatting goes through `TimePoint::as_seconds_lossy` and cannot fail;
+  a conversion error must never mask the error being reported.
 - Buffer expiry is data-driven: entries older than
   (latest **inserted** timestamp − `max_age`) are removed on insert (only for
   buffers built `with_max_age`). Wall-clock time is never consulted. Manual
@@ -107,9 +117,10 @@ this section is convention, enforced in review — follow it anyway.
   `#![warn(clippy::pedantic)]` must stay at **zero warnings** in both feature
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
   standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
-  names are domain-correct) and a handful of narrowly-scoped
-  `clippy::cast_*` allows on the numeric conversions in `src/time/timestamp/`
-  — do not remove them, and do not treat them as precedent.
+  names are domain-correct), a handful of narrowly-scoped `clippy::cast_*`
+  allows on the numeric conversions in `src/time/timestamp/`, and the scoped
+  `clippy::expect_used` allow on `Timestamp::now`'s documented panic — do not
+  remove them, and do not treat them as precedent.
 - Construction: `Vector3::new/zero/unit_*`, `Quaternion::new(w, x, y, z)` /
   `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()` —
   never struct literals in tests, examples, or docs. `Transform { .. }` and

@@ -53,7 +53,7 @@ Rust-first API cleanup; `add_transform` is now fallible:
 - Added `Quaternion::new(w, x, y, z)` and `Timestamp::from_nanos(nanos)`.
 - `no_std` `Registry` and `Buffer` now implement `Default`.
 - Error `Display` messages are now lowercase per the Rust API guidelines.
-- Crate upgraded to edition 2024 with `rust-version` 1.85 declared.
+- Crate upgraded to edition 2024 with `rust-version` 1.86 declared.
 - `no_std` now works on real bare-metal targets (CI builds
   `thumbv7em-none-eabihf`): float math falls back to `libm`, and dependencies
   no longer pull in `std`.
@@ -71,6 +71,20 @@ Rust-first API cleanup; `add_transform` is now fallible:
   `Vector3`, and `Point` are gone.
 - `Registry`'s internal storage is private; error enums are
   `#[non_exhaustive]`; added `Timestamp::as_nanos()`.
+- The frame tree is strict: re-parenting, self-referential frames, and cycles
+  are rejected at insertion; `Registry::remove_frame` removes a frame (and is
+  the escape hatch for re-parenting); manual cleanup prunes empty frames.
+- `get_transform(x, x, t)` returns the identity; lookup results always carry
+  the requested timestamp (also over static chains), and static transforms
+  apply to data of any timestamp through `Transformable`.
+- Error diagnostics survive wall-clock timestamps (`TimePoint::as_seconds_lossy`),
+  and out-of-range interpolation reports `TimestampOutOfRange` with the
+  requested time and both range endpoints.
+- Panic policy enforced with clippy restriction lints and documented in a new
+  crate-level Reliability section; all public types are `Send + Sync`.
+- Optional `serde` feature; property-based test suite (proptest);
+  deterministic test fixtures; rewritten, non-mutating benchmarks.
+- MSRV is 1.86, verified in CI alongside clippy/doc/audit/bare-metal jobs.
 
 ```rust
 // add_transform is now fallible
@@ -145,6 +159,8 @@ transforms = "2.0.0"
 | `std` | Yes | Enables `Timestamp::now()` and the `SystemTime` time type |
 | `serde` | No | `Serialize`/`Deserialize` for the geometry and time types |
 
+Minimum supported Rust version: 1.86 (checked in CI).
+
 Note on `serde`: `Timestamp` serializes its nanosecond value as a `u128`,
 which not every serde format supports (JSON via `serde_json` does).
 Deserialization does not validate — like hand-built transforms, deserialized
@@ -207,6 +223,7 @@ pub fn get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transf
 pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
+pub fn remove_frame(&mut self, child: &str) -> bool
 ```
 
 ### Core Types
@@ -305,6 +322,11 @@ The `Localized` trait provides frame and timestamp introspection, while `Transfo
 Static transforms (timestamp = 0) are ideal for fixed relationships like sensor mounts.
 A given child frame is either static or dynamic: mixing the two kinds for the same
 child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
+
+The frame tree is strict: a child frame's parent is pinned by its first
+transform (re-parenting is rejected — remove the frame with
+`Registry::remove_frame` and re-add it to change its parent), a frame cannot
+be its own parent, and cycles are rejected at insertion.
 
 ```rust
 // Static transform: camera mount position (never changes)
@@ -532,9 +554,12 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
 
 ## Performance
 
-- **O(log n) lookups**: Transforms are stored in `BTreeMap` indexed by timestamp
+- **O(log n) time lookups**: transforms are stored in `BTreeMap` indexed by timestamp
+- **Early-exit chain resolution**: walks stop as soon as the target frame is reached
 - **Automatic cleanup**: `with_max_age` registries prevent unbounded memory growth
-- **Minimal allocations**: Efficient internal data structures
+- **Allocation profile**: lookups allocate for frame-name bookkeeping and the
+  returned transform (frame names are `String`s); insertion into an existing
+  frame does not clone the frame name
 
 Benchmarks are available in the `benches/` directory. Run with:
 
