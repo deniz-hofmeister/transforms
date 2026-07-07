@@ -101,8 +101,8 @@ where
         }
         if self.timestamp != transform.timestamp {
             return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds()?,
-                transform.timestamp.as_seconds()?,
+                self.timestamp.as_seconds_lossy(),
+                transform.timestamp.as_seconds_lossy(),
             ));
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;

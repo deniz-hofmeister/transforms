@@ -125,9 +125,10 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::TimestampMismatch` if the timestamp is outside the range
-    /// of `from` and `to`. Returns `TransformError::IncompatibleFrames` if the frames
-    /// do not match.
+    /// Returns `TransformError::TimestampOutOfRange` if the timestamp is
+    /// outside the range of `from` and `to` (there is no extrapolation),
+    /// `TransformError::TimestampMismatch` if the endpoints are swapped, and
+    /// `TransformError::IncompatibleFrames` if the frames do not match.
     ///
     /// # Examples
     ///
@@ -168,10 +169,17 @@ where
         to: &Transform<T>,
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
-        if from.timestamp > to.timestamp || timestamp < from.timestamp || timestamp > to.timestamp {
+        if from.timestamp > to.timestamp {
             return Err(TransformError::TimestampMismatch(
-                to.timestamp.as_seconds()?,
-                from.timestamp.as_seconds()?,
+                from.timestamp.as_seconds_lossy(),
+                to.timestamp.as_seconds_lossy(),
+            ));
+        }
+        if timestamp < from.timestamp || timestamp > to.timestamp {
+            return Err(TransformError::TimestampOutOfRange(
+                timestamp.as_seconds_lossy(),
+                from.timestamp.as_seconds_lossy(),
+                to.timestamp.as_seconds_lossy(),
             ));
         }
         if from.child != to.child || from.parent != to.parent {
@@ -309,8 +317,8 @@ where
 
         if !is_self_static && !is_rhs_static && self.timestamp != rhs.timestamp {
             return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds()?,
-                rhs.timestamp.as_seconds()?,
+                self.timestamp.as_seconds_lossy(),
+                rhs.timestamp.as_seconds_lossy(),
             ));
         }
 

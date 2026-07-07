@@ -250,14 +250,14 @@ mod transform_tests {
         // Before the covered range: extrapolation must be rejected.
         let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(500_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
             "interpolation before the range must fail, got {result:?}"
         );
 
         // After the covered range: extrapolation must be rejected.
         let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(3_000_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
             "interpolation after the range must fail, got {result:?}"
         );
 
@@ -266,6 +266,32 @@ mod transform_tests {
         assert!(
             matches!(result, Err(TransformError::TimestampMismatch(_, _))),
             "swapped endpoints must fail, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn errors_survive_wall_clock_timestamps() {
+        // Realistic wall-clock nanosecond values cannot be converted to
+        // seconds exactly; error reporting previously failed with
+        // AccuracyLoss instead of diagnosing the actual problem.
+        let t1 = Timestamp::from_nanos(1_783_400_000_123_456_789);
+        let t2 = Timestamp::from_nanos(1_783_400_001_123_456_789);
+
+        let t_a_b = transform_at("a", "b", t1);
+        let t_b_c = transform_at("b", "c", t2);
+        let result = t_a_b * t_b_c;
+        assert!(
+            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            "expected TimestampMismatch, got {result:?}"
+        );
+
+        let from = transform_at("a", "b", t1);
+        let to = transform_at("a", "b", t2);
+        let result =
+            Transform::interpolate(&from, &to, Timestamp::from_nanos(1_783_400_002_000_000_000));
+        assert!(
+            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            "expected TimestampOutOfRange, got {result:?}"
         );
     }
 

@@ -35,4 +35,9 @@ impl TimePoint for SystemTime {
             .map(|duration| duration.as_secs_f64())
             .map_err(|_| TimeError::DurationUnderflow)
     }
+
+    fn as_seconds_lossy(self) -> f64 {
+        SystemTime::duration_since(&self, UNIX_EPOCH)
+            .map_or(f64::NAN, |duration| duration.as_secs_f64())
+    }
 }

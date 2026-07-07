@@ -240,6 +240,10 @@ impl TimePoint for Timestamp {
     fn as_seconds(self) -> Result<f64, TimeError> {
         Timestamp::as_seconds(&self)
     }
+
+    fn as_seconds_lossy(self) -> f64 {
+        self.as_seconds_unchecked()
+    }
 }
 
 #[cfg(test)]

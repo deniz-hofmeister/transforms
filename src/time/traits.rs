@@ -143,4 +143,16 @@ pub trait TimePoint: Copy + Ord {
     /// Returns a `TimeError` if the conversion cannot be represented according
     /// to the implementation's precision and range guarantees.
     fn as_seconds(self) -> Result<f64, TimeError>;
+
+    /// Returns the timestamp in seconds for diagnostics, accepting precision
+    /// loss.
+    ///
+    /// Error messages are formatted with this method: unlike
+    /// [`TimePoint::as_seconds`] it cannot fail, so a conversion error can
+    /// never mask the error actually being reported. The default
+    /// implementation falls back to NaN when `as_seconds` fails; implementors
+    /// should override it with a lossy conversion.
+    fn as_seconds_lossy(self) -> f64 {
+        self.as_seconds().unwrap_or(f64::NAN)
+    }
 }
