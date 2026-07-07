@@ -19,7 +19,7 @@ use approx::{AbsDiffEq, RelativeEq};
 /// assert_eq!(vector.y, 2.0);
 /// assert_eq!(vector.z, 3.0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vector3 {
     /// The x component.
     pub x: f64,

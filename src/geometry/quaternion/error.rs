@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Error type for quaternion operations.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum QuaternionError {
     /// The divisor quaternion has (near-)zero norm.
     #[error("division by zero quaternion")]

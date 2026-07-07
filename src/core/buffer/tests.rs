@@ -307,4 +307,5 @@ mod buffer_tests {
         f32_grade.rotation = Quaternion::new(1.0 + 1e-8, 0.0, 0.0, 0.0);
         assert!(buffer.insert(f32_grade).is_ok());
     }
+
 }

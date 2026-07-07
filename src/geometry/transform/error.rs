@@ -6,6 +6,7 @@ use crate::errors::{QuaternionError, TimeError};
 
 /// Error type for transform lookup, composition, and application.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TransformError {
     /// The rotation is not a unit quaternion within the accepted tolerance.
     #[error("rotation is not a unit quaternion (norm: {0})")]

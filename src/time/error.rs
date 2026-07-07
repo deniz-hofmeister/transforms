@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Error type for timestamp and time-point operations.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum TimeError {
     /// Subtracting would produce a time before the representable range.
     #[error("duration underflow")]

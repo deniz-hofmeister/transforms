@@ -87,6 +87,11 @@ would produce) a silent wrong answer:
   `Transform::inverse`). Direct `Transform * Transform` composition and
   `Transformable::transform` do not validate — the fields are public — so the
   registry boundary is where the invariant is enforced.
+- `==` on geometry types is exact. Use `approx::assert_abs_diff_eq!` for
+  tolerant comparison of computed results; never reintroduce epsilon-based
+  `PartialEq`/`Eq` (it violates the trait contracts).
+- All public error enums are `#[non_exhaustive]`; downstream matches need a
+  wildcard arm, and new variants may be added in minor releases.
 
 When you fix a correctness bug, ship the regression test that fails on the old
 code in the same commit.

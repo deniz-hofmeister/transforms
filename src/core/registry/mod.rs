@@ -143,7 +143,7 @@ where
     T: TimePoint,
 {
     /// Maps a child frame name to the buffer of transforms into that frame.
-    pub data: HashMap<String, Buffer<T>>,
+    data: HashMap<String, Buffer<T>>,
     max_age: Option<Duration>,
 }
 

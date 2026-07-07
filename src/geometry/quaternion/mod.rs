@@ -50,7 +50,7 @@ mod math {
 }
 
 /// A quaternion representing a rotation in 3D space.
-#[derive(Debug, Clone, Copy, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quaternion {
     /// The scalar (real) part of the quaternion.
     pub w: f64,
@@ -396,15 +396,6 @@ impl Div for Quaternion {
             return Err(QuaternionError::DivisionByZero);
         }
         Ok(self.mul(other.conjugate()).scale(1.0 / norm_sq))
-    }
-}
-
-impl PartialEq for Quaternion {
-    fn eq(
-        &self,
-        other: &Self,
-    ) -> bool {
-        self.abs_diff_eq(other, f64::EPSILON)
     }
 }
 

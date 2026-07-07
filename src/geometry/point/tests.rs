@@ -14,4 +14,5 @@ mod point_tests {
             frame: "a".into(),
         };
     }
+
 }

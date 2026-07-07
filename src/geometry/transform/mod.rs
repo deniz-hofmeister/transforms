@@ -33,7 +33,7 @@ mod traits;
 /// assert_eq!(identity.translation, Vector3::zero());
 /// assert_eq!(identity.rotation, Quaternion::identity());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transform<T = Timestamp>
 where
     T: TimePoint,
@@ -339,24 +339,32 @@ where
     }
 }
 
-impl<T> PartialEq for Transform<T>
+impl<T> AbsDiffEq for Transform<T>
 where
     T: TimePoint,
 {
-    fn eq(
+    type Epsilon = f64;
+
+    fn default_epsilon() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    /// Compares translation and rotation within `epsilon`; frames and
+    /// timestamps must match exactly. Use this (via
+    /// `approx::assert_abs_diff_eq!`) for tolerant comparison of computed
+    /// transforms — `==` is exact, bitwise equality.
+    fn abs_diff_eq(
         &self,
         other: &Self,
+        epsilon: Self::Epsilon,
     ) -> bool {
-        self.translation
-            .abs_diff_eq(&other.translation, f64::EPSILON)
-            && self.rotation.abs_diff_eq(&other.rotation, f64::EPSILON)
+        self.translation.abs_diff_eq(&other.translation, epsilon)
+            && self.rotation.abs_diff_eq(&other.rotation, epsilon)
             && self.timestamp == other.timestamp
             && self.parent == other.parent
             && self.child == other.child
     }
 }
-
-impl<T> Eq for Transform<T> where T: TimePoint {}
 
 #[cfg(test)]
 mod tests;

@@ -6,6 +6,7 @@ mod registry_tests {
         geometry::{Point, Quaternion, Transform, Vector3},
         time::Timestamp,
     };
+    use approx::assert_abs_diff_eq;
     use core::time::Duration;
 
     #[test]
@@ -52,11 +53,7 @@ mod registry_tests {
         let r = registry.get_transform("a", "c", t_a_b.timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_c,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_c);
     }
 
     #[test]
@@ -103,11 +100,7 @@ mod registry_tests {
         let r = registry.get_transform("c", "a", t_a_b.timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_c_a,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_c_a);
     }
 
     #[test]
@@ -164,11 +157,7 @@ mod registry_tests {
         let r = registry.get_transform("a", "d", t_a_b.timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_d,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_d);
     }
 
     #[test]
@@ -208,20 +197,12 @@ mod registry_tests {
         let r = registry.get_transform("a", "b", t_a_b.timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_b,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_b);
 
         let r = registry.get_transform("a", "c", t_a_c.timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_c,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_c);
     }
 
     #[test]
@@ -272,11 +253,7 @@ mod registry_tests {
         let r = registry.get_transform("a", "b", middle_timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_b_2,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_b_2);
     }
 
     #[test]
@@ -345,11 +322,7 @@ mod registry_tests {
         let r = registry.get_transform("a", "c", middle_timestamp);
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
-        assert_eq!(
-            r.unwrap(),
-            t_a_c,
-            "Registry returned a transform that is different"
-        );
+        assert_abs_diff_eq!(r.unwrap(), t_a_c);
     }
 
     #[test]
@@ -408,7 +381,7 @@ mod registry_tests {
             child: "d".into(),
         };
 
-        assert_eq!(t_c_d, t_c_d_expected);
+        assert_abs_diff_eq!(t_c_d, t_c_d_expected);
     }
 
     #[test]
@@ -617,8 +590,8 @@ mod registry_tests {
         let regular_tf = regular.unwrap();
         let time_travel_tf = time_travel.unwrap();
 
-        assert_eq!(regular_tf.translation, time_travel_tf.translation);
-        assert_eq!(regular_tf.rotation, time_travel_tf.rotation);
+        assert_abs_diff_eq!(regular_tf.translation, time_travel_tf.translation);
+        assert_abs_diff_eq!(regular_tf.rotation, time_travel_tf.rotation);
     }
 
     #[test]
@@ -1174,4 +1147,5 @@ mod registry_tests {
         // Nothing was stored by the rejected inserts.
         assert!(registry.get_transform("a", "b", t).is_err());
     }
+
 }

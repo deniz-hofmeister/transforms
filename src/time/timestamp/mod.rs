@@ -84,6 +84,21 @@ impl Timestamp {
         Timestamp { t: nanos }
     }
 
+    /// Returns the timestamp as nanoseconds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+    /// assert_eq!(timestamp.as_nanos(), 1_000_000_000);
+    /// ```
+    #[must_use]
+    pub const fn as_nanos(&self) -> u128 {
+        self.t
+    }
+
     /// Converts the `Timestamp` to seconds as a floating-point number.
     ///
     /// # Errors

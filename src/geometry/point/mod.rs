@@ -34,7 +34,7 @@ use alloc::string::String;
 /// assert_eq!(point.position.x, 1.0);
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Point<T = Timestamp>
 where
     T: TimePoint,

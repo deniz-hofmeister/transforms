@@ -4,6 +4,7 @@ use crate::errors::TransformError;
 
 /// Error type for buffer insertion and retrieval.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum BufferError {
     /// No stored transforms match the requested timestamp.
     #[error("no transforms available matching your criteria")]
