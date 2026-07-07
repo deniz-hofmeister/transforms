@@ -8,6 +8,7 @@ use crate::{
 };
 
 use alloc::string::String;
+use approx::{AbsDiffEq, RelativeEq};
 
 /// Represents a point in space with a position, orientation, timestamp, and its frame of reference.
 ///
@@ -172,6 +173,56 @@ where
 
     fn timestamp(&self) -> T {
         self.timestamp
+    }
+}
+
+impl<T> AbsDiffEq for Point<T>
+where
+    T: TimePoint,
+{
+    type Epsilon = f64;
+
+    fn default_epsilon() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    /// Compares position and orientation within `epsilon`; frame and
+    /// timestamp must match exactly.
+    fn abs_diff_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+    ) -> bool {
+        self.position.abs_diff_eq(&other.position, epsilon)
+            && self.orientation.abs_diff_eq(&other.orientation, epsilon)
+            && self.timestamp == other.timestamp
+            && self.frame == other.frame
+    }
+}
+
+impl<T> RelativeEq for Point<T>
+where
+    T: TimePoint,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    /// Compares position and orientation with relative tolerance; frame and
+    /// timestamp must match exactly.
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        self.position
+            .relative_eq(&other.position, epsilon, max_relative)
+            && self
+                .orientation
+                .relative_eq(&other.orientation, epsilon, max_relative)
+            && self.timestamp == other.timestamp
+            && self.frame == other.frame
     }
 }
 

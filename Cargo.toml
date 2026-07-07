@@ -71,6 +71,8 @@ harness = false
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+# Applies only when building this repository directly (benches inherit it);
+# dependents compile this crate under their own profiles.
 [profile.release]
 codegen-units = 1
 lto = true

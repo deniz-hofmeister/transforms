@@ -5,7 +5,7 @@ use crate::{
     time::{TimePoint, Timestamp},
 };
 use alloc::string::String;
-use approx::AbsDiffEq;
+use approx::{AbsDiffEq, RelativeEq};
 use core::ops::Mul;
 pub use error::TransformError;
 pub use traits::{Localized, Transformable};
@@ -204,13 +204,13 @@ where
         })
     }
 
-    /// Returns the identity transform.
+    /// Returns a blank transform: zero translation, identity rotation, the
+    /// static timestamp value, and empty frame names.
     ///
-    /// The identity transform has no translation or rotation and is often used
-    /// as a neutral element in transformations.
-    ///
-    /// The timestamp is set to the static timestamp value for the active
-    /// timestamp type (`Timestamp::zero()` by default).
+    /// Useful as a starting point to build transforms from. Note that it is
+    /// not usable as-is: its empty parent and child frames are
+    /// self-referential, so it cannot be inserted into a registry or composed
+    /// with `*` until the frames are set.
     ///
     /// # Examples
     ///
@@ -369,6 +369,33 @@ where
     ) -> bool {
         self.translation.abs_diff_eq(&other.translation, epsilon)
             && self.rotation.abs_diff_eq(&other.rotation, epsilon)
+            && self.timestamp == other.timestamp
+            && self.parent == other.parent
+            && self.child == other.child
+    }
+}
+
+impl<T> RelativeEq for Transform<T>
+where
+    T: TimePoint,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    /// Compares translation and rotation with relative tolerance; frames and
+    /// timestamps must match exactly.
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        self.translation
+            .relative_eq(&other.translation, epsilon, max_relative)
+            && self
+                .rotation
+                .relative_eq(&other.rotation, epsilon, max_relative)
             && self.timestamp == other.timestamp
             && self.parent == other.parent
             && self.child == other.child

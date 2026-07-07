@@ -109,6 +109,7 @@ type NearestTransforms<'a, T> = (
 /// `max_age` relative to the latest inserted timestamp are removed
 /// automatically on insert. A buffer created with [`Buffer::new`] never
 /// expires entries; use [`Buffer::delete_before`] for manual cleanup.
+#[derive(Debug)]
 pub struct Buffer<T = Timestamp>
 where
     T: TimePoint,
@@ -150,6 +151,7 @@ where
     ///
     /// Entries older than `max_age` relative to the latest inserted timestamp
     /// are removed automatically whenever a dynamic transform is inserted.
+    /// `Duration::ZERO` therefore retains only the newest sample.
     ///
     /// # Examples
     ///

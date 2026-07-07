@@ -138,6 +138,7 @@ use core::time::Duration;
 /// assert!(result.is_ok());
 /// assert_eq!(result.unwrap(), t_a_b_2);
 /// ```
+#[derive(Debug)]
 pub struct Registry<T = Timestamp>
 where
     T: TimePoint,
@@ -176,7 +177,8 @@ where
     ///
     /// Dynamic transforms older than `max_age` relative to the latest
     /// inserted timestamp of their child frame are removed automatically on
-    /// insert. Static transforms never expire.
+    /// insert (`Duration::ZERO` retains only the newest sample per frame).
+    /// Static transforms never expire.
     ///
     /// # Examples
     ///

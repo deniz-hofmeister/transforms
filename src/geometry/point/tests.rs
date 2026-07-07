@@ -41,7 +41,12 @@ mod point_tests {
 
         // The orientation must be rotated (quaternion product), not merely
         // combined component-wise.
-        assert_abs_diff_eq!(point.orientation, rot_z_90);
-        assert_abs_diff_eq!(point.position, Vector3::new(0.0, 1.0, 0.0), epsilon = 1e-10);
+        let expected = Point {
+            position: Vector3::new(0.0, 1.0, 0.0),
+            orientation: rot_z_90,
+            timestamp: Timestamp::zero(),
+            frame: "a".into(),
+        };
+        assert_abs_diff_eq!(point, expected, epsilon = 1e-10);
     }
 }

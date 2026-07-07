@@ -1,7 +1,7 @@
 //! Quaternions for representing rotations in 3D space.
 
 use crate::geometry::Vector3;
-use approx::AbsDiffEq;
+use approx::{AbsDiffEq, RelativeEq};
 use core::ops::{Add, Div, Mul, Sub};
 pub use error::QuaternionError;
 
@@ -421,6 +421,24 @@ impl AbsDiffEq for Quaternion {
             && f64::abs_diff_eq(&self.x, &other.x, epsilon)
             && f64::abs_diff_eq(&self.y, &other.y, epsilon)
             && f64::abs_diff_eq(&self.z, &other.z, epsilon)
+    }
+}
+
+impl RelativeEq for Quaternion {
+    fn default_max_relative() -> Self::Epsilon {
+        f64::EPSILON
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        f64::relative_eq(&self.w, &other.w, epsilon, max_relative)
+            && f64::relative_eq(&self.x, &other.x, epsilon, max_relative)
+            && f64::relative_eq(&self.y, &other.y, epsilon, max_relative)
+            && f64::relative_eq(&self.z, &other.z, epsilon, max_relative)
     }
 }
 

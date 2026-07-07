@@ -193,6 +193,7 @@
 //!   your preferred lock for concurrent use (see the README for an example).
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::alloc_instead_of_core)]
 #![warn(clippy::std_instead_of_core)]

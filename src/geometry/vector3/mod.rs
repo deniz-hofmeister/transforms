@@ -187,6 +187,9 @@ impl Mul<Vector3> for f64 {
 impl Div<f64> for Vector3 {
     type Output = Self;
 
+    /// Scalar division with IEEE 754 semantics: dividing by zero yields
+    /// infinite (or NaN) components, as with plain `f64` division. Values are
+    /// validated when they enter a `Registry`.
     #[inline]
     fn div(
         self,
