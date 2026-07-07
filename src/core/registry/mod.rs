@@ -241,6 +241,10 @@ where
     /// Retrieves the transform from the `from` frame to the `to` frame at
     /// the requested timestamp.
     ///
+    /// The returned transform always carries the requested timestamp, also
+    /// when the chain consists of static transforms. Requesting a frame
+    /// relative to itself returns the identity transform.
+    ///
     /// # Errors
     ///
     /// Returns a `TransformError` if the transform cannot be found.
@@ -298,8 +302,9 @@ where
     ///
     /// The source frame and timestamp are taken from the value.
     ///
-    /// If the value is already in `target_frame`, this returns an identity transform
-    /// with `parent == child == target_frame` and the value's timestamp.
+    /// If the value is already in `target_frame`, this returns an identity
+    /// transform with `parent == child == target_frame` and the value's
+    /// timestamp (via `get_transform`'s same-frame identity).
     ///
     /// # Errors
     ///
@@ -312,16 +317,6 @@ where
     where
         U: Localized<T>,
     {
-        if value.frame() == target_frame {
-            return Ok(Transform {
-                translation: Vector3::new(0.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: value.timestamp(),
-                parent: target_frame.into(),
-                child: target_frame.into(),
-            });
-        }
-
         self.get_transform(target_frame, value.frame(), value.timestamp())
     }
 
@@ -543,7 +538,6 @@ where
     /// # Errors
     ///
     /// * `TransformError::NotFound` - If no valid transform chain is found between the specified frames
-    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty after processing
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
         from: &str,
@@ -551,6 +545,19 @@ where
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
     ) -> Result<Transform<T>, TransformError> {
+        // A frame relative to itself is the identity, regardless of whether
+        // the frame is known: the answer holds either way, and it keeps
+        // same-frame queries consistent with `get_transform_for`.
+        if from == to {
+            return Ok(Transform {
+                translation: Vector3::zero(),
+                rotation: Quaternion::identity(),
+                timestamp,
+                parent: from.into(),
+                child: to.into(),
+            });
+        }
+
         let from_chain = Self::get_transform_chain(from, to, timestamp, data);
         let to_chain = Self::get_transform_chain(to, from, timestamp, data);
 
@@ -576,6 +583,12 @@ where
             return Err(TransformError::NotFound(from.into(), to.into()));
         }
 
+        // The result answers "where is `to` relative to `from` at the
+        // requested time", so it carries the requested timestamp — also for
+        // chains of static transforms, whose own timestamps are the static
+        // sentinel.
+        let mut result = result;
+        result.timestamp = timestamp;
         Ok(result)
     }
 
@@ -611,8 +624,8 @@ where
         let mut source_to_fixed = if source_frame == fixed_frame {
             // Identity transform if source_frame is the same as fixed_frame
             Transform {
-                translation: crate::geometry::Vector3::new(0.0, 0.0, 0.0),
-                rotation: crate::geometry::Quaternion::identity(),
+                translation: Vector3::zero(),
+                rotation: Quaternion::identity(),
                 timestamp: source_time,
                 parent: fixed_frame.into(),
                 child: source_frame.into(),
@@ -626,8 +639,8 @@ where
         let mut target_to_fixed = if target_frame == fixed_frame {
             // Identity transform if target_frame is the same as fixed_frame
             Transform {
-                translation: crate::geometry::Vector3::new(0.0, 0.0, 0.0),
-                rotation: crate::geometry::Quaternion::identity(),
+                translation: Vector3::zero(),
+                rotation: Quaternion::identity(),
                 timestamp: target_time,
                 parent: fixed_frame.into(),
                 child: target_frame.into(),

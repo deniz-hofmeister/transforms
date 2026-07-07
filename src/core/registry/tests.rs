@@ -1228,12 +1228,15 @@ mod registry_tests {
         // transforms: they are valid for all time.
         registry.delete_transforms_before(Timestamp::from_nanos(5_000_000_000));
 
-        let result = registry.get_transform("base", "lidar", Timestamp::from_nanos(9_000_000_000));
+        let query = Timestamp::from_nanos(9_000_000_000);
+        let result = registry.get_transform("base", "lidar", query).unwrap();
         assert_eq!(
-            result.unwrap(),
-            static_tf,
+            result.translation, static_tf.translation,
             "static transforms must survive manual cleanup"
         );
+        // Lookup results carry the requested timestamp, not the static
+        // sentinel, so they compose with timestamped data.
+        assert_eq!(result.timestamp, query);
     }
 
     #[test]
@@ -1396,5 +1399,89 @@ mod registry_tests {
         // The stored transform still resolves, unpoisoned.
         let result = registry.get_transform("a", "b", t).unwrap();
         assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn same_frame_lookup_returns_identity() {
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // Identity for a known child frame, a root frame, and an unknown
+        // frame alike: a frame relative to itself is always the identity.
+        for frame in ["b", "a", "unknown"] {
+            let result = registry.get_transform(frame, frame, t).unwrap();
+            assert_eq!(result.parent, frame);
+            assert_eq!(result.child, frame);
+            assert_eq!(result.timestamp, t);
+            assert_eq!(result.translation, Vector3::zero());
+            assert_eq!(result.rotation, Quaternion::identity());
+        }
+    }
+
+    #[test]
+    fn static_chain_composes_with_timestamped_data() {
+        let mut registry = Registry::new();
+
+        // Purely static chain: base -> camera mount.
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: Timestamp::zero(),
+                parent: "base".into(),
+                child: "camera".into(),
+            })
+            .unwrap();
+
+        // A detection stamped at observation time, in the camera frame.
+        let t = Timestamp::from_nanos(5_000_000_000);
+        let mut point = Point {
+            position: Vector3::new(1.0, 0.0, 0.0),
+            orientation: Quaternion::identity(),
+            timestamp: t,
+            frame: "camera".into(),
+        };
+
+        // The flagship static-mount workflow: resolve and apply. The lookup
+        // result carries the query time, so the application succeeds.
+        let tf = registry.get_transform_for(&point, "base").unwrap();
+        assert_eq!(tf.timestamp, t);
+        point.transform(&tf).unwrap();
+        assert_eq!(point.frame, "base");
+        assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn static_transform_applies_directly_to_any_timestamp() {
+        // A hand-built static transform (static sentinel timestamp) is valid
+        // for all time when applied through Transformable.
+        let static_tf = Transform {
+            translation: Vector3::new(0.0, 1.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Timestamp::zero(),
+            parent: "base".into(),
+            child: "camera".into(),
+        };
+
+        let mut point = Point {
+            position: Vector3::new(1.0, 0.0, 0.0),
+            orientation: Quaternion::identity(),
+            timestamp: Timestamp::from_nanos(5_000_000_000),
+            frame: "camera".into(),
+        };
+
+        point.transform(&static_tf).unwrap();
+        assert_eq!(point.frame, "base");
+        assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
     }
 }

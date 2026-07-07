@@ -91,7 +91,9 @@ where
     /// # Errors
     ///
     /// Returns a [`TransformError`] if the point's frame does not match the transform's child
-    /// frame, or if the timestamps do not match.
+    /// frame, or if the timestamps do not match. Static transforms (carrying
+    /// the static timestamp value) are valid for all time and apply to a
+    /// point of any timestamp.
     fn transform(
         &mut self,
         transform: &Transform<T>,
@@ -99,7 +101,7 @@ where
         if self.frame != transform.child {
             return Err(TransformError::IncompatibleFrames);
         }
-        if self.timestamp != transform.timestamp {
+        if self.timestamp != transform.timestamp && !transform.timestamp.is_static() {
             return Err(TransformError::TimestampMismatch(
                 self.timestamp.as_seconds_lossy(),
                 transform.timestamp.as_seconds_lossy(),

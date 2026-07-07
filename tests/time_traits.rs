@@ -138,7 +138,11 @@ fn custom_timestamp_static_policy_is_respected() {
     let result = registry
         .get_transform("map", "sensor", TestTime(5))
         .unwrap();
-    assert_eq!(result, static_transform);
+    // The static transform is served for any query time, and the result
+    // carries the query time rather than the custom static sentinel.
+    assert_eq!(result.translation, static_transform.translation);
+    assert_eq!(result.rotation, static_transform.rotation);
+    assert_eq!(result.timestamp, TestTime(5));
 }
 
 #[test]

@@ -66,7 +66,8 @@ where
 ///
 /// Returns `TransformError` if:
 /// - The frames are incompatible (transform's child frame doesn't match the object's frame)
-/// - The timestamps don't match
+/// - The timestamps don't match — except for static transforms (carrying the
+///   static timestamp value), which are valid for all time
 /// - Other transform-specific errors occur
 ///
 /// # Examples
@@ -107,7 +108,8 @@ where
     ///
     /// This method returns a `TransformError` if:
     /// - The frames of the object and the transform are incompatible.
-    /// - The timestamps of the object and the transform do not match.
+    /// - The timestamps of the object and the transform do not match; static
+    ///   transforms are exempt, being valid for all time.
     fn transform(
         &mut self,
         transform: &Transform<T>,
