@@ -26,7 +26,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps using spherical linear interpolation (SLERP) for rotations and linear interpolation for translations.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames by traversing the frame tree.
 - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
-- **Time-based Buffer Management**: Automatic cleanup of old transforms (with `std` feature) or manual cleanup (for `no_std`).
+- **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms automatically; `Registry::new` keeps them until manual cleanup. Both work with and without `std`.
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
@@ -124,7 +124,7 @@ transforms = "2.0.0"
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | Yes | Enables automatic buffer cleanup and `Timestamp::now()` |
+| `std` | Yes | Enables `Timestamp::now()` and the `SystemTime` time type |
 
 For `no_std` environments (requires a heap allocator; float math falls back to
 [libm](https://crates.io/crates/libm)):
@@ -146,7 +146,7 @@ use transforms::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a registry with 60-second transform buffer
-    let mut registry = Registry::new(Duration::from_secs(60));
+    let mut registry = Registry::with_max_age(Duration::from_secs(60));
     let timestamp = Timestamp::now();
 
     // Define a transform: sensor is 1 meter along X-axis from base
@@ -172,11 +172,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Registry
 
 ```rust
-// std feature
-pub fn new(max_age: Duration) -> Self
-
-// no_std (also available via Default)
+// No automatic cleanup (also available via Default)
 pub fn new() -> Self
+
+// Automatic cleanup of transforms older than max_age
+pub fn with_max_age(max_age: Duration) -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferError>
 pub fn get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
@@ -228,7 +228,7 @@ The main interface for managing transforms. It stores `Buffer` instances (one pe
 - Adding new transforms
 - Retrieving transforms between any two frames (with automatic chaining)
 - Traversing the frame tree to compute indirect transforms
-- Automatic cleanup of expired transforms (with `std` feature)
+- Automatic cleanup of expired transforms (with `Registry::with_max_age`)
 
 ### Buffer
 
@@ -402,7 +402,8 @@ use transforms::{
 };
 use core::time::Duration;
 
-// Create registry (no max_age parameter in no_std)
+// Registry::new() has no automatic cleanup; Registry::with_max_age works in
+// no_std too if you prefer automatic expiry
 let mut registry = Registry::new();
 
 // Create timestamp manually (no Timestamp::now() in no_std)
@@ -418,7 +419,7 @@ let transform = Transform {
 
 registry.add_transform(transform).unwrap();
 
-// Manual cleanup required in no_std
+// Manual cleanup for registries built without with_max_age
 let cutoff = (Timestamp::zero() + Duration::from_secs(50)).unwrap();
 registry.delete_transforms_before(cutoff);
 ```
@@ -431,7 +432,7 @@ For multi-threaded applications, wrap the registry in appropriate synchronizatio
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-let registry = Arc::new(Mutex::new(Registry::new(Duration::from_secs(60))));
+let registry = Arc::new(Mutex::new(Registry::with_max_age(Duration::from_secs(60))));
 
 // Writer task
 let registry_writer = registry.clone();
@@ -501,14 +502,14 @@ In plain terms:
 - `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
 
 Use `Timestamp` if you want the default behavior.
-`Registry::new(...)` is shorthand for `Registry::<Timestamp>::new(...)`.
-If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>::new(...)`.
-With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>::new(...)` works out of the box.
+`Registry::new()` is shorthand for `Registry::<Timestamp>::new()`.
+If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>`.
+With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>` works out of the box.
 
 ## Performance
 
 - **O(log n) lookups**: Transforms are stored in `BTreeMap` indexed by timestamp
-- **Automatic cleanup**: Prevents unbounded memory growth (with `std` feature)
+- **Automatic cleanup**: `with_max_age` registries prevent unbounded memory growth
 - **Minimal allocations**: Efficient internal data structures
 
 Benchmarks are available in the `benches/` directory. Run with:

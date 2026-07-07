@@ -13,7 +13,7 @@ fn test_matching_tree() {
     let t = Timestamp::from_nanos(1_000_000_000);
 
     #[cfg(feature = "std")]
-    let mut registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::with_max_age(Duration::from_secs(10));
     #[cfg(feature = "std")]
     let t = Timestamp::now();
 
@@ -80,7 +80,7 @@ fn test_non_matching_tree() {
     let t = Timestamp::from_nanos(1_000_000_000);
 
     #[cfg(feature = "std")]
-    let mut registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::with_max_age(Duration::from_secs(10));
     #[cfg(feature = "std")]
     let t = Timestamp::now();
 

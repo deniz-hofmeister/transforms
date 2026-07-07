@@ -7,7 +7,9 @@
 //! - **Static Transforms**: The registry can handle static transforms by using the static timestamp value (`t=0` by default).
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
-//! - **Automatic Buffer Cleanup**: Automatically cleans up old transforms based on the `max_age` parameter when the `std` feature is enabled.
+//! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
+//!   automatically cleans up old dynamic transforms on insert; one built with
+//!   `Registry::new` keeps them until `delete_transforms_before` is called.
 //!
 //! ## Usage
 //!
@@ -15,14 +17,14 @@
 //!
 //! ## Time type selection
 //!
-//! `Registry` defaults to `Timestamp`, so `Registry::new(...)` is equivalent to
-//! `Registry::<Timestamp>::new(...)`.
+//! `Registry` defaults to `Timestamp`, so `Registry::new()` is equivalent to
+//! `Registry::<Timestamp>::new()`.
 //!
 //! You can use custom timestamps by implementing `time::TimePoint` and then
 //! constructing `Registry::<CustomTimestamp>::new(...)`.
 //!
 //! With the `std` feature enabled, `std::time::SystemTime` already implements
-//! `TimePoint`, so `Registry::<SystemTime>::new(Duration::from_secs(...))`
+//! `TimePoint`, so `Registry::<SystemTime>::with_max_age(Duration::from_secs(...))`
 //! works out of the box.
 //!
 //! # Examples
@@ -38,7 +40,7 @@
 //! # #[cfg(feature = "std")]
 //! use core::time::Duration;
 //! # #[cfg(feature = "std")]
-//! let mut registry = Registry::new(Duration::from_secs(60));
+//! let mut registry = Registry::with_max_age(Duration::from_secs(60));
 //! # #[cfg(feature = "std")]
 //! let t1 = Timestamp::now();
 //!
@@ -83,7 +85,6 @@ use alloc::{
 };
 use hashbrown::{HashMap, hash_map::Entry};
 
-#[cfg(feature = "std")]
 use core::time::Duration;
 
 /// A registry for managing transforms between different frames. It can
@@ -106,7 +107,7 @@ use core::time::Duration;
 /// # #[cfg(feature = "std")]
 /// use core::time::Duration;
 /// # #[cfg(feature = "std")]
-/// let mut registry = Registry::new(Duration::from_secs(60));
+/// let mut registry = Registry::with_max_age(Duration::from_secs(60));
 /// # #[cfg(feature = "std")]
 /// let t1 = Timestamp::now();
 ///
@@ -143,36 +144,18 @@ where
 {
     /// Maps a child frame name to the buffer of transforms into that frame.
     pub data: HashMap<String, Buffer<T>>,
-    #[cfg(feature = "std")]
-    max_age: Duration,
+    max_age: Option<Duration>,
 }
 
 impl<T> Registry<T>
 where
     T: TimePoint,
 {
-    /// Creates a new `Registry` with the specified `max_age` duration.
+    /// Creates a new `Registry` without automatic cleanup.
     ///
-    /// Transforms are considered valid for `max_age` before becoming
-    /// eligible for automatic cleanup.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use core::time::Duration;
-    /// use transforms::{Registry, time::Timestamp};
-    ///
-    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
-    /// ```
-    #[cfg(feature = "std")]
-    #[must_use]
-    pub fn new(max_age: Duration) -> Self {
-        Self {
-            data: HashMap::new(),
-            max_age,
-        }
-    }
-    /// Creates a new `Registry`.
+    /// Transforms are kept until removed manually with
+    /// [`Registry::delete_transforms_before`]. Use
+    /// [`Registry::with_max_age`] for automatic cleanup.
     ///
     /// # Examples
     ///
@@ -181,11 +164,33 @@ where
     ///
     /// let registry = Registry::<Timestamp>::new();
     /// ```
-    #[cfg(not(feature = "std"))]
     #[must_use]
     pub fn new() -> Self {
         Self {
             data: HashMap::new(),
+            max_age: None,
+        }
+    }
+
+    /// Creates a new `Registry` with automatic cleanup after `max_age`.
+    ///
+    /// Dynamic transforms older than `max_age` relative to the latest
+    /// inserted timestamp of their child frame are removed automatically on
+    /// insert. Static transforms never expire.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::time::Duration;
+    /// use transforms::{Registry, time::Timestamp};
+    ///
+    /// let mut registry = Registry::<Timestamp>::with_max_age(Duration::from_secs(60));
+    /// ```
+    #[must_use]
+    pub fn with_max_age(max_age: Duration) -> Self {
+        Self {
+            data: HashMap::new(),
+            max_age: Some(max_age),
         }
     }
 
@@ -202,14 +207,8 @@ where
     ///
     /// ```
     /// use transforms::{Registry, geometry::Transform, time::Timestamp};
-    /// # #[cfg(feature = "std")]
-    /// use core::time::Duration;
-    /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::<Timestamp>::new(Duration::from_secs(60));
     ///
-    /// # #[cfg(not(feature = "std"))]
     /// let mut registry = Registry::<Timestamp>::new();
-    ///
     /// let transform = Transform::identity();
     ///
     /// registry.add_transform(transform).unwrap();
@@ -218,14 +217,7 @@ where
         &mut self,
         t: Transform<T>,
     ) -> Result<(), BufferError> {
-        #[cfg(not(feature = "std"))]
-        {
-            Self::process_add_transform(t, &mut self.data)
-        }
-        #[cfg(feature = "std")]
-        {
-            Self::process_add_transform(t, &mut self.data, self.max_age)
-        }
+        Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
     /// Retrieves the transform from the `from` frame to the `to` frame at
@@ -247,7 +239,7 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry = Registry::with_max_age(Duration::from_secs(60));
     /// # #[cfg(feature = "std")]
     /// let t1 = Timestamp::now();
     ///
@@ -354,7 +346,7 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::new(Duration::from_secs(60));
+    /// let mut registry = Registry::with_max_age(Duration::from_secs(60));
     /// # #[cfg(feature = "std")]
     /// let t1 = Timestamp::now();
     /// # #[cfg(feature = "std")]
@@ -450,40 +442,18 @@ where
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
     /// already holds transforms of the opposite kind (static vs. dynamic).
-    #[cfg(not(feature = "std"))]
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
+        max_age: Option<Duration>,
     ) -> Result<(), BufferError> {
         match data.entry(t.child.clone()) {
             Entry::Occupied(mut entry) => entry.get_mut().insert(t),
             Entry::Vacant(entry) => {
-                let buffer = Buffer::new();
-                let buffer = entry.insert(buffer);
-                buffer.insert(t)
-            }
-        }
-    }
-
-    /// Adds a transform to the data buffer.
-    ///
-    /// New buffers are created with `max_age`, the maximum duration for
-    /// which their transforms are considered valid.
-    ///
-    /// # Errors
-    ///
-    /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
-    /// already holds transforms of the opposite kind (static vs. dynamic).
-    #[cfg(feature = "std")]
-    fn process_add_transform(
-        t: Transform<T>,
-        data: &mut HashMap<String, Buffer<T>>,
-        max_age: Duration,
-    ) -> Result<(), BufferError> {
-        match data.entry(t.child.clone()) {
-            Entry::Occupied(mut entry) => entry.get_mut().insert(t),
-            Entry::Vacant(entry) => {
-                let buffer = Buffer::new(max_age);
+                let buffer = match max_age {
+                    Some(max_age) => Buffer::with_max_age(max_age),
+                    None => Buffer::new(),
+                };
                 let buffer = entry.insert(buffer);
                 buffer.insert(t)
             }
@@ -703,7 +673,6 @@ where
     }
 }
 
-#[cfg(not(feature = "std"))]
 impl<T> Default for Registry<T>
 where
     T: TimePoint,

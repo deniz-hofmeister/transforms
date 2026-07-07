@@ -17,7 +17,9 @@
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
 //! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
 //! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
-//! - **Time-based Buffer Management**: Automatic cleanup of old transforms is available with feature = "std", which is default enabled. If the library is used as `no_std` then manual cleanup is required. See the examples.
+//! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
+//!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
+//!   is called. Both work with and without `std`.
 //!
 //! # Non-Goals
 //!
@@ -50,7 +52,7 @@
 //! # #[cfg(feature = "std")]
 //! use core::time::Duration;
 //! # #[cfg(feature = "std")]
-//! let mut registry = Registry::new(Duration::from_secs(60));
+//! let mut registry = Registry::with_max_age(Duration::from_secs(60));
 //! # #[cfg(feature = "std")]
 //! let timestamp = Timestamp::now();
 //!

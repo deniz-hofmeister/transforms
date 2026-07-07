@@ -21,7 +21,7 @@ fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    let mut registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
     let t1 = Timestamp::now();
     let t2 = (t1 + Duration::from_secs(1)).unwrap();

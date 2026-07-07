@@ -16,7 +16,7 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     // Create a transform registry with 10 second max_age
-    let mut registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
     // Timestamp::now() is not available in no_std
     let time = Timestamp::now();

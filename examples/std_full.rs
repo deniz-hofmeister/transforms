@@ -32,7 +32,7 @@ async fn main() {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
-    let registry = Arc::new(RwLock::new(Registry::new(Duration::from_secs(10))));
+    let registry = Arc::new(RwLock::new(Registry::with_max_age(Duration::from_secs(10))));
 
     // Writer task - generates and adds transforms (requires exclusive access)
     let registry_writer = registry.clone();

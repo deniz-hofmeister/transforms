@@ -30,7 +30,7 @@ mod buffer_tests {
         let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
@@ -55,7 +55,7 @@ mod buffer_tests {
         let mut buffer = Buffer::new();
 
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         let t = Timestamp::zero();
         let transform = create_transform(t);
@@ -80,7 +80,7 @@ mod buffer_tests {
         let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
@@ -132,7 +132,7 @@ mod buffer_tests {
         let buffer = Buffer::new();
 
         #[cfg(feature = "std")]
-        let buffer = Buffer::new(Duration::from_secs(10));
+        let buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         assert!(buffer.get(&Timestamp::from_nanos(1000)).is_err());
 
@@ -165,7 +165,7 @@ mod buffer_tests {
     #[test]
     #[cfg(feature = "std")]
     fn delete_expired() {
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
         let p1 = create_transform(t);
@@ -194,7 +194,7 @@ mod buffer_tests {
         let t = (Timestamp::zero() + Duration::from_secs(1)).unwrap();
 
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = (Timestamp::now() + Duration::from_secs(1)).unwrap();
 
@@ -231,7 +231,7 @@ mod buffer_tests {
         #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         buffer.insert(static_tf.clone()).unwrap();
         assert!(matches!(
@@ -246,7 +246,7 @@ mod buffer_tests {
         #[cfg(not(feature = "std"))]
         let mut buffer = Buffer::new();
         #[cfg(feature = "std")]
-        let mut buffer = Buffer::new(Duration::from_secs(10));
+        let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
 
         buffer.insert(dynamic_tf.clone()).unwrap();
         assert!(matches!(

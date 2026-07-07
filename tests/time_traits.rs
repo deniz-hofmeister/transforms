@@ -66,7 +66,7 @@ fn default_timestamp_api_remains_usable() {
     let t = Timestamp::zero();
 
     #[cfg(feature = "std")]
-    let mut registry = Registry::new(Duration::from_secs(10));
+    let mut registry = Registry::with_max_age(Duration::from_secs(10));
     #[cfg(feature = "std")]
     let t = Timestamp::now();
 
@@ -88,7 +88,7 @@ fn default_timestamp_api_remains_usable() {
 fn registry_supports_system_time() {
     use std::time::SystemTime;
 
-    let mut registry = Registry::<SystemTime>::new(Duration::from_secs(10));
+    let mut registry = Registry::<SystemTime>::with_max_age(Duration::from_secs(10));
     let t0 = SystemTime::UNIX_EPOCH
         .checked_add(Duration::from_secs(1))
         .unwrap();
@@ -123,7 +123,7 @@ fn custom_timestamp_static_policy_is_respected() {
     #[cfg(not(feature = "std"))]
     let mut registry = Registry::<TestTime>::new();
     #[cfg(feature = "std")]
-    let mut registry = Registry::<TestTime>::new(Duration::from_secs(10));
+    let mut registry = Registry::<TestTime>::with_max_age(Duration::from_secs(10));
 
     let static_transform = Transform::<TestTime> {
         translation: Vector3::new(1.0, 0.0, 0.0),

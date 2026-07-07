@@ -128,7 +128,7 @@ where
 /// };
 ///
 /// # #[cfg(feature = "std")]
-/// let mut registry = Registry::new(Duration::from_secs(10));
+/// let mut registry = Registry::with_max_age(Duration::from_secs(10));
 /// # #[cfg(not(feature = "std"))]
 /// # let mut registry = Registry::new();
 /// # #[cfg(feature = "std")]

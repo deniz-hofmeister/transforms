@@ -16,7 +16,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -67,7 +67,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -118,7 +118,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -179,7 +179,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -232,7 +232,7 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -287,7 +287,7 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -360,7 +360,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -419,7 +419,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -494,7 +494,7 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(2_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t1 = Timestamp::now();
         #[cfg(feature = "std")]
@@ -584,7 +584,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -643,7 +643,7 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(2_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t1 = Timestamp::now();
         #[cfg(feature = "std")]
@@ -750,7 +750,7 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(2_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t1 = Timestamp::now();
         #[cfg(feature = "std")]
@@ -839,7 +839,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -883,7 +883,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let registry = Registry::new(Duration::from_secs(10));
+        let registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -921,7 +921,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let registry = Registry::new(Duration::from_secs(10));
+        let registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -945,7 +945,7 @@ mod registry_tests {
         let t = Timestamp::zero();
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -981,7 +981,7 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t = Timestamp::now();
 
@@ -1019,7 +1019,7 @@ mod registry_tests {
         let t0 = Timestamp::from_nanos(1_000_000_000);
 
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
         #[cfg(feature = "std")]
         let t0 = Timestamp::now();
 
@@ -1082,7 +1082,7 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
         registry.add_transform(static_tf.clone()).unwrap();
         assert!(
@@ -1097,7 +1097,7 @@ mod registry_tests {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(10));
+        let mut registry = Registry::with_max_age(Duration::from_secs(10));
 
         registry.add_transform(dynamic_tf.clone()).unwrap();
         assert!(

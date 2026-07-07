@@ -37,14 +37,15 @@ Its priorities, in this order:
 - `#![forbid(unsafe_code)]`. No exceptions.
 - No new dependencies without maintainer approval. Middleware independence is
   the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, and `libm`
-  (the `no_std` float-math fallback) are the entire runtime dependency list. (The `[dev-dependencies]` — `log`/`env_logger`
-  for examples, `tokio` for the async example, `criterion` for benches — are
-  expected and do not contradict this.)
+  (the `no_std` float-math fallback) are the entire runtime dependency list.
+  (The `[dev-dependencies]` — `log`/`env_logger` for examples, `tokio` for the
+  async example, `criterion` for benches — are expected and do not contradict
+  this.)
 - `no_std` parity: every change must build and pass tests with
   `--no-default-features`, and build for a real bare-metal target (the gate
   builds `thumbv7em-none-eabihf`). `no_std` requires a heap allocator (`alloc`).
-  Feature-gated asymmetries (such as automatic buffer cleanup,
-  `Timestamp::now()`) must be documented on both sides.
+  Features must be additive: the same API exists in both modes; the only
+  feature-gated items are `Timestamp::now()` and the `SystemTime` time type.
 - The README **Non-Goals** section is load-bearing. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity. Do not implement these even if an

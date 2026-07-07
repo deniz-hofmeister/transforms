@@ -29,7 +29,7 @@ fn benchmark_transforms(c: &mut Criterion) {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(60));
+        let mut registry = Registry::with_max_age(Duration::from_secs(60));
         b.iter(|| {
             let transform = create_sample_transform();
             let t = transform.timestamp;
@@ -50,7 +50,7 @@ fn benchmark_transforms_with_preparation(c: &mut Criterion) {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(60));
+        let mut registry = Registry::with_max_age(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
         for _ in 0..1000 {
@@ -78,7 +78,7 @@ fn benchmark_tree_climb(c: &mut Criterion) {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(60));
+        let mut registry = Registry::with_max_age(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
         for i in 0..1000 {
@@ -105,7 +105,7 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
         #[cfg(not(feature = "std"))]
         let mut registry = Registry::new();
         #[cfg(feature = "std")]
-        let mut registry = Registry::new(Duration::from_secs(60));
+        let mut registry = Registry::with_max_age(Duration::from_secs(60));
 
         // Prepare registry with 1000 transforms
         let mut transform = Transform::identity();

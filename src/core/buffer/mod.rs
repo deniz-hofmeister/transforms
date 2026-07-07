@@ -22,12 +22,13 @@
 //!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
 //!
 //! - **Automatic Expiration of Transforms**:
-//!   - This feature is available only when the `std` feature is enabled.
-//!   - On every insert of a dynamic transform, entries older than `max_age` relative to the
-//!     latest inserted timestamp are removed automatically.
-//!   - This ensures that the buffer does not grow indefinitely and only retains relevant transforms
-//!     within the specified duration.
-//!   - The `no_std` variant requires manual cleanup through the `delete_before` method.
+//!   - Buffers created with `Buffer::with_max_age` remove entries older than `max_age`
+//!     relative to the latest inserted timestamp on every insert of a dynamic transform.
+//!   - This ensures that the buffer does not grow indefinitely and only retains relevant
+//!     transforms within the specified duration.
+//!   - Buffers created with `Buffer::new` never expire entries; use the `delete_before`
+//!     method for manual cleanup. Static transforms never expire and survive manual
+//!     cleanup.
 //!
 //! # Examples
 //!
@@ -46,7 +47,7 @@
 //! # #[cfg(feature = "std")]
 //! let max_age = Duration::from_secs(10);
 //! # #[cfg(feature = "std")]
-//! let mut buffer = Buffer::new(max_age);
+//! let mut buffer = Buffer::with_max_age(max_age);
 //!
 //! let translation = Vector3::new(1.0, 2.0, 3.0);
 //! let rotation = Quaternion::identity();
@@ -80,11 +81,9 @@ use crate::{
     time::{TimePoint, Timestamp},
 };
 use alloc::collections::BTreeMap;
+use core::time::Duration;
 pub use error::BufferError;
 mod error;
-
-#[cfg(feature = "std")]
-use core::time::Duration;
 
 type NearestTransforms<'a, T> = (
     Option<(&'a T, &'a Transform<T>)>,
@@ -102,16 +101,16 @@ type NearestTransforms<'a, T> = (
 /// value (`t=0` by default) makes the buffer static. Later inserts of the
 /// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
-/// When the `std` feature is enabled, entries older than `max_age` relative
-/// to the latest inserted timestamp are removed automatically on insert.
+/// When constructed with [`Buffer::with_max_age`], entries older than
+/// `max_age` relative to the latest inserted timestamp are removed
+/// automatically on insert. A buffer created with [`Buffer::new`] never
+/// expires entries; use [`Buffer::delete_before`] for manual cleanup.
 pub struct Buffer<T = Timestamp>
 where
     T: TimePoint,
 {
     data: BTreeMap<T, Transform<T>>,
-    #[cfg(feature = "std")]
-    max_age: Duration,
-    #[cfg(feature = "std")]
+    max_age: Option<Duration>,
     latest_timestamp: Option<T>,
     is_static: bool,
 }
@@ -120,11 +119,10 @@ impl<T> Buffer<T>
 where
     T: TimePoint,
 {
-    /// Creates a new `Buffer` in a `no_std` environment.
+    /// Creates a new `Buffer` without automatic expiry.
     ///
-    /// This variant does **not** track or remove entries based on their age,
-    /// because the `std` feature is disabled and we do not have access to
-    /// standard library functionality.
+    /// Entries are kept until removed manually with
+    /// [`Buffer::delete_before`].
     ///
     /// # Examples
     ///
@@ -132,16 +130,17 @@ where
     /// use transforms::core::Buffer;
     /// let buffer: Buffer = Buffer::new();
     /// ```
-    #[cfg(not(feature = "std"))]
     #[must_use]
     pub fn new() -> Self {
         Self {
             data: BTreeMap::new(),
+            max_age: None,
+            latest_timestamp: None,
             is_static: false,
         }
     }
 
-    /// Creates a new `Buffer` in a `std` environment with a specified `max_age`.
+    /// Creates a new `Buffer` with automatic expiry after `max_age`.
     ///
     /// Entries older than `max_age` relative to the latest inserted timestamp
     /// are removed automatically whenever a dynamic transform is inserted.
@@ -153,14 +152,13 @@ where
     /// use transforms::core::Buffer;
     ///
     /// let max_age = Duration::from_secs(10);
-    /// let buffer: Buffer = Buffer::new(max_age);
+    /// let buffer: Buffer = Buffer::with_max_age(max_age);
     /// ```
-    #[cfg(feature = "std")]
     #[must_use]
-    pub fn new(max_age: Duration) -> Self {
+    pub fn with_max_age(max_age: Duration) -> Self {
         Self {
             data: BTreeMap::new(),
-            max_age,
+            max_age: Some(max_age),
             latest_timestamp: None,
             is_static: false,
         }
@@ -191,7 +189,7 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// let mut buffer = Buffer::new(Duration::from_secs(10));
+    /// let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
     /// # #[cfg(feature = "std")]
     /// let timestamp = Timestamp::now();
     ///
@@ -230,14 +228,13 @@ where
 
         self.data.insert(timestamp, transform);
 
-        #[cfg(feature = "std")]
         if !self.is_static {
             self.latest_timestamp = Some(match self.latest_timestamp {
                 Some(current_latest) if current_latest > timestamp => current_latest,
                 _ => timestamp,
             });
             self.delete_expired();
-        };
+        }
 
         Ok(())
     }
@@ -262,7 +259,7 @@ where
     /// use core::time::Duration;
     ///
     /// # #[cfg(feature = "std")]
-    /// # let mut buffer = Buffer::new(Duration::from_secs(10));
+    /// # let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
     /// # #[cfg(feature = "std")]
     /// # let timestamp = Timestamp::now();
     /// # #[cfg(not(feature = "std"))]
@@ -312,7 +309,7 @@ where
         }
     }
 
-    /// Removes transforms from the buffer based on the given threshold.
+    /// Removes dynamic transforms older than the given timestamp.
     ///
     /// This function deletes all transforms from the buffer that have a
     /// timestamp lower than the given timestamp.
@@ -347,19 +344,17 @@ where
     /// Removes expired transforms from the buffer based on the `max_age`.
     ///
     /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than `(latest inserted timestamp - max_age)`.
-    #[cfg(feature = "std")]
+    /// timestamp older than `(latest inserted timestamp - max_age)`. Buffers
+    /// without a configured `max_age` never expire entries.
     fn delete_expired(&mut self) {
-        if let Some(latest_timestamp) = self.latest_timestamp {
-            let timestamp_threshold = latest_timestamp.checked_sub(self.max_age);
-            if let Ok(threshold) = timestamp_threshold {
+        if let (Some(max_age), Some(latest_timestamp)) = (self.max_age, self.latest_timestamp) {
+            if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
                 self.data.retain(|&k, _| k >= threshold);
             }
         }
     }
 }
 
-#[cfg(not(feature = "std"))]
 impl<T> Default for Buffer<T>
 where
     T: TimePoint,
