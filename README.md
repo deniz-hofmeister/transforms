@@ -534,7 +534,7 @@ contributions follow a formal framework:
 - Every AI-assisted change is reviewed, tested, and understood by the
   maintainer before merging.
 
-I take full responsibility for every line in this repository, however it was
+I, the owner of this repo, take full responsibility for every line in this repository, however it was
 produced.
 
 ## Contributing
