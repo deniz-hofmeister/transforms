@@ -305,6 +305,25 @@ mod buffer_tests {
     }
 
     #[test]
+    fn frame_accessors_reflect_pinning() {
+        let mut buffer = Buffer::new();
+        assert_eq!(buffer.parent(), None);
+        assert_eq!(buffer.child(), None);
+
+        let t = Timestamp::from_nanos(1_000_000_000);
+        buffer.insert(create_transform(t)).unwrap();
+        assert_eq!(buffer.parent(), Some("map"));
+        assert_eq!(buffer.child(), Some("base"));
+
+        // The pins survive the buffer being emptied, matching the documented
+        // parent behavior: dropping the buffer is the only release.
+        buffer.delete_before((t + Duration::from_secs(1)).unwrap());
+        assert!(buffer.is_empty());
+        assert_eq!(buffer.parent(), Some("map"));
+        assert_eq!(buffer.child(), Some("base"));
+    }
+
+    #[test]
     fn insert_rejects_child_frame_mismatch_static() {
         let mut buffer = Buffer::new();
 
