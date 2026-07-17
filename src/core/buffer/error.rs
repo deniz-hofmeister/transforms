@@ -27,6 +27,13 @@ pub enum BufferError {
     #[error("re-parenting is not supported (the child frame's parent is {0})")]
     ReparentingNotSupported(String),
 
+    /// The buffer already holds transforms of a different child frame. A
+    /// buffer stores the history of exactly one parent-child pair, pinned by
+    /// the first insert; accepting another child would silently overwrite or
+    /// corrupt the stored data.
+    #[error("the buffer already stores a different child frame ({0})")]
+    ChildFrameMismatch(String),
+
     /// Inserting the transform would create a cycle in the frame tree.
     #[error("inserting the transform would create a cycle in the frame tree")]
     CycleDetected,

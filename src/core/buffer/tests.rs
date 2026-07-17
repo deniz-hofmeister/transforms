@@ -305,6 +305,59 @@ mod buffer_tests {
     }
 
     #[test]
+    fn insert_rejects_child_frame_mismatch_static() {
+        let mut buffer = Buffer::new();
+
+        // Static calibration transform for map -> base.
+        let original = create_transform(Timestamp::zero());
+        buffer.insert(original.clone()).unwrap();
+
+        // Same parent, different child (a frame-naming bug): without child
+        // pinning this key collision silently overwrote the stored data.
+        let mut other = create_transform(Timestamp::zero());
+        other.child = "lidar".into();
+        other.translation = Vector3::new(9.0, 9.0, 9.0);
+        let result = buffer.insert(other);
+        assert!(
+            matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
+            "expected ChildFrameMismatch, got {result:?}"
+        );
+
+        // The original static transform must be untouched and retrievable.
+        assert_eq!(
+            buffer.get(&Timestamp::from_nanos(1_000_000_000)).unwrap(),
+            original,
+            "the pinned child's static transform must survive the rejected insert"
+        );
+    }
+
+    #[test]
+    fn insert_rejects_child_frame_mismatch_dynamic() {
+        let mut buffer = Buffer::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+
+        buffer.insert(create_transform(t1)).unwrap();
+        buffer.insert(create_transform(t3)).unwrap();
+
+        // A different child between the stored samples: without child pinning
+        // this insert succeeded and made interpolating lookups fail with
+        // IncompatibleFrames while exact-hit lookups kept working.
+        let mut other = create_transform(t2);
+        other.child = "lidar".into();
+        assert!(matches!(
+            buffer.insert(other),
+            Err(BufferError::ChildFrameMismatch(_))
+        ));
+
+        // Interpolation over the pinned child's samples must keep working.
+        let result = buffer.get(&t2).unwrap();
+        assert_eq!(result.child, "base");
+        assert_eq!(result.timestamp, t2);
+    }
+
+    #[test]
     fn out_of_order_insert_does_not_regress_latest_timestamp() {
         let mut buffer = Buffer::with_max_age(Duration::from_secs(1));
 

@@ -101,9 +101,11 @@ type NearestTransforms<'a, T> = (
 /// value (`t=0` by default) makes the buffer static. Later inserts of the
 /// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
-/// The first insert also pins the buffer's parent frame: every later insert
-/// must carry the same parent. Re-parenting is rejected with
-/// `BufferError::ReparentingNotSupported`.
+/// The first insert also pins the buffer's parent and child frames: every
+/// later insert must carry the same pair, so a buffer stores the history of
+/// exactly one parent-child relationship. Re-parenting is rejected with
+/// `BufferError::ReparentingNotSupported`, and a transform for a different
+/// child frame with `BufferError::ChildFrameMismatch`.
 ///
 /// When constructed with [`Buffer::with_max_age`], entries older than
 /// `max_age` relative to the latest inserted timestamp are removed
@@ -119,6 +121,7 @@ where
     latest_timestamp: Option<T>,
     is_static: bool,
     parent: Option<String>,
+    child: Option<String>,
 }
 
 impl<T> Buffer<T>
@@ -144,6 +147,7 @@ where
             latest_timestamp: None,
             is_static: false,
             parent: None,
+            child: None,
         }
     }
 
@@ -170,6 +174,7 @@ where
             latest_timestamp: None,
             is_static: false,
             parent: None,
+            child: None,
         }
     }
 
@@ -210,9 +215,13 @@ where
     /// the static timestamp would be treated as a regular data point.
     ///
     /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
-    /// and child are the same frame, and
+    /// and child are the same frame,
     /// `BufferError::ReparentingNotSupported` if the buffer's parent frame
-    /// (pinned by the first insert) differs from the transform's parent.
+    /// (pinned by the first insert) differs from the transform's parent, and
+    /// `BufferError::ChildFrameMismatch` if the buffer's child frame (pinned
+    /// the same way) differs from the transform's child — accepting a second
+    /// child frame would silently overwrite a static transform or corrupt
+    /// interpolation between dynamic ones.
     ///
     /// # Examples
     ///
@@ -266,6 +275,13 @@ where
         } else {
             self.parent = Some(transform.parent.clone());
         }
+        if let Some(child) = &self.child {
+            if *child != transform.child {
+                return Err(BufferError::ChildFrameMismatch(child.clone()));
+            }
+        } else {
+            self.child = Some(transform.child.clone());
+        }
 
         let timestamp = transform.timestamp;
         let is_static = timestamp.is_static();
@@ -296,6 +312,12 @@ where
     /// This function returns a `BufferError::NoTransformAvailable` if:
     /// - The buffer is static and no transform is available at the static timestamp value.
     /// - There are no transforms available to interpolate between for the given timestamp.
+    ///
+    /// Returns `BufferError::TransformError` if interpolating between the two
+    /// neighboring samples fails. With both frames pinned at insertion, this
+    /// is only reachable through timestamp arithmetic: a span between the
+    /// neighboring samples too large to represent as a `Duration`
+    /// (`TimeError::DurationOverflow`).
     ///
     /// # Examples
     ///

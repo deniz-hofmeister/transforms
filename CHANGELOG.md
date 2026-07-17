@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `Buffer::insert` pins the child frame the way it already pinned the parent:
+  a transform for a different child frame is rejected with the new
+  `BufferError::ChildFrameMismatch` variant instead of silently overwriting a
+  stored static transform or corrupting interpolation between dynamic ones.
+
 ## [2.0.0-alpha.1] - 2026-07-08
 
 ### Fixed
@@ -117,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-alpha.1...HEAD
 [2.0.0-alpha.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0-alpha.1
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.3.0...v1.4.0
