@@ -361,7 +361,9 @@ where
     /// Compares translation and rotation within `epsilon`; frames and
     /// timestamps must match exactly. Use this (via
     /// `approx::assert_abs_diff_eq!`) for tolerant comparison of computed
-    /// transforms — `==` is exact, bitwise equality.
+    /// transforms — `==` is exact IEEE 754 equality with no tolerance
+    /// (`NaN` components never compare equal, and `0.0 == -0.0`), not a
+    /// bit-level comparison.
     fn abs_diff_eq(
         &self,
         other: &Self,

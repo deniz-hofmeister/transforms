@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Docs: `Transform`'s `==` is described as exact IEEE 754 equality (`NaN`
+  components never compare equal, `0.0 == -0.0`), not "bitwise" — the derived
+  `PartialEq` was never a bit-level comparison.
 - `get_transform_at` resolves when `source_frame` equals `fixed_frame`
   (including all three frames equal) instead of always failing with
   `SameFrameMultiplication`; coinciding-frame legs are now short-circuited
