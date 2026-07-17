@@ -281,12 +281,12 @@ The library automatically traverses the frame tree and composes the necessary tr
 When querying at a timestamp between two stored transforms, the library interpolates:
 
 ```rust
-// Store transforms at t=0 and t=2
-registry.add_transform(transform_at_t0)?;
-registry.add_transform(transform_at_t2)?;
+// Store transforms at t=1 and t=3 (t=0 is reserved as the static sentinel)
+registry.add_transform(transform_at_t1)?;
+registry.add_transform(transform_at_t3)?;
 
-// Query at t=1: automatically interpolates between t=0 and t=2
-let interpolated = registry.get_transform("a", "b", timestamp_at_t1)?;
+// Query at t=2: automatically interpolates between t=1 and t=3
+let interpolated = registry.get_transform("a", "b", timestamp_at_t2)?;
 ```
 
 - **Translation**: Linear interpolation

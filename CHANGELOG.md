@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Docs: the README interpolation example stores its dynamic samples at `t=1`
+  and `t=3` instead of `t=0` and `t=2` — `t=0` is the static sentinel, so the
+  shown sequence failed with `StaticDynamicConflict` and could not
+  interpolate.
 - Docs: `Transform`'s `==` is described as exact IEEE 754 equality (`NaN`
   components never compare equal, `0.0 == -0.0`), not "bitwise" — the derived
   `PartialEq` was never a bit-level comparison.
