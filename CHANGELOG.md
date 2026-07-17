@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Docs: `Transform::interpolate` documents the reachable
+  `TransformError::TimestampError` path (an endpoint span too large to
+  represent as a `Duration`), previously absent from its `# Errors` set.
 - Docs: the README no longer claims automatic cleanup is unavailable in
   `no_std` — `Registry::with_max_age` works in both feature modes; manual
   cleanup is only required for registries built with `Registry::new`.

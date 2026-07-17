@@ -131,6 +131,10 @@ where
     /// `TransformError::TimestampMismatch` if the endpoints are swapped, and
     /// `TransformError::IncompatibleFrames` if the frames do not match.
     ///
+    /// Returns `TransformError::TimestampError` if a time span needed for
+    /// the interpolation — between the endpoints, or from `from` to the
+    /// requested timestamp — is too large to represent as a `Duration`.
+    ///
     /// # Examples
     ///
     /// ```
