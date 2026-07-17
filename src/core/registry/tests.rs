@@ -712,6 +712,107 @@ mod registry_tests {
     }
 
     #[test]
+    fn time_travel_source_equals_fixed_returns_inverted_target_leg() {
+        // "Where is the fixed/world origin relative to my platform now" —
+        // source_frame == fixed_frame, a routine time-travel query that must
+        // resolve to the inverse of the target leg, not error with
+        // SameFrameMultiplication.
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(x, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+        }
+
+        let result = registry.get_transform_at("a", t2, "fixed", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        // Inverse of fixed -> a at t2 (x=2): the origin sits at x=-2 in "a".
+        assert_eq!(tf.parent, "a");
+        assert_eq!(tf.child, "fixed");
+        assert_eq!(tf.timestamp, t2);
+        assert!(
+            (tf.translation.x - (-2.0)).abs() < f64::EPSILON,
+            "Expected x=-2.0, got {}",
+            tf.translation.x
+        );
+    }
+
+    #[test]
+    fn time_travel_target_equals_fixed_returns_source_leg() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(x, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+        }
+
+        let result = registry.get_transform_at("fixed", t2, "a", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        // The source leg alone: a at t1 (x=1), stamped with target_time.
+        assert_eq!(tf.parent, "fixed");
+        assert_eq!(tf.child, "a");
+        assert_eq!(tf.timestamp, t2);
+        assert!(
+            (tf.translation.x - 1.0).abs() < f64::EPSILON,
+            "Expected x=1.0, got {}",
+            tf.translation.x
+        );
+    }
+
+    #[test]
+    fn time_travel_all_frames_equal_returns_identity() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // The registry content is irrelevant for the degenerate query, but
+        // keep it non-empty to mirror real use.
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
+
+        let result = registry.get_transform_at("fixed", t2, "fixed", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        assert_eq!(tf.parent, "fixed");
+        assert_eq!(tf.child, "fixed");
+        assert_eq!(tf.timestamp, t2);
+        assert_eq!(tf.translation, Vector3::zero());
+        assert_eq!(tf.rotation, Quaternion::identity());
+    }
+
+    #[test]
     fn get_transform_at_unknown_fixed_frame_returns_not_found() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);

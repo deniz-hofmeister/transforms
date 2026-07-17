@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `get_transform_at` resolves when `source_frame` equals `fixed_frame`
+  (including all three frames equal) instead of always failing with
+  `SameFrameMultiplication`; coinciding-frame legs are now short-circuited
+  rather than composed with a self-referential identity.
 - `Buffer::insert` pins the child frame the way it already pinned the parent:
   a transform for a different child frame is rejected with the new
   `BufferError::ChildFrameMismatch` variant instead of silently overwriting a
