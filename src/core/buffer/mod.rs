@@ -188,6 +188,16 @@ where
         self.parent.as_deref()
     }
 
+    /// Returns the buffer's child frame, pinned by the first insert.
+    ///
+    /// `None` for a buffer that has never held a transform. The child stays
+    /// pinned even if all entries are removed; drop the whole buffer
+    /// (`Registry::remove_frame`) to release it.
+    #[must_use]
+    pub fn child(&self) -> Option<&str> {
+        self.child.as_deref()
+    }
+
     /// Returns `true` if the buffer holds no transforms.
     #[must_use]
     pub fn is_empty(&self) -> bool {
