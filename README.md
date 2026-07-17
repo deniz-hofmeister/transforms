@@ -350,7 +350,9 @@ let sensor_to_base = base_to_sensor.inverse()?;
 
 ### `no_std` Usage
 
-In `no_std` environments, you must manually manage buffer cleanup:
+The same API is available in `no_std` environments, including automatic
+cleanup via `Registry::with_max_age`; only a registry built with
+`Registry::new` requires manual cleanup:
 
 ```rust
 use transforms::{
@@ -432,7 +434,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 | **Async Pattern** | `waitForTransform()` with callbacks | Synchronous (user manages async) |
 | **Error Handling** | C++ exceptions | Rust `Result` types |
 | **Buffer Default** | 10 seconds | User-configured |
-| **Cleanup** | Automatic background process | Automatic (std) or manual (no_std) |
+| **Cleanup** | Automatic background process | Automatic (`with_max_age`) or manual (`Registry::new`), both modes |
 
 ### Middleware Independence
 
