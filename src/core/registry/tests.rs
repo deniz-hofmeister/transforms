@@ -1185,6 +1185,98 @@ mod registry_tests {
     }
 
     #[test]
+    fn get_transform_mid_chain_gap_returns_not_found() {
+        // Tree: r -> a -> b -> c. The a -> b hop is only known at t1; the
+        // others are known at t1 and t3. A query at t2 hits a timestamp gap
+        // in the MIDDLE of the chain, so both partial walks stop in
+        // different subtrees. That is a transient data gap and must be
+        // reported as NotFound — not IncompatibleFrames, whose "frames do
+        // not have a parent-child relationship" message is false here.
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+
+        for &t in &[t1, t3] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "r".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(0.0, 0.0, 1.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "b".into(),
+                    child: "c".into(),
+                })
+                .unwrap();
+        }
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // With all hops resolvable (t1) the chain works: the topology is
+        // intact and only the data gap at t2 must trip the lookup.
+        let result = registry.get_transform("a", "c", t1);
+        assert!(
+            result.is_ok(),
+            "expected chain at t1 to resolve: {result:?}"
+        );
+
+        let result = registry.get_transform("a", "c", t2);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for a mid-chain timestamp gap, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_disconnected_trees_returns_not_found() {
+        // Two disjoint trees: r1 -> a and r2 -> b. There is no path between
+        // "a" and "b", which must be reported as NotFound — not as a failed
+        // composition of the two unrelated root transforms.
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "r1".into(),
+                child: "a".into(),
+            })
+            .unwrap();
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "r2".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        let result = registry.get_transform("a", "b", t);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for frames in disconnected trees, got {result:?}"
+        );
+    }
+
+    #[test]
     fn add_transform_rejects_static_dynamic_mixing() {
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 

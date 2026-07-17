@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (including all three frames equal) instead of always failing with
   `SameFrameMultiplication`; coinciding-frame legs are now short-circuited
   rather than composed with a self-referential identity.
+- `get_transform` reports `NotFound` when its two chain walks stop in
+  different subtrees — a mid-chain timestamp gap or frames from disconnected
+  trees — instead of `IncompatibleFrames`, whose "frames do not have a
+  parent-child relationship" diagnostic is false for a transient data gap.
 - `Buffer::insert` pins the child frame the way it already pinned the parent:
   a transform for a different child frame is rejected with the new
   `BufferError::ChildFrameMismatch` variant instead of silently overwriting a

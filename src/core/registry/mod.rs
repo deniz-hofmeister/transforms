@@ -591,8 +591,22 @@ where
                 // the common parent and combine the remainders.
                 (Ok(mut from_chain), Ok(mut to_chain)) => {
                     Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(from_chain, to_chain)
+                    // The two walks must meet at a common parent; otherwise
+                    // they stopped in different subtrees — an unknown frame,
+                    // a mid-chain timestamp gap, or disconnected trees — and
+                    // no transform exists at this time. Report that as
+                    // NotFound instead of letting the junction fail
+                    // composition with a misleading IncompatibleFrames.
+                    let connected = match (from_chain.back(), to_chain.back()) {
+                        (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
+                        _ => false,
+                    };
+                    if connected {
+                        Self::reverse_and_invert_transforms(&mut to_chain)?;
+                        Self::combine_transforms(from_chain, to_chain)
+                    } else {
+                        Err(TransformError::NotFound(from.into(), to.into()))
+                    }
                 }
                 (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
                 (Err(_), Ok(mut to_chain)) => {
