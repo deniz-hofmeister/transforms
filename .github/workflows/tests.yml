@@ -29,7 +29,7 @@ jobs:
           components: rustfmt
           toolchain: nightly
       - name: Rustfmt Check
-        uses: actions-rust-lang/rustfmt@559aa3035a47390ba96088dffa783b5d26da9326
+        uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143
 
   clippy:
     name: clippy
