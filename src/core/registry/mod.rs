@@ -337,6 +337,11 @@ where
     /// `fixed_frame` is a frame that does not change over time, used as an
     /// intermediate reference point (typically a world or map frame).
     ///
+    /// Either endpoint may coincide with `fixed_frame`: that leg is then the
+    /// identity, so only the other leg is resolved. When `source_frame` and
+    /// `target_frame` both coincide with it, the result is the identity
+    /// transform carrying `target_time`.
+    ///
     /// # Choosing the fixed frame
     ///
     /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
@@ -586,8 +591,22 @@ where
                 // the common parent and combine the remainders.
                 (Ok(mut from_chain), Ok(mut to_chain)) => {
                     Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(from_chain, to_chain)
+                    // The two walks must meet at a common parent; otherwise
+                    // they stopped in different subtrees — an unknown frame,
+                    // a mid-chain timestamp gap, or disconnected trees — and
+                    // no transform exists at this time. Report that as
+                    // NotFound instead of letting the junction fail
+                    // composition with a misleading IncompatibleFrames.
+                    let connected = match (from_chain.back(), to_chain.back()) {
+                        (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
+                        _ => false,
+                    };
+                    if connected {
+                        Self::reverse_and_invert_transforms(&mut to_chain)?;
+                        Self::combine_transforms(from_chain, to_chain)
+                    } else {
+                        Err(TransformError::NotFound(from.into(), to.into()))
+                    }
                 }
                 (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
                 (Err(_), Ok(mut to_chain)) => {
@@ -640,37 +659,48 @@ where
         // 1. Get transform expressing source_frame in fixed_frame at source_time
         // 2. Get transform expressing target_frame in fixed_frame at target_time
         // 3. Compute: T_target_to_fixed.inverse() * T_source_to_fixed
+        //
+        // process_get_transform(parent, child) returns "child expressed in
+        // parent", so process_get_transform(fixed, source) returns "source
+        // expressed in fixed".
 
-        // Step 1: Get transform expressing source_frame in fixed_frame at source_time
-        // process_get_transform(parent, child) returns "child expressed in parent"
-        // So process_get_transform(fixed, source) returns "source expressed in fixed"
-        let mut source_to_fixed = if source_frame == fixed_frame {
-            // Identity transform if source_frame is the same as fixed_frame
-            Transform {
-                translation: Vector3::zero(),
-                rotation: Quaternion::identity(),
-                timestamp: source_time,
-                parent: fixed_frame.into(),
-                child: source_frame.into(),
-            }
-        } else {
-            Self::process_get_transform(fixed_frame, source_frame, source_time, data)?
-        };
-
-        // Step 2: Get transform expressing target_frame in fixed_frame at target_time
-        // process_get_transform(fixed, target) returns "target expressed in fixed"
-        let mut target_to_fixed = if target_frame == fixed_frame {
-            // Identity transform if target_frame is the same as fixed_frame
-            Transform {
+        // An endpoint coinciding with the fixed frame makes its leg the
+        // identity, so no composition is needed; short-circuit those cases.
+        // Multiplying with an identity carrying parent == child ==
+        // fixed_frame is not an option: `Mul` rejects self-referential
+        // operands as `SameFrameMultiplication`.
+        if source_frame == fixed_frame && target_frame == fixed_frame {
+            return Ok(Transform {
                 translation: Vector3::zero(),
                 rotation: Quaternion::identity(),
                 timestamp: target_time,
-                parent: fixed_frame.into(),
-                child: target_frame.into(),
-            }
-        } else {
-            Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
-        };
+                parent: target_frame.into(),
+                child: source_frame.into(),
+            });
+        }
+        if source_frame == fixed_frame {
+            // The answer is the target leg alone, inverted.
+            let mut result =
+                Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
+                    .inverse()?;
+            result.timestamp = target_time;
+            return Ok(result);
+        }
+        if target_frame == fixed_frame {
+            // The answer is the source leg alone.
+            let mut result =
+                Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
+            result.timestamp = target_time;
+            return Ok(result);
+        }
+
+        // Step 1: Get transform expressing source_frame in fixed_frame at source_time
+        let mut source_to_fixed =
+            Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
+
+        // Step 2: Get transform expressing target_frame in fixed_frame at target_time
+        let mut target_to_fixed =
+            Self::process_get_transform(fixed_frame, target_frame, target_time, data)?;
 
         // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
         // with their timestamps set to the static value.

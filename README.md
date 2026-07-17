@@ -60,7 +60,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.0.0-alpha.1"
+transforms = "2.0.0-beta.1"
 ```
 
 ### Feature Flags
@@ -82,7 +82,7 @@ For `no_std` environments (requires a heap allocator; float math falls back to
 
 ```toml
 [dependencies]
-transforms = { version = "2.0.0-alpha.1", default-features = false }
+transforms = { version = "2.0.0-beta.1", default-features = false }
 ```
 
 ## Quick Start
@@ -281,12 +281,12 @@ The library automatically traverses the frame tree and composes the necessary tr
 When querying at a timestamp between two stored transforms, the library interpolates:
 
 ```rust
-// Store transforms at t=0 and t=2
-registry.add_transform(transform_at_t0)?;
-registry.add_transform(transform_at_t2)?;
+// Store transforms at t=1 and t=3 (t=0 is reserved as the static sentinel)
+registry.add_transform(transform_at_t1)?;
+registry.add_transform(transform_at_t3)?;
 
-// Query at t=1: automatically interpolates between t=0 and t=2
-let interpolated = registry.get_transform("a", "b", timestamp_at_t1)?;
+// Query at t=2: automatically interpolates between t=1 and t=3
+let interpolated = registry.get_transform("a", "b", timestamp_at_t2)?;
 ```
 
 - **Translation**: Linear interpolation
@@ -350,7 +350,9 @@ let sensor_to_base = base_to_sensor.inverse()?;
 
 ### `no_std` Usage
 
-In `no_std` environments, you must manually manage buffer cleanup:
+The same API is available in `no_std` environments, including automatic
+cleanup via `Registry::with_max_age`; only a registry built with
+`Registry::new` requires manual cleanup:
 
 ```rust
 use transforms::{
@@ -432,7 +434,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 | **Async Pattern** | `waitForTransform()` with callbacks | Synchronous (user manages async) |
 | **Error Handling** | C++ exceptions | Rust `Result` types |
 | **Buffer Default** | 10 seconds | User-configured |
-| **Cleanup** | Automatic background process | Automatic (std) or manual (no_std) |
+| **Cleanup** | Automatic background process | Automatic (`with_max_age`) or manual (`Registry::new`), both modes |
 
 ### Middleware Independence
 

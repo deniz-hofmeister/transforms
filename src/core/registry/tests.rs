@@ -712,6 +712,107 @@ mod registry_tests {
     }
 
     #[test]
+    fn time_travel_source_equals_fixed_returns_inverted_target_leg() {
+        // "Where is the fixed/world origin relative to my platform now" —
+        // source_frame == fixed_frame, a routine time-travel query that must
+        // resolve to the inverse of the target leg, not error with
+        // SameFrameMultiplication.
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(x, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+        }
+
+        let result = registry.get_transform_at("a", t2, "fixed", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        // Inverse of fixed -> a at t2 (x=2): the origin sits at x=-2 in "a".
+        assert_eq!(tf.parent, "a");
+        assert_eq!(tf.child, "fixed");
+        assert_eq!(tf.timestamp, t2);
+        assert!(
+            (tf.translation.x - (-2.0)).abs() < f64::EPSILON,
+            "Expected x=-2.0, got {}",
+            tf.translation.x
+        );
+    }
+
+    #[test]
+    fn time_travel_target_equals_fixed_returns_source_leg() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(x, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "fixed".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+        }
+
+        let result = registry.get_transform_at("fixed", t2, "a", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        // The source leg alone: a at t1 (x=1), stamped with target_time.
+        assert_eq!(tf.parent, "fixed");
+        assert_eq!(tf.child, "a");
+        assert_eq!(tf.timestamp, t2);
+        assert!(
+            (tf.translation.x - 1.0).abs() < f64::EPSILON,
+            "Expected x=1.0, got {}",
+            tf.translation.x
+        );
+    }
+
+    #[test]
+    fn time_travel_all_frames_equal_returns_identity() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // The registry content is irrelevant for the degenerate query, but
+        // keep it non-empty to mirror real use.
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "fixed".into(),
+                child: "a".into(),
+            })
+            .unwrap();
+
+        let result = registry.get_transform_at("fixed", t2, "fixed", t1, "fixed");
+        assert!(result.is_ok(), "get_transform_at failed: {result:?}");
+        let tf = result.unwrap();
+
+        assert_eq!(tf.parent, "fixed");
+        assert_eq!(tf.child, "fixed");
+        assert_eq!(tf.timestamp, t2);
+        assert_eq!(tf.translation, Vector3::zero());
+        assert_eq!(tf.rotation, Quaternion::identity());
+    }
+
+    #[test]
     fn get_transform_at_unknown_fixed_frame_returns_not_found() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
@@ -1080,6 +1181,98 @@ mod registry_tests {
         assert!(
             matches!(result, Err(TransformError::NotFound(_, _))),
             "expected NotFound for partially resolvable chain, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_mid_chain_gap_returns_not_found() {
+        // Tree: r -> a -> b -> c. The a -> b hop is only known at t1; the
+        // others are known at t1 and t3. A query at t2 hits a timestamp gap
+        // in the MIDDLE of the chain, so both partial walks stop in
+        // different subtrees. That is a transient data gap and must be
+        // reported as NotFound — not IncompatibleFrames, whose "frames do
+        // not have a parent-child relationship" message is false here.
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+
+        for &t in &[t1, t3] {
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(1.0, 0.0, 0.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "r".into(),
+                    child: "a".into(),
+                })
+                .unwrap();
+            registry
+                .add_transform(Transform {
+                    translation: Vector3::new(0.0, 0.0, 1.0),
+                    rotation: Quaternion::identity(),
+                    timestamp: t,
+                    parent: "b".into(),
+                    child: "c".into(),
+                })
+                .unwrap();
+        }
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        // With all hops resolvable (t1) the chain works: the topology is
+        // intact and only the data gap at t2 must trip the lookup.
+        let result = registry.get_transform("a", "c", t1);
+        assert!(
+            result.is_ok(),
+            "expected chain at t1 to resolve: {result:?}"
+        );
+
+        let result = registry.get_transform("a", "c", t2);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for a mid-chain timestamp gap, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_disconnected_trees_returns_not_found() {
+        // Two disjoint trees: r1 -> a and r2 -> b. There is no path between
+        // "a" and "b", which must be reported as NotFound — not as a failed
+        // composition of the two unrelated root transforms.
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "r1".into(),
+                child: "a".into(),
+            })
+            .unwrap();
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(0.0, 1.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t,
+                parent: "r2".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        let result = registry.get_transform("a", "b", t);
+        assert!(
+            matches!(result, Err(TransformError::NotFound(_, _))),
+            "expected NotFound for frames in disconnected trees, got {result:?}"
         );
     }
 

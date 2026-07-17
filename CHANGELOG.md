@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.1] - 2026-07-17
+
+### Fixed
+
+- Docs: `Transform::interpolate` documents the reachable
+  `TransformError::TimestampError` path (an endpoint span too large to
+  represent as a `Duration`), previously absent from its `# Errors` set.
+- Docs: the README no longer claims automatic cleanup is unavailable in
+  `no_std` — `Registry::with_max_age` works in both feature modes; manual
+  cleanup is only required for registries built with `Registry::new`.
+- Docs: the README interpolation example stores its dynamic samples at `t=1`
+  and `t=3` instead of `t=0` and `t=2` — `t=0` is the static sentinel, so the
+  shown sequence failed with `StaticDynamicConflict` and could not
+  interpolate.
+- Docs: `Transform`'s `==` is described as exact IEEE 754 equality (`NaN`
+  components never compare equal, `0.0 == -0.0`), not "bitwise" — the derived
+  `PartialEq` was never a bit-level comparison.
+- `get_transform_at` resolves when `source_frame` equals `fixed_frame`
+  (including all three frames equal) instead of always failing with
+  `SameFrameMultiplication`; coinciding-frame legs are now short-circuited
+  rather than composed with a self-referential identity.
+- `get_transform` reports `NotFound` when its two chain walks stop in
+  different subtrees — a mid-chain timestamp gap or frames from disconnected
+  trees — instead of `IncompatibleFrames`, whose "frames do not have a
+  parent-child relationship" diagnostic is false for a transient data gap.
+- `Buffer::insert` pins the child frame the way it already pinned the parent:
+  a transform for a different child frame is rejected with the new
+  `BufferError::ChildFrameMismatch` variant instead of silently overwriting a
+  stored static transform or corrupting interpolation between dynamic ones.
+
 ## [2.0.0-alpha.1] - 2026-07-08
 
 ### Fixed
@@ -117,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.0.0-beta.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-alpha.1...v2.0.0-beta.1
 [2.0.0-alpha.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0-alpha.1
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.3.0...v1.4.0
