@@ -36,14 +36,24 @@ pub enum TransformError {
     #[error("frames do not have a parent-child relationship")]
     IncompatibleFrames,
 
-    /// No transform chain connects the two frames at the requested time.
-    #[error("transform not found from {0} to {1}")]
-    NotFound(String, String),
+    /// The requested frame exists nowhere in the transform tree, neither
+    /// as a child nor as a parent frame. Usually a typo or a frame that
+    /// has not been published yet.
+    #[error("frame {0} does not exist in the transform tree")]
+    UnknownFrame(String),
+
+    /// Both frames exist, but no chain of transforms connects them: they
+    /// live in different trees. This reflects the tree topology at the
+    /// time of the lookup, not a transient data gap — gaps are reported as
+    /// [`NotFoundAt`](Self::NotFoundAt).
+    #[error("no transform chain connects {0} and {1}")]
+    Disconnected(String, String),
 
     /// The lookup stopped at a frame whose buffer holds data but could not
-    /// serve the requested time. Unlike [`NotFound`](Self::NotFound), the
-    /// failure has a concrete cause: `frame` names where the chain walk
-    /// stopped and `source` carries the buffer's error.
+    /// serve the requested time — typically a transient gap: the request
+    /// is outside the frame's covered time range. `frame` names where the
+    /// chain walk stopped and `source` carries the buffer's error,
+    /// including the covered range.
     #[error("transform not found from {from} to {to} (frame {frame}: {source})")]
     NotFoundAt {
         /// The requested source frame.

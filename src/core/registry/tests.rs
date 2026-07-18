@@ -377,12 +377,12 @@ mod registry_tests {
         let mut to_chain =
             Registry::get_transform_chain("c", "a", t, &registry.data, &mut walk_failure);
 
-        if let Ok(chain) = to_chain.as_mut() {
+        if let Some(chain) = to_chain.as_mut() {
             Registry::reverse_and_invert_transforms(chain).expect("failed to reverse and invert");
         }
 
-        assert!(from_chain.is_ok());
-        assert!(to_chain.is_ok());
+        assert!(from_chain.is_some());
+        assert!(to_chain.is_some());
 
         let mut from = from_chain.unwrap();
         let mut to = to_chain.unwrap();
@@ -845,11 +845,11 @@ mod registry_tests {
 
         // The fixed frame is not part of the tree: neither leg of the time
         // travel can resolve, so the whole query must fail loudly instead of
-        // silently picking another reference.
+        // silently picking another reference — naming the unknown frame.
         let result = registry.get_transform_at("a", t2, "b", t1, "nowhere");
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for unknown fixed frame, got {result:?}"
+            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "nowhere"),
+            "expected UnknownFrame for unknown fixed frame, got {result:?}"
         );
     }
 
@@ -982,7 +982,10 @@ mod registry_tests {
 
         let result = registry.get_transform_for(&point, "map");
 
-        assert!(matches!(result, Err(TransformError::NotFound(_, _))));
+        assert!(
+            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "map"),
+            "expected UnknownFrame on an empty registry, got {result:?}"
+        );
     }
 
     #[test]
@@ -1136,17 +1139,18 @@ mod registry_tests {
 
         // The requested frame does not exist. The walk from "b" still resolves
         // up to the root "a", but that partial answer must not be returned as
-        // if it were the requested transform.
+        // if it were the requested transform; the error names the unknown
+        // frame.
         let result = registry.get_transform("b", "does_not_exist", t);
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for unknown target frame, got {result:?}"
+            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "does_not_exist"),
+            "expected UnknownFrame for unknown target frame, got {result:?}"
         );
 
         let result = registry.get_transform("does_not_exist", "b", t);
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for unknown source frame, got {result:?}"
+            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "does_not_exist"),
+            "expected UnknownFrame for unknown source frame, got {result:?}"
         );
     }
 
@@ -1266,10 +1270,12 @@ mod registry_tests {
     }
 
     #[test]
-    fn get_transform_disconnected_trees_returns_not_found() {
+    fn get_transform_disconnected_trees_returns_disconnected() {
         // Two disjoint trees: r1 -> a and r2 -> b. There is no path between
-        // "a" and "b", which must be reported as NotFound — not as a failed
-        // composition of the two unrelated root transforms.
+        // "a" and "b", which must be reported as Disconnected — not as a
+        // failed composition of the two unrelated root transforms, and not
+        // as a data gap: both frames exist and both walks complete cleanly,
+        // so the disconnection is a statement about the current topology.
         let mut registry = Registry::new();
         let t = Timestamp::from_nanos(1_000_000_000);
 
@@ -1294,8 +1300,39 @@ mod registry_tests {
 
         let result = registry.get_transform("a", "b", t);
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for frames in disconnected trees, got {result:?}"
+            matches!(
+                &result,
+                Err(TransformError::Disconnected(from, to)) if from == "a" && to == "b"
+            ),
+            "expected Disconnected for frames in disconnected trees, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_transform_unknown_frame_takes_precedence_over_data_gap() {
+        // a -> b holds data at t1 only. Querying b -> "nope" at t2 records
+        // a data gap during the walk AND asks for a frame that does not
+        // exist. The unknown frame is the more fundamental error — no
+        // amount of waiting for data can make the lookup succeed — so it
+        // must win the diagnosis.
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: t1,
+                parent: "a".into(),
+                child: "b".into(),
+            })
+            .unwrap();
+
+        let result = registry.get_transform("b", "nope", t2);
+        assert!(
+            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "nope"),
+            "expected UnknownFrame to take precedence over the data gap, got {result:?}"
         );
     }
 

@@ -250,11 +250,13 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::NotFoundAt` if the lookup failed at a frame
-    /// that holds data but could not serve the requested time — the variant
-    /// names that frame and carries the underlying `BufferError` — and
-    /// `TransformError::NotFound` if no such cause exists (an unknown frame
-    /// or disconnected trees).
+    /// Returns `TransformError::UnknownFrame` if a requested frame exists
+    /// nowhere in the tree, `TransformError::NotFoundAt` if the lookup
+    /// failed at a frame that holds data but could not serve the requested
+    /// time — the variant names that frame and carries the underlying
+    /// `BufferError`, including the frame's covered time range — and
+    /// `TransformError::Disconnected` if both frames exist but live in
+    /// trees that no transform chain connects.
     ///
     /// # Examples
     ///
@@ -545,14 +547,32 @@ where
         false
     }
 
-    /// Builds the error for a failed lookup: `NotFoundAt` carrying the
-    /// recorded chain-walk failure when there is one, plain `NotFound`
-    /// otherwise.
-    fn not_found(
+    /// Returns `true` if the frame appears anywhere in the tree, as a child
+    /// (buffer key) or as a parent. Roots exist only as parents, so a
+    /// missing buffer alone does not make a frame unknown.
+    fn frame_exists(
+        frame: &str,
+        data: &HashMap<String, Buffer<T>>,
+    ) -> bool {
+        data.contains_key(frame) || data.values().any(|buffer| buffer.parent() == Some(frame))
+    }
+
+    /// Diagnoses a failed lookup, in order of certainty: a requested frame
+    /// that exists nowhere in the tree, then a recorded chain-walk failure
+    /// (a frame with data that could not serve the requested time), and
+    /// otherwise — both frames known and both walks clean — the frames live
+    /// in disconnected trees. The scans run only on the failure path.
+    fn diagnose_not_found(
         from: &str,
         to: &str,
+        data: &HashMap<String, Buffer<T>>,
         walk_failure: &mut Option<(String, BufferError)>,
     ) -> TransformError {
+        for frame in [from, to] {
+            if !Self::frame_exists(frame, data) {
+                return TransformError::UnknownFrame(frame.into());
+            }
+        }
         match walk_failure.take() {
             Some((frame, source)) => TransformError::NotFoundAt {
                 from: from.into(),
@@ -560,7 +580,7 @@ where
                 frame,
                 source: Box::new(source),
             },
-            None => TransformError::NotFound(from.into(), to.into()),
+            None => TransformError::Disconnected(from.into(), to.into()),
         }
     }
 
@@ -568,9 +588,10 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::NotFound` - If no valid transform chain is found between the specified frames
+    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
     /// * `TransformError::NotFoundAt` - If the lookup failed at a frame whose buffer holds data
     ///   but could not serve the requested time
+    /// * `TransformError::Disconnected` - If both frames exist but no chain connects them
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
         from: &str,
@@ -601,7 +622,7 @@ where
         let result = match from_chain {
             // `to` is an ancestor of `from`: the from-side chain spans the
             // whole path, no to-side walk is needed.
-            Ok(from_chain) if reached(&from_chain, to) => {
+            Some(from_chain) if reached(&from_chain, to) => {
                 Self::combine_transforms(from_chain, VecDeque::new())
             }
             from_chain => match (
@@ -610,21 +631,20 @@ where
             ) {
                 // `from` is an ancestor of `to`: the to-side chain spans the
                 // whole path by itself.
-                (_, Ok(mut to_chain)) if reached(&to_chain, from) => {
+                (_, Some(mut to_chain)) if reached(&to_chain, from) => {
                     Self::reverse_and_invert_transforms(&mut to_chain)?;
                     Self::combine_transforms(VecDeque::new(), to_chain)
                 }
                 // Both chains ran to the root: drop the shared suffix above
                 // the common parent and combine the remainders.
-                (Ok(mut from_chain), Ok(mut to_chain)) => {
+                (Some(mut from_chain), Some(mut to_chain)) => {
                     Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
                     // The two walks must meet at a common parent; otherwise
                     // they stopped in different subtrees — an unknown frame,
                     // a mid-chain timestamp gap, or disconnected trees — and
-                    // no transform exists at this time. Report that as a
-                    // not-found lookup (carrying the walk failure when there
-                    // is one) instead of letting the junction fail
-                    // composition with a misleading IncompatibleFrames.
+                    // no transform exists at this time. Diagnose the failure
+                    // instead of letting the junction fail composition with
+                    // a misleading IncompatibleFrames.
                     let connected = match (from_chain.back(), to_chain.back()) {
                         (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
                         _ => false,
@@ -633,15 +653,15 @@ where
                         Self::reverse_and_invert_transforms(&mut to_chain)?;
                         Self::combine_transforms(from_chain, to_chain)
                     } else {
-                        Err(Self::not_found(from, to, &mut walk_failure))
+                        Err(Self::diagnose_not_found(from, to, data, &mut walk_failure))
                     }
                 }
-                (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
-                (Err(_), Ok(mut to_chain)) => {
+                (Some(from_chain), None) => Self::combine_transforms(from_chain, VecDeque::new()),
+                (None, Some(mut to_chain)) => {
                     Self::reverse_and_invert_transforms(&mut to_chain)?;
                     Self::combine_transforms(VecDeque::new(), to_chain)
                 }
-                (Err(_), Err(_)) => Err(Self::not_found(from, to, &mut walk_failure)),
+                (None, None) => Err(Self::diagnose_not_found(from, to, data, &mut walk_failure)),
             },
         }?;
 
@@ -650,7 +670,7 @@ where
         // the root instead. Verify the combined transform answers the exact
         // question asked; otherwise report it as not found.
         if result.parent != from || result.child != to {
-            return Err(Self::not_found(from, to, &mut walk_failure));
+            return Err(Self::diagnose_not_found(from, to, data, &mut walk_failure));
         }
 
         // The result answers "where is `to` relative to `from` at the
@@ -673,9 +693,10 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::NotFound` - If no valid transform chain is found between a frame and the fixed frame
+    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
     /// * `TransformError::NotFoundAt` - If a leg failed at a frame whose buffer holds data
     ///   but could not serve the requested time
+    /// * `TransformError::Disconnected` - If a leg's frames exist but no chain connects them
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform_at(
         target_frame: &str,
@@ -744,22 +765,21 @@ where
         Ok(result)
     }
 
-    /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
+    /// Constructs a chain of transforms from a starting frame to a target
+    /// frame at a given timestamp, or `None` if the walk yields no
+    /// transforms. Diagnosing the reason is the caller's job
+    /// (`diagnose_not_found`).
     ///
     /// A buffer lookup failing along the way ends the walk; the first such
     /// failure across all walks of one lookup is recorded in `walk_failure`
     /// so the caller can report it if the lookup fails as a whole.
-    ///
-    /// # Errors
-    ///
-    /// Returns `TransformError::NotFound` if no transform chain can be found from the starting frame to the target frame
     fn get_transform_chain(
         from: &str,
         to: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
         walk_failure: &mut Option<(String, BufferError)>,
-    ) -> Result<VecDeque<Transform<T>>, TransformError> {
+    ) -> Option<VecDeque<Transform<T>>> {
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
 
@@ -769,7 +789,7 @@ where
         let mut remaining = data.len();
         while let Some(frame_buffer) = data.get(&current_frame) {
             if remaining == 0 {
-                return Err(TransformError::NotFound(from.into(), to.into()));
+                return None;
             }
             remaining -= 1;
 
@@ -794,9 +814,9 @@ where
         }
 
         if transforms.is_empty() {
-            Err(TransformError::NotFound(from.into(), to.into()))
+            None
         } else {
-            Ok(transforms)
+            Some(transforms)
         }
     }
 
