@@ -21,3 +21,5 @@ cargo run --example std_advanced
 cargo bench --no-default-features -- --test
 cargo bench -- --test
 cargo build --no-default-features --target thumbv7em-none-eabihf
+cargo build --no-default-features --target thumbv6m-none-eabi
+cargo build --no-default-features --target thumbv8m.main-none-eabihf
