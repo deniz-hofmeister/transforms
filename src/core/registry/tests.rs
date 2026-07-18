@@ -371,8 +371,11 @@ mod registry_tests {
         registry.add_transform(t_b_c).unwrap();
         registry.add_transform(t_b_d).unwrap();
 
-        let from_chain = Registry::get_transform_chain("d", "a", t, &registry.data);
-        let mut to_chain = Registry::get_transform_chain("c", "a", t, &registry.data);
+        let mut walk_failure = None;
+        let from_chain =
+            Registry::get_transform_chain("d", "a", t, &registry.data, &mut walk_failure);
+        let mut to_chain =
+            Registry::get_transform_chain("c", "a", t, &registry.data, &mut walk_failure);
 
         if let Ok(chain) = to_chain.as_mut() {
             Registry::reverse_and_invert_transforms(chain).expect("failed to reverse and invert");
@@ -880,19 +883,20 @@ mod registry_tests {
             .unwrap();
 
         // The source frame has no data at the requested source time: the
-        // b -> fixed leg cannot resolve at t2.
+        // b -> fixed leg cannot resolve at t2, and the error names "b" as
+        // the frame that could not serve the time.
         let result = registry.get_transform_at("a", t1, "b", t2, "fixed");
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for missing source data, got {result:?}"
+            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "b"),
+            "expected NotFoundAt naming frame b for missing source data, got {result:?}"
         );
 
         // The target frame has no data at the requested target time: the
         // a -> fixed leg cannot resolve at t3 (no extrapolation).
         let result = registry.get_transform_at("a", t3, "b", t1, "fixed");
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for missing target data, got {result:?}"
+            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "a"),
+            "expected NotFoundAt naming frame a for missing target data, got {result:?}"
         );
     }
 
@@ -1147,7 +1151,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn get_transform_partial_chain_returns_not_found() {
+    fn get_transform_partial_chain_reports_failing_frame() {
         let mut registry = Registry::new();
         let t0 = Timestamp::from_nanos(1_000_000_000);
 
@@ -1176,22 +1180,29 @@ mod registry_tests {
         }
 
         // At t1 only the c -> b hop can be resolved; the chain to "a" is
-        // incomplete and must not be returned as a c -> a transform.
+        // incomplete and must not be returned as a c -> a transform. The
+        // error pinpoints "b" as the frame that could not serve t1 and
+        // carries the buffer's error as the cause.
         let result = registry.get_transform("c", "a", t1);
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for partially resolvable chain, got {result:?}"
+            matches!(
+                &result,
+                Err(TransformError::NotFoundAt { frame, source, .. })
+                    if frame == "b" && matches!(source.as_ref(), BufferError::NoTransformAvailable)
+            ),
+            "expected NotFoundAt naming frame b for partially resolvable chain, got {result:?}"
         );
     }
 
     #[test]
-    fn get_transform_mid_chain_gap_returns_not_found() {
+    fn get_transform_mid_chain_gap_reports_gap_frame() {
         // Tree: r -> a -> b -> c. The a -> b hop is only known at t1; the
         // others are known at t1 and t3. A query at t2 hits a timestamp gap
         // in the MIDDLE of the chain, so both partial walks stop in
         // different subtrees. That is a transient data gap and must be
-        // reported as NotFound — not IncompatibleFrames, whose "frames do
-        // not have a parent-child relationship" message is false here.
+        // reported as NotFoundAt naming the gap frame — not
+        // IncompatibleFrames, whose "frames do not have a parent-child
+        // relationship" message is false here.
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(2_000_000_000);
@@ -1237,8 +1248,8 @@ mod registry_tests {
 
         let result = registry.get_transform("a", "c", t2);
         assert!(
-            matches!(result, Err(TransformError::NotFound(_, _))),
-            "expected NotFound for a mid-chain timestamp gap, got {result:?}"
+            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "b"),
+            "expected NotFoundAt naming the gap frame b, got {result:?}"
         );
     }
 

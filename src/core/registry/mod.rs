@@ -80,6 +80,7 @@ use crate::{
     time::{TimePoint, Timestamp},
 };
 use alloc::{
+    boxed::Box,
     collections::{BTreeSet, VecDeque},
     string::String,
 };
@@ -249,7 +250,11 @@ where
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if the transform cannot be found.
+    /// Returns `TransformError::NotFoundAt` if the lookup failed at a frame
+    /// that holds data but could not serve the requested time — the variant
+    /// names that frame and carries the underlying `BufferError` — and
+    /// `TransformError::NotFound` if no such cause exists (an unknown frame
+    /// or disconnected trees).
     ///
     /// # Examples
     ///
@@ -540,11 +545,32 @@ where
         false
     }
 
+    /// Builds the error for a failed lookup: `NotFoundAt` carrying the
+    /// recorded chain-walk failure when there is one, plain `NotFound`
+    /// otherwise.
+    fn not_found(
+        from: &str,
+        to: &str,
+        walk_failure: &mut Option<(String, BufferError)>,
+    ) -> TransformError {
+        match walk_failure.take() {
+            Some((frame, source)) => TransformError::NotFoundAt {
+                from: from.into(),
+                to: to.into(),
+                frame,
+                source: Box::new(source),
+            },
+            None => TransformError::NotFound(from.into(), to.into()),
+        }
+    }
+
     /// Retrieves and computes the transform between two frames at a specific timestamp.
     ///
     /// # Errors
     ///
     /// * `TransformError::NotFound` - If no valid transform chain is found between the specified frames
+    /// * `TransformError::NotFoundAt` - If the lookup failed at a frame whose buffer holds data
+    ///   but could not serve the requested time
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
         from: &str,
@@ -569,7 +595,8 @@ where
             chain.back().is_some_and(|tf| tf.parent == target)
         };
 
-        let from_chain = Self::get_transform_chain(from, to, timestamp, data);
+        let mut walk_failure = None;
+        let from_chain = Self::get_transform_chain(from, to, timestamp, data, &mut walk_failure);
 
         let result = match from_chain {
             // `to` is an ancestor of `from`: the from-side chain spans the
@@ -579,7 +606,7 @@ where
             }
             from_chain => match (
                 from_chain,
-                Self::get_transform_chain(to, from, timestamp, data),
+                Self::get_transform_chain(to, from, timestamp, data, &mut walk_failure),
             ) {
                 // `from` is an ancestor of `to`: the to-side chain spans the
                 // whole path by itself.
@@ -594,8 +621,9 @@ where
                     // The two walks must meet at a common parent; otherwise
                     // they stopped in different subtrees — an unknown frame,
                     // a mid-chain timestamp gap, or disconnected trees — and
-                    // no transform exists at this time. Report that as
-                    // NotFound instead of letting the junction fail
+                    // no transform exists at this time. Report that as a
+                    // not-found lookup (carrying the walk failure when there
+                    // is one) instead of letting the junction fail
                     // composition with a misleading IncompatibleFrames.
                     let connected = match (from_chain.back(), to_chain.back()) {
                         (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
@@ -605,7 +633,7 @@ where
                         Self::reverse_and_invert_transforms(&mut to_chain)?;
                         Self::combine_transforms(from_chain, to_chain)
                     } else {
-                        Err(TransformError::NotFound(from.into(), to.into()))
+                        Err(Self::not_found(from, to, &mut walk_failure))
                     }
                 }
                 (Ok(from_chain), Err(_)) => Self::combine_transforms(from_chain, VecDeque::new()),
@@ -613,7 +641,7 @@ where
                     Self::reverse_and_invert_transforms(&mut to_chain)?;
                     Self::combine_transforms(VecDeque::new(), to_chain)
                 }
-                (Err(_), Err(_)) => Err(TransformError::NotFound(from.into(), to.into())),
+                (Err(_), Err(_)) => Err(Self::not_found(from, to, &mut walk_failure)),
             },
         }?;
 
@@ -622,7 +650,7 @@ where
         // the root instead. Verify the combined transform answers the exact
         // question asked; otherwise report it as not found.
         if result.parent != from || result.child != to {
-            return Err(TransformError::NotFound(from.into(), to.into()));
+            return Err(Self::not_found(from, to, &mut walk_failure));
         }
 
         // The result answers "where is `to` relative to `from` at the
@@ -646,6 +674,8 @@ where
     /// # Errors
     ///
     /// * `TransformError::NotFound` - If no valid transform chain is found between a frame and the fixed frame
+    /// * `TransformError::NotFoundAt` - If a leg failed at a frame whose buffer holds data
+    ///   but could not serve the requested time
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform_at(
         target_frame: &str,
@@ -716,6 +746,10 @@ where
 
     /// Constructs a chain of transforms from a starting frame to a target frame at a given timestamp.
     ///
+    /// A buffer lookup failing along the way ends the walk; the first such
+    /// failure across all walks of one lookup is recorded in `walk_failure`
+    /// so the caller can report it if the lookup fails as a whole.
+    ///
     /// # Errors
     ///
     /// Returns `TransformError::NotFound` if no transform chain can be found from the starting frame to the target frame
@@ -724,6 +758,7 @@ where
         to: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
+        walk_failure: &mut Option<(String, BufferError)>,
     ) -> Result<VecDeque<Transform<T>>, TransformError> {
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
@@ -743,7 +778,12 @@ where
                     current_frame.clone_from(&tf.parent);
                     transforms.push_back(tf);
                 }
-                Err(_) => break,
+                Err(source) => {
+                    if walk_failure.is_none() {
+                        *walk_failure = Some((current_frame.clone(), source));
+                    }
+                    break;
+                }
             }
 
             // Reaching `to` completes the chain; walking on to the root would

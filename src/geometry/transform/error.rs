@@ -1,8 +1,8 @@
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 
 use thiserror::Error;
 
-use crate::errors::{QuaternionError, TimeError};
+use crate::errors::{BufferError, QuaternionError, TimeError};
 
 /// Error type for transform lookup, composition, and application.
 #[derive(Error, Debug)]
@@ -39,6 +39,22 @@ pub enum TransformError {
     /// No transform chain connects the two frames at the requested time.
     #[error("transform not found from {0} to {1}")]
     NotFound(String, String),
+
+    /// The lookup stopped at a frame whose buffer holds data but could not
+    /// serve the requested time. Unlike [`NotFound`](Self::NotFound), the
+    /// failure has a concrete cause: `frame` names where the chain walk
+    /// stopped and `source` carries the buffer's error.
+    #[error("transform not found from {from} to {to} (frame {frame}: {source})")]
+    NotFoundAt {
+        /// The requested source frame.
+        from: String,
+        /// The requested target frame.
+        to: String,
+        /// The frame whose buffer could not serve the requested time.
+        frame: String,
+        /// The buffer error that stopped the chain walk.
+        source: Box<BufferError>,
+    },
 
     /// The transform chain was empty after processing.
     #[error("transform tree is empty")]
