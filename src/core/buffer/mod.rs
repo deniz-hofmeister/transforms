@@ -77,6 +77,7 @@
 //! ```
 
 use crate::{
+    errors::TransformError,
     geometry::Transform,
     time::{TimePoint, Timestamp},
 };
@@ -319,9 +320,17 @@ where
     ///
     /// # Errors
     ///
-    /// This function returns a `BufferError::NoTransformAvailable` if:
-    /// - The buffer is static and no transform is available at the static timestamp value.
-    /// - There are no transforms available to interpolate between for the given timestamp.
+    /// Returns `BufferError::NoTransformAvailable` if the buffer holds no
+    /// transforms at all.
+    ///
+    /// Returns `BufferError::TransformError` carrying
+    /// `TransformError::TimestampOutOfRange` — with the requested time and
+    /// both endpoints of the covered range, in seconds — if the buffer holds
+    /// transforms but the requested timestamp lies outside their range.
+    /// There is no extrapolation; a timestamp between two stored samples
+    /// always has neighbors to interpolate between, so an out-of-range
+    /// request is the only way a lookup on a non-empty dynamic buffer can
+    /// fail to find data. Static buffers serve any requested timestamp.
     ///
     /// Returns `BufferError::TransformError` if interpolating between the two
     /// neighboring samples fails. With both frames pinned at insertion, this
@@ -387,7 +396,16 @@ where
             (Some(before), Some(after)) => {
                 Ok(Transform::interpolate(before.1, after.1, *timestamp)?)
             }
-            _ => Err(BufferError::NoTransformAvailable),
+            _ => match (self.data.first_key_value(), self.data.last_key_value()) {
+                (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(
+                    TransformError::TimestampOutOfRange(
+                        timestamp.as_seconds_lossy(),
+                        first.as_seconds_lossy(),
+                        last.as_seconds_lossy(),
+                    ),
+                )),
+                _ => Err(BufferError::NoTransformAvailable),
+            },
         }
     }
 

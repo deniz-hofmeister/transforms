@@ -1151,6 +1151,9 @@ mod registry_tests {
     }
 
     #[test]
+    // The compared seconds are exactly representable; the assertion is on
+    // the reported values, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
     fn get_transform_partial_chain_reports_failing_frame() {
         let mut registry = Registry::new();
         let t0 = Timestamp::from_nanos(1_000_000_000);
@@ -1182,15 +1185,24 @@ mod registry_tests {
         // At t1 only the c -> b hop can be resolved; the chain to "a" is
         // incomplete and must not be returned as a c -> a transform. The
         // error pinpoints "b" as the frame that could not serve t1 and
-        // carries the buffer's error as the cause.
+        // carries the covered range as the cause: b's data ends at t0
+        // (1.0s), one second before the requested t1 (2.0s).
         let result = registry.get_transform("c", "a", t1);
         assert!(
             matches!(
                 &result,
                 Err(TransformError::NotFoundAt { frame, source, .. })
-                    if frame == "b" && matches!(source.as_ref(), BufferError::NoTransformAvailable)
+                    if frame == "b"
+                        && matches!(
+                            source.as_ref(),
+                            BufferError::TransformError(TransformError::TimestampOutOfRange(
+                                requested,
+                                start,
+                                end
+                            )) if *requested == 2.0 && *start == 1.0 && *end == 1.0
+                        )
             ),
-            "expected NotFoundAt naming frame b for partially resolvable chain, got {result:?}"
+            "expected NotFoundAt naming frame b with the covered range, got {result:?}"
         );
     }
 
