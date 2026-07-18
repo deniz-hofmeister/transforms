@@ -2,6 +2,7 @@
 mod buffer_tests {
     use crate::{
         core::{Buffer, buffer::BufferError},
+        errors::TransformError,
         geometry::{Quaternion, Transform, Vector3},
         time::Timestamp,
     };
@@ -40,6 +41,55 @@ mod buffer_tests {
 
         r = buffer.get(&(transform.timestamp - Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "expected no transform, got {r:?}");
+    }
+
+    #[test]
+    // The compared seconds are exactly representable; the assertion is on
+    // the reported values, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn get_out_of_range_reports_covered_range() {
+        let mut buffer = Buffer::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        buffer.insert(create_transform(t1)).unwrap();
+        buffer.insert(create_transform(t2)).unwrap();
+
+        // Too new: past the latest sample. The error carries the requested
+        // time and the covered range, so latency ("just too new") is
+        // distinguishable from stale data without further queries.
+        let result = buffer.get(&Timestamp::from_nanos(3_000_000_000));
+        assert!(
+            matches!(
+                &result,
+                Err(BufferError::TransformError(
+                    TransformError::TimestampOutOfRange(requested, start, end)
+                )) if *requested == 3.0 && *start == 1.0 && *end == 2.0
+            ),
+            "expected TimestampOutOfRange with the covered range, got {result:?}"
+        );
+
+        // Too old: before the earliest sample.
+        let result = buffer.get(&Timestamp::from_nanos(500_000_000));
+        assert!(
+            matches!(
+                &result,
+                Err(BufferError::TransformError(
+                    TransformError::TimestampOutOfRange(requested, start, end)
+                )) if *requested == 0.5 && *start == 1.0 && *end == 2.0
+            ),
+            "expected TimestampOutOfRange with the covered range, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn get_on_empty_buffer_reports_no_transforms() {
+        let buffer = Buffer::<Timestamp>::new();
+
+        let result = buffer.get(&Timestamp::from_nanos(1_000_000_000));
+        assert!(
+            matches!(result, Err(BufferError::NoTransformAvailable)),
+            "expected NoTransformAvailable on an empty buffer, got {result:?}"
+        );
     }
 
     #[test]

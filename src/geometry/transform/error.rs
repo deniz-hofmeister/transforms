@@ -1,8 +1,8 @@
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 
 use thiserror::Error;
 
-use crate::errors::{QuaternionError, TimeError};
+use crate::errors::{BufferError, QuaternionError, TimeError};
 
 /// Error type for transform lookup, composition, and application.
 #[derive(Error, Debug)]
@@ -36,9 +36,35 @@ pub enum TransformError {
     #[error("frames do not have a parent-child relationship")]
     IncompatibleFrames,
 
-    /// No transform chain connects the two frames at the requested time.
-    #[error("transform not found from {0} to {1}")]
-    NotFound(String, String),
+    /// The requested frame exists nowhere in the transform tree, neither
+    /// as a child nor as a parent frame. Usually a typo or a frame that
+    /// has not been published yet.
+    #[error("frame {0} does not exist in the transform tree")]
+    UnknownFrame(String),
+
+    /// Both frames exist, but no chain of transforms connects them: they
+    /// live in different trees. This reflects the tree topology at the
+    /// time of the lookup, not a transient data gap — gaps are reported as
+    /// [`NotFoundAt`](Self::NotFoundAt).
+    #[error("no transform chain connects {0} and {1}")]
+    Disconnected(String, String),
+
+    /// The lookup stopped at a frame whose buffer holds data but could not
+    /// serve the requested time — typically a transient gap: the request
+    /// is outside the frame's covered time range. `frame` names where the
+    /// chain walk stopped and `source` carries the buffer's error,
+    /// including the covered range.
+    #[error("transform not found from {from} to {to} (frame {frame}: {source})")]
+    NotFoundAt {
+        /// The requested source frame.
+        from: String,
+        /// The requested target frame.
+        to: String,
+        /// The frame whose buffer could not serve the requested time.
+        frame: String,
+        /// The buffer error that stopped the chain walk.
+        source: Box<BufferError>,
+    },
 
     /// The transform chain was empty after processing.
     #[error("transform tree is empty")]

@@ -131,7 +131,8 @@ fn benchmark_tree_climb(c: &mut Criterion) {
 }
 
 /// Worst-case failed lookup: the walk from the deepest leaf climbs the whole
-/// chain to the root before the query is reported as `NotFound`.
+/// chain to the root, then the diagnosis scans every buffer before the query
+/// is reported as `UnknownFrame`.
 fn benchmark_not_found_worst_case(c: &mut Criterion) {
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);

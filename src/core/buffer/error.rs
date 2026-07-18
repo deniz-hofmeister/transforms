@@ -8,8 +8,12 @@ use crate::errors::TransformError;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum BufferError {
-    /// No stored transforms match the requested timestamp.
-    #[error("no transforms available matching your criteria")]
+    /// The buffer holds no transforms at all. A non-empty buffer that
+    /// cannot serve a requested timestamp reports
+    /// `TransformError::TimestampOutOfRange` (wrapped in
+    /// [`TransformError`](Self::TransformError)) instead, carrying the
+    /// covered range.
+    #[error("the buffer holds no transforms")]
     NoTransformAvailable,
 
     /// The buffer already holds transforms of the other kind; a child frame
