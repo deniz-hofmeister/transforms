@@ -43,8 +43,13 @@ Its priorities, in this order:
   for benches, `proptest` for property tests, `serde_json` for serde
   roundtrips — are expected and do not contradict this.)
 - `no_std` parity: every change must build and pass tests with
-  `--no-default-features`, and build for a real bare-metal target (the gate
-  builds `thumbv7em-none-eabihf`). `no_std` requires a heap allocator (`alloc`).
+  `--no-default-features`, and build for real bare-metal targets: the gate
+  builds `thumbv7em-none-eabihf` (Cortex-M4F/M7 — STM32 F4/F7/H7 flight
+  controllers), `thumbv6m-none-eabi` (Cortex-M0+ — RP2040; soft float, no
+  compare-and-swap atomics), and `thumbv8m.main-none-eabihf` (Cortex-M33 —
+  RP2350, STM32 H5/U5); CI additionally builds
+  `riscv32imc-unknown-none-elf` (ESP32-C3/C6). `no_std` requires a heap
+  allocator (`alloc`).
   Features must be additive: the same API exists in both modes; the only
   feature-gated items are `Timestamp::now()`, the `SystemTime` time type
   (`std`), and the serde derives (`serde`, default-off).
@@ -168,11 +173,16 @@ cargo run --example no_std_minimal --no-default-features   # and the other no_st
 cargo bench -- --test
 cargo bench --no-default-features -- --test         # CI also builds no_std benches
 cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std proof
+cargo build --no-default-features --target thumbv6m-none-eabi      # Cortex-M0+: soft float, no CAS
+cargo build --no-default-features --target thumbv8m.main-none-eabihf
 ```
 
-(`rustup target add thumbv7em-none-eabihf` once, if the target is missing.)
-CI additionally checks the MSRV (`cargo check` on Rust 1.86) and runs
-`cargo audit` against the RustSec advisory database.
+(`rustup target add <target>` once per target, if missing. CI also builds
+`riscv32imc-unknown-none-elf`.)
+CI additionally runs the test suite natively on ARM64 as well as x86_64
+(the Raspberry Pi / Jetson deployment class), checks the MSRV
+(`cargo check` on Rust 1.86), and runs `cargo audit` against the RustSec
+advisory database.
 
 Docs are part of the change: the README (API Reference, What's New, examples
 table) and rustdoc must be updated in the same commit as the code they

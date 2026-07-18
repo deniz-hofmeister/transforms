@@ -41,9 +41,13 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
   values, unit rotations), the frame tree is strict (single pinned parent,
   no cycles), and lookups either answer the exact question asked or return an
   error — the silent-wrong-answer failure modes of 1.x are gone.
-- **Real `no_std`**: builds for bare-metal targets (CI proves it on
-  `thumbv7em-none-eabihf`); the `std` feature is additive, and automatic
-  cleanup (`with_max_age`) works in both modes.
+- **Tested on deployment architectures**: CI executes the full test suite
+  natively on x86_64 and ARM64 (Raspberry Pi, NVIDIA Jetson).
+- **Real `no_std`**: builds for bare-metal targets — CI proves it on
+  `thumbv7em-none-eabihf` (STM32 F4/F7/H7 flight controllers),
+  `thumbv6m-none-eabi` (RP2040), `thumbv8m.main-none-eabihf` (Cortex-M33),
+  and `riscv32imc-unknown-none-elf` (ESP32-C3) — the `std` feature is
+  additive, and automatic cleanup (`with_max_age`) works in both modes.
 - **Rust-first API cleanup**: exact `==` with tolerant comparison in the
   `approx` traits, `#[non_exhaustive]` errors, private internals, optional
   `serde` support, an enforced panic policy, and MSRV 1.86.

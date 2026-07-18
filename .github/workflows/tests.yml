@@ -46,8 +46,15 @@ jobs:
         run: cargo clippy --all-targets --no-default-features -- -D warnings
 
   tests:
-    name: tests
-    runs-on: ubuntu-latest
+    name: tests (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The full suite executes natively on both deployment
+        # architectures: x86_64 (dev machines, industrial PCs) and ARM64
+        # (Raspberry Pi, NVIDIA Jetson).
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -59,8 +66,12 @@ jobs:
         run: cargo test --no-default-features
 
   serde:
-    name: serde
-    runs-on: ubuntu-latest
+    name: serde (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
@@ -132,17 +143,31 @@ jobs:
         run: cargo bench --no-default-features -- --test
 
   bare-metal:
-    name: bare-metal
+    name: bare-metal (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # STM32 F4/F7/H7, nRF52, Teensy 4 — Cortex-M4F/M7, the dominant
+          # flight-controller class (PX4/Pixhawk, ArduPilot, Betaflight).
+          - thumbv7em-none-eabihf
+          # RP2040 / Raspberry Pi Pico — Cortex-M0+: soft float and no
+          # compare-and-swap atomics, the strictest portability check.
+          - thumbv6m-none-eabi
+          # RP2350, nRF5340, STM32 H5/U5 — Cortex-M33, current generation.
+          - thumbv8m.main-none-eabihf
+          # ESP32-C3/C6, GD32V — RISC-V, guards against ARM-only assumptions.
+          - riscv32imc-unknown-none-elf
     steps:
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
           toolchain: stable
       - name: Install bare-metal target
-        run: rustup target add thumbv7em-none-eabihf
-      - name: Build for thumbv7em-none-eabihf
-        run: cargo build --no-default-features --target thumbv7em-none-eabihf
+        run: rustup target add ${{ matrix.target }}
+      - name: Build for ${{ matrix.target }}
+        run: cargo build --no-default-features --target ${{ matrix.target }}
 
   security:
     name: security
