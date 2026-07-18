@@ -157,7 +157,13 @@ this section is convention, enforced in review — follow it anyway.
 ## Definition of done — the verification gate
 
 All of the following must pass before a change is complete
-(`tests/test_all.sh` runs the whole gate):
+(`tests/test_all.sh` runs the whole gate). The gate requires a **nightly**
+toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
+options, and one pinned toolchain keeps the gate identical on every machine
+(rustup, Nix, or distro-packaged Rust). Stable and MSRV verification is
+CI's job, and nightly clippy diverges from CI's stable clippy only in the
+safe direction — it is a superset, so a green local gate implies green CI
+clippy:
 
 ```bash
 cargo test
@@ -166,7 +172,7 @@ cargo test --features serde
 cargo test --no-default-features --features serde
 cargo clippy --all-targets -- -D warnings
 cargo clippy --all-targets --no-default-features -- -D warnings
-rustup run nightly cargo fmt --check                # repo uses nightly rustfmt options
+cargo fmt --check                                   # nightly rustfmt (see above)
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo run --example std_minimal                     # and the other std examples
 cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
@@ -177,7 +183,8 @@ cargo build --no-default-features --target thumbv6m-none-eabi      # Cortex-M0+:
 cargo build --no-default-features --target thumbv8m.main-none-eabihf
 ```
 
-(`rustup target add <target>` once per target, if missing. CI also builds
+(On rustup machines: `rustup run nightly tests/test_all.sh`, and
+`rustup target add <target>` once per target, if missing. CI also builds
 `riscv32imc-unknown-none-elf`.)
 CI additionally runs the test suite natively on ARM64 as well as x86_64
 (the Raspberry Pi / Jetson deployment class), checks the MSRV
