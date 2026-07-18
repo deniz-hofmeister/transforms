@@ -58,9 +58,9 @@
 //! let timestamp = Timestamp::now();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let mut registry = Registry::new();
+//! # let mut registry = Registry::new();
 //! # #[cfg(not(feature = "std"))]
-//! let timestamp = Timestamp::zero();
+//! # let timestamp = Timestamp::zero();
 //!
 //! // Create a transform from frame "base" to frame "sensor"
 //! let transform = Transform {
@@ -78,9 +78,9 @@
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! // Delete old transforms
+//! # // Delete old transforms
 //! # #[cfg(not(feature = "std"))]
-//! registry.delete_transforms_before(timestamp);
+//! # registry.delete_transforms_before(timestamp);
 //! ```
 //!
 //! # Transform and Data Transformation
@@ -104,7 +104,7 @@
 //!     position: Vector3::new(1.0, 0.0, 0.0),
 //!     orientation: Quaternion::identity(),
 //! # #[cfg(not(feature = "std"))]
-//!     timestamp: Timestamp::zero(),
+//! # timestamp: Timestamp::zero(),
 //! # #[cfg(feature = "std")]
 //!     timestamp: Timestamp::now(),
 //!     frame: "camera".into(),
