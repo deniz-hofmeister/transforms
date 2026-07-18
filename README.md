@@ -60,7 +60,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.0.0-beta.3"
+transforms = "2.0.0-beta.4"
 ```
 
 ### Feature Flags
@@ -82,7 +82,7 @@ For `no_std` environments (requires a heap allocator; float math falls back to
 
 ```toml
 [dependencies]
-transforms = { version = "2.0.0-beta.3", default-features = false }
+transforms = { version = "2.0.0-beta.4", default-features = false }
 ```
 
 ## Quick Start
