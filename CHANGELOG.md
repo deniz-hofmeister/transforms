@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.3] - 2026-07-18
+
+### Changed
+
+- **Breaking:** failed lookups are diagnosed instead of collapsing into one
+  catch-all: `get_transform` and `get_transform_at` report
+  `TransformError::UnknownFrame` when a requested frame exists nowhere in
+  the tree, `TransformError::NotFoundAt` when the chain walk stopped at a
+  frame whose buffer holds data but cannot serve the requested time (naming
+  that frame and carrying the `BufferError` as the error source), and
+  `TransformError::Disconnected` when both frames exist but no chain
+  connects them — mirroring tf2's LookupException / ExtrapolationException /
+  ConnectivityException. The never-produced `TransformError::NotFound`
+  variant is removed.
+- A miss on a non-empty buffer reports `TransformError::TimestampOutOfRange`
+  with the requested time and the covered range (via
+  `BufferError::TransformError`), distinguishing a lookup that is merely too
+  new (latency) from stale or missing data; `BufferError::NoTransformAvailable`
+  is reserved for a buffer holding no transforms at all.
+
 ## [2.0.0-beta.2] - 2026-07-18
 
 ### Added
@@ -154,6 +174,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2
 [2.0.0-beta.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-alpha.1...v2.0.0-beta.1
 [2.0.0-alpha.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0-alpha.1
