@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.4] - 2026-07-18
+
+### Fixed
+
+- Docs: examples covering both feature modes no longer render the `std` and
+  `no_std` setup lines back to back; the `no_std` lines are hidden, so
+  docs.rs shows a single coherent snippet while both variants still compile
+  and run as doctests under their feature mode.
+
 ## [2.0.0-beta.3] - 2026-07-18
 
 ### Changed
@@ -174,6 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.0.0-beta.4]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2
 [2.0.0-beta.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-alpha.1...v2.0.0-beta.1

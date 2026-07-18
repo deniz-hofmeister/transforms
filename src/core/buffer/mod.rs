@@ -42,7 +42,7 @@
 //! };
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let mut buffer = Buffer::new();
+//! # let mut buffer = Buffer::new();
 //!
 //! # #[cfg(feature = "std")]
 //! let max_age = Duration::from_secs(10);
@@ -53,7 +53,7 @@
 //! let rotation = Quaternion::identity();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let timestamp = Timestamp::zero();
+//! # let timestamp = Timestamp::zero();
 //! # #[cfg(feature = "std")]
 //! let timestamp = Timestamp::now();
 //! let parent = "a".into();
@@ -251,9 +251,9 @@ where
     /// let timestamp = Timestamp::now();
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut buffer = Buffer::new();
+    /// # let mut buffer = Buffer::new();
     /// # #[cfg(not(feature = "std"))]
-    /// let timestamp = Timestamp::zero();
+    /// # let timestamp = Timestamp::zero();
     ///
     /// let translation = Vector3::new(1.0, 2.0, 3.0);
     /// let rotation = Quaternion::identity();

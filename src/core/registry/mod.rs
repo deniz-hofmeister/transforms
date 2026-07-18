@@ -45,9 +45,9 @@
 //! let t1 = Timestamp::now();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! let mut registry = Registry::new();
+//! # let mut registry = Registry::new();
 //! # #[cfg(not(feature = "std"))]
-//! let t1 = Timestamp::zero();
+//! # let t1 = Timestamp::zero();
 //!
 //! let t2 = t1;
 //!
@@ -113,9 +113,9 @@ use core::time::Duration;
 /// let t1 = Timestamp::now();
 ///
 /// # #[cfg(not(feature = "std"))]
-/// let mut registry = Registry::new();
+/// # let mut registry = Registry::new();
 /// # #[cfg(not(feature = "std"))]
-/// let t1 = Timestamp::zero();
+/// # let t1 = Timestamp::zero();
 ///
 /// let t2 = t1;
 ///
@@ -275,9 +275,9 @@ where
     /// let t1 = Timestamp::now();
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut registry = Registry::new();
+    /// # let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
-    /// let t1 = Timestamp::zero();
+    /// # let t1 = Timestamp::zero();
     ///
     /// let t2 = t1;
     ///
@@ -380,11 +380,11 @@ where
     /// let t2 = (t1 + Duration::from_secs(1)).unwrap();
     ///
     /// # #[cfg(not(feature = "std"))]
-    /// let mut registry = Registry::new();
+    /// # let mut registry = Registry::new();
     /// # #[cfg(not(feature = "std"))]
-    /// let t1 = Timestamp::from_nanos(1_000_000_000);
+    /// # let t1 = Timestamp::from_nanos(1_000_000_000);
     /// # #[cfg(not(feature = "std"))]
-    /// let t2 = Timestamp::from_nanos(2_000_000_000);
+    /// # let t2 = Timestamp::from_nanos(2_000_000_000);
     ///
     /// // Tree: fixed -> a -> b
     ///
