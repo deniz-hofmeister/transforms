@@ -81,10 +81,13 @@ would produce) a silent wrong answer:
   would close a cycle fail with `CycleDetected`. Chain resolution relies on
   this — the topology is time-invariant and acyclic.
 - A lookup must return a transform whose `parent`/`child` match the requested
-  frames exactly; a chain that resolves only partway (unknown frame, timestamp
-  gap mid-chain) must return `NotFound`, never a partial result. Results
-  always carry the requested timestamp (also over static chains), and a frame
-  relative to itself is the identity.
+  frames exactly; a chain that resolves only partway must return an error,
+  never a partial result — `UnknownFrame` for a frame that exists nowhere,
+  `Disconnected` for two known frames no chain connects, and `NotFoundAt`
+  (carrying the frame and the underlying `BufferError`, e.g.
+  `TimestampOutOfRange`) for a mid-chain timestamp gap. Results always carry
+  the requested timestamp (also over static chains), and a frame relative to
+  itself is the identity.
 - Interpolation happens only between stored samples; a query outside the
   covered time range fails with `TimestampOutOfRange`. There is no
   extrapolation.
@@ -237,13 +240,20 @@ Releases are cut by the maintainer. The checklist, in order:
 
 - Finalize `CHANGELOG.md`: replace the version's `Unreleased` marker with the
   release date and repoint its compare link to the tag.
-  version number with the release date.
-- Confirm the `version` in `Cargo.toml` matches the release.
+- Confirm the `version` in `Cargo.toml` matches the release, and bump the
+  version pins in the README installation snippets.
 - Run the full verification gate (`tests/test_all.sh`).
+- Run `cargo semver-checks check-release --baseline-rev <previous tag>` and
+  confirm the diff is exactly the changelogged one.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
 - Tag `vX.Y.Z` and push the tag.
 - `cargo publish`.
+- Create a GitHub release for the tag (pre-releases marked as such).
+- For 2.0.0 stable specifically: consolidate the alpha/beta pre-release
+  entries into a single `[2.0.0]` changelog section organized by
+  Keep-a-Changelog categories, verify `MIGRATION.md` against it, and mark
+  the GitHub release as latest.
 - After 2.0.0 is published: add a `cargo-semver-checks` CI job so accidental
   breaking changes are caught against the published baseline. This is
   deliberately not added pre-release — everything is breaking against 1.4.1.
