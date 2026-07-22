@@ -4,7 +4,9 @@
 //!
 //! ## Features
 //!
-//! - **Static Transforms**: The registry can handle static transforms by using the static timestamp value (`t=0` by default).
+//! - **Static Transforms**: The registry can handle static transforms via the static
+//!   timestamp sentinel (`Timestamp::STATIC` by default); build them with
+//!   `Transform::static_between`.
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
@@ -203,8 +205,8 @@ where
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's child
     /// frame already holds transforms of the opposite kind: a child frame is
-    /// either static (timestamp equal to the static timestamp value, `t=0` by
-    /// default) or dynamic, never both.
+    /// either static (timestamp equal to the static sentinel,
+    /// `Timestamp::STATIC` by default) or dynamic, never both.
     ///
     /// Returns `BufferError::TransformError` if the transform fails
     /// validation (non-finite values or a non-unit rotation),

@@ -1347,7 +1347,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "a".into(),
             child: "b".into(),
         };
@@ -1422,7 +1422,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(0.5, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "base".into(),
             child: "lidar".into(),
         };
@@ -1452,7 +1452,7 @@ mod registry_tests {
             .add_transform(Transform {
                 translation: Vector3::new(0.5, 0.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: Timestamp::zero(),
+                timestamp: Timestamp::STATIC,
                 parent: "base".into(),
                 child: "lidar".into(),
             })
@@ -1641,7 +1641,7 @@ mod registry_tests {
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 1.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: Timestamp::zero(),
+                timestamp: Timestamp::STATIC,
                 parent: "base".into(),
                 child: "camera".into(),
             })
@@ -1672,7 +1672,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "base".into(),
             child: "camera".into(),
         };
@@ -1745,10 +1745,10 @@ mod registry_tests {
         // transform replaces it the same way.
         let mut registry = Registry::new();
         registry
-            .add_transform(translated("a", "b", Timestamp::zero(), 1.0))
+            .add_transform(translated("a", "b", Timestamp::STATIC, 1.0))
             .unwrap();
         registry
-            .add_transform(translated("a", "b", Timestamp::zero(), 7.0))
+            .add_transform(translated("a", "b", Timestamp::STATIC, 7.0))
             .unwrap();
         let got = registry
             .get_transform("a", "b", Timestamp::from_nanos(3_000_000_000))

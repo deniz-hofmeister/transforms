@@ -37,11 +37,34 @@ registry.add_transform(transform)?;
 `add_transform` and `Buffer::insert` return `Result` and validate on
 insertion. An ignored `Err` means **nothing was stored** — later lookups
 will fail mysteriously. New rejections your 1.x data may already trigger:
-non-finite values, non-unit rotations (beyond
-`Transform::UNIT_NORM_TOLERANCE`), self-referential frames, re-parenting
-(`ReparentingNotSupported` — call `remove_frame` first), cycles
-(`CycleDetected`), and mixing static (`t=0`) with dynamic transforms in one
-child frame (`StaticDynamicConflict`).
+non-finite values, non-unit rotations (beyond `UNIT_NORM_TOLERANCE`),
+self-referential frames, re-parenting (`ReparentingNotSupported` — call
+`remove_frame` first), cycles (`CycleDetected`), and mixing static with
+dynamic transforms in one child frame (`StaticDynamicConflict`).
+
+### Static transforms are no longer `t = 0`
+
+The static sentinel moved from `t = 0` to `Timestamp::STATIC`
+(`u128::MAX` nanoseconds), so every real instant — including zero, the
+first reading of a boot-relative clock — is ordinary dynamic data.
+
+```rust
+// 1.x: static mount published at t = 0
+let mount = Transform { timestamp: Timestamp::zero(), /* ... */ };
+
+// 2.0
+let mount: Transform = Transform::static_between(
+    "base", "camera",
+    Vector3::new(0.1, 0.0, 0.5),
+    Quaternion::identity(),
+);
+```
+
+A 1.x static transform inserted with `t = 0` still compiles — but it is
+now a **single dynamic sample at the epoch**, so any lookup at a real
+time fails loudly with `TimestampOutOfRange` instead of serving the
+mount. Switch static publishers to `Transform::static_between` (or
+`Timestamp::STATIC`).
 
 ### 3. Error enum overhaul
 
@@ -105,10 +128,12 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 ## Runtime behavior changes (compile clean, behave differently)
 
-1. **Static + dynamic mixing is rejected.** The pattern 1.1.0 explicitly
-   enabled — a `t=0` static sample and dynamic samples in the same child
-   frame — now fails at insert with `StaticDynamicConflict`. Give static
-   mounts their own child frames.
+1. **Static + dynamic mixing is rejected.** A static sample and dynamic
+   samples in the same child frame — the pattern 1.1.0 explicitly
+   enabled — now fails at insert with `StaticDynamicConflict`. Give
+   static mounts their own child frames. (A 1.x `t=0` sample no longer
+   triggers this: zero is ordinary dynamic data now — see the sentinel
+   section above.)
 2. **Re-parenting is rejected.** 1.x let a new parent silently win;
    2.0 returns `ReparentingNotSupported`. Escape hatch:
    `registry.remove_frame(child)` then re-add. Removing a mid-tree frame

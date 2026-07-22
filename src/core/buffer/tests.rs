@@ -96,17 +96,18 @@ mod buffer_tests {
     fn insert_and_get_static() {
         let mut buffer = Buffer::new();
 
-        let t = Timestamp::zero();
+        let t = Timestamp::STATIC;
         let transform = create_transform(t);
 
         buffer.insert(transform.clone()).unwrap();
 
-        let mut r = buffer.get((transform.timestamp + Duration::from_secs(1)).unwrap());
+        // A static buffer serves any requested instant.
+        let mut r = buffer.get(Timestamp::from_nanos(1_000_000_000));
 
         assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get((transform.timestamp + Duration::from_secs(2)).unwrap());
+        r = buffer.get(Timestamp::zero());
         assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
     }
@@ -240,7 +241,7 @@ mod buffer_tests {
     fn insert_rejects_static_dynamic_mixing() {
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 
-        let static_tf = create_transform(Timestamp::zero());
+        let static_tf = create_transform(Timestamp::STATIC);
         let dynamic_tf = create_transform(t_dynamic);
 
         // Static first, then dynamic.
@@ -308,7 +309,7 @@ mod buffer_tests {
     fn delete_before_preserves_static_transforms() {
         let mut buffer: Buffer = Buffer::new();
 
-        let static_tf = create_transform(Timestamp::zero());
+        let static_tf = create_transform(Timestamp::STATIC);
         buffer.insert(static_tf.clone()).unwrap();
 
         // Manual cleanup with any cutoff must not destroy a static transform:
@@ -378,12 +379,12 @@ mod buffer_tests {
         let mut buffer = Buffer::new();
 
         // Static calibration transform for map -> base.
-        let original = create_transform(Timestamp::zero());
+        let original = create_transform(Timestamp::STATIC);
         buffer.insert(original.clone()).unwrap();
 
         // Same parent, different child (a frame-naming bug): without child
         // pinning this key collision silently overwrote the stored data.
-        let mut other = create_transform(Timestamp::zero());
+        let mut other = create_transform(Timestamp::STATIC);
         other.child = "lidar".into();
         other.translation = Vector3::new(9.0, 9.0, 9.0);
         let result = buffer.insert(other);

@@ -25,7 +25,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps using spherical linear interpolation (SLERP) for rotations and linear interpolation for translations.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames by traversing the frame tree.
-- **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
+- **Static Transforms**: Transforms carrying the static sentinel (`Timestamp::STATIC`) are valid for all time; build them with `Transform::static_between`. Every real instant — including `t=0` on boot-relative clocks — is ordinary dynamic data.
 - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms automatically; `Registry::new` keeps them until manual cleanup. Both work with and without `std`.
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage — O(log n) in stored samples per frame, linear in chain depth for indirect frames.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
@@ -248,7 +248,8 @@ The `Localized` trait provides frame and timestamp introspection, while `Transfo
 
 ### Static vs Dynamic Transforms
 
-Static transforms (timestamp = 0) are ideal for fixed relationships like sensor mounts.
+Static transforms (built with `Transform::static_between`, carrying the
+`Timestamp::STATIC` sentinel) are ideal for fixed relationships like sensor mounts.
 A given child frame is either static or dynamic: mixing the two kinds for the same
 child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 
@@ -264,13 +265,12 @@ in a later release.
 
 ```rust
 // Static transform: camera mount position (never changes)
-let camera_mount = Transform {
-    translation: Vector3::new(0.1, 0.0, 0.5),
-    rotation: Quaternion::identity(),
-    timestamp: Timestamp::zero(),  // Static!
-    parent: "base".into(),
-    child: "camera".into(),
-};
+let camera_mount: Transform = Transform::static_between(
+    "base",
+    "camera",
+    Vector3::new(0.1, 0.0, 0.5),
+    Quaternion::identity(),
+);
 
 // Dynamic transform: robot position (changes over time)
 let robot_position = Transform {
@@ -303,12 +303,12 @@ The library automatically traverses the frame tree and composes the necessary tr
 When querying at a timestamp between two stored transforms, the library interpolates:
 
 ```rust
-// Store transforms at t=1 and t=3 (t=0 is reserved as the static sentinel)
-registry.add_transform(transform_at_t1)?;
-registry.add_transform(transform_at_t3)?;
+// Store transforms at t=0 and t=2
+registry.add_transform(transform_at_t0)?;
+registry.add_transform(transform_at_t2)?;
 
-// Query at t=2: automatically interpolates between t=1 and t=3
-let interpolated = registry.get_transform("a", "b", timestamp_at_t2)?;
+// Query at t=1: automatically interpolates between t=0 and t=2
+let interpolated = registry.get_transform("a", "b", timestamp_at_t1)?;
 ```
 
 - **Translation**: Linear interpolation

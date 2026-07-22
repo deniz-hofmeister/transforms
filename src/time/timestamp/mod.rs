@@ -15,6 +15,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// `Timestamp` stores a time value in `u128` nanoseconds.
 ///
+/// The static-transform sentinel is [`Timestamp::STATIC`] (`u128::MAX`
+/// nanoseconds, ~10²² years) — a value no real clock produces, so every
+/// ordinary instant including `t = 0` is a valid dynamic timestamp. This
+/// makes `Timestamp` safe for boot-relative clocks whose first reading is
+/// zero.
+///
 /// For custom clocks, implement `crate::time::TimePoint` on your own type and
 /// use it with `Registry<T>`.
 ///
@@ -28,6 +34,16 @@ pub struct Timestamp {
 }
 
 impl Timestamp {
+    /// The static-transform sentinel: a transform carrying this timestamp
+    /// is valid for all time.
+    ///
+    /// `u128::MAX` nanoseconds lies ~10²² years in the future — no wall
+    /// clock or boot-relative clock ever produces it organically, so no
+    /// real instant is sacrificed to the reservation. Prefer
+    /// [`Transform::static_between`](crate::geometry::Transform::static_between)
+    /// over spelling the sentinel out.
+    pub const STATIC: Timestamp = Timestamp { t: u128::MAX };
+
     /// Returns a `Timestamp` initialized to the current time.
     ///
     /// This functionality is useful for dynamic transforms.
@@ -88,7 +104,10 @@ impl Timestamp {
 
     /// Returns a `Timestamp` initialized at zero.
     ///
-    /// This functionality is especially useful for static transforms.
+    /// Zero is an ordinary dynamic instant — the epoch of the chosen
+    /// clock. The static-transform sentinel is [`Timestamp::STATIC`], not
+    /// zero, so a boot-relative clock's first reading needs no special
+    /// handling.
     ///
     /// # Examples
     ///
@@ -255,7 +274,7 @@ impl Sub<Duration> for Timestamp {
 
 impl TimePoint for Timestamp {
     fn static_timestamp() -> Self {
-        Timestamp::zero()
+        Timestamp::STATIC
     }
 
     fn duration_since(

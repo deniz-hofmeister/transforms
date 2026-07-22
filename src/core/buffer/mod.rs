@@ -15,11 +15,11 @@
 //!   provide an estimated transform at the requested timestamp.
 //!
 //! - **Static Buffers**: A buffer is either static or dynamic, decided by the first transform
-//!   inserted: a transform carrying the static timestamp value (`t=0` by default) makes the buffer
-//!   static, and a static buffer returns its single transform for any requested timestamp.
-//!   In downstream crates, you can customize what counts as the static timestamp by implementing
-//!   `TimePoint::static_timestamp()` for your timestamp type, in case the `t=0` definition causes
-//!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
+//!   inserted: a transform carrying the static timestamp sentinel (`Timestamp::STATIC`,
+//!   i.e. `u128::MAX` nanoseconds by default) makes the buffer static, and a static buffer
+//!   returns its single transform for any requested timestamp. Custom timestamp types choose
+//!   their own sentinel via `TimePoint::static_timestamp()` — pick a value the clock cannot
+//!   produce organically (`SystemTime` reserves `UNIX_EPOCH`: no data predates it).
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - Buffers created with `Buffer::with_max_age` remove entries older than `max_age`
@@ -99,7 +99,7 @@ type NearestTransforms<'a, T> = (
 ///
 /// A buffer is either static or dynamic, determined by the first transform
 /// inserted into an empty buffer: a transform carrying the static timestamp
-/// value (`t=0` by default) makes the buffer static. Later inserts of the
+/// sentinel (`Timestamp::STATIC` by default) makes the buffer static. Later inserts of the
 /// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
 /// The first insert also pins the buffer's parent and child frames: every

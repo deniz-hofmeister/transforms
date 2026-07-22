@@ -235,7 +235,7 @@ where
     /// let transform = Transform {
     ///     translation: Vector3::zero(),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::zero(),
+    ///     timestamp: Timestamp::STATIC,
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };
@@ -250,6 +250,46 @@ where
             timestamp: T::static_timestamp(),
             parent: String::new(),
             child: String::new(),
+        }
+    }
+
+    /// Builds a static transform between two frames: valid for all time.
+    ///
+    /// The transform carries the static-timestamp sentinel
+    /// (`T::static_timestamp()`), so the registry serves it for any
+    /// requested time and never expires it. Use this for fixed
+    /// relationships like sensor mounts, instead of spelling the sentinel
+    /// out by hand.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::TimePoint,
+    /// };
+    ///
+    /// let mount: Transform = Transform::static_between(
+    ///     "base",
+    ///     "camera",
+    ///     Vector3::new(0.1, 0.0, 0.5),
+    ///     Quaternion::identity(),
+    /// );
+    /// assert!(mount.timestamp.is_static());
+    /// ```
+    #[must_use]
+    pub fn static_between(
+        parent: &str,
+        child: &str,
+        translation: Vector3,
+        rotation: Quaternion,
+    ) -> Self {
+        Transform {
+            translation,
+            rotation,
+            timestamp: T::static_timestamp(),
+            parent: parent.into(),
+            child: child.into(),
         }
     }
 

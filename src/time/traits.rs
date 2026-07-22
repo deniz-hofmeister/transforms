@@ -96,11 +96,16 @@ pub trait TimePoint: Copy + Ord {
     ///
     /// This value is a reserved sentinel: a transform carrying it is
     /// treated as static (valid for all time), so dynamic samples must
-    /// never be recorded at exactly this value. The default `Timestamp`
-    /// uses `t=0`; a type whose clock legitimately produces `t=0` as a
-    /// dynamic instant (e.g. a boot-relative clock whose first sample can
-    /// be zero) should pick a different sentinel, such as the maximum
-    /// representable value.
+    /// never be recorded at exactly this value. Pick a value the clock
+    /// cannot produce organically — the default `Timestamp` uses
+    /// `u128::MAX` nanoseconds (~10²² years), which keeps every real
+    /// instant, including `t = 0` on boot-relative clocks, valid as
+    /// dynamic data. A genuinely wall-clock type may instead reserve its
+    /// epoch, as the `SystemTime` implementation does with `UNIX_EPOCH`:
+    /// no data predates it.
+    ///
+    /// The sentinel is compared by equality only — the crate never orders
+    /// against it — so any reserved value works, including a maximum.
     ///
     /// Implementations must also keep `Ord` total and consistent with
     /// [`TimePoint::duration_since`] and the checked arithmetic: if

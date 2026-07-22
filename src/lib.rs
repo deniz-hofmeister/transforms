@@ -16,7 +16,9 @@
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
+//! - **Static Transforms**: Transforms carrying the static timestamp sentinel
+//!   (`Timestamp::STATIC`, i.e. `u128::MAX` nanoseconds by default) are valid for
+//!   all time; build them with `Transform::static_between`.
 //! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
 //!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`

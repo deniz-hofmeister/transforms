@@ -119,7 +119,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "a".into(),
             child: "b".into(),
         };
@@ -165,7 +165,7 @@ mod transform_tests {
         let t_b_c = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "b".into(),
             child: "c".into(),
         };
