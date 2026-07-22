@@ -810,19 +810,20 @@ where
         }
 
         // Step 1: Get transform expressing source_frame in fixed_frame at source_time
-        let mut source_to_fixed =
+        let source_to_fixed =
             Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
 
         // Step 2: Get transform expressing target_frame in fixed_frame at target_time
-        let mut target_to_fixed =
+        let target_to_fixed =
             Self::process_get_transform(fixed_frame, target_frame, target_time, data)?;
 
-        // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
-        // with their timestamps set to the static value.
-        source_to_fixed.timestamp = T::static_timestamp();
-        target_to_fixed.timestamp = T::static_timestamp();
-
-        let mut result = (target_to_fixed.inverse()? * source_to_fixed)?;
+        // The two legs are deliberately resolved at different times — that
+        // is the point of the time-travel lookup — so they compose through
+        // the private time-agnostic path rather than `Mul`, whose timestamp
+        // check exists to catch *accidental* cross-time composition.
+        let mut result = target_to_fixed
+            .inverse()?
+            .compose_ignoring_time(source_to_fixed)?;
         // We set the final timestamp to the target_time as per the API contract.
         result.timestamp = target_time;
 

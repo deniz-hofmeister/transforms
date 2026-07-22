@@ -13,6 +13,15 @@ pub use traits::{Localized, Transformable};
 mod error;
 mod traits;
 
+/// The accepted deviation of a rotation's norm from 1 in
+/// [`Transform::validate`].
+///
+/// Loose enough to accept unit quaternions that were stored or
+/// transmitted as `f32` and widened to `f64`, tight enough to reject
+/// genuinely denormalized rotations, which would otherwise corrupt every
+/// lookup they take part in without any error.
+pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
+
 /// Represents a 3D transformation with translation, rotation, and timestamp.
 ///
 /// The `Transform` struct is used to represent a transformation in 3D space,
@@ -58,19 +67,10 @@ impl<T> Transform<T>
 where
     T: TimePoint,
 {
-    /// The accepted deviation of a rotation's norm from 1 in
-    /// [`Transform::validate`].
-    ///
-    /// Loose enough to accept unit quaternions that were stored or
-    /// transmitted as `f32` and widened to `f64`, tight enough to reject
-    /// genuinely denormalized rotations, which would otherwise corrupt every
-    /// lookup they take part in without any error.
-    pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
-
     /// Checks that the transform is usable for composition and lookup.
     ///
     /// A valid transform has finite translation and rotation components and a
-    /// rotation whose norm is within [`Transform::UNIT_NORM_TOLERANCE`] of
+    /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of
     /// `1.0`. The registry enforces this on insertion; call it directly when
     /// composing hand-built transforms with `*` or applying them via
     /// `Transformable`, which do not validate.
@@ -115,7 +115,7 @@ where
         }
 
         let norm = q.norm();
-        if (norm - 1.0).abs() > Self::UNIT_NORM_TOLERANCE {
+        if (norm - 1.0).abs() > UNIT_NORM_TOLERANCE {
             return Err(TransformError::NonUnitRotation(norm));
         }
 
@@ -345,6 +345,37 @@ where
             child: self.parent.clone(),
         })
     }
+
+    /// Composes without the timestamp-agreement check, for callers that
+    /// deliberately combine transforms resolved at different times (the
+    /// time-travel lookup). Frame compatibility is still enforced. The
+    /// result carries `self`'s timestamp; the caller re-stamps it.
+    pub(crate) fn compose_ignoring_time(
+        self,
+        rhs: Transform<T>,
+    ) -> Result<Transform<T>, TransformError> {
+        if self.child == rhs.child {
+            return Err(TransformError::SameFrameMultiplication { frame: rhs.child });
+        }
+
+        if self.child != rhs.parent {
+            return Err(TransformError::IncompatibleFrames {
+                expected: self.child,
+                found: rhs.parent,
+            });
+        }
+
+        let rotation = self.rotation * rhs.rotation;
+        let translation = self.rotation.rotate_vector(rhs.translation) + self.translation;
+
+        Ok(Transform {
+            translation,
+            rotation,
+            timestamp: self.timestamp,
+            parent: self.parent,
+            child: rhs.child,
+        })
+    }
 }
 
 impl<T> Mul for Transform<T>
@@ -374,31 +405,14 @@ where
             });
         }
 
-        if self.child == rhs.child {
-            return Err(TransformError::SameFrameMultiplication { frame: rhs.child });
-        }
-
-        if self.child != rhs.parent {
-            return Err(TransformError::IncompatibleFrames {
-                expected: self.child,
-                found: rhs.parent,
-            });
-        }
-
-        let r = self.rotation * rhs.rotation;
-        let t = self.rotation.rotate_vector(rhs.translation) + self.translation;
-
-        Ok(Transform {
-            translation: t,
-            rotation: r,
-            timestamp: if is_self_static {
-                rhs.timestamp
-            } else {
-                self.timestamp
-            },
-            parent: self.parent,
-            child: rhs.child,
-        })
+        let timestamp = if is_self_static {
+            rhs.timestamp
+        } else {
+            self.timestamp
+        };
+        let mut result = self.compose_ignoring_time(rhs)?;
+        result.timestamp = timestamp;
+        Ok(result)
     }
 }
 

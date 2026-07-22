@@ -10,10 +10,8 @@
 
 /// Error types for time operations.
 mod error;
-/// The default [`Timestamp`] time type.
-pub mod timestamp;
-/// The [`TimePoint`] trait for custom time types.
-pub mod traits;
+pub(crate) mod timestamp;
+pub(crate) mod traits;
 pub use error::TimeError;
 pub use timestamp::Timestamp;
 pub use traits::TimePoint;

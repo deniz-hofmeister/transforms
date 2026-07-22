@@ -309,8 +309,8 @@ fn max_sentinel_eviction_spares_the_static_leg() {
 
 #[test]
 fn max_sentinel_time_travel_lookup_works() {
-    // get_transform_at internally stamps both legs with the static sentinel
-    // before composing; that must hold when the sentinel is MAX, not zero.
+    // get_transform_at composes legs resolved at different times through a
+    // time-agnostic private path; verify the whole flow with a MAX sentinel.
     let t1 = TestTime(1_000_000_000);
     let t2 = TestTime(2_000_000_000);
     let mut registry = Registry::<TestTime>::new();
