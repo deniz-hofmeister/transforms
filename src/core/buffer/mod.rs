@@ -422,7 +422,10 @@ where
         if self.is_static {
             return;
         }
-        self.data.retain(|&k, _| k >= timestamp);
+        // Everything at or after the cutoff survives; split_off keeps the
+        // deletion O(log n) regardless of how many entries fall away.
+        let kept = self.data.split_off(&timestamp);
+        self.data = kept;
     }
 
     /// Retrieves the nearest transforms before and after the given timestamp.
@@ -451,10 +454,19 @@ where
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than `(latest inserted timestamp - max_age)`. Buffers
     /// without a configured `max_age` never expire entries.
+    ///
+    /// Runs on every dynamic insert, so it evicts in order from the front
+    /// of the map — O(log n + evicted) — instead of scanning the whole
+    /// buffer.
     fn delete_expired(&mut self) {
         if let (Some(max_age), Some(latest_timestamp)) = (self.max_age, self.latest_timestamp) {
             if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
-                self.data.retain(|&k, _| k >= threshold);
+                while let Some((&oldest, _)) = self.data.first_key_value() {
+                    if oldest >= threshold {
+                        break;
+                    }
+                    self.data.pop_first();
+                }
             }
         }
     }

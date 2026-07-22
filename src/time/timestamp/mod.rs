@@ -31,7 +31,8 @@ impl Timestamp {
     ///
     /// # Panics
     ///
-    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
+    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1,
+    /// 1970). Use [`Timestamp::try_now`] for the panic-free variant.
     ///
     /// # Examples
     ///
@@ -49,13 +50,37 @@ impl Timestamp {
         reason = "the pre-epoch panic is documented above; no meaningful recovery exists"
     )]
     pub fn now() -> Self {
-        let duration_since_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time went backwards");
+        Self::try_now().expect("time went backwards")
+    }
 
-        Timestamp {
-            t: duration_since_epoch.as_nanos(),
-        }
+    /// Returns a `Timestamp` initialized to the current time, or an error
+    /// if the system clock reports a time before `UNIX_EPOCH` (January 1,
+    /// 1970).
+    ///
+    /// The panic-free counterpart of [`Timestamp::now`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimeError::DurationUnderflow` if the system clock is set
+    /// before the Unix epoch.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let now = Timestamp::try_now().unwrap();
+    /// assert!(now.as_nanos() > 0);
+    /// ```
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn try_now() -> Result<Self, TimeError> {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration_since_epoch| Timestamp {
+                t: duration_since_epoch.as_nanos(),
+            })
+            .map_err(|_| TimeError::DurationUnderflow)
     }
 
     /// Returns a `Timestamp` initialized at zero.

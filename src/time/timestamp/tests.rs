@@ -53,6 +53,37 @@ mod timestamp_tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
+    fn try_now_returns_the_current_time_without_panicking() {
+        let now = Timestamp::try_now().unwrap();
+        assert!(now.t > 0);
+    }
+
+    #[test]
+    fn checked_sub_below_zero_underflows() {
+        use crate::time::TimePoint;
+        use core::time::Duration;
+
+        let t = Timestamp::from_nanos(1);
+        assert!(matches!(
+            t.checked_sub(Duration::from_nanos(2)),
+            Err(TimeError::DurationUnderflow)
+        ));
+    }
+
+    #[test]
+    fn checked_add_beyond_the_representable_range_overflows() {
+        use crate::time::TimePoint;
+        use core::time::Duration;
+
+        let t = Timestamp::from_nanos(u128::MAX);
+        assert!(matches!(
+            t.checked_add(Duration::from_nanos(1)),
+            Err(TimeError::DurationOverflow)
+        ));
+    }
+
+    #[test]
     fn as_seconds_accuracy_boundary_is_2_pow_53_nanos() {
         assert!(Timestamp::from_nanos(1 << 53).as_seconds().is_ok());
         assert!(Timestamp::from_nanos((1 << 53) + 1).as_seconds().is_err());

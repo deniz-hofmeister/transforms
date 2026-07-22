@@ -70,6 +70,31 @@ fn benchmark_add_transform(c: &mut Criterion) {
         );
     });
 
+    // 60 s max_age at 1 kHz sample spacing keeps ~60k live entries — the
+    // README Quick Start configuration. Guards the eviction path: a return
+    // to full-buffer scanning on insert shows up here as a ~100x regression.
+    group.bench_function("add_transform_prewarmed_60k", |b| {
+        let mut registry = Registry::with_max_age(Duration::from_secs(60));
+        let mut nanos = BASE_NANOS;
+        for _ in 0..60_000 {
+            registry
+                .add_transform(transform_at("a", "b", nanos))
+                .unwrap();
+            nanos += SAMPLE_INTERVAL_NANOS;
+        }
+
+        let next = Cell::new(nanos);
+        b.iter_batched(
+            || {
+                let nanos = next.get();
+                next.set(nanos + SAMPLE_INTERVAL_NANOS);
+                transform_at("a", "b", nanos)
+            },
+            |transform| registry.add_transform(black_box(transform)).unwrap(),
+            BatchSize::SmallInput,
+        );
+    });
+
     group.finish();
 }
 
