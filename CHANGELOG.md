@@ -5,14 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-beta.5] - Unreleased
+## [2.0.0-rc.1] - Unreleased
 
 Release-candidate cut driven by a full release-readiness audit: the last
 pre-stable API corrections, a performance fix on the embedded hot path,
 and the migration/documentation work for stable. A migration guide from
-1.x now lives in [MIGRATION.md](MIGRATION.md).
+1.x now lives in [MIGRATION.md](MIGRATION.md). This cut deliberately
+breaks the beta-series API freeze — with near-zero beta adoption, the
+cost of these one-way-door fixes is as close to zero as it will ever be.
 
 ### Changed
+
+- **Breaking:** the static-transform sentinel moves from `t=0` to
+  `Timestamp::STATIC` (`u128::MAX` nanoseconds). Zero was the first
+  reading of exactly the boot-relative clocks the embedded story courts,
+  collided with `UNIX_EPOCH`, and made zero-initialized wire messages
+  silently static; the new sentinel is a value no clock produces
+  organically, so every real instant — including `t=0` — is ordinary
+  dynamic data. `Transform::static_between` builds static transforms
+  without spelling the sentinel out. `SystemTime` keeps `UNIX_EPOCH` as
+  its sentinel (no wall-clock data predates it).
+- **Breaking:** every error payload field is named: `TimestampMismatch
+  { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
+  `Disconnected { target_frame, source_frame }`, and `NotFoundAt
+  { target_frame, source_frame, frame, source }` — the lookup-argument
+  fields carry the `_frame` suffix because a field literally named
+  `source` belongs to the error trait's source-chaining convention,
+  which `NotFoundAt`'s boxed `BufferError` keeps.
+- **Breaking:** every public type has a single canonical path
+  (`geometry::Point`, `core::Buffer`, `time::Timestamp`, ...): the leaf
+  modules are private, matching the error-module pattern. Error types
+  live at `errors::*`.
+- **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
+  (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
+  associated const on `Transform<T>` that demanded a turbofish.
+- `get_transform_at` composes its two legs through a private
+  time-agnostic path instead of stamping them with the static sentinel
+  to bypass `Mul`'s timestamp check — the sentinel has exactly one
+  meaning again.
 
 - **Breaking:** `TransformError::TransformTreeEmpty` is removed. It was
   provably unconstructible from any public path; removing an enum variant
@@ -277,7 +307,7 @@ and the migration/documentation work for stable. A migration guide from
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
-[2.0.0-beta.5]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-beta.5
+[2.0.0-rc.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-rc.1
 [2.0.0-beta.4]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2

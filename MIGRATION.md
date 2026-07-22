@@ -78,7 +78,7 @@ match err {
 // 2.0
 match err {
     TransformError::UnknownFrame(f) => wait_for_publisher(),   // typo / not yet published
-    TransformError::Disconnected(a, b) => topology_bug(),      // no chain connects them
+    TransformError::Disconnected { target_frame, source_frame } => topology_bug(),
     TransformError::NotFoundAt { frame, source, .. } => retry_later(), // data gap at `frame`
     _ => other(),                                              // mandatory: #[non_exhaustive]
 }
