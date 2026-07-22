@@ -9,8 +9,8 @@
 
 #[cfg(not(feature = "std"))]
 fn main() {
+    use core::time::Duration;
     use log::{error, info};
-    use std::time::Duration;
     use transforms::{
         Registry, Transform, Transformable,
         geometry::{Point, Quaternion, Vector3},

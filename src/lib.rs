@@ -8,7 +8,8 @@
 //! The library is organized around three main components:
 //!
 //! - **Registry**: The main interface for managing transforms
-//! - **Buffer**: Internal storage for transforms between specific frames
+//! - **Buffer**: The time-indexed store for one parent-child frame pair,
+//!   also usable standalone
 //! - **Transform**: The core data structure representing spatial transformations
 //!
 //! # Features
@@ -168,8 +169,13 @@
 //!
 //! # Performance Considerations
 //!
-//! - Transform lookups are optimized for O(log n) time complexity
+//! - Transform lookups are O(log n) in the stored samples per frame;
+//!   multi-hop lookups additionally scale linearly with chain depth, and a
+//!   failed lookup runs an O(frames) diagnosis scan to name the cause
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
+//!   (eviction on insert is O(log n + evicted)); the number of *frames* is
+//!   unbounded — long-running processes that mint transient frame names
+//!   should call `Registry::remove_frame` when a frame retires
 //!
 //! # External Crates
 //!
@@ -182,8 +188,13 @@
 //! - **Memory safety**: `#![forbid(unsafe_code)]` — pure Rust throughout.
 //! - **Panic policy**: library code does not panic on reachable paths; the
 //!   single documented exception is `Timestamp::now()` on a system clock
-//!   before the Unix epoch. This is enforced with clippy's `unwrap_used`,
+//!   before the Unix epoch (`Timestamp::try_now` is the panic-free
+//!   variant). This is enforced with clippy's `unwrap_used`,
 //!   `expect_used`, `panic`, and `indexing_slicing` restriction lints.
+//!   In `no_std` builds, allocation failure aborts via the global
+//!   allocation error handler, as with any `alloc`-based crate: size the
+//!   heap for `max_age` times the insert rate, or bound growth with
+//!   `Registry::delete_transforms_before`.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
 //! - **Validated inputs**: transforms are validated at the registry boundary
@@ -191,6 +202,18 @@
 //!   invalid data is rejected with an error rather than corrupting lookups.
 //! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
 //!   your preferred lock for concurrent use (see the README for an example).
+//! - **Deterministic hashing**: the frame map uses hashbrown's default
+//!   hasher with a fixed seed on targets without entropy sources, giving
+//!   deterministic behavior on MCUs. `HashDoS` resistance is deliberately
+//!   not a goal — frame names come from the application, not the network.
+//!
+//! # Stability Commitments
+//!
+//! The `approx` traits (`AbsDiffEq`/`RelativeEq`) implemented on the
+//! geometry types make `approx` 0.5 part of this crate's public API: a
+//! future `approx` 0.6 requires a semver-major release of this crate. This
+//! is deliberate — tolerant comparison is the documented alternative to the
+//! exact `==`.
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -208,7 +231,7 @@
 )]
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 extern crate alloc;
 pub mod core;

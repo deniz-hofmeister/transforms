@@ -2,7 +2,7 @@
 //!
 //! This module provides the `Buffer` struct, which is designed to store and manage
 //! a collection of transforms, each associated with a timestamp. The buffer uses
-//! a binary tree to efficiently store and retrieve transforms based on their timestamps.
+//! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
 //!
 //! # Features
 //!
@@ -94,7 +94,7 @@ type NearestTransforms<'a, T> = (
 /// A buffer that stores transforms ordered by timestamps.
 ///
 /// The `Buffer` struct is designed to manage a collection of transforms,
-/// each associated with a timestamp. It uses a binary tree to efficiently
+/// each associated with a timestamp. It uses an ordered map (B-tree) to efficiently
 /// store and retrieve transforms based on their timestamps.
 ///
 /// A buffer is either static or dynamic, determined by the first transform
@@ -233,6 +233,10 @@ where
     /// the same way) differs from the transform's child — accepting a second
     /// child frame would silently overwrite a static transform or corrupt
     /// interpolation between dynamic ones.
+    ///
+    /// Inserting at a timestamp that is already stored replaces the stored
+    /// transform: last write wins. Re-publishing a sample at the same stamp
+    /// is an upsert, not an error.
     ///
     /// # Examples
     ///

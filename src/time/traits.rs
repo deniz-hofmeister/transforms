@@ -94,7 +94,19 @@ use crate::time::TimeError;
 pub trait TimePoint: Copy + Ord {
     /// Returns the static timestamp value.
     ///
-    /// By default this is usually `t=0`.
+    /// This value is a reserved sentinel: a transform carrying it is
+    /// treated as static (valid for all time), so dynamic samples must
+    /// never be recorded at exactly this value. The default `Timestamp`
+    /// uses `t=0`; a type whose clock legitimately produces `t=0` as a
+    /// dynamic instant (e.g. a boot-relative clock whose first sample can
+    /// be zero) should pick a different sentinel, such as the maximum
+    /// representable value.
+    ///
+    /// Implementations must also keep `Ord` total and consistent with
+    /// [`TimePoint::duration_since`] and the checked arithmetic: if
+    /// `a < b`, then `b.duration_since(a)` is the `Ok` span between them.
+    /// Buffer ordering, interpolation, and eviction all rest on that
+    /// consistency.
     fn static_timestamp() -> Self;
 
     /// Returns `true` if this timestamp is the static value.

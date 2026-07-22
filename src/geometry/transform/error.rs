@@ -62,11 +62,18 @@ pub enum TransformError {
     /// is outside the frame's covered time range. `frame` names where the
     /// chain walk stopped and `source` carries the buffer's error,
     /// including the covered range.
+    ///
+    /// Receiving this variant does not guarantee the frames are connectable:
+    /// when a data gap and a topological disconnection coexist, the recorded
+    /// walk failure takes precedence over the [`Disconnected`](Self::Disconnected)
+    /// diagnosis.
     #[error("transform not found from {from} to {to} (frame {frame}: {source})")]
     NotFoundAt {
-        /// The requested source frame.
+        /// The `target` argument of the failed lookup — the frame the data
+        /// would have been expressed in.
         from: String,
-        /// The requested target frame.
+        /// The `source` argument of the failed lookup — the frame the data
+        /// would have come from.
         to: String,
         /// The frame whose buffer could not serve the requested time.
         frame: String,

@@ -27,7 +27,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames by traversing the frame tree.
 - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
 - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms automatically; `Registry::new` keeps them until manual cleanup. Both work with and without `std`.
-- **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage.
+- **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage — O(log n) in stored samples per frame, linear in chain depth for indirect frames.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 
@@ -58,13 +58,16 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 registry.add_transform(transform)?;
 ```
 
+The full list of breaking changes with before/after code lives in
+[MIGRATION.md](MIGRATION.md).
+
 ## Installation
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.0.0-beta.4"
+transforms = "2.0.0-beta.5"
 ```
 
 ### Feature Flags
@@ -76,17 +79,27 @@ transforms = "2.0.0-beta.4"
 
 Minimum supported Rust version: 1.86 (checked in CI).
 
-Note on `serde`: `Timestamp` serializes its nanosecond value as a `u128`,
-which not every serde format supports (JSON via `serde_json` does).
+Note on `serde`: `Timestamp` serializes its nanosecond value as a `u128`.
+The formats robotics users typically pair with this crate fully support it:
+`serde_json`, `postcard`, and `bincode` (1.x and 2.x) all round-trip the
+full range. MessagePack via `rmp-serde` round-trips Rust-to-Rust but
+encodes the `u128` as a 16-byte binary blob that foreign-language consumers
+will not read as an integer. Struct field order is part of the wire
+contract for non-self-describing formats.
 Deserialization does not validate — like hand-built transforms, deserialized
 ones are validated when they enter a `Registry`.
+
+Note on `approx`: the `AbsDiffEq`/`RelativeEq` impls on the geometry types
+make `approx` 0.5 part of this crate's public API — a deliberate
+commitment, since tolerant comparison is the documented alternative to the
+exact `==`.
 
 For `no_std` environments (requires a heap allocator; float math falls back to
 [libm](https://crates.io/crates/libm)):
 
 ```toml
 [dependencies]
-transforms = { version = "2.0.0-beta.4", default-features = false }
+transforms = { version = "2.0.0-beta.5", default-features = false }
 ```
 
 ## Quick Start
@@ -113,7 +126,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         child: "sensor".into(),
     };
 
-    // Add and retrieve the transform
+    // Add and retrieve the transform (target frame first, then source:
+    // "sensor"-frame data expressed in "base")
     registry.add_transform(transform)?;
     let result = registry.get_transform("base", "sensor", timestamp)?;
 
@@ -134,7 +148,7 @@ pub fn new() -> Self
 pub fn with_max_age(max_age: Duration) -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferError>
-pub fn get_transform(&self, from: &str, to: &str, timestamp: T) -> Result<Transform<T>, TransformError>
+pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, TransformError>
 pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn delete_transforms_before(&mut self, timestamp: T)
@@ -241,8 +255,12 @@ child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 The frame tree is strict: a child frame's parent is pinned by its first
 transform (re-parenting is rejected — remove the frame with
 `Registry::remove_frame` and re-add it to change its parent), a frame cannot
-be its own parent, and cycles are rejected at insertion. Native re-parenting
-support may become a feature in a later release.
+be its own parent, and cycles are rejected at insertion. Removing a
+mid-tree frame strands its descendants (they keep their pin to the removed
+parent), so re-parent a subtree by removing and re-adding each descendant.
+Re-publishing a transform at an already-stored timestamp replaces that
+sample: last write wins. Native re-parenting support may become a feature
+in a later release.
 
 ```rust
 // Static transform: camera mount position (never changes)
@@ -295,6 +313,10 @@ let interpolated = registry.get_transform("a", "b", timestamp_at_t2)?;
 
 - **Translation**: Linear interpolation
 - **Rotation**: Spherical linear interpolation (SLERP)
+
+Interpolation spans any gap between two stored samples, however large —
+bounding data freshness is the caller's job, via `max_age` and insert
+cadence. There is no extrapolation beyond the stored range.
 
 ### Point Transformation
 
@@ -466,18 +488,29 @@ In plain terms:
 - `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
 
 Use `Timestamp` if you want the default behavior.
-`Registry::new()` is shorthand for `Registry::<Timestamp>::new()`.
+`Registry` defaults its type parameter to `Timestamp`: in type position,
+`let registry: Registry = Registry::new()` is `Registry<Timestamp>`. In
+expression position the type is inferred from usage, so annotate if the
+surrounding code doesn't pin it down.
 If you need a custom clock or custom time representation, implement `TimePoint` and use `Registry::<CustomTimestamp>`.
 With `std`, `std::time::SystemTime` support is already implemented, so `Registry::<SystemTime>` works out of the box.
 
 ## Performance
 
-- **O(log n) time lookups**: transforms are stored in `BTreeMap` indexed by timestamp
+- **O(log n) time lookups**: transforms are stored in `BTreeMap` indexed by
+  timestamp; multi-hop lookups scale linearly with chain depth, and a failed
+  lookup runs an O(frames) diagnosis scan to name the cause
 - **Early-exit chain resolution**: walks stop as soon as the target frame is reached
-- **Automatic cleanup**: `with_max_age` registries prevent unbounded memory growth
-- **Allocation profile**: lookups allocate for frame-name bookkeeping and the
-  returned transform (frame names are `String`s); insertion into an existing
-  frame does not clone the frame name
+- **Automatic cleanup**: `with_max_age` registries prevent unbounded memory
+  growth; eviction pops expired entries from the front of the map,
+  O(log n + evicted) per insert
+- **Allocation profile**: a single-hop lookup performs ~11 heap allocations
+  (~1.5 KB churn) regardless of buffer size, plus ~4 per additional hop —
+  frame names are `String`s; insertion into an existing frame does not clone
+  the frame name
+- **All arithmetic is `f64`**: on single-precision-FPU cores (Cortex-M4F,
+  M33) transform math runs through soft-float; only double-precision FPUs
+  (M7-class) execute it in hardware
 
 Benchmarks are available in the `benches/` directory. Run with:
 

@@ -122,7 +122,8 @@ where
     /// Interpolates between two transforms at a given timestamp.
     ///
     /// Returns a new `Transform` that is the interpolation between `from` and `to`
-    /// at the specified `timestamp`.
+    /// at the specified `timestamp`. If both endpoints share a timestamp, a
+    /// clone of `from` is returned.
     ///
     /// # Errors
     ///
