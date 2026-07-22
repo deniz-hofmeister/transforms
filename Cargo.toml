@@ -3,7 +3,7 @@ name = "transforms"
 description = "A transform library to track reference frames and provide transforms between them."
 authors = ["Deniz Hofmeister"]
 license = "MIT"
-version = "2.0.0-beta.4"
+version = "2.0.0-beta.5"
 edition = "2024"
 rust-version = "1.86"
 repository = "https://github.com/deniz-hofmeister/transforms"
@@ -11,7 +11,14 @@ documentation = "https://docs.rs/transforms"
 keywords = ["robotics", "transform", "3d", "coordinate"]
 categories = ["science::robotics", "no-std", "simulation", "mathematics"]
 readme = "README.md"
-include = ["/src", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE"]
+include = [
+    "/src",
+    "/Cargo.toml",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/MIGRATION.md",
+    "/LICENSE",
+]
 
 [features]
 default = ["std"]

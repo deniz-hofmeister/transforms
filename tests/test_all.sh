@@ -4,7 +4,9 @@
 # The gate runs on nightly: rustfmt.toml uses nightly-only options, and one
 # pinned toolchain keeps the gate identical on every machine regardless of
 # how Rust was installed (rustup, Nix, distro package). Stable and MSRV
-# coverage is CI's job (.github/workflows/tests.yml).
+# coverage is CI's job (.github/workflows/tests.yml), as is the
+# riscv32imc-unknown-none-elf bare-metal build — that target is not part
+# of the pinned local toolchain.
 set -e
 
 rustc --version | grep -q nightly || {
@@ -34,6 +36,11 @@ cargo bench -- --test
 cargo build --no-default-features --target thumbv7em-none-eabihf
 cargo build --no-default-features --target thumbv6m-none-eabi
 cargo build --no-default-features --target thumbv8m.main-none-eabihf
+# serde must stay std-free too: a std leak in the serde path would only
+# surface on hosted runners without these.
+cargo build --no-default-features --features serde --target thumbv7em-none-eabihf
+cargo build --no-default-features --features serde --target thumbv6m-none-eabi
+cargo build --no-default-features --features serde --target thumbv8m.main-none-eabihf
 
 # Printed only if every step above succeeded; a truncated run can never be
 # mistaken for a pass even when the exit code is swallowed by a pipeline.
