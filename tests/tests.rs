@@ -1,6 +1,7 @@
 use std::time::Duration;
 use transforms::{
     Registry,
+    errors::{BufferError, TransformError},
     geometry::{Quaternion, Transform, Vector3},
     time::Timestamp,
 };
@@ -111,7 +112,33 @@ fn test_non_matching_tree() {
     registry.add_transform(t_b_c_0.clone()).unwrap();
     registry.add_transform(t_b_c_1.clone()).unwrap();
 
+    // The b->c buffer covers [t+2s, t+3s]; querying at t stops the walk at
+    // frame "c" with the exact covered range in the payload.
     let r = registry.get_transform("a", "c", t);
 
-    assert!(r.is_err(), "expected Err, got {r:?}");
+    match r {
+        Err(TransformError::NotFoundAt {
+            from,
+            to,
+            frame,
+            source,
+        }) => {
+            assert_eq!(from, "a");
+            assert_eq!(to, "c");
+            assert_eq!(frame, "c");
+            match *source {
+                BufferError::TransformError(TransformError::TimestampOutOfRange(
+                    requested,
+                    start,
+                    end,
+                )) => {
+                    assert_eq!(requested, 1.0);
+                    assert_eq!(start, 3.0);
+                    assert_eq!(end, 4.0);
+                }
+                other => panic!("expected TimestampOutOfRange, got {other:?}"),
+            }
+        }
+        other => panic!("expected NotFoundAt, got {other:?}"),
+    }
 }

@@ -264,4 +264,53 @@ mod quaternion_tests {
         assert_abs_diff_eq!(q1.slerp(q2, 2.0), q1.slerp(q2, 1.0));
         assert_abs_diff_eq!(q1.slerp(q2, -0.5), q1.slerp(q2, 0.0));
     }
+
+    /// A rotation of `angle` radians about the z-axis.
+    fn rotation_about_z(angle: f64) -> Quaternion {
+        Quaternion::new((angle / 2.0).cos(), 0.0, 0.0, (angle / 2.0).sin())
+    }
+
+    /// Rotational agreement up to sign (q and -q are the same rotation).
+    fn same_rotation_up_to_sign(
+        a: Quaternion,
+        b: Quaternion,
+    ) -> bool {
+        let dot = a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
+        (dot.abs() - 1.0).abs() < 1e-12
+    }
+
+    #[test]
+    fn slerp_interior_points_follow_the_shortest_geodesic() {
+        // Negating the second operand forces the shortest-path flip, so
+        // the interior points run through the sin-weighted branch on the
+        // effective arc 0.1 -> 3.0 radians about z.
+        let q1 = rotation_about_z(0.1);
+        let q2 = rotation_about_z(3.0).scale(-1.0);
+
+        for t in [0.25, 0.5, 0.7] {
+            let s = q1.slerp(q2, t);
+            assert_abs_diff_eq!(s.norm(), 1.0, epsilon = 1e-12);
+            let expected = rotation_about_z(0.1 + 2.9 * t);
+            assert!(
+                same_rotation_up_to_sign(s, expected),
+                "slerp at t={t} left the geodesic: {s:?} vs {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn slerp_near_antipodal_pair_stays_unit_and_on_the_small_arc() {
+        // dot = -cos(0.01) ~ -0.99995: the numerically riskiest region.
+        // After the shortest-path flip the effective arc is 0.02 radians,
+        // so the midpoint is the 0.01-radian rotation, up to sign.
+        let q1 = Quaternion::identity();
+        let q2 = rotation_about_z(0.02).scale(-1.0);
+
+        let s = q1.slerp(q2, 0.5);
+        assert_abs_diff_eq!(s.norm(), 1.0, epsilon = 1e-12);
+        assert!(
+            same_rotation_up_to_sign(s, rotation_about_z(0.01)),
+            "near-antipodal midpoint off the small arc: {s:?}"
+        );
+    }
 }

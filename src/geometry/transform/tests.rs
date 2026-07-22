@@ -340,4 +340,65 @@ mod transform_tests {
             Err(TransformError::NonFiniteValues)
         ));
     }
+
+    #[test]
+    fn same_child_multiplication_is_rejected_with_the_frame_named() {
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let t_a_b = transform_at("a", "b", t);
+        let t_c_b = transform_at("c", "b", t);
+
+        // Same child frame on both sides. This check runs BEFORE the
+        // parent/child pairing check, so it wins over IncompatibleFrames.
+        match t_a_b * t_c_b {
+            Err(TransformError::SameFrameMultiplication { frame }) => {
+                assert_eq!(frame, "b");
+            }
+            other => panic!("expected SameFrameMultiplication, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn self_multiplication_is_same_frame_multiplication() {
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let t_a_b = transform_at("a", "b", t);
+        assert!(matches!(
+            t_a_b.clone() * t_a_b,
+            Err(TransformError::SameFrameMultiplication { .. })
+        ));
+    }
+
+    #[test]
+    fn unrelated_frames_multiplication_names_both_sides() {
+        // Control for the check ordering: distinct children with no
+        // parent/child match is IncompatibleFrames, carrying what the
+        // composition required and what it found.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let t_a_b = transform_at("a", "b", t);
+        let t_c_d = transform_at("c", "d", t);
+
+        match t_a_b * t_c_d {
+            Err(TransformError::IncompatibleFrames { expected, found }) => {
+                assert_eq!(expected, "b");
+                assert_eq!(found, "c");
+            }
+            other => panic!("expected IncompatibleFrames, got {other:?}"),
+        }
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn timestamp_mismatch_payload_carries_both_times_in_seconds() {
+        let t_a_b = transform_at("a", "b", Timestamp::from_nanos(1_000_000_000));
+        let t_b_c = transform_at("b", "c", Timestamp::from_nanos(2_000_000_000));
+
+        match t_a_b * t_b_c {
+            Err(TransformError::TimestampMismatch(lhs, rhs)) => {
+                assert_eq!(lhs, 1.0);
+                assert_eq!(rhs, 2.0);
+            }
+            other => panic!("expected TimestampMismatch, got {other:?}"),
+        }
+    }
 }

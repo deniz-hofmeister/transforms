@@ -158,6 +158,22 @@ proptest! {
     }
 
     #[test]
+    fn slerp_output_is_unit_norm_at_interior_points(
+        q1 in unit_quaternions(),
+        q2 in unit_quaternions(),
+        t in 0.0f64..=1.0,
+    ) {
+        // Covers the shortest-path flip and both interpolation branches:
+        // the output of slerp must always be a valid rotation.
+        let interpolated = q1.slerp(q2, t);
+        prop_assert!(
+            (interpolated.norm() - 1.0).abs() < 1e-9,
+            "slerp output is not unit at t={t}: norm {}",
+            interpolated.norm(),
+        );
+    }
+
+    #[test]
     fn interpolate_is_exact_at_endpoints_and_rejects_outside(
         translation_from in translations(),
         translation_to in translations(),

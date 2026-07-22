@@ -444,4 +444,88 @@ mod buffer_tests {
         );
         assert!(buffer.get(t_new).is_ok());
     }
+
+    /// A transform translated by `x`, distinguishable from `create_transform`.
+    fn transform_with_x(
+        t: Timestamp,
+        x: f64,
+    ) -> Transform {
+        Transform {
+            translation: Vector3::new(x, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        }
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn duplicate_timestamp_insert_is_a_last_write_wins_upsert() {
+        let t = Timestamp::from_nanos(5_000_000_000);
+        let mut buffer = Buffer::new();
+        buffer.insert(transform_with_x(t, 1.0)).unwrap();
+        // Same timestamp, different payload: Ok, silently replaces.
+        buffer.insert(transform_with_x(t, 2.0)).unwrap();
+        assert_eq!(buffer.get(t).unwrap().translation.x, 2.0);
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn zero_max_age_out_of_order_insert_is_ok_but_immediately_evicted() {
+        // Inserting an OLDER sample after a newer one with max_age == ZERO
+        // returns Ok, but the same insert call evicts it: the expiry
+        // threshold stays pinned to the latest timestamp seen.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut buffer = Buffer::with_max_age(Duration::ZERO);
+        buffer.insert(transform_with_x(t2, 2.0)).unwrap();
+        buffer.insert(transform_with_x(t1, 1.0)).unwrap();
+        assert_eq!(buffer.get(t2).unwrap().translation.x, 2.0);
+        assert!(buffer.get(t1).is_err(), "older insert must be evicted");
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn eviction_boundary_retains_a_sample_exactly_max_age_old() {
+        let max_age = Duration::from_secs(10);
+        let t0 = Timestamp::from_nanos(100_000_000_000);
+        let t0_plus_max_age = Timestamp::from_nanos(110_000_000_000);
+
+        let mut buffer = Buffer::with_max_age(max_age);
+        buffer.insert(transform_with_x(t0, 1.0)).unwrap();
+        buffer
+            .insert(transform_with_x(t0_plus_max_age, 2.0))
+            .unwrap();
+
+        // threshold = (t0 + max_age) - max_age = t0; eviction keeps
+        // k >= threshold, so the sample exactly max_age old survives.
+        assert_eq!(buffer.get(t0).unwrap().translation.x, 1.0);
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn eviction_boundary_evicts_one_nanosecond_past_max_age() {
+        let max_age = Duration::from_secs(10);
+        let t0 = Timestamp::from_nanos(100_000_000_000);
+        let t_past = Timestamp::from_nanos(110_000_000_001);
+
+        let mut buffer = Buffer::with_max_age(max_age);
+        buffer.insert(transform_with_x(t0, 1.0)).unwrap();
+        buffer.insert(transform_with_x(t_past, 2.0)).unwrap();
+
+        assert!(
+            buffer.get(t0).is_err(),
+            "sample older than max_age must be evicted"
+        );
+        assert_eq!(buffer.get(t_past).unwrap().translation.x, 2.0);
+    }
 }
