@@ -179,17 +179,17 @@ where
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
         if from.timestamp > to.timestamp {
-            return Err(TransformError::TimestampMismatch(
-                from.timestamp.as_seconds_lossy(),
-                to.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: from.timestamp.as_seconds_lossy(),
+                rhs: to.timestamp.as_seconds_lossy(),
+            });
         }
         if timestamp < from.timestamp || timestamp > to.timestamp {
-            return Err(TransformError::TimestampOutOfRange(
-                timestamp.as_seconds_lossy(),
-                from.timestamp.as_seconds_lossy(),
-                to.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampOutOfRange {
+                requested: timestamp.as_seconds_lossy(),
+                start: from.timestamp.as_seconds_lossy(),
+                end: to.timestamp.as_seconds_lossy(),
+            });
         }
         if from.child != to.child || from.parent != to.parent {
             return Err(TransformError::IncompatibleFrames {
@@ -368,10 +368,10 @@ where
         let is_rhs_static = rhs.timestamp.is_static();
 
         if !is_self_static && !is_rhs_static && self.timestamp != rhs.timestamp {
-            return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds_lossy(),
-                rhs.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: self.timestamp.as_seconds_lossy(),
+                rhs: rhs.timestamp.as_seconds_lossy(),
+            });
         }
 
         if self.child == rhs.child {

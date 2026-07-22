@@ -110,10 +110,10 @@ where
             });
         }
         if self.timestamp != transform.timestamp && !transform.timestamp.is_static() {
-            return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds_lossy(),
-                transform.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: self.timestamp.as_seconds_lossy(),
+                rhs: transform.timestamp.as_seconds_lossy(),
+            });
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
         self.orientation = transform.rotation * self.orientation;

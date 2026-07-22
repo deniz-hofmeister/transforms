@@ -1203,11 +1203,7 @@ mod registry_tests {
                     if frame == "b"
                         && matches!(
                             source.as_ref(),
-                            BufferError::TransformError(TransformError::TimestampOutOfRange(
-                                requested,
-                                start,
-                                end
-                            )) if *requested == 2.0 && *start == 1.0 && *end == 1.0
+                            BufferError::TransformError(TransformError::TimestampOutOfRange { requested, start, end }) if *requested == 2.0 && *start == 1.0 && *end == 1.0
                         )
             ),
             "expected NotFoundAt naming frame b with the covered range, got {result:?}"
@@ -1306,7 +1302,8 @@ mod registry_tests {
         assert!(
             matches!(
                 &result,
-                Err(TransformError::Disconnected(from, to)) if from == "a" && to == "b"
+                Err(TransformError::Disconnected { target_frame, source_frame })
+                    if target_frame == "a" && source_frame == "b"
             ),
             "expected Disconnected for frames in disconnected trees, got {result:?}"
         );
@@ -1786,11 +1783,11 @@ mod registry_tests {
             Err(TransformError::NotFoundAt { frame, source, .. }) => {
                 assert_eq!(frame, "b");
                 match *source {
-                    BufferError::TransformError(TransformError::TimestampOutOfRange(
+                    BufferError::TransformError(TransformError::TimestampOutOfRange {
                         requested,
                         start,
                         end,
-                    )) => {
+                    }) => {
                         assert_eq!(requested, 2.0);
                         assert_eq!(start, 3.0);
                         assert_eq!(end, 3.0);

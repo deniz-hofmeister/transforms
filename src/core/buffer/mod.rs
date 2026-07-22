@@ -402,11 +402,11 @@ where
             }
             _ => match (self.data.first_key_value(), self.data.last_key_value()) {
                 (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(
-                        timestamp.as_seconds_lossy(),
-                        first.as_seconds_lossy(),
-                        last.as_seconds_lossy(),
-                    ),
+                    TransformError::TimestampOutOfRange {
+                        requested: timestamp.as_seconds_lossy(),
+                        start: first.as_seconds_lossy(),
+                        end: last.as_seconds_lossy(),
+                    },
                 )),
                 _ => Err(BufferError::NoTransformAvailable),
             },

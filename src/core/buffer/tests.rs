@@ -62,7 +62,7 @@ mod buffer_tests {
             matches!(
                 &result,
                 Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(requested, start, end)
+                    TransformError::TimestampOutOfRange { requested, start, end }
                 )) if *requested == 3.0 && *start == 1.0 && *end == 2.0
             ),
             "expected TimestampOutOfRange with the covered range, got {result:?}"
@@ -74,7 +74,7 @@ mod buffer_tests {
             matches!(
                 &result,
                 Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(requested, start, end)
+                    TransformError::TimestampOutOfRange { requested, start, end }
                 )) if *requested == 0.5 && *start == 1.0 && *end == 2.0
             ),
             "expected TimestampOutOfRange with the covered range, got {result:?}"

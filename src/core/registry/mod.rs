@@ -604,13 +604,16 @@ where
             }
         }
         match walk_failure.take() {
-            Some((frame, source)) => TransformError::NotFoundAt {
-                from: from.into(),
-                to: to.into(),
+            Some((frame, cause)) => TransformError::NotFoundAt {
+                target_frame: from.into(),
+                source_frame: to.into(),
                 frame,
-                source: Box::new(source),
+                source: Box::new(cause),
             },
-            None => TransformError::Disconnected(from.into(), to.into()),
+            None => TransformError::Disconnected {
+                target_frame: from.into(),
+                source_frame: to.into(),
+            },
         }
     }
 

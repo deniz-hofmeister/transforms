@@ -118,20 +118,20 @@ fn test_non_matching_tree() {
 
     match r {
         Err(TransformError::NotFoundAt {
-            from,
-            to,
+            target_frame,
+            source_frame,
             frame,
             source,
         }) => {
-            assert_eq!(from, "a");
-            assert_eq!(to, "c");
+            assert_eq!(target_frame, "a");
+            assert_eq!(source_frame, "c");
             assert_eq!(frame, "c");
             match *source {
-                BufferError::TransformError(TransformError::TimestampOutOfRange(
+                BufferError::TransformError(TransformError::TimestampOutOfRange {
                     requested,
                     start,
                     end,
-                )) => {
+                }) => {
                     assert_eq!(requested, 1.0);
                     assert_eq!(start, 3.0);
                     assert_eq!(end, 4.0);

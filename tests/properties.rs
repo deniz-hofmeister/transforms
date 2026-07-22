@@ -216,7 +216,7 @@ proptest! {
         let before = Timestamp::from_nanos(start.saturating_sub(outside));
         let result = Transform::interpolate(&from, &to, before);
         prop_assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange before the range, got {result:?}",
         );
 
@@ -224,7 +224,7 @@ proptest! {
         let after = Timestamp::from_nanos(start + span + outside);
         let result = Transform::interpolate(&from, &to, after);
         prop_assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange after the range, got {result:?}",
         );
     }

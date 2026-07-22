@@ -101,7 +101,7 @@ mod point_tests {
         };
 
         match point.transform(&transform) {
-            Err(TransformError::TimestampMismatch(lhs, rhs)) => {
+            Err(TransformError::TimestampMismatch { lhs, rhs }) => {
                 assert_eq!(lhs, 1.0);
                 assert_eq!(rhs, 2.0);
             }

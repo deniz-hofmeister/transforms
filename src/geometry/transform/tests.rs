@@ -236,7 +236,7 @@ mod transform_tests {
 
         let result = t_a_b * t_b_c;
         assert!(
-            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            matches!(result, Err(TransformError::TimestampMismatch { .. })),
             "dynamic transforms with different timestamps must be rejected, got {result:?}"
         );
     }
@@ -250,21 +250,21 @@ mod transform_tests {
         // Before the covered range: extrapolation must be rejected.
         let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(500_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "interpolation before the range must fail, got {result:?}"
         );
 
         // After the covered range: extrapolation must be rejected.
         let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(3_000_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "interpolation after the range must fail, got {result:?}"
         );
 
         // Swapped endpoints must be rejected.
         let result = Transform::interpolate(&to, &from, Timestamp::from_nanos(1_500_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            matches!(result, Err(TransformError::TimestampMismatch { .. })),
             "swapped endpoints must fail, got {result:?}"
         );
     }
@@ -281,7 +281,7 @@ mod transform_tests {
         let t_b_c = transform_at("b", "c", t2);
         let result = t_a_b * t_b_c;
         assert!(
-            matches!(result, Err(TransformError::TimestampMismatch(_, _))),
+            matches!(result, Err(TransformError::TimestampMismatch { .. })),
             "expected TimestampMismatch, got {result:?}"
         );
 
@@ -290,7 +290,7 @@ mod transform_tests {
         let result =
             Transform::interpolate(&from, &to, Timestamp::from_nanos(1_783_400_002_000_000_000));
         assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange, got {result:?}"
         );
     }
@@ -394,7 +394,7 @@ mod transform_tests {
         let t_b_c = transform_at("b", "c", Timestamp::from_nanos(2_000_000_000));
 
         match t_a_b * t_b_c {
-            Err(TransformError::TimestampMismatch(lhs, rhs)) => {
+            Err(TransformError::TimestampMismatch { lhs, rhs }) => {
                 assert_eq!(lhs, 1.0);
                 assert_eq!(rhs, 2.0);
             }
