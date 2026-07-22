@@ -59,6 +59,6 @@ mod timestamp_tests {
 
         // Best-effort conversions keep working beyond the boundary.
         let big = Timestamp::from_nanos((1 << 53) + 1);
-        assert!(big.as_seconds_unchecked().is_finite());
+        assert!(big.as_seconds_lossy().is_finite());
     }
 }

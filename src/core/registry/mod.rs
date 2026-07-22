@@ -653,7 +653,12 @@ where
                         Self::reverse_and_invert_transforms(&mut to_chain)?;
                         Self::combine_transforms(from_chain, to_chain)
                     } else {
-                        Err(Self::diagnose_not_found(from, to, data, &mut walk_failure))
+                        Some(Err(Self::diagnose_not_found(
+                            from,
+                            to,
+                            data,
+                            &mut walk_failure,
+                        )))
                     }
                 }
                 (Some(from_chain), None) => Self::combine_transforms(from_chain, VecDeque::new()),
@@ -661,9 +666,18 @@ where
                     Self::reverse_and_invert_transforms(&mut to_chain)?;
                     Self::combine_transforms(VecDeque::new(), to_chain)
                 }
-                (None, None) => Err(Self::diagnose_not_found(from, to, data, &mut walk_failure)),
+                (None, None) => Some(Err(Self::diagnose_not_found(
+                    from,
+                    to,
+                    data,
+                    &mut walk_failure,
+                ))),
             },
-        }?;
+        }
+        // Both walks empty without a recorded failure cannot happen today
+        // (every call site passes at least one non-empty chain), but if it
+        // ever does, it is a failed lookup and diagnosed as such.
+        .unwrap_or_else(|| Err(Self::diagnose_not_found(from, to, data, &mut walk_failure)))?;
 
         // A chain can resolve without ever reaching the requested frame, for
         // example when `to` does not exist in the tree and the walk stopped at
@@ -793,7 +807,7 @@ where
             }
             remaining -= 1;
 
-            match frame_buffer.get(&timestamp) {
+            match frame_buffer.get(timestamp) {
                 Ok(tf) => {
                     current_frame.clone_from(&tf.parent);
                     transforms.push_back(tf);
@@ -845,27 +859,30 @@ where
     /// `to_chain` must already be reversed and inverted (from the target frame
     /// toward the common ancestor).
     ///
+    /// Returns `None` when both chains are empty — there is nothing to
+    /// combine, and the caller reports the lookup failure through
+    /// `diagnose_not_found`.
+    ///
     /// # Errors
     ///
-    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty
-    /// * Other variants of `TransformError` resulting from invalid transform operations
+    /// * Variants of `TransformError` resulting from invalid transform operations
     fn combine_transforms(
         mut from_chain: VecDeque<Transform<T>>,
         mut to_chain: VecDeque<Transform<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Option<Result<Transform<T>, TransformError>> {
         from_chain.append(&mut to_chain);
 
         let mut iter = from_chain.into_iter();
-
-        let Some(mut final_transform) = iter.next() else {
-            return Err(TransformError::TransformTreeEmpty);
-        };
+        let mut final_transform = iter.next()?;
 
         for transform in iter {
-            final_transform = (transform * final_transform)?;
+            match transform * final_transform {
+                Ok(combined) => final_transform = combined,
+                Err(e) => return Some(Err(e)),
+            }
         }
 
-        final_transform.inverse()
+        Some(final_transform.inverse())
     }
 
     /// Reverses a transform chain and inverts each transform within it.

@@ -204,8 +204,10 @@ mod registry_tests {
         registry.add_transform(t_a_b_0.clone()).unwrap();
         registry.add_transform(t_a_b_1.clone()).unwrap();
 
-        let middle_timestamp =
-            Timestamp::from_nanos(u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t));
+        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+            t_a_b_0.timestamp.as_nanos(),
+            t_a_b_1.timestamp.as_nanos(),
+        ));
 
         let t_a_b_2 = Transform {
             translation: (t_a_b_0.translation + t_a_b_1.translation) / 2.0,
@@ -266,8 +268,10 @@ mod registry_tests {
         registry.add_transform(t_b_c_0.clone()).unwrap();
         registry.add_transform(t_b_c_1.clone()).unwrap();
 
-        let middle_timestamp =
-            Timestamp::from_nanos(u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t));
+        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+            t_a_b_0.timestamp.as_nanos(),
+            t_a_b_1.timestamp.as_nanos(),
+        ));
 
         let t_a_c = Transform {
             translation: Vector3::new(1.5, 1.5, 0.0),
@@ -388,7 +392,7 @@ mod registry_tests {
         let mut to = to_chain.unwrap();
 
         Registry::truncate_at_common_parent(&mut from, &mut to);
-        let result = Registry::combine_transforms(from, to);
+        let result = Registry::combine_transforms(from, to).expect("chains are non-empty");
 
         assert!(result.is_ok(), "combine_transforms failed: {result:?}");
     }

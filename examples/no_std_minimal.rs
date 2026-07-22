@@ -12,8 +12,8 @@ fn main() {
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds_unchecked().sin();
-        let y = t.as_seconds_unchecked().cos();
+        let x = t.as_seconds_lossy().sin();
+        let y = t.as_seconds_lossy().cos();
         let z = 0.0;
 
         Transform {

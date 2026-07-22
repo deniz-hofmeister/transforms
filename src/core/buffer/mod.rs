@@ -69,7 +69,7 @@
 //!
 //! buffer.insert(transform).unwrap();
 //!
-//! let result = buffer.get(&timestamp);
+//! let result = buffer.get(timestamp);
 //! match result {
 //!     Ok(transform) => println!("Transform found: {transform:?}"),
 //!     Err(_) => println!("No transform available"),
@@ -373,7 +373,7 @@ where
     ///
     /// buffer.insert(transform).unwrap();
     ///
-    /// let result = buffer.get(&timestamp);
+    /// let result = buffer.get(timestamp);
     /// match result {
     ///     Ok(transform) => println!("Transform found: {transform:?}"),
     ///     Err(_) => println!("No transform available"),
@@ -381,7 +381,7 @@ where
     /// ```
     pub fn get(
         &self,
-        timestamp: &T,
+        timestamp: T,
     ) -> Result<Transform<T>, BufferError> {
         if self.is_static {
             match self.data.get(&T::static_timestamp()) {
@@ -390,11 +390,11 @@ where
             }
         }
 
-        let (before, after) = self.get_nearest(timestamp);
+        let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
             (Some(before), Some(after)) => {
-                Ok(Transform::interpolate(before.1, after.1, *timestamp)?)
+                Ok(Transform::interpolate(before.1, after.1, timestamp)?)
             }
             _ => match (self.data.first_key_value(), self.data.last_key_value()) {
                 (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(

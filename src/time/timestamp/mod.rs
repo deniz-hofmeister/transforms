@@ -21,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Timestamp {
     /// Nanoseconds since the epoch of the chosen clock.
-    pub t: u128,
+    t: u128,
 }
 
 impl Timestamp {
@@ -39,7 +39,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let now = Timestamp::now();
-    /// assert!(now.t > 0);
+    /// assert!(now.as_nanos() > 0);
     /// ```
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
@@ -68,7 +68,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
-    /// assert_eq!(zero.t, 0);
+    /// assert_eq!(zero.as_nanos(), 0);
     /// ```
     #[must_use]
     pub const fn zero() -> Self {
@@ -110,7 +110,7 @@ impl Timestamp {
     /// `f64` has a 53-bit mantissa, so timestamps up to 2^53 nanoseconds
     /// (about 104 days) convert with sub-nanosecond accuracy; beyond that the
     /// conversion silently loses precision, which this method refuses to do.
-    /// Use [`Timestamp::as_seconds_unchecked`] (or
+    /// Use [`Timestamp::as_seconds_lossy`] (or
     /// [`TimePoint::as_seconds_lossy`]) for a best-effort conversion of
     /// larger values, such as wall-clock times.
     ///
@@ -144,7 +144,11 @@ impl Timestamp {
         Ok(self.t as f64 / NANOSECONDS_PER_SECOND)
     }
 
-    /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
+    /// Converts the `Timestamp` to seconds as a floating-point number,
+    /// accepting precision loss beyond 2^53 nanoseconds.
+    ///
+    /// Inherent counterpart of [`TimePoint::as_seconds_lossy`], callable
+    /// without importing the trait.
     ///
     /// # Examples
     ///
@@ -152,12 +156,12 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
-    /// let seconds = timestamp.as_seconds_unchecked();
+    /// let seconds = timestamp.as_seconds_lossy();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[allow(clippy::cast_precision_loss)]
-    pub fn as_seconds_unchecked(&self) -> f64 {
+    pub fn as_seconds_lossy(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.t as f64 / NANOSECONDS_PER_SECOND
     }
@@ -252,7 +256,7 @@ impl TimePoint for Timestamp {
     }
 
     fn as_seconds_lossy(self) -> f64 {
-        self.as_seconds_unchecked()
+        Timestamp::as_seconds_lossy(&self)
     }
 }
 

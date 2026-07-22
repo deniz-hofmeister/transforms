@@ -188,7 +188,10 @@ where
             ));
         }
         if from.child != to.child || from.parent != to.parent {
-            return Err(TransformError::IncompatibleFrames);
+            return Err(TransformError::IncompatibleFrames {
+                expected: alloc::format!("{} -> {}", from.parent, from.child),
+                found: alloc::format!("{} -> {}", to.parent, to.child),
+            });
         }
 
         let range = to.timestamp.duration_since(from.timestamp)?;
@@ -328,11 +331,14 @@ where
         }
 
         if self.child == rhs.child {
-            return Err(TransformError::SameFrameMultiplication);
+            return Err(TransformError::SameFrameMultiplication { frame: rhs.child });
         }
 
         if self.child != rhs.parent {
-            return Err(TransformError::IncompatibleFrames);
+            return Err(TransformError::IncompatibleFrames {
+                expected: self.child,
+                found: rhs.parent,
+            });
         }
 
         let r = self.rotation * rhs.rotation;

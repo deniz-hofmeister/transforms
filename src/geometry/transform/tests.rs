@@ -211,7 +211,7 @@ mod transform_tests {
 
         let result = t_b_c * t_a_b;
         assert!(
-            matches!(result, Err(TransformError::IncompatibleFrames)),
+            matches!(result, Err(TransformError::IncompatibleFrames { .. })),
             "reversed composition must be rejected, got {result:?}"
         );
     }
@@ -224,7 +224,7 @@ mod transform_tests {
 
         let result = t_a_b * t_c_d;
         assert!(
-            matches!(result, Err(TransformError::IncompatibleFrames)),
+            matches!(result, Err(TransformError::IncompatibleFrames { .. })),
             "unrelated frames must be rejected, got {result:?}"
         );
     }
@@ -302,7 +302,7 @@ mod transform_tests {
 
         let result = Transform::interpolate(&from, &to, Timestamp::from_nanos(1_500_000_000));
         assert!(
-            matches!(result, Err(TransformError::IncompatibleFrames)),
+            matches!(result, Err(TransformError::IncompatibleFrames { .. })),
             "interpolating between different frame pairs must fail, got {result:?}"
         );
     }

@@ -101,7 +101,10 @@ where
         transform: &Transform<T>,
     ) -> Result<(), TransformError> {
         if self.frame != transform.child {
-            return Err(TransformError::IncompatibleFrames);
+            return Err(TransformError::IncompatibleFrames {
+                expected: transform.child.clone(),
+                found: self.frame.clone(),
+            });
         }
         if self.timestamp != transform.timestamp && !transform.timestamp.is_static() {
             return Err(TransformError::TimestampMismatch(

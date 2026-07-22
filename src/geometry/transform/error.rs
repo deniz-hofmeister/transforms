@@ -29,12 +29,20 @@ pub enum TransformError {
     TimestampOutOfRange(f64, f64, f64),
 
     /// Both transforms describe the same child frame.
-    #[error("cannot multiply transforms with the same frame")]
-    SameFrameMultiplication,
+    #[error("cannot multiply transforms that both describe child frame {frame}")]
+    SameFrameMultiplication {
+        /// The child frame described by both operands.
+        frame: String,
+    },
 
     /// The frames do not form a valid parent-child composition.
-    #[error("frames do not have a parent-child relationship")]
-    IncompatibleFrames,
+    #[error("frames do not have a parent-child relationship (expected {expected}, found {found})")]
+    IncompatibleFrames {
+        /// The frame (or frame pair) the operation required.
+        expected: String,
+        /// The frame (or frame pair) actually found.
+        found: String,
+    },
 
     /// The requested frame exists nowhere in the transform tree, neither
     /// as a child nor as a parent frame. Usually a typo or a frame that
@@ -65,10 +73,6 @@ pub enum TransformError {
         /// The buffer error that stopped the chain walk.
         source: Box<BufferError>,
     },
-
-    /// The transform chain was empty after processing.
-    #[error("transform tree is empty")]
-    TransformTreeEmpty,
 
     /// A timestamp operation failed.
     #[error("timestamp error: {0}")]
