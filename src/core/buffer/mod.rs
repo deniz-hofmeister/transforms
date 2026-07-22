@@ -2,7 +2,7 @@
 //!
 //! This module provides the `Buffer` struct, which is designed to store and manage
 //! a collection of transforms, each associated with a timestamp. The buffer uses
-//! a binary tree to efficiently store and retrieve transforms based on their timestamps.
+//! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
 //!
 //! # Features
 //!
@@ -15,11 +15,11 @@
 //!   provide an estimated transform at the requested timestamp.
 //!
 //! - **Static Buffers**: A buffer is either static or dynamic, decided by the first transform
-//!   inserted: a transform carrying the static timestamp value (`t=0` by default) makes the buffer
-//!   static, and a static buffer returns its single transform for any requested timestamp.
-//!   In downstream crates, you can customize what counts as the static timestamp by implementing
-//!   `TimePoint::static_timestamp()` for your timestamp type, in case the `t=0` definition causes
-//!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
+//!   inserted: a transform carrying the static timestamp sentinel (`Timestamp::STATIC`,
+//!   i.e. `u128::MAX` nanoseconds by default) makes the buffer static, and a static buffer
+//!   returns its single transform for any requested timestamp. Custom timestamp types choose
+//!   their own sentinel via `TimePoint::static_timestamp()` — pick a value the clock cannot
+//!   produce organically (`SystemTime` reserves `UNIX_EPOCH`: no data predates it).
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - Buffers created with `Buffer::with_max_age` remove entries older than `max_age`
@@ -69,7 +69,7 @@
 //!
 //! buffer.insert(transform).unwrap();
 //!
-//! let result = buffer.get(&timestamp);
+//! let result = buffer.get(timestamp);
 //! match result {
 //!     Ok(transform) => println!("Transform found: {transform:?}"),
 //!     Err(_) => println!("No transform available"),
@@ -94,12 +94,12 @@ type NearestTransforms<'a, T> = (
 /// A buffer that stores transforms ordered by timestamps.
 ///
 /// The `Buffer` struct is designed to manage a collection of transforms,
-/// each associated with a timestamp. It uses a binary tree to efficiently
+/// each associated with a timestamp. It uses an ordered map (B-tree) to efficiently
 /// store and retrieve transforms based on their timestamps.
 ///
 /// A buffer is either static or dynamic, determined by the first transform
 /// inserted into an empty buffer: a transform carrying the static timestamp
-/// value (`t=0` by default) makes the buffer static. Later inserts of the
+/// sentinel (`Timestamp::STATIC` by default) makes the buffer static. Later inserts of the
 /// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
 ///
 /// The first insert also pins the buffer's parent and child frames: every
@@ -233,6 +233,10 @@ where
     /// the same way) differs from the transform's child — accepting a second
     /// child frame would silently overwrite a static transform or corrupt
     /// interpolation between dynamic ones.
+    ///
+    /// Inserting at a timestamp that is already stored replaces the stored
+    /// transform: last write wins. Re-publishing a sample at the same stamp
+    /// is an upsert, not an error.
     ///
     /// # Examples
     ///
@@ -373,7 +377,7 @@ where
     ///
     /// buffer.insert(transform).unwrap();
     ///
-    /// let result = buffer.get(&timestamp);
+    /// let result = buffer.get(timestamp);
     /// match result {
     ///     Ok(transform) => println!("Transform found: {transform:?}"),
     ///     Err(_) => println!("No transform available"),
@@ -381,7 +385,7 @@ where
     /// ```
     pub fn get(
         &self,
-        timestamp: &T,
+        timestamp: T,
     ) -> Result<Transform<T>, BufferError> {
         if self.is_static {
             match self.data.get(&T::static_timestamp()) {
@@ -390,19 +394,19 @@ where
             }
         }
 
-        let (before, after) = self.get_nearest(timestamp);
+        let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
             (Some(before), Some(after)) => {
-                Ok(Transform::interpolate(before.1, after.1, *timestamp)?)
+                Ok(Transform::interpolate(before.1, after.1, timestamp)?)
             }
             _ => match (self.data.first_key_value(), self.data.last_key_value()) {
                 (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(
-                        timestamp.as_seconds_lossy(),
-                        first.as_seconds_lossy(),
-                        last.as_seconds_lossy(),
-                    ),
+                    TransformError::TimestampOutOfRange {
+                        requested: timestamp.as_seconds_lossy(),
+                        start: first.as_seconds_lossy(),
+                        end: last.as_seconds_lossy(),
+                    },
                 )),
                 _ => Err(BufferError::NoTransformAvailable),
             },
@@ -422,7 +426,10 @@ where
         if self.is_static {
             return;
         }
-        self.data.retain(|&k, _| k >= timestamp);
+        // Everything at or after the cutoff survives; split_off keeps the
+        // deletion O(log n) regardless of how many entries fall away.
+        let kept = self.data.split_off(&timestamp);
+        self.data = kept;
     }
 
     /// Retrieves the nearest transforms before and after the given timestamp.
@@ -451,10 +458,19 @@ where
     /// This function deletes all transforms from the buffer that have a
     /// timestamp older than `(latest inserted timestamp - max_age)`. Buffers
     /// without a configured `max_age` never expire entries.
+    ///
+    /// Runs on every dynamic insert, so it evicts in order from the front
+    /// of the map — O(log n + evicted) — instead of scanning the whole
+    /// buffer.
     fn delete_expired(&mut self) {
         if let (Some(max_age), Some(latest_timestamp)) = (self.max_age, self.latest_timestamp) {
             if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
-                self.data.retain(|&k, _| k >= threshold);
+                while let Some((&oldest, _)) = self.data.first_key_value() {
+                    if oldest >= threshold {
+                        break;
+                    }
+                    self.data.pop_first();
+                }
             }
         }
     }

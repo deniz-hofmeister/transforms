@@ -204,8 +204,10 @@ mod registry_tests {
         registry.add_transform(t_a_b_0.clone()).unwrap();
         registry.add_transform(t_a_b_1.clone()).unwrap();
 
-        let middle_timestamp =
-            Timestamp::from_nanos(u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t));
+        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+            t_a_b_0.timestamp.as_nanos(),
+            t_a_b_1.timestamp.as_nanos(),
+        ));
 
         let t_a_b_2 = Transform {
             translation: (t_a_b_0.translation + t_a_b_1.translation) / 2.0,
@@ -266,8 +268,10 @@ mod registry_tests {
         registry.add_transform(t_b_c_0.clone()).unwrap();
         registry.add_transform(t_b_c_1.clone()).unwrap();
 
-        let middle_timestamp =
-            Timestamp::from_nanos(u128::midpoint(t_a_b_0.timestamp.t, t_a_b_1.timestamp.t));
+        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+            t_a_b_0.timestamp.as_nanos(),
+            t_a_b_1.timestamp.as_nanos(),
+        ));
 
         let t_a_c = Transform {
             translation: Vector3::new(1.5, 1.5, 0.0),
@@ -388,7 +392,7 @@ mod registry_tests {
         let mut to = to_chain.unwrap();
 
         Registry::truncate_at_common_parent(&mut from, &mut to);
-        let result = Registry::combine_transforms(from, to);
+        let result = Registry::combine_transforms(from, to).expect("chains are non-empty");
 
         assert!(result.is_ok(), "combine_transforms failed: {result:?}");
     }
@@ -1199,11 +1203,7 @@ mod registry_tests {
                     if frame == "b"
                         && matches!(
                             source.as_ref(),
-                            BufferError::TransformError(TransformError::TimestampOutOfRange(
-                                requested,
-                                start,
-                                end
-                            )) if *requested == 2.0 && *start == 1.0 && *end == 1.0
+                            BufferError::TransformError(TransformError::TimestampOutOfRange { requested, start, end }) if *requested == 2.0 && *start == 1.0 && *end == 1.0
                         )
             ),
             "expected NotFoundAt naming frame b with the covered range, got {result:?}"
@@ -1302,7 +1302,8 @@ mod registry_tests {
         assert!(
             matches!(
                 &result,
-                Err(TransformError::Disconnected(from, to)) if from == "a" && to == "b"
+                Err(TransformError::Disconnected { target_frame, source_frame })
+                    if target_frame == "a" && source_frame == "b"
             ),
             "expected Disconnected for frames in disconnected trees, got {result:?}"
         );
@@ -1343,7 +1344,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "a".into(),
             child: "b".into(),
         };
@@ -1418,7 +1419,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(0.5, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "base".into(),
             child: "lidar".into(),
         };
@@ -1448,7 +1449,7 @@ mod registry_tests {
             .add_transform(Transform {
                 translation: Vector3::new(0.5, 0.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: Timestamp::zero(),
+                timestamp: Timestamp::STATIC,
                 parent: "base".into(),
                 child: "lidar".into(),
             })
@@ -1637,7 +1638,7 @@ mod registry_tests {
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 1.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: Timestamp::zero(),
+                timestamp: Timestamp::STATIC,
                 parent: "base".into(),
                 child: "camera".into(),
             })
@@ -1668,7 +1669,7 @@ mod registry_tests {
         let static_tf = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Timestamp::STATIC,
             parent: "base".into(),
             child: "camera".into(),
         };
@@ -1695,5 +1696,130 @@ mod registry_tests {
         assert_send_sync::<Vector3>();
         assert_send_sync::<Quaternion>();
         assert_send_sync::<Timestamp>();
+    }
+
+    /// A transform translated by `x` along the x-axis.
+    fn translated(
+        parent: &str,
+        child: &str,
+        timestamp: Timestamp,
+        x: f64,
+    ) -> Transform {
+        Transform {
+            translation: Vector3::new(x, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp,
+            parent: parent.into(),
+            child: child.into(),
+        }
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn duplicate_timestamp_add_is_a_last_write_wins_upsert() {
+        let t = Timestamp::from_nanos(5_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", t, 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", t, 2.0))
+            .unwrap();
+        assert_eq!(
+            registry.get_transform("a", "b", t).unwrap().translation.x,
+            2.0
+        );
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn duplicate_static_add_is_a_last_write_wins_upsert() {
+        // The static sentinel is just another key: re-publishing the static
+        // transform replaces it the same way.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Timestamp::STATIC, 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", Timestamp::STATIC, 7.0))
+            .unwrap();
+        let got = registry
+            .get_transform("a", "b", Timestamp::from_nanos(3_000_000_000))
+            .unwrap();
+        assert_eq!(got.translation.x, 7.0);
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn zero_max_age_keeps_only_the_newest_sample() {
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::with_max_age(Duration::ZERO);
+        registry
+            .add_transform(translated("a", "b", t1, 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", t2, 2.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", t3, 3.0))
+            .unwrap();
+
+        // Exact hit on the newest sample still works.
+        assert_eq!(
+            registry.get_transform("a", "b", t3).unwrap().translation.x,
+            3.0
+        );
+
+        // Older samples are gone: the covered range collapsed to [t3, t3].
+        match registry.get_transform("a", "b", t2) {
+            Err(TransformError::NotFoundAt { frame, source, .. }) => {
+                assert_eq!(frame, "b");
+                match *source {
+                    BufferError::TransformError(TransformError::TimestampOutOfRange {
+                        requested,
+                        start,
+                        end,
+                    }) => {
+                        assert_eq!(requested, 2.0);
+                        assert_eq!(start, 3.0);
+                        assert_eq!(end, 3.0);
+                    }
+                    other => panic!("unexpected buffer error: {other:?}"),
+                }
+            }
+            other => panic!("expected NotFoundAt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn remove_frame_mid_tree_strands_descendants() {
+        // map -> odom -> base_link; removing odom strands base_link, whose
+        // buffer keeps its pin to the removed parent. The subsequent lookup
+        // is diagnosed relative to the remaining tree: "map" now exists
+        // nowhere (it was only ever odom's parent), so the error names it —
+        // the documented, deliberately-pinned behavior.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", t, 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("odom", "base_link", t, 1.0))
+            .unwrap();
+
+        assert!(registry.remove_frame("odom"));
+
+        match registry.get_transform("map", "base_link", t) {
+            Err(TransformError::UnknownFrame(frame)) => assert_eq!(frame, "map"),
+            other => panic!("expected UnknownFrame, got {other:?}"),
+        }
     }
 }

@@ -13,6 +13,15 @@ pub use traits::{Localized, Transformable};
 mod error;
 mod traits;
 
+/// The accepted deviation of a rotation's norm from 1 in
+/// [`Transform::validate`].
+///
+/// Loose enough to accept unit quaternions that were stored or
+/// transmitted as `f32` and widened to `f64`, tight enough to reject
+/// genuinely denormalized rotations, which would otherwise corrupt every
+/// lookup they take part in without any error.
+pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
+
 /// Represents a 3D transformation with translation, rotation, and timestamp.
 ///
 /// The `Transform` struct is used to represent a transformation in 3D space,
@@ -33,6 +42,9 @@ mod traits;
 /// assert_eq!(identity.translation, Vector3::zero());
 /// assert_eq!(identity.rotation, Quaternion::identity());
 /// ```
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transform<T = Timestamp>
@@ -55,19 +67,10 @@ impl<T> Transform<T>
 where
     T: TimePoint,
 {
-    /// The accepted deviation of a rotation's norm from 1 in
-    /// [`Transform::validate`].
-    ///
-    /// Loose enough to accept unit quaternions that were stored or
-    /// transmitted as `f32` and widened to `f64`, tight enough to reject
-    /// genuinely denormalized rotations, which would otherwise corrupt every
-    /// lookup they take part in without any error.
-    pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
-
     /// Checks that the transform is usable for composition and lookup.
     ///
     /// A valid transform has finite translation and rotation components and a
-    /// rotation whose norm is within [`Transform::UNIT_NORM_TOLERANCE`] of
+    /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of
     /// `1.0`. The registry enforces this on insertion; call it directly when
     /// composing hand-built transforms with `*` or applying them via
     /// `Transformable`, which do not validate.
@@ -112,7 +115,7 @@ where
         }
 
         let norm = q.norm();
-        if (norm - 1.0).abs() > Self::UNIT_NORM_TOLERANCE {
+        if (norm - 1.0).abs() > UNIT_NORM_TOLERANCE {
             return Err(TransformError::NonUnitRotation(norm));
         }
 
@@ -122,7 +125,8 @@ where
     /// Interpolates between two transforms at a given timestamp.
     ///
     /// Returns a new `Transform` that is the interpolation between `from` and `to`
-    /// at the specified `timestamp`.
+    /// at the specified `timestamp`. If both endpoints share a timestamp, a
+    /// clone of `from` is returned.
     ///
     /// # Errors
     ///
@@ -175,20 +179,23 @@ where
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
         if from.timestamp > to.timestamp {
-            return Err(TransformError::TimestampMismatch(
-                from.timestamp.as_seconds_lossy(),
-                to.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: from.timestamp.as_seconds_lossy(),
+                rhs: to.timestamp.as_seconds_lossy(),
+            });
         }
         if timestamp < from.timestamp || timestamp > to.timestamp {
-            return Err(TransformError::TimestampOutOfRange(
-                timestamp.as_seconds_lossy(),
-                from.timestamp.as_seconds_lossy(),
-                to.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampOutOfRange {
+                requested: timestamp.as_seconds_lossy(),
+                start: from.timestamp.as_seconds_lossy(),
+                end: to.timestamp.as_seconds_lossy(),
+            });
         }
         if from.child != to.child || from.parent != to.parent {
-            return Err(TransformError::IncompatibleFrames);
+            return Err(TransformError::IncompatibleFrames {
+                expected: alloc::format!("{} -> {}", from.parent, from.child),
+                found: alloc::format!("{} -> {}", to.parent, to.child),
+            });
         }
 
         let range = to.timestamp.duration_since(from.timestamp)?;
@@ -228,7 +235,7 @@ where
     /// let transform = Transform {
     ///     translation: Vector3::zero(),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::zero(),
+    ///     timestamp: Timestamp::STATIC,
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };
@@ -243,6 +250,46 @@ where
             timestamp: T::static_timestamp(),
             parent: String::new(),
             child: String::new(),
+        }
+    }
+
+    /// Builds a static transform between two frames: valid for all time.
+    ///
+    /// The transform carries the static-timestamp sentinel
+    /// (`T::static_timestamp()`), so the registry serves it for any
+    /// requested time and never expires it. Use this for fixed
+    /// relationships like sensor mounts, instead of spelling the sentinel
+    /// out by hand.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::TimePoint,
+    /// };
+    ///
+    /// let mount: Transform = Transform::static_between(
+    ///     "base",
+    ///     "camera",
+    ///     Vector3::new(0.1, 0.0, 0.5),
+    ///     Quaternion::identity(),
+    /// );
+    /// assert!(mount.timestamp.is_static());
+    /// ```
+    #[must_use]
+    pub fn static_between(
+        parent: &str,
+        child: &str,
+        translation: Vector3,
+        rotation: Quaternion,
+    ) -> Self {
+        Transform {
+            translation,
+            rotation,
+            timestamp: T::static_timestamp(),
+            parent: parent.into(),
+            child: child.into(),
         }
     }
 
@@ -298,6 +345,37 @@ where
             child: self.parent.clone(),
         })
     }
+
+    /// Composes without the timestamp-agreement check, for callers that
+    /// deliberately combine transforms resolved at different times (the
+    /// time-travel lookup). Frame compatibility is still enforced. The
+    /// result carries `self`'s timestamp; the caller re-stamps it.
+    pub(crate) fn compose_ignoring_time(
+        self,
+        rhs: Transform<T>,
+    ) -> Result<Transform<T>, TransformError> {
+        if self.child == rhs.child {
+            return Err(TransformError::SameFrameMultiplication { frame: rhs.child });
+        }
+
+        if self.child != rhs.parent {
+            return Err(TransformError::IncompatibleFrames {
+                expected: self.child,
+                found: rhs.parent,
+            });
+        }
+
+        let rotation = self.rotation * rhs.rotation;
+        let translation = self.rotation.rotate_vector(rhs.translation) + self.translation;
+
+        Ok(Transform {
+            translation,
+            rotation,
+            timestamp: self.timestamp,
+            parent: self.parent,
+            child: rhs.child,
+        })
+    }
 }
 
 impl<T> Mul for Transform<T>
@@ -321,34 +399,20 @@ where
         let is_rhs_static = rhs.timestamp.is_static();
 
         if !is_self_static && !is_rhs_static && self.timestamp != rhs.timestamp {
-            return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds_lossy(),
-                rhs.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: self.timestamp.as_seconds_lossy(),
+                rhs: rhs.timestamp.as_seconds_lossy(),
+            });
         }
 
-        if self.child == rhs.child {
-            return Err(TransformError::SameFrameMultiplication);
-        }
-
-        if self.child != rhs.parent {
-            return Err(TransformError::IncompatibleFrames);
-        }
-
-        let r = self.rotation * rhs.rotation;
-        let t = self.rotation.rotate_vector(rhs.translation) + self.translation;
-
-        Ok(Transform {
-            translation: t,
-            rotation: r,
-            timestamp: if is_self_static {
-                rhs.timestamp
-            } else {
-                self.timestamp
-            },
-            parent: self.parent,
-            child: rhs.child,
-        })
+        let timestamp = if is_self_static {
+            rhs.timestamp
+        } else {
+            self.timestamp
+        };
+        let mut result = self.compose_ignoring_time(rhs)?;
+        result.timestamp = timestamp;
+        Ok(result)
     }
 }
 

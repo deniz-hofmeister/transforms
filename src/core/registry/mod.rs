@@ -4,7 +4,9 @@
 //!
 //! ## Features
 //!
-//! - **Static Transforms**: The registry can handle static transforms by using the static timestamp value (`t=0` by default).
+//! - **Static Transforms**: The registry can handle static transforms via the static
+//!   timestamp sentinel (`Timestamp::STATIC` by default); build them with
+//!   `Transform::static_between`.
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
@@ -203,8 +205,8 @@ where
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's child
     /// frame already holds transforms of the opposite kind: a child frame is
-    /// either static (timestamp equal to the static timestamp value, `t=0` by
-    /// default) or dynamic, never both.
+    /// either static (timestamp equal to the static sentinel,
+    /// `Timestamp::STATIC` by default) or dynamic, never both.
     ///
     /// Returns `BufferError::TransformError` if the transform fails
     /// validation (non-finite values or a non-unit rotation),
@@ -213,6 +215,10 @@ where
     /// already has a different parent (remove the frame first with
     /// [`Registry::remove_frame`]), and `BufferError::CycleDetected` if the
     /// new relationship would create a cycle in the frame tree.
+    ///
+    /// Inserting at a timestamp the child frame already stores replaces the
+    /// stored transform: last write wins. Re-publishing a sample at the
+    /// same stamp is an upsert, not an error.
     ///
     /// # Examples
     ///
@@ -241,12 +247,29 @@ where
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
-    /// Retrieves the transform from the `from` frame to the `to` frame at
-    /// the requested timestamp.
+    /// Retrieves the transform that maps `source`-frame coordinates into
+    /// the `target` frame at the requested timestamp.
+    ///
+    /// # Direction convention
+    ///
+    /// The returned transform has `parent == target` and `child == source`:
+    /// applying it to data expressed in the `source` frame yields that data
+    /// expressed in the `target` frame, matching tf2's
+    /// `lookupTransform(target_frame, source_frame, time)` and this
+    /// registry's own [`Registry::get_transform_at`]. Mind the order — to
+    /// bring lidar points into the map frame, ask for
+    /// `get_transform("map", "lidar", t)`; swapping the arguments silently
+    /// yields the exact inverse.
     ///
     /// The returned transform always carries the requested timestamp, also
     /// when the chain consists of static transforms. Requesting a frame
     /// relative to itself returns the identity transform.
+    ///
+    /// Interpolation spans any gap between two stored samples, however
+    /// large — a lookup between samples recorded before and after a pause
+    /// (say, a robot rebooting) interpolates straight across it. Bounding
+    /// data freshness is the caller's responsibility, via `max_age` and
+    /// insert cadence.
     ///
     /// # Errors
     ///
@@ -294,17 +317,18 @@ where
     ///
     /// registry.add_transform(t_a_b_1).unwrap();
     ///
+    /// // "b"-frame data expressed in "a": target "a", source "b"
     /// let result = registry.get_transform("a", "b", t2);
     /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap(), t_a_b_2);
     /// ```
     pub fn get_transform(
         &self,
-        from: &str,
-        to: &str,
+        target: &str,
+        source: &str,
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
-        Self::process_get_transform(from, to, timestamp, &self.data)
+        Self::process_get_transform(target, source, timestamp, &self.data)
     }
 
     /// Retrieves a transform for a specific value into `target_frame`.
@@ -474,6 +498,12 @@ where
     /// Returns `true` if the frame existed. This is also the escape hatch
     /// for re-parenting, which `add_transform` rejects: remove the frame,
     /// then re-add it under its new parent.
+    ///
+    /// Removing a frame that parents other frames strands those
+    /// descendants: they keep their pin to the removed parent, so lookups
+    /// that crossed the removed frame fail, diagnosed relative to the
+    /// remaining tree — which can name a frame other than the one removed.
+    /// To move a whole subtree, remove and re-add each descendant.
     pub fn remove_frame(
         &mut self,
         child: &str,
@@ -574,13 +604,16 @@ where
             }
         }
         match walk_failure.take() {
-            Some((frame, source)) => TransformError::NotFoundAt {
-                from: from.into(),
-                to: to.into(),
+            Some((frame, cause)) => TransformError::NotFoundAt {
+                target_frame: from.into(),
+                source_frame: to.into(),
                 frame,
-                source: Box::new(source),
+                source: Box::new(cause),
             },
-            None => TransformError::Disconnected(from.into(), to.into()),
+            None => TransformError::Disconnected {
+                target_frame: from.into(),
+                source_frame: to.into(),
+            },
         }
     }
 
@@ -594,86 +627,117 @@ where
     /// * `TransformError::Disconnected` - If both frames exist but no chain connects them
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
-        from: &str,
-        to: &str,
+        target: &str,
+        source: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
     ) -> Result<Transform<T>, TransformError> {
         // A frame relative to itself is the identity, regardless of whether
         // the frame is known: the answer holds either way, and it keeps
         // same-frame queries consistent with `get_transform_for`.
-        if from == to {
+        if target == source {
             return Ok(Transform {
                 translation: Vector3::zero(),
                 rotation: Quaternion::identity(),
                 timestamp,
-                parent: from.into(),
-                child: to.into(),
+                parent: target.into(),
+                child: source.into(),
             });
         }
 
-        let reached = |chain: &VecDeque<Transform<T>>, target: &str| {
-            chain.back().is_some_and(|tf| tf.parent == target)
+        let reached = |chain: &VecDeque<Transform<T>>, goal: &str| {
+            chain.back().is_some_and(|tf| tf.parent == goal)
         };
 
         let mut walk_failure = None;
-        let from_chain = Self::get_transform_chain(from, to, timestamp, data, &mut walk_failure);
+        let target_chain =
+            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
 
-        let result = match from_chain {
-            // `to` is an ancestor of `from`: the from-side chain spans the
-            // whole path, no to-side walk is needed.
-            Some(from_chain) if reached(&from_chain, to) => {
-                Self::combine_transforms(from_chain, VecDeque::new())
+        let result = match target_chain {
+            // `source` is an ancestor of `target`: the target-side chain
+            // spans the whole path, no source-side walk is needed.
+            Some(target_chain) if reached(&target_chain, source) => {
+                Self::combine_transforms(target_chain, VecDeque::new())
             }
-            from_chain => match (
-                from_chain,
-                Self::get_transform_chain(to, from, timestamp, data, &mut walk_failure),
+            target_chain => match (
+                target_chain,
+                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure),
             ) {
-                // `from` is an ancestor of `to`: the to-side chain spans the
-                // whole path by itself.
-                (_, Some(mut to_chain)) if reached(&to_chain, from) => {
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(VecDeque::new(), to_chain)
+                // `target` is an ancestor of `source`: the source-side chain
+                // spans the whole path by itself.
+                (_, Some(mut source_chain)) if reached(&source_chain, target) => {
+                    Self::reverse_and_invert_transforms(&mut source_chain)?;
+                    Self::combine_transforms(VecDeque::new(), source_chain)
                 }
                 // Both chains ran to the root: drop the shared suffix above
                 // the common parent and combine the remainders.
-                (Some(mut from_chain), Some(mut to_chain)) => {
-                    Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
+                (Some(mut target_chain), Some(mut source_chain)) => {
+                    Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
                     // The two walks must meet at a common parent; otherwise
                     // they stopped in different subtrees — an unknown frame,
                     // a mid-chain timestamp gap, or disconnected trees — and
                     // no transform exists at this time. Diagnose the failure
                     // instead of letting the junction fail composition with
                     // a misleading IncompatibleFrames.
-                    let connected = match (from_chain.back(), to_chain.back()) {
-                        (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
+                    let connected = match (target_chain.back(), source_chain.back()) {
+                        (Some(target_top), Some(source_top)) => {
+                            target_top.parent == source_top.parent
+                        }
                         _ => false,
                     };
                     if connected {
-                        Self::reverse_and_invert_transforms(&mut to_chain)?;
-                        Self::combine_transforms(from_chain, to_chain)
+                        Self::reverse_and_invert_transforms(&mut source_chain)?;
+                        Self::combine_transforms(target_chain, source_chain)
                     } else {
-                        Err(Self::diagnose_not_found(from, to, data, &mut walk_failure))
+                        Some(Err(Self::diagnose_not_found(
+                            target,
+                            source,
+                            data,
+                            &mut walk_failure,
+                        )))
                     }
                 }
-                (Some(from_chain), None) => Self::combine_transforms(from_chain, VecDeque::new()),
-                (None, Some(mut to_chain)) => {
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(VecDeque::new(), to_chain)
+                (Some(target_chain), None) => {
+                    Self::combine_transforms(target_chain, VecDeque::new())
                 }
-                (None, None) => Err(Self::diagnose_not_found(from, to, data, &mut walk_failure)),
+                (None, Some(mut source_chain)) => {
+                    Self::reverse_and_invert_transforms(&mut source_chain)?;
+                    Self::combine_transforms(VecDeque::new(), source_chain)
+                }
+                (None, None) => Some(Err(Self::diagnose_not_found(
+                    target,
+                    source,
+                    data,
+                    &mut walk_failure,
+                ))),
             },
-        }?;
+        }
+        // Both walks empty without a recorded failure cannot happen today
+        // (every call site passes at least one non-empty chain), but if it
+        // ever does, it is a failed lookup and diagnosed as such.
+        .unwrap_or_else(|| {
+            Err(Self::diagnose_not_found(
+                target,
+                source,
+                data,
+                &mut walk_failure,
+            ))
+        })?;
 
         // A chain can resolve without ever reaching the requested frame, for
-        // example when `to` does not exist in the tree and the walk stopped at
-        // the root instead. Verify the combined transform answers the exact
-        // question asked; otherwise report it as not found.
-        if result.parent != from || result.child != to {
-            return Err(Self::diagnose_not_found(from, to, data, &mut walk_failure));
+        // example when `source` does not exist in the tree and the walk
+        // stopped at the root instead. Verify the combined transform answers
+        // the exact question asked; otherwise report it as not found.
+        if result.parent != target || result.child != source {
+            return Err(Self::diagnose_not_found(
+                target,
+                source,
+                data,
+                &mut walk_failure,
+            ));
         }
 
-        // The result answers "where is `to` relative to `from` at the
+        // The result answers "where is `source` relative to `target` at the
         // requested time", so it carries the requested timestamp — also for
         // chains of static transforms, whose own timestamps are the static
         // sentinel.
@@ -746,19 +810,20 @@ where
         }
 
         // Step 1: Get transform expressing source_frame in fixed_frame at source_time
-        let mut source_to_fixed =
+        let source_to_fixed =
             Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
 
         // Step 2: Get transform expressing target_frame in fixed_frame at target_time
-        let mut target_to_fixed =
+        let target_to_fixed =
             Self::process_get_transform(fixed_frame, target_frame, target_time, data)?;
 
-        // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
-        // with their timestamps set to the static value.
-        source_to_fixed.timestamp = T::static_timestamp();
-        target_to_fixed.timestamp = T::static_timestamp();
-
-        let mut result = (target_to_fixed.inverse()? * source_to_fixed)?;
+        // The two legs are deliberately resolved at different times — that
+        // is the point of the time-travel lookup — so they compose through
+        // the private time-agnostic path rather than `Mul`, whose timestamp
+        // check exists to catch *accidental* cross-time composition.
+        let mut result = target_to_fixed
+            .inverse()?
+            .compose_ignoring_time(source_to_fixed)?;
         // We set the final timestamp to the target_time as per the API contract.
         result.timestamp = target_time;
 
@@ -793,7 +858,7 @@ where
             }
             remaining -= 1;
 
-            match frame_buffer.get(&timestamp) {
+            match frame_buffer.get(timestamp) {
                 Ok(tf) => {
                     current_frame.clone_from(&tf.parent);
                     transforms.push_back(tf);
@@ -845,27 +910,30 @@ where
     /// `to_chain` must already be reversed and inverted (from the target frame
     /// toward the common ancestor).
     ///
+    /// Returns `None` when both chains are empty — there is nothing to
+    /// combine, and the caller reports the lookup failure through
+    /// `diagnose_not_found`.
+    ///
     /// # Errors
     ///
-    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty
-    /// * Other variants of `TransformError` resulting from invalid transform operations
+    /// * Variants of `TransformError` resulting from invalid transform operations
     fn combine_transforms(
         mut from_chain: VecDeque<Transform<T>>,
         mut to_chain: VecDeque<Transform<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Option<Result<Transform<T>, TransformError>> {
         from_chain.append(&mut to_chain);
 
         let mut iter = from_chain.into_iter();
-
-        let Some(mut final_transform) = iter.next() else {
-            return Err(TransformError::TransformTreeEmpty);
-        };
+        let mut final_transform = iter.next()?;
 
         for transform in iter {
-            final_transform = (transform * final_transform)?;
+            match transform * final_transform {
+                Ok(combined) => final_transform = combined,
+                Err(e) => return Some(Err(e)),
+            }
         }
 
-        final_transform.inverse()
+        Some(final_transform.inverse())
     }
 
     /// Reverses a transform chain and inverts each transform within it.

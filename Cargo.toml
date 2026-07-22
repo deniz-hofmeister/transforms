@@ -3,7 +3,7 @@ name = "transforms"
 description = "A transform library to track reference frames and provide transforms between them."
 authors = ["Deniz Hofmeister"]
 license = "MIT"
-version = "2.0.0-beta.4"
+version = "2.0.0-rc.1"
 edition = "2024"
 rust-version = "1.86"
 repository = "https://github.com/deniz-hofmeister/transforms"
@@ -11,7 +11,14 @@ documentation = "https://docs.rs/transforms"
 keywords = ["robotics", "transform", "3d", "coordinate"]
 categories = ["science::robotics", "no-std", "simulation", "mathematics"]
 readme = "README.md"
-include = ["/src", "/Cargo.toml", "/README.md", "/CHANGELOG.md", "/LICENSE"]
+include = [
+    "/src",
+    "/Cargo.toml",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/MIGRATION.md",
+    "/LICENSE",
+]
 
 [features]
 default = ["std"]
@@ -29,9 +36,10 @@ serde = { version = "1.0.219", default-features = false, features = ["alloc", "d
 env_logger = "0.11.8"
 proptest = "1.7.0"
 serde_json = "1.0.140"
+postcard = { version = "1.1.3", features = ["alloc"] }
 log = "0.4.27"
 criterion = "0.8.0"
-tokio = { version = "1.46.1", features = ["full"] }
+tokio = { version = "1.46.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
 [[example]]
 name = "no_std_minimal"

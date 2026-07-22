@@ -15,23 +15,43 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// `Timestamp` stores a time value in `u128` nanoseconds.
 ///
+/// The static-transform sentinel is [`Timestamp::STATIC`] (`u128::MAX`
+/// nanoseconds, ~10²² years) — a value no real clock produces, so every
+/// ordinary instant including `t = 0` is a valid dynamic timestamp. This
+/// makes `Timestamp` safe for boot-relative clocks whose first reading is
+/// zero.
+///
 /// For custom clocks, implement `crate::time::TimePoint` on your own type and
 /// use it with `Registry<T>`.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Timestamp {
     /// Nanoseconds since the epoch of the chosen clock.
-    pub t: u128,
+    t: u128,
 }
 
 impl Timestamp {
+    /// The static-transform sentinel: a transform carrying this timestamp
+    /// is valid for all time.
+    ///
+    /// `u128::MAX` nanoseconds lies ~10²² years in the future — no wall
+    /// clock or boot-relative clock ever produces it organically, so no
+    /// real instant is sacrificed to the reservation. Prefer
+    /// [`Transform::static_between`](crate::geometry::Transform::static_between)
+    /// over spelling the sentinel out.
+    pub const STATIC: Timestamp = Timestamp { t: u128::MAX };
+
     /// Returns a `Timestamp` initialized to the current time.
     ///
     /// This functionality is useful for dynamic transforms.
     ///
     /// # Panics
     ///
-    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
+    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1,
+    /// 1970). Use [`Timestamp::try_now`] for the panic-free variant.
     ///
     /// # Examples
     ///
@@ -39,7 +59,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let now = Timestamp::now();
-    /// assert!(now.t > 0);
+    /// assert!(now.as_nanos() > 0);
     /// ```
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
@@ -49,18 +69,45 @@ impl Timestamp {
         reason = "the pre-epoch panic is documented above; no meaningful recovery exists"
     )]
     pub fn now() -> Self {
-        let duration_since_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time went backwards");
+        Self::try_now().expect("time went backwards")
+    }
 
-        Timestamp {
-            t: duration_since_epoch.as_nanos(),
-        }
+    /// Returns a `Timestamp` initialized to the current time, or an error
+    /// if the system clock reports a time before `UNIX_EPOCH` (January 1,
+    /// 1970).
+    ///
+    /// The panic-free counterpart of [`Timestamp::now`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimeError::DurationUnderflow` if the system clock is set
+    /// before the Unix epoch.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let now = Timestamp::try_now().unwrap();
+    /// assert!(now.as_nanos() > 0);
+    /// ```
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn try_now() -> Result<Self, TimeError> {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration_since_epoch| Timestamp {
+                t: duration_since_epoch.as_nanos(),
+            })
+            .map_err(|_| TimeError::DurationUnderflow)
     }
 
     /// Returns a `Timestamp` initialized at zero.
     ///
-    /// This functionality is especially useful for static transforms.
+    /// Zero is an ordinary dynamic instant — the epoch of the chosen
+    /// clock. The static-transform sentinel is [`Timestamp::STATIC`], not
+    /// zero, so a boot-relative clock's first reading needs no special
+    /// handling.
     ///
     /// # Examples
     ///
@@ -68,7 +115,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
-    /// assert_eq!(zero.t, 0);
+    /// assert_eq!(zero.as_nanos(), 0);
     /// ```
     #[must_use]
     pub const fn zero() -> Self {
@@ -110,7 +157,7 @@ impl Timestamp {
     /// `f64` has a 53-bit mantissa, so timestamps up to 2^53 nanoseconds
     /// (about 104 days) convert with sub-nanosecond accuracy; beyond that the
     /// conversion silently loses precision, which this method refuses to do.
-    /// Use [`Timestamp::as_seconds_unchecked`] (or
+    /// Use [`Timestamp::as_seconds_lossy`] (or
     /// [`TimePoint::as_seconds_lossy`]) for a best-effort conversion of
     /// larger values, such as wall-clock times.
     ///
@@ -144,7 +191,11 @@ impl Timestamp {
         Ok(self.t as f64 / NANOSECONDS_PER_SECOND)
     }
 
-    /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
+    /// Converts the `Timestamp` to seconds as a floating-point number,
+    /// accepting precision loss beyond 2^53 nanoseconds.
+    ///
+    /// Inherent counterpart of [`TimePoint::as_seconds_lossy`], callable
+    /// without importing the trait.
     ///
     /// # Examples
     ///
@@ -152,12 +203,12 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
-    /// let seconds = timestamp.as_seconds_unchecked();
+    /// let seconds = timestamp.as_seconds_lossy();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[allow(clippy::cast_precision_loss)]
-    pub fn as_seconds_unchecked(&self) -> f64 {
+    pub fn as_seconds_lossy(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.t as f64 / NANOSECONDS_PER_SECOND
     }
@@ -223,7 +274,7 @@ impl Sub<Duration> for Timestamp {
 
 impl TimePoint for Timestamp {
     fn static_timestamp() -> Self {
-        Timestamp::zero()
+        Timestamp::STATIC
     }
 
     fn duration_since(
@@ -252,7 +303,7 @@ impl TimePoint for Timestamp {
     }
 
     fn as_seconds_lossy(self) -> f64 {
-        self.as_seconds_unchecked()
+        Timestamp::as_seconds_lossy(&self)
     }
 }
 

@@ -35,6 +35,9 @@ use approx::{AbsDiffEq, RelativeEq};
 /// assert_eq!(point.position.x, 1.0);
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point<T = Timestamp>
@@ -101,13 +104,16 @@ where
         transform: &Transform<T>,
     ) -> Result<(), TransformError> {
         if self.frame != transform.child {
-            return Err(TransformError::IncompatibleFrames);
+            return Err(TransformError::IncompatibleFrames {
+                expected: transform.child.clone(),
+                found: self.frame.clone(),
+            });
         }
         if self.timestamp != transform.timestamp && !transform.timestamp.is_static() {
-            return Err(TransformError::TimestampMismatch(
-                self.timestamp.as_seconds_lossy(),
-                transform.timestamp.as_seconds_lossy(),
-            ));
+            return Err(TransformError::TimestampMismatch {
+                lhs: self.timestamp.as_seconds_lossy(),
+                rhs: transform.timestamp.as_seconds_lossy(),
+            });
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
         self.orientation = transform.rotation * self.orientation;

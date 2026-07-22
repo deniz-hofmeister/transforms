@@ -31,15 +31,15 @@ mod buffer_tests {
         let transform = create_transform(t);
         buffer.insert(transform.clone()).unwrap();
 
-        let mut r = buffer.get(&transform.timestamp);
+        let mut r = buffer.get(transform.timestamp);
 
         assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
+        r = buffer.get((transform.timestamp + Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "expected no transform, got {r:?}");
 
-        r = buffer.get(&(transform.timestamp - Duration::from_secs(1)).unwrap());
+        r = buffer.get((transform.timestamp - Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "expected no transform, got {r:?}");
     }
 
@@ -57,24 +57,24 @@ mod buffer_tests {
         // Too new: past the latest sample. The error carries the requested
         // time and the covered range, so latency ("just too new") is
         // distinguishable from stale data without further queries.
-        let result = buffer.get(&Timestamp::from_nanos(3_000_000_000));
+        let result = buffer.get(Timestamp::from_nanos(3_000_000_000));
         assert!(
             matches!(
                 &result,
                 Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(requested, start, end)
+                    TransformError::TimestampOutOfRange { requested, start, end }
                 )) if *requested == 3.0 && *start == 1.0 && *end == 2.0
             ),
             "expected TimestampOutOfRange with the covered range, got {result:?}"
         );
 
         // Too old: before the earliest sample.
-        let result = buffer.get(&Timestamp::from_nanos(500_000_000));
+        let result = buffer.get(Timestamp::from_nanos(500_000_000));
         assert!(
             matches!(
                 &result,
                 Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(requested, start, end)
+                    TransformError::TimestampOutOfRange { requested, start, end }
                 )) if *requested == 0.5 && *start == 1.0 && *end == 2.0
             ),
             "expected TimestampOutOfRange with the covered range, got {result:?}"
@@ -85,7 +85,7 @@ mod buffer_tests {
     fn get_on_empty_buffer_reports_no_transforms() {
         let buffer = Buffer::<Timestamp>::new();
 
-        let result = buffer.get(&Timestamp::from_nanos(1_000_000_000));
+        let result = buffer.get(Timestamp::from_nanos(1_000_000_000));
         assert!(
             matches!(result, Err(BufferError::NoTransformAvailable)),
             "expected NoTransformAvailable on an empty buffer, got {result:?}"
@@ -96,17 +96,18 @@ mod buffer_tests {
     fn insert_and_get_static() {
         let mut buffer = Buffer::new();
 
-        let t = Timestamp::zero();
+        let t = Timestamp::STATIC;
         let transform = create_transform(t);
 
         buffer.insert(transform.clone()).unwrap();
 
-        let mut r = buffer.get(&(transform.timestamp + Duration::from_secs(1)).unwrap());
+        // A static buffer serves any requested instant.
+        let mut r = buffer.get(Timestamp::from_nanos(1_000_000_000));
 
         assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
 
-        r = buffer.get(&(transform.timestamp + Duration::from_secs(2)).unwrap());
+        r = buffer.get(Timestamp::zero());
         assert!(r.is_ok(), "expected transform, got {r:?}");
         assert_eq!(r.unwrap(), transform);
     }
@@ -162,7 +163,7 @@ mod buffer_tests {
     fn empty_buffer() {
         let buffer = Buffer::new();
 
-        assert!(buffer.get(&Timestamp::from_nanos(1000)).is_err());
+        assert!(buffer.get(Timestamp::from_nanos(1000)).is_err());
 
         let (before, after) = buffer.get_nearest(&Timestamp::from_nanos(1000));
         assert!(before.is_none());
@@ -180,13 +181,13 @@ mod buffer_tests {
         buffer.insert(p1.clone()).unwrap();
         buffer.insert(p2.clone()).unwrap();
 
-        assert!(buffer.get(&p1.timestamp).is_ok());
-        assert!(buffer.get(&p2.timestamp).is_ok());
+        assert!(buffer.get(p1.timestamp).is_ok());
+        assert!(buffer.get(p2.timestamp).is_ok());
 
         buffer.delete_before(Timestamp::from_nanos(2_000_000_000));
 
-        assert!(buffer.get(&p1.timestamp).is_err());
-        assert!(buffer.get(&p2.timestamp).is_ok());
+        assert!(buffer.get(p1.timestamp).is_err());
+        assert!(buffer.get(p2.timestamp).is_ok());
     }
 
     #[test]
@@ -202,9 +203,9 @@ mod buffer_tests {
         buffer.insert(p2.clone()).unwrap();
         buffer.insert(p3.clone()).unwrap();
 
-        let get_1 = buffer.get(&(t - Duration::from_secs(2)).unwrap());
-        let get_2 = buffer.get(&(t - Duration::from_secs(1)).unwrap());
-        let get_3 = buffer.get(&t);
+        let get_1 = buffer.get((t - Duration::from_secs(2)).unwrap());
+        let get_2 = buffer.get((t - Duration::from_secs(1)).unwrap());
+        let get_3 = buffer.get(t);
 
         assert!(get_1.is_err());
         // Before the earliest stored sample: nothing to interpolate from.
@@ -240,7 +241,7 @@ mod buffer_tests {
     fn insert_rejects_static_dynamic_mixing() {
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 
-        let static_tf = create_transform(Timestamp::zero());
+        let static_tf = create_transform(Timestamp::STATIC);
         let dynamic_tf = create_transform(t_dynamic);
 
         // Static first, then dynamic.
@@ -253,7 +254,7 @@ mod buffer_tests {
         ));
 
         // The static transform is still served after the rejected insert.
-        assert_eq!(buffer.get(&t_dynamic).unwrap(), static_tf);
+        assert_eq!(buffer.get(t_dynamic).unwrap(), static_tf);
 
         // Dynamic first, then static.
         let mut buffer = Buffer::new();
@@ -265,7 +266,7 @@ mod buffer_tests {
         ));
 
         // The dynamic transform is still served after the rejected insert.
-        assert_eq!(buffer.get(&t_dynamic).unwrap(), dynamic_tf);
+        assert_eq!(buffer.get(t_dynamic).unwrap(), dynamic_tf);
     }
 
     #[test]
@@ -281,10 +282,10 @@ mod buffer_tests {
         // t1 is more than max_age older than the latest inserted timestamp,
         // so it must have been expired by the second insert.
         assert!(
-            buffer.get(&t1).is_err(),
+            buffer.get(t1).is_err(),
             "entry older than max_age must expire on insert"
         );
-        assert!(buffer.get(&t2).is_ok());
+        assert!(buffer.get(t2).is_ok());
     }
 
     #[test]
@@ -298,17 +299,17 @@ mod buffer_tests {
         buffer.insert(create_transform(t2)).unwrap();
 
         assert!(
-            buffer.get(&t1).is_ok(),
+            buffer.get(t1).is_ok(),
             "Buffer::new must not expire entries"
         );
-        assert!(buffer.get(&t2).is_ok());
+        assert!(buffer.get(t2).is_ok());
     }
 
     #[test]
     fn delete_before_preserves_static_transforms() {
         let mut buffer: Buffer = Buffer::new();
 
-        let static_tf = create_transform(Timestamp::zero());
+        let static_tf = create_transform(Timestamp::STATIC);
         buffer.insert(static_tf.clone()).unwrap();
 
         // Manual cleanup with any cutoff must not destroy a static transform:
@@ -316,7 +317,7 @@ mod buffer_tests {
         buffer.delete_before(Timestamp::from_nanos(5_000_000_000));
 
         assert_eq!(
-            buffer.get(&Timestamp::from_nanos(9_000_000_000)).unwrap(),
+            buffer.get(Timestamp::from_nanos(9_000_000_000)).unwrap(),
             static_tf,
             "static transforms must survive manual cleanup"
         );
@@ -378,12 +379,12 @@ mod buffer_tests {
         let mut buffer = Buffer::new();
 
         // Static calibration transform for map -> base.
-        let original = create_transform(Timestamp::zero());
+        let original = create_transform(Timestamp::STATIC);
         buffer.insert(original.clone()).unwrap();
 
         // Same parent, different child (a frame-naming bug): without child
         // pinning this key collision silently overwrote the stored data.
-        let mut other = create_transform(Timestamp::zero());
+        let mut other = create_transform(Timestamp::STATIC);
         other.child = "lidar".into();
         other.translation = Vector3::new(9.0, 9.0, 9.0);
         let result = buffer.insert(other);
@@ -394,7 +395,7 @@ mod buffer_tests {
 
         // The original static transform must be untouched and retrievable.
         assert_eq!(
-            buffer.get(&Timestamp::from_nanos(1_000_000_000)).unwrap(),
+            buffer.get(Timestamp::from_nanos(1_000_000_000)).unwrap(),
             original,
             "the pinned child's static transform must survive the rejected insert"
         );
@@ -421,7 +422,7 @@ mod buffer_tests {
         ));
 
         // Interpolation over the pinned child's samples must keep working.
-        let result = buffer.get(&t2).unwrap();
+        let result = buffer.get(t2).unwrap();
         assert_eq!(result.child, "base");
         assert_eq!(result.timestamp, t2);
     }
@@ -439,9 +440,93 @@ mod buffer_tests {
         buffer.insert(create_transform(t_old)).unwrap();
 
         assert!(
-            buffer.get(&t_old).is_err(),
+            buffer.get(t_old).is_err(),
             "expiry must be measured against the latest timestamp, not the last insert"
         );
-        assert!(buffer.get(&t_new).is_ok());
+        assert!(buffer.get(t_new).is_ok());
+    }
+
+    /// A transform translated by `x`, distinguishable from `create_transform`.
+    fn transform_with_x(
+        t: Timestamp,
+        x: f64,
+    ) -> Transform {
+        Transform {
+            translation: Vector3::new(x, 0.0, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: t,
+            parent: "a".into(),
+            child: "b".into(),
+        }
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn duplicate_timestamp_insert_is_a_last_write_wins_upsert() {
+        let t = Timestamp::from_nanos(5_000_000_000);
+        let mut buffer = Buffer::new();
+        buffer.insert(transform_with_x(t, 1.0)).unwrap();
+        // Same timestamp, different payload: Ok, silently replaces.
+        buffer.insert(transform_with_x(t, 2.0)).unwrap();
+        assert_eq!(buffer.get(t).unwrap().translation.x, 2.0);
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn zero_max_age_out_of_order_insert_is_ok_but_immediately_evicted() {
+        // Inserting an OLDER sample after a newer one with max_age == ZERO
+        // returns Ok, but the same insert call evicts it: the expiry
+        // threshold stays pinned to the latest timestamp seen.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut buffer = Buffer::with_max_age(Duration::ZERO);
+        buffer.insert(transform_with_x(t2, 2.0)).unwrap();
+        buffer.insert(transform_with_x(t1, 1.0)).unwrap();
+        assert_eq!(buffer.get(t2).unwrap().translation.x, 2.0);
+        assert!(buffer.get(t1).is_err(), "older insert must be evicted");
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn eviction_boundary_retains_a_sample_exactly_max_age_old() {
+        let max_age = Duration::from_secs(10);
+        let t0 = Timestamp::from_nanos(100_000_000_000);
+        let t0_plus_max_age = Timestamp::from_nanos(110_000_000_000);
+
+        let mut buffer = Buffer::with_max_age(max_age);
+        buffer.insert(transform_with_x(t0, 1.0)).unwrap();
+        buffer
+            .insert(transform_with_x(t0_plus_max_age, 2.0))
+            .unwrap();
+
+        // threshold = (t0 + max_age) - max_age = t0; eviction keeps
+        // k >= threshold, so the sample exactly max_age old survives.
+        assert_eq!(buffer.get(t0).unwrap().translation.x, 1.0);
+    }
+
+    #[test]
+    // The compared values are exactly representable; the assertion is on
+    // reported payloads, not on float arithmetic.
+    #[allow(clippy::float_cmp)]
+    fn eviction_boundary_evicts_one_nanosecond_past_max_age() {
+        let max_age = Duration::from_secs(10);
+        let t0 = Timestamp::from_nanos(100_000_000_000);
+        let t_past = Timestamp::from_nanos(110_000_000_001);
+
+        let mut buffer = Buffer::with_max_age(max_age);
+        buffer.insert(transform_with_x(t0, 1.0)).unwrap();
+        buffer.insert(transform_with_x(t_past, 2.0)).unwrap();
+
+        assert!(
+            buffer.get(t0).is_err(),
+            "sample older than max_age must be evicted"
+        );
+        assert_eq!(buffer.get(t_past).unwrap().translation.x, 2.0);
     }
 }

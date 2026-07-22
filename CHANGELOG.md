@@ -5,6 +5,123 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc.1] - Unreleased
+
+Release-candidate cut driven by a full release-readiness audit: the last
+pre-stable API corrections, a performance fix on the embedded hot path,
+and the migration/documentation work for stable. A migration guide from
+1.x now lives in [MIGRATION.md](MIGRATION.md). This cut deliberately
+breaks the beta-series API freeze — with near-zero beta adoption, the
+cost of these one-way-door fixes is as close to zero as it will ever be.
+
+### Changed
+
+- **Breaking:** the static-transform sentinel moves from `t=0` to
+  `Timestamp::STATIC` (`u128::MAX` nanoseconds). Zero was the first
+  reading of exactly the boot-relative clocks the embedded story courts,
+  collided with `UNIX_EPOCH`, and made zero-initialized wire messages
+  silently static; the new sentinel is a value no clock produces
+  organically, so every real instant — including `t=0` — is ordinary
+  dynamic data. `Transform::static_between` builds static transforms
+  without spelling the sentinel out. `SystemTime` keeps `UNIX_EPOCH` as
+  its sentinel (no wall-clock data predates it).
+- **Breaking:** every error payload field is named: `TimestampMismatch
+  { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
+  `Disconnected { target_frame, source_frame }`, and `NotFoundAt
+  { target_frame, source_frame, frame, source }` — the lookup-argument
+  fields carry the `_frame` suffix because a field literally named
+  `source` belongs to the error trait's source-chaining convention,
+  which `NotFoundAt`'s boxed `BufferError` keeps.
+- **Breaking:** every public type has a single canonical path
+  (`geometry::Point`, `core::Buffer`, `time::Timestamp`, ...): the leaf
+  modules are private, matching the error-module pattern. Error types
+  live at `errors::*`.
+- **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
+  (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
+  associated const on `Transform<T>` that demanded a turbofish.
+- `get_transform_at` composes its two legs through a private
+  time-agnostic path instead of stamping them with the static sentinel
+  to bypass `Mul`'s timestamp check — the sentinel has exactly one
+  meaning again.
+
+- **Breaking:** `TransformError::TransformTreeEmpty` is removed. It was
+  provably unconstructible from any public path; removing an enum variant
+  after stable would be a breaking change, so it goes now, following the
+  precedent of `NotFound` and `MaxAgeInvalid`.
+- **Breaking:** `IncompatibleFrames` and `SameFrameMultiplication` are
+  struct variants carrying frame context —
+  `IncompatibleFrames { expected, found }` and
+  `SameFrameMultiplication { frame }` — completing the diagnosis model
+  introduced in beta.3, where every frame-related error names its frames.
+- **Breaking:** `Buffer::get` takes the timestamp by value, matching every
+  sibling API (`TimePoint` is `Copy`).
+- **Breaking:** `Timestamp`'s inner nanosecond field is private;
+  `from_nanos`/`as_nanos` are the API. The serde wire format is unchanged.
+- **Breaking:** `Timestamp::as_seconds_unchecked` is renamed
+  `as_seconds_lossy`, matching the `TimePoint` vocabulary — the operation
+  is lossy, not unsafe.
+- `get_transform`'s parameters are renamed `target`/`source` (previously
+  `from`/`to`; positional call sites are unaffected), aligning with
+  `get_transform_at` and tf2's `lookupTransform`, and its docs gain an
+  explicit direction-convention section — the old names read backwards and
+  silently produced the inverse for plain-English callers.
+- `with_max_age` eviction pops expired entries from the front of the
+  ordered map — O(log n + evicted) per insert instead of a full-buffer
+  scan (previously ~144 µs per insert at 60k live entries, the README
+  Quick Start configuration at 1 kHz). A 60k-entry steady-state benchmark
+  guards the regression.
+- `TimePoint::checked_add` stays in the trait by decision: it completes
+  the time algebra for downstream generic code, although the crate itself
+  only calls `checked_sub`.
+
+### Added
+
+- `Timestamp::try_now()`: panic-free counterpart of `now()`, returning
+  `TimeError::DurationUnderflow` on a pre-epoch system clock.
+- Behavioral pin tests for commitments that freeze at stable: duplicate-
+  timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
+  semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
+  MAX-valued static sentinels, interior-point and near-antipodal slerp,
+  `Point` error paths, mid-tree `remove_frame`, exact `NotFoundAt`
+  payloads, and a postcard golden-bytes test freezing the serde wire
+  format for non-self-describing formats (struct field order is part of
+  the wire contract).
+
+### Fixed
+
+- Docs: duplicate-timestamp inserts are documented as last-write-wins
+  upserts; `remove_frame` documents that it strands descendants of a
+  mid-tree frame; interpolation is documented to span interior gaps of any
+  size (bounding freshness is the caller's job); error `Display` strings
+  are documented as not a stability surface; the O(log n) lookup claim is
+  qualified (per-frame; linear in chain depth; O(frames) failure
+  diagnosis); `TimePoint::static_timestamp` has contract language
+  including a boot-relative-clock warning; the `approx` 0.5 public-API
+  commitment is recorded; allocation-failure behavior and the
+  deterministic-hasher trade-off are stated for `no_std`.
+- Docs: the README no longer claims `Registry::new()` is shorthand for
+  `Registry::<Timestamp>::new()` — default type parameters do not apply in
+  expression position, and inference can land on any `TimePoint`.
+- Docs: the vague serde `u128` caveat is replaced with the verified
+  format-support matrix (`serde_json`/`postcard`/`bincode` fully support
+  it; `rmp-serde` emits a 16-byte binary blob foreign consumers won't read
+  as an integer).
+- Docs: the serde feature-gating is now stated on every serde-capable
+  type (rustdoc cannot banner derive-generated impls — verified against
+  the docs.rs configuration, which the gate now builds; the crate also
+  opts into `doc(auto_cfg)` for future rustdoc support); the
+  `no_std_full` example imports `core::time::Duration` in its `no_std`
+  branch; `Buffer` docs say B-tree instead of "binary tree" and the
+  crate docs no longer call the public `Buffer` type "internal".
+- CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
+  "never-produced". That was wrong — it was the primary 1.x lookup-miss
+  error and beta.1/beta.2 still produced it; the entry below is corrected
+  accordingly.
+- AGENTS.md: the normative lookup invariant referenced the removed
+  `NotFound` variant; it now names `UnknownFrame` / `Disconnected` /
+  `NotFoundAt`. The release checklist loses a garbled fragment and gains
+  the consolidation, semver-check, README-pin, and GitHub-release steps.
+
 ## [2.0.0-beta.4] - 2026-07-18
 
 ### Fixed
@@ -26,8 +143,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that frame and carrying the `BufferError` as the error source), and
   `TransformError::Disconnected` when both frames exist but no chain
   connects them — mirroring tf2's LookupException / ExtrapolationException /
-  ConnectivityException. The never-produced `TransformError::NotFound`
-  variant is removed.
+  ConnectivityException. The catch-all `TransformError::NotFound` variant —
+  the primary lookup-miss error since 1.0 — is removed in favor of the
+  diagnosed variants. (This entry originally called it "never-produced",
+  which was wrong; corrected in beta.5.)
 - A miss on a non-empty buffer reports `TransformError::TimestampOutOfRange`
   with the requested time and the covered range (via
   `BufferError::TransformError`), distinguishing a lookup that is merely too
@@ -160,6 +279,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `get_transform_at` ("time travel"): query source and target frames at
   different times through a fixed frame.
 
+## [1.1.1] - 2026-01-22
+
+- Republish of 1.1.0 with no code changes. Exists on crates.io only; there
+  is no corresponding git tag.
+
 ## [1.1.0] - 2026-01-22
 
 - Fixed static (`t=0`) and dynamic transforms not coexisting in the same
@@ -172,7 +296,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.2] - 2025-12-02
 
-- Dependency updates.
+- Dependency updates. Tagged in git but never published to crates.io.
 
 ## [1.0.1] - 2025-07-28
 
@@ -183,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.0.0-rc.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-rc.1
 [2.0.0-beta.4]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2
@@ -192,6 +317,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.1.0...v1.2.0
+[1.1.1]: https://crates.io/crates/transforms/1.1.1
 [1.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.1...v1.0.2

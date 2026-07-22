@@ -50,6 +50,9 @@ mod math {
 }
 
 /// A quaternion representing a rotation in 3D space.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion {
@@ -144,6 +147,11 @@ impl Quaternion {
     }
 
     /// Normalizes the quaternion to unit length.
+    ///
+    /// Intended for rotation-scale inputs: components with magnitudes
+    /// beyond roughly `1e150` overflow the intermediate norm to infinity
+    /// (reported as `NonFinite`), and below roughly `1e-8` the norm falls
+    /// under the zero threshold (reported as `ZeroLengthNormalization`).
     ///
     /// # Errors
     ///
@@ -392,6 +400,13 @@ impl Mul for Quaternion {
 impl Div for Quaternion {
     type Output = Result<Quaternion, QuaternionError>;
 
+    /// Divides by `other` via multiplication with its inverse.
+    ///
+    /// Returns `QuaternionError::DivisionByZero` if `other`'s squared norm
+    /// is below `f64::EPSILON`: divisors with a norm under roughly `1.5e-8`
+    /// are rejected as numerically zero — a deliberately stricter threshold
+    /// than [`Quaternion::normalize`]'s, since dividing by a near-zero
+    /// quaternion amplifies error quadratically.
     #[inline]
     fn div(
         self,
