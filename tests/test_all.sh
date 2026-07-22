@@ -25,6 +25,8 @@ cargo clippy --all-targets --no-default-features -- -D warnings
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+# The docs.rs configuration (all features, docsrs cfg) must build too.
+RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features
 cargo run --example no_std_minimal --no-default-features
 cargo run --example no_std_full --no-default-features
 cargo run --example no_std_advanced --no-default-features

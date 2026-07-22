@@ -231,7 +231,8 @@
 )]
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 
 extern crate alloc;
 pub mod core;

@@ -76,11 +76,13 @@ and the migration/documentation work for stable. A migration guide from
   format-support matrix (`serde_json`/`postcard`/`bincode` fully support
   it; `rmp-serde` emits a 16-byte binary blob foreign consumers won't read
   as an integer).
-- Docs: feature-gated serde derives now render with feature banners on
-  docs.rs (`doc_auto_cfg`); the `no_std_full` example imports
-  `core::time::Duration` in its `no_std` branch; `Buffer` docs say B-tree
-  instead of "binary tree" and the crate docs no longer call the public
-  `Buffer` type "internal".
+- Docs: the serde feature-gating is now stated on every serde-capable
+  type (rustdoc cannot banner derive-generated impls — verified against
+  the docs.rs configuration, which the gate now builds; the crate also
+  opts into `doc(auto_cfg)` for future rustdoc support); the
+  `no_std_full` example imports `core::time::Duration` in its `no_std`
+  branch; `Buffer` docs say B-tree instead of "binary tree" and the
+  crate docs no longer call the public `Buffer` type "internal".
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected

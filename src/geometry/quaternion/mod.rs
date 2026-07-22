@@ -50,6 +50,9 @@ mod math {
 }
 
 /// A quaternion representing a rotation in 3D space.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion {

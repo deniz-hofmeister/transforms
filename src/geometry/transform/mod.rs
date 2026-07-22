@@ -33,6 +33,9 @@ mod traits;
 /// assert_eq!(identity.translation, Vector3::zero());
 /// assert_eq!(identity.rotation, Quaternion::identity());
 /// ```
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transform<T = Timestamp>

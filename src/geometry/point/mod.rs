@@ -35,6 +35,9 @@ use approx::{AbsDiffEq, RelativeEq};
 /// assert_eq!(point.position.x, 1.0);
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point<T = Timestamp>
