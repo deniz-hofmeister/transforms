@@ -22,7 +22,9 @@ include = [
 
 [features]
 default = ["std"]
-std = []
+# `serde?/std` unlocks serde's SystemTime impls whenever both features are
+# on, so `Transform<SystemTime>` serializes for downstream std users.
+std = ["serde?/std"]
 serde = ["dep:serde"]
 
 [dependencies]
