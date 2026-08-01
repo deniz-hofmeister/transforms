@@ -44,12 +44,9 @@ mod timestamp_tests {
 
     #[test]
     #[cfg(feature = "std")]
-    fn now_returns_a_dynamic_wall_clock_time() {
-        use crate::time::TimePoint;
-
+    fn now_returns_a_positive_wall_clock_time() {
         let now = Timestamp::now();
         assert!(now.t > 0);
-        assert!(!now.is_static());
     }
 
     #[test]

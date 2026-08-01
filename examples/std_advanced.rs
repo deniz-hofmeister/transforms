@@ -16,7 +16,7 @@ fn main() {
     use transforms::{
         Registry,
         geometry::{Quaternion, Transform, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -31,7 +31,7 @@ fn main() {
         .add_transform(Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t1,
+            timestamp: Stamp::At(t1),
             parent: "map".into(),
             child: "conveyor".into(),
         })
@@ -42,7 +42,7 @@ fn main() {
         .add_transform(Transform {
             translation: Vector3::new(3.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t2,
+            timestamp: Stamp::At(t2),
             parent: "map".into(),
             child: "conveyor".into(),
         })
@@ -54,7 +54,7 @@ fn main() {
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 0.5, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: t,
+                timestamp: Stamp::At(t),
                 parent: "conveyor".into(),
                 child: "object".into(),
             })
@@ -67,7 +67,7 @@ fn main() {
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 2.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: t,
+                timestamp: Stamp::At(t),
                 parent: "map".into(),
                 child: "camera".into(),
             })

@@ -19,7 +19,7 @@ use crate::{
 /// use transforms::{
 ///     Localized,
 ///     geometry::{Point, Quaternion, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// let point = Point {
@@ -66,8 +66,9 @@ where
 ///
 /// Returns `TransformError` if:
 /// - The frames are incompatible (transform's child frame doesn't match the object's frame)
-/// - The timestamps don't match — except for static transforms (carrying the
-///   static timestamp value), which are valid for all time
+/// - The timestamps don't match — except for static transforms (carrying
+///   `Stamp::Static`, e.g. built with `Transform::static_between`), which
+///   are valid for all time
 /// - Other transform-specific errors occur
 ///
 /// # Examples
@@ -75,7 +76,7 @@ where
 /// ```
 /// use transforms::{
 ///     geometry::{Point, Quaternion, Transform, Transformable, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// let mut point = Point {
@@ -88,7 +89,7 @@ where
 /// let transform = Transform {
 ///     translation: Vector3::new(0.0, 1.0, 0.0),
 ///     rotation: Quaternion::identity(),
-///     timestamp: point.timestamp,
+///     timestamp: Stamp::At(point.timestamp),
 ///     parent: "base".into(),
 ///     child: "camera".into(),
 /// };
@@ -109,7 +110,7 @@ where
     /// This method returns a `TransformError` if:
     /// - The frames of the object and the transform are incompatible.
     /// - The timestamps of the object and the transform do not match; static
-    ///   transforms are exempt, being valid for all time.
+    ///   transforms (`Stamp::Static`) are exempt, being valid for all time.
     fn transform(
         &mut self,
         transform: &Transform<T>,

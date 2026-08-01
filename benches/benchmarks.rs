@@ -4,10 +4,10 @@ use std::{cell::Cell, hint::black_box};
 use transforms::{
     Registry,
     geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
 };
 
-/// Base timestamp for dynamic samples; `t = 0` is the static sentinel.
+/// Base timestamp for dynamic samples.
 const BASE_NANOS: u128 = 1_000_000_000;
 /// Nanoseconds between consecutive samples in the prepared registries.
 const SAMPLE_INTERVAL_NANOS: u128 = 1_000_000;
@@ -20,7 +20,7 @@ fn transform_at(
     Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: Timestamp::from_nanos(nanos),
+        timestamp: Stamp::At(Timestamp::from_nanos(nanos)),
         parent: parent.into(),
         child: child.into(),
     }
@@ -95,6 +95,31 @@ fn benchmark_add_transform(c: &mut Criterion) {
         );
     });
 
+    // 100k resident samples: pins the eviction fix at depth. The old
+    // full-map retain scan made this insert O(resident samples), ~1800x
+    // slower than the empty-registry case.
+    group.bench_function("add_transform_prewarmed_100k", |b| {
+        let mut registry = Registry::with_max_age(Duration::from_secs(100));
+        let mut nanos = BASE_NANOS;
+        for _ in 0..100_000 {
+            registry
+                .add_transform(transform_at("a", "b", nanos))
+                .unwrap();
+            nanos += SAMPLE_INTERVAL_NANOS;
+        }
+
+        let next = Cell::new(nanos);
+        b.iter_batched(
+            || {
+                let nanos = next.get();
+                next.set(nanos + SAMPLE_INTERVAL_NANOS);
+                transform_at("a", "b", nanos)
+            },
+            |transform| registry.add_transform(black_box(transform)).unwrap(),
+            BatchSize::SmallInput,
+        );
+    });
+
     group.finish();
 }
 
@@ -125,6 +150,124 @@ fn benchmark_get_transform_interpolated(c: &mut Criterion) {
         );
 
         b.iter(|| black_box(registry.get_transform("a", "b", query)).unwrap());
+    });
+
+    group.finish();
+}
+
+/// A realistic small robot tree mixing static mounts and dynamic edges:
+/// map -> odom -> base_link -> {laser, imu, camera -> camera_optical}.
+/// The three dynamic edges hold `samples` samples each; the three mounts
+/// are static. Deep synthetic chains overstate real-world lookup costs;
+/// this is the shape most robots actually query.
+fn robot_tree(samples: u128) -> Registry {
+    let mut registry = Registry::new();
+
+    registry
+        .add_transform(Transform::static_between(
+            "base_link",
+            "laser",
+            Vector3::new(0.2, 0.0, 0.1),
+            Quaternion::identity(),
+        ))
+        .unwrap();
+    registry
+        .add_transform(Transform::static_between(
+            "base_link",
+            "imu",
+            Vector3::new(0.0, 0.0, 0.05),
+            Quaternion::identity(),
+        ))
+        .unwrap();
+    registry
+        .add_transform(Transform::static_between(
+            "camera",
+            "camera_optical",
+            Vector3::zero(),
+            Quaternion::identity(),
+        ))
+        .unwrap();
+
+    let mut nanos = BASE_NANOS;
+    for _ in 0..samples {
+        registry
+            .add_transform(transform_at("map", "odom", nanos))
+            .unwrap();
+        registry
+            .add_transform(transform_at("odom", "base_link", nanos))
+            .unwrap();
+        registry
+            .add_transform(transform_at("base_link", "camera", nanos))
+            .unwrap();
+        nanos += SAMPLE_INTERVAL_NANOS;
+    }
+    registry
+}
+
+/// Interpolating lookups on the realistic robot tree: a full chain from the
+/// map into a sensor's optical frame, and a leaf-to-leaf query across the
+/// common parent.
+fn benchmark_robot_tree(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    let registry = robot_tree(1000);
+    let query =
+        Timestamp::from_nanos(BASE_NANOS + 500 * SAMPLE_INTERVAL_NANOS + SAMPLE_INTERVAL_NANOS / 2);
+
+    group.bench_function("robot_tree_map_to_camera_optical", |b| {
+        b.iter(|| black_box(registry.get_transform("map", "camera_optical", query)).unwrap());
+    });
+    group.bench_function("robot_tree_leaf_to_leaf", |b| {
+        b.iter(|| black_box(registry.get_transform("laser", "camera_optical", query)).unwrap());
+    });
+
+    group.finish();
+}
+
+/// A 3-hop chain of dynamic edges, each holding 1k samples, queried between
+/// samples so every hop interpolates (slerp plus two String clones per hop).
+fn benchmark_dynamic_chain_interpolated(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    group.bench_function("dynamic_chain_3hop_interpolated_1k", |b| {
+        let mut registry = Registry::new();
+        let mut nanos = BASE_NANOS;
+        for _ in 0..1000 {
+            registry
+                .add_transform(transform_at("a", "b", nanos))
+                .unwrap();
+            registry
+                .add_transform(transform_at("b", "c", nanos))
+                .unwrap();
+            registry
+                .add_transform(transform_at("c", "d", nanos))
+                .unwrap();
+            nanos += SAMPLE_INTERVAL_NANOS;
+        }
+        let query = Timestamp::from_nanos(
+            BASE_NANOS + 500 * SAMPLE_INTERVAL_NANOS + SAMPLE_INTERVAL_NANOS / 2,
+        );
+
+        b.iter(|| black_box(registry.get_transform("a", "d", query)).unwrap());
+    });
+
+    group.finish();
+}
+
+/// The time-travel lookup: two legs resolved at different times through the
+/// fixed frame, composed via the time-agnostic private path.
+fn benchmark_get_transform_at(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    group.bench_function("get_transform_at_1k", |b| {
+        let (registry, next) = prewarmed_registry(1000);
+        let t_new = Timestamp::from_nanos(next - SAMPLE_INTERVAL_NANOS);
+        let t_old = Timestamp::from_nanos(BASE_NANOS);
+
+        b.iter(|| black_box(registry.get_transform_at("b", t_new, "b", t_old, "a")).unwrap());
     });
 
     group.finish();
@@ -220,6 +363,9 @@ criterion_group!(
     benchmark_add_transform,
     benchmark_get_transform,
     benchmark_get_transform_interpolated,
+    benchmark_robot_tree,
+    benchmark_dynamic_chain_interpolated,
+    benchmark_get_transform_at,
     benchmark_tree_climb,
     benchmark_tree_climb_common_parent_elim,
     benchmark_not_found_worst_case

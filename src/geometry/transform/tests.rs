@@ -3,7 +3,7 @@ mod transform_tests {
     use crate::{
         errors::TransformError,
         geometry::{Quaternion, Transform, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     #[test]
@@ -17,7 +17,7 @@ mod transform_tests {
         let _ = Transform {
             translation,
             rotation,
-            timestamp,
+            timestamp: Stamp::At(timestamp),
             parent,
             child,
         };
@@ -30,7 +30,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -38,7 +38,7 @@ mod transform_tests {
         let t_b_c = Transform {
             translation: Vector3::new(0.0, 2.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
             parent: "b".into(),
             child: "c".into(),
         };
@@ -58,7 +58,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::zero(),
             rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-            timestamp: t,
+            timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -66,7 +66,7 @@ mod transform_tests {
         let t_b_c = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
             parent: "b".into(),
             child: "c".into(),
         };
@@ -78,11 +78,40 @@ mod transform_tests {
     }
 
     #[test]
+    fn interpolate_rejects_static_endpoints() {
+        // A static transform is valid for all time — it is never an
+        // interpolation endpoint. The rejection is explicit and fires for
+        // either operand, before any other check.
+        let dynamic = Transform {
+            translation: Vector3::zero(),
+            rotation: Quaternion::identity(),
+            timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
+            parent: "a".into(),
+            child: "b".into(),
+        };
+        let fixed = Transform::static_between(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+        );
+        let query = Timestamp::from_nanos(1_000_000_000);
+
+        for (from, to) in [(&fixed, &dynamic), (&dynamic, &fixed), (&fixed, &fixed)] {
+            let result = Transform::interpolate(from, to, query);
+            assert!(
+                matches!(result, Err(TransformError::StaticInterpolation)),
+                "a static endpoint must be rejected, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
     fn inverse() {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 2.0, 3.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Stamp::At(Timestamp::zero()),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -99,7 +128,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 2.0, 3.0),
             rotation: Quaternion::new(0.707, 0.707, 0.0, 0.0).normalize().unwrap(),
-            timestamp: Timestamp::zero(),
+            timestamp: Stamp::At(Timestamp::zero()),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -119,7 +148,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::STATIC,
+            timestamp: Stamp::Static,
             parent: "a".into(),
             child: "b".into(),
         };
@@ -129,7 +158,7 @@ mod transform_tests {
         let t_b_c = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t_now,
+            timestamp: Stamp::At(t_now),
             parent: "b".into(),
             child: "c".into(),
         };
@@ -137,7 +166,7 @@ mod transform_tests {
         let t_a_c_expected = Transform {
             translation: Vector3::new(1.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t_now,
+            timestamp: Stamp::At(t_now),
             parent: "a".into(),
             child: "c".into(),
         };
@@ -157,7 +186,7 @@ mod transform_tests {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t_now,
+            timestamp: Stamp::At(t_now),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -165,7 +194,7 @@ mod transform_tests {
         let t_b_c = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::STATIC,
+            timestamp: Stamp::Static,
             parent: "b".into(),
             child: "c".into(),
         };
@@ -173,7 +202,7 @@ mod transform_tests {
         let t_a_c_expected = Transform {
             translation: Vector3::new(1.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t_now,
+            timestamp: Stamp::At(t_now),
             parent: "a".into(),
             child: "c".into(),
         };
@@ -194,7 +223,7 @@ mod transform_tests {
         Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
             parent: parent.into(),
             child: child.into(),
         }

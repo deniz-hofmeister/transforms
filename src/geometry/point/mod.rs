@@ -4,7 +4,7 @@ use crate::{
     Localized, Transform, Transformable,
     errors::TransformError,
     geometry::{Quaternion, Vector3},
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
 
 use alloc::string::String;
@@ -22,7 +22,7 @@ use approx::{AbsDiffEq, RelativeEq};
 /// ```
 /// use transforms::{
 ///     geometry::{Point, Quaternion, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// let point = Point {
@@ -64,7 +64,7 @@ where
 /// use transforms::{
 ///     Transform, Transformable,
 ///     geometry::{Point, Quaternion, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// let mut point = Point {
@@ -77,7 +77,7 @@ where
 /// let transform = Transform {
 ///     translation: Vector3::new(2.0, 0.0, 0.0),
 ///     rotation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
+///     timestamp: Stamp::At(Timestamp::zero()),
 ///     parent: "a".into(),
 ///     child: "b".into(),
 /// };
@@ -97,8 +97,8 @@ where
     ///
     /// Returns a [`TransformError`] if the point's frame does not match the transform's child
     /// frame, or if the timestamps do not match. Static transforms (carrying
-    /// the static timestamp value) are valid for all time and apply to a
-    /// point of any timestamp.
+    /// `Stamp::Static`, e.g. built with `Transform::static_between`) are
+    /// valid for all time and apply to a point of any timestamp.
     fn transform(
         &mut self,
         transform: &Transform<T>,
@@ -109,11 +109,17 @@ where
                 found: self.frame.clone(),
             });
         }
-        if self.timestamp != transform.timestamp && !transform.timestamp.is_static() {
-            return Err(TransformError::TimestampMismatch {
-                lhs: self.timestamp.as_seconds_lossy(),
-                rhs: transform.timestamp.as_seconds_lossy(),
-            });
+        match transform.timestamp {
+            // A static transform is valid for all time and applies to a
+            // point of any timestamp.
+            Stamp::Static => {}
+            Stamp::At(t) if t == self.timestamp => {}
+            Stamp::At(t) => {
+                return Err(TransformError::TimestampMismatch {
+                    lhs: self.timestamp.as_seconds_lossy(),
+                    rhs: t.as_seconds_lossy(),
+                });
+            }
         }
         self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
         self.orientation = transform.rotation * self.orientation;
@@ -134,7 +140,7 @@ where
 /// use transforms::{
 ///     Registry, Transformable,
 ///     geometry::{Point, Quaternion, Transform, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// # #[cfg(feature = "std")]
@@ -150,7 +156,7 @@ where
 ///     .add_transform(Transform {
 ///         translation: Vector3::new(1.0, 0.0, 0.0),
 ///         rotation: Quaternion::identity(),
-///         timestamp: t,
+///         timestamp: Stamp::At(t),
 ///         parent: "map".into(),
 ///         child: "camera".into(),
 ///     })

@@ -10,7 +10,7 @@ fn main() {
     use transforms::{
         Registry, Transform, Transformable,
         geometry::{Point, Quaternion, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -35,7 +35,7 @@ fn main() {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
         // 1 second ago
-        timestamp: (time - Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((time - Duration::from_secs(1)).unwrap()),
         parent: "base".into(),
         child: "camera".into(),
     };
@@ -47,7 +47,7 @@ fn main() {
         translation: Vector3::new(0.0, 3.0, 0.0),
         rotation: Quaternion::identity(),
         // 1 second in the future
-        timestamp: (time + Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((time + Duration::from_secs(1)).unwrap()),
         parent: "base".into(),
         child: "camera".into(),
     };
@@ -56,7 +56,7 @@ fn main() {
     let base_to_map = Transform {
         translation: Vector3::new(2.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: time,
+        timestamp: Stamp::At(time),
         parent: "map".into(),
         child: "base".into(),
     };

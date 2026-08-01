@@ -4,9 +4,9 @@
 //!
 //! ## Features
 //!
-//! - **Static Transforms**: The registry can handle static transforms via the static
-//!   timestamp sentinel (`Timestamp::STATIC` by default); build them with
-//!   `Transform::static_between`.
+//! - **Static Transforms**: The registry can handle static transforms —
+//!   transforms carrying `Stamp::Static`, valid for all time; build them
+//!   with `Transform::static_between`.
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
@@ -36,7 +36,7 @@
 //! use transforms::{
 //!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -57,7 +57,7 @@
 //! let t_a_b_1 = Transform {
 //!     translation: Vector3::new(1.0, 0.0, 0.0),
 //!     rotation: Quaternion::identity(),
-//!     timestamp: t1,
+//!     timestamp: Stamp::At(t1),
 //!     parent: "a".into(),
 //!     child: "b".into(),
 //! };
@@ -79,7 +79,7 @@ use crate::{
     core::Buffer,
     errors::{BufferError, TransformError},
     geometry::{Localized, Quaternion, Transform, Vector3},
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
 use alloc::{
     boxed::Box,
@@ -104,7 +104,7 @@ use core::time::Duration;
 /// use transforms::{
 ///     Registry,
 ///     geometry::{Quaternion, Transform, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// # #[cfg(feature = "std")]
@@ -125,7 +125,7 @@ use core::time::Duration;
 /// let t_a_b_1 = Transform {
 ///     translation: Vector3::new(1.0, 0.0, 0.0),
 ///     rotation: Quaternion::identity(),
-///     timestamp: t1,
+///     timestamp: Stamp::At(t1),
 ///     parent: "a".into(),
 ///     child: "b".into(),
 /// };
@@ -205,8 +205,8 @@ where
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's child
     /// frame already holds transforms of the opposite kind: a child frame is
-    /// either static (timestamp equal to the static sentinel,
-    /// `Timestamp::STATIC` by default) or dynamic, never both.
+    /// either static (`Stamp::Static`) or dynamic (`Stamp::At`), never both.
+    /// The kind is decided by the first transform inserted for the frame.
     ///
     /// Returns `BufferError::TransformError` if the transform fails
     /// validation (non-finite values or a non-unit rotation),
@@ -226,14 +226,14 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
     /// let mut registry = Registry::<Timestamp>::new();
     /// let transform = Transform {
     ///     translation: Vector3::new(1.0, 0.0, 0.0),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::zero(),
+    ///     timestamp: Stamp::At(Timestamp::zero()),
     ///     parent: "base".into(),
     ///     child: "sensor".into(),
     /// };
@@ -287,7 +287,7 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -308,7 +308,7 @@ where
     /// let t_a_b_1 = Transform {
     ///     translation: Vector3::new(1.0, 0.0, 0.0),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: t1,
+    ///     timestamp: Stamp::At(t1),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -391,7 +391,7 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -417,7 +417,7 @@ where
     ///     .add_transform(Transform {
     ///         translation: Vector3::new(1.0, 0.0, 0.0),
     ///         rotation: Quaternion::identity(),
-    ///         timestamp: t1,
+    ///         timestamp: Stamp::At(t1),
     ///         parent: "fixed".into(),
     ///         child: "a".into(),
     ///     })
@@ -428,7 +428,7 @@ where
     ///     .add_transform(Transform {
     ///         translation: Vector3::new(2.0, 0.0, 0.0),
     ///         rotation: Quaternion::identity(),
-    ///         timestamp: t2,
+    ///         timestamp: Stamp::At(t2),
     ///         parent: "fixed".into(),
     ///         child: "a".into(),
     ///     })
@@ -439,7 +439,7 @@ where
     ///     .add_transform(Transform {
     ///         translation: Vector3::new(0.0, 1.0, 0.0),
     ///         rotation: Quaternion::identity(),
-    ///         timestamp: t1,
+    ///         timestamp: Stamp::At(t1),
     ///         parent: "a".into(),
     ///         child: "b".into(),
     ///     })
@@ -536,10 +536,11 @@ where
         // New frame: fill the buffer BEFORE registering it in the map, so a
         // failed insert cannot leave an empty, parentless frame behind —
         // which would bypass the cycle check on a later insert of the same
-        // child frame.
-        let mut buffer = match max_age {
-            Some(max_age) => Buffer::with_max_age(max_age),
-            None => Buffer::new(),
+        // child frame. The transform's stamp declares the buffer's kind.
+        let mut buffer = match (t.timestamp, max_age) {
+            (Stamp::Static, _) => Buffer::static_edge(),
+            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+            (Stamp::At(_), None) => Buffer::dynamic(),
         };
         let child = t.child.clone();
         buffer.insert(t)?;
@@ -639,7 +640,7 @@ where
             return Ok(Transform {
                 translation: Vector3::zero(),
                 rotation: Quaternion::identity(),
-                timestamp,
+                timestamp: Stamp::At(timestamp),
                 parent: target.into(),
                 child: source.into(),
             });
@@ -739,10 +740,10 @@ where
 
         // The result answers "where is `source` relative to `target` at the
         // requested time", so it carries the requested timestamp — also for
-        // chains of static transforms, whose own timestamps are the static
-        // sentinel.
+        // chains of static transforms, which are themselves stamped
+        // `Stamp::Static`.
         let mut result = result;
-        result.timestamp = timestamp;
+        result.timestamp = Stamp::At(timestamp);
         Ok(result)
     }
 
@@ -788,7 +789,7 @@ where
             return Ok(Transform {
                 translation: Vector3::zero(),
                 rotation: Quaternion::identity(),
-                timestamp: target_time,
+                timestamp: Stamp::At(target_time),
                 parent: target_frame.into(),
                 child: source_frame.into(),
             });
@@ -798,14 +799,14 @@ where
             let mut result =
                 Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
                     .inverse()?;
-            result.timestamp = target_time;
+            result.timestamp = Stamp::At(target_time);
             return Ok(result);
         }
         if target_frame == fixed_frame {
             // The answer is the source leg alone.
             let mut result =
                 Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
-            result.timestamp = target_time;
+            result.timestamp = Stamp::At(target_time);
             return Ok(result);
         }
 
@@ -825,7 +826,7 @@ where
             .inverse()?
             .compose_ignoring_time(source_to_fixed)?;
         // We set the final timestamp to the target_time as per the API contract.
-        result.timestamp = target_time;
+        result.timestamp = Stamp::At(target_time);
 
         Ok(result)
     }

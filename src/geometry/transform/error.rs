@@ -27,6 +27,11 @@ pub enum TransformError {
         rhs: f64,
     },
 
+    /// A static transform was used as an interpolation endpoint. A static
+    /// transform is valid for all time — there is nothing to interpolate.
+    #[error("static transforms cannot be interpolation endpoints")]
+    StaticInterpolation,
+
     /// The requested timestamp lies outside the covered time range (all
     /// values in seconds). There is no extrapolation. `requested > end`
     /// means the request is merely too new (latency); `requested < start`

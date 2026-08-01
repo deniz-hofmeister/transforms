@@ -14,7 +14,7 @@ fn main() {
     use transforms::{
         Registry, Transform, Transformable,
         geometry::{Point, Quaternion, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -38,7 +38,7 @@ fn main() {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
         // 1 second before
-        timestamp: (time - Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((time - Duration::from_secs(1)).unwrap()),
         parent: "base".into(),
         child: "camera".into(),
     };
@@ -50,7 +50,7 @@ fn main() {
         translation: Vector3::new(0.0, 3.0, 0.0),
         rotation: Quaternion::identity(),
         // 1 second in the future
-        timestamp: (time + Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((time + Duration::from_secs(1)).unwrap()),
         parent: "base".into(),
         child: "camera".into(),
     };
@@ -59,16 +59,32 @@ fn main() {
     let base_to_map = Transform {
         translation: Vector3::new(2.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: time,
+        timestamp: Stamp::At(time),
         parent: "map".into(),
         child: "base".into(),
     };
+
+    // A fixed sensor mount: static transforms carry `Stamp::Static`, are
+    // valid for any query time, and never expire.
+    let base_to_imu = Transform::static_between(
+        "base",
+        "imu",
+        Vector3::new(0.1, 0.0, 0.2),
+        Quaternion::identity(),
+    );
 
     // Add transforms to registry
     registry.add_transform(camera_to_base_t0).unwrap();
     registry.add_transform(camera_to_base_t1).unwrap();
     registry.add_transform(base_to_map).unwrap();
+    registry.add_transform(base_to_imu).unwrap();
     info!("Added transforms to registry");
+
+    // The static edge chains with the dynamic ones and serves any time.
+    match registry.get_transform("map", "imu", time) {
+        Ok(tf) => info!("Static mount resolved in map frame: {tf:?}"),
+        Err(e) => error!("Failed to resolve static mount: {e:?}"),
+    }
 
     // Lookup transform for the point, then apply it
     match registry.get_transform_for(&point, "map") {

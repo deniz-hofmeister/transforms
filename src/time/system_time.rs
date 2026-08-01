@@ -4,16 +4,13 @@ use crate::time::{TimeError, TimePoint};
 use core::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// `UNIX_EPOCH` is the static sentinel: a transform stamped exactly at the
-/// epoch is treated as static. Note that `SystemTime` is wall-clock time and
-/// not monotonic — clock adjustments (NTP steps, manual changes) can move it
-/// backwards; prefer a monotonic custom `TimePoint` where that matters.
+/// Note that `SystemTime` is wall-clock time and not monotonic — clock
+/// adjustments (NTP steps, manual changes) can move it backwards; prefer a
+/// monotonic custom `TimePoint` where that matters. No value is reserved:
+/// a transform stamped exactly at `UNIX_EPOCH` is an ordinary dynamic
+/// sample, and staticness is expressed by `Stamp::Static`.
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl TimePoint for SystemTime {
-    fn static_timestamp() -> Self {
-        UNIX_EPOCH
-    }
-
     fn duration_since(
         self,
         earlier: Self,

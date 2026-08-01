@@ -2,7 +2,7 @@
 
 use crate::{
     geometry::{Quaternion, Vector3},
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
 use alloc::string::String;
 use approx::{AbsDiffEq, RelativeEq};
@@ -55,8 +55,23 @@ where
     pub translation: Vector3,
     /// The rotational component of the transform.
     pub rotation: Quaternion,
-    /// The time at which the transform is valid.
-    pub timestamp: T,
+    /// When the transform is valid: at one instant (`Stamp::At`) or for
+    /// all time (`Stamp::Static`).
+    ///
+    /// The `deserialize_with` detour makes an *absent* `timestamp` field a
+    /// hard error. Without it, serde's missing-field fallback would route
+    /// through `Stamp`'s optional encoding and silently produce
+    /// `Stamp::Static` — a malformed message must never become an eternal
+    /// static transform. An explicit `null` still deserializes as
+    /// `Stamp::Static`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            deserialize_with = "serde::Deserialize::deserialize",
+            bound(deserialize = "T: TimePoint + serde::Deserialize<'de>")
+        )
+    )]
+    pub timestamp: Stamp<T>,
     /// The target frame; the transform maps child-frame coordinates into this frame.
     pub parent: String,
     /// The source frame whose coordinates are mapped into the parent frame.
@@ -130,6 +145,10 @@ where
     ///
     /// # Errors
     ///
+    /// Returns `TransformError::StaticInterpolation` if either endpoint is
+    /// `Stamp::Static` — a static transform is valid for all time, so it is
+    /// never an interpolation endpoint.
+    ///
     /// Returns `TransformError::TimestampOutOfRange` if the timestamp is
     /// outside the range of `from` and `to` (there is no extrapolation),
     /// `TransformError::TimestampMismatch` if the endpoints are swapped, and
@@ -144,27 +163,27 @@ where
     /// ```
     /// use transforms::{
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
     /// let from = Transform {
     ///     translation: Vector3::zero(),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::zero(),
+    ///     timestamp: Stamp::At(Timestamp::zero()),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let to = Transform {
     ///     translation: Vector3::new(2.0, 2.0, 2.0),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::from_nanos(2_000_000_000),
+    ///     timestamp: Stamp::At(Timestamp::from_nanos(2_000_000_000)),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
     /// let result = Transform {
     ///     translation: Vector3::new(1.0, 1.0, 1.0),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::from_nanos(1_000_000_000),
+    ///     timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -178,17 +197,20 @@ where
         to: &Transform<T>,
         timestamp: T,
     ) -> Result<Transform<T>, TransformError> {
-        if from.timestamp > to.timestamp {
+        let (Stamp::At(from_time), Stamp::At(to_time)) = (from.timestamp, to.timestamp) else {
+            return Err(TransformError::StaticInterpolation);
+        };
+        if from_time > to_time {
             return Err(TransformError::TimestampMismatch {
-                lhs: from.timestamp.as_seconds_lossy(),
-                rhs: to.timestamp.as_seconds_lossy(),
+                lhs: from_time.as_seconds_lossy(),
+                rhs: to_time.as_seconds_lossy(),
             });
         }
-        if timestamp < from.timestamp || timestamp > to.timestamp {
+        if timestamp < from_time || timestamp > to_time {
             return Err(TransformError::TimestampOutOfRange {
                 requested: timestamp.as_seconds_lossy(),
-                start: from.timestamp.as_seconds_lossy(),
-                end: to.timestamp.as_seconds_lossy(),
+                start: from_time.as_seconds_lossy(),
+                end: to_time.as_seconds_lossy(),
             });
         }
         if from.child != to.child || from.parent != to.parent {
@@ -198,25 +220,25 @@ where
             });
         }
 
-        let range = to.timestamp.duration_since(from.timestamp)?;
+        let range = to_time.duration_since(from_time)?;
         if range.is_zero() {
             return Ok(from.clone());
         }
 
-        let diff = timestamp.duration_since(from.timestamp)?;
+        let diff = timestamp.duration_since(from_time)?;
         let ratio = diff.as_secs_f64() / range.as_secs_f64();
 
         Ok(Transform {
             translation: (1.0 - ratio) * from.translation + ratio * to.translation,
             rotation: from.rotation.slerp(to.rotation, ratio),
-            timestamp,
+            timestamp: Stamp::At(timestamp),
             child: from.child.clone(),
             parent: from.parent.clone(),
         })
     }
 
-    /// Returns a blank transform: zero translation, identity rotation, the
-    /// static timestamp value, and empty frame names.
+    /// Returns a blank transform: zero translation, identity rotation, a
+    /// static stamp, and empty frame names.
     ///
     /// Useful as a starting point to build transforms from. Note that it is
     /// not usable as-is: its empty parent and child frames are
@@ -228,14 +250,14 @@ where
     /// ```
     /// use transforms::{
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
     /// let identity = Transform::<Timestamp>::identity();
     /// let transform = Transform {
     ///     translation: Vector3::zero(),
     ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::STATIC,
+    ///     timestamp: Stamp::Static,
     ///     parent: "".into(),
     ///     child: "".into(),
     /// };
@@ -247,7 +269,7 @@ where
         Transform {
             translation: Vector3::zero(),
             rotation: Quaternion::identity(),
-            timestamp: T::static_timestamp(),
+            timestamp: Stamp::Static,
             parent: String::new(),
             child: String::new(),
         }
@@ -255,19 +277,14 @@ where
 
     /// Builds a static transform between two frames: valid for all time.
     ///
-    /// The transform carries the static-timestamp sentinel
-    /// (`T::static_timestamp()`), so the registry serves it for any
-    /// requested time and never expires it. Use this for fixed
-    /// relationships like sensor mounts, instead of spelling the sentinel
-    /// out by hand.
+    /// The transform carries `Stamp::Static`, so the registry serves it for
+    /// any requested time and never expires it. Use this for fixed
+    /// relationships like sensor mounts.
     ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::TimePoint,
-    /// };
+    /// use transforms::geometry::{Quaternion, Transform, Vector3};
     ///
     /// let mount: Transform = Transform::static_between(
     ///     "base",
@@ -287,7 +304,7 @@ where
         Transform {
             translation,
             rotation,
-            timestamp: T::static_timestamp(),
+            timestamp: Stamp::Static,
             parent: parent.into(),
             child: child.into(),
         }
@@ -307,14 +324,14 @@ where
     /// ```
     /// use transforms::{
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
     /// // Create a transform with specific translation and rotation
     /// let transform = Transform {
     ///     translation: Vector3::new(1.0, 2.0, 3.0),
     ///     rotation: Quaternion::new(0.0, 1.0, 0.0, 0.0).normalize().unwrap(),
-    ///     timestamp: Timestamp::zero(),
+    ///     timestamp: Stamp::At(Timestamp::zero()),
     ///     parent: "a".into(),
     ///     child: "b".into(),
     /// };
@@ -395,21 +412,20 @@ where
         self,
         rhs: Transform<T>,
     ) -> Self::Output {
-        let is_self_static = self.timestamp.is_static();
-        let is_rhs_static = rhs.timestamp.is_static();
-
-        if !is_self_static && !is_rhs_static && self.timestamp != rhs.timestamp {
-            return Err(TransformError::TimestampMismatch {
-                lhs: self.timestamp.as_seconds_lossy(),
-                rhs: rhs.timestamp.as_seconds_lossy(),
-            });
-        }
-
-        let timestamp = if is_self_static {
-            rhs.timestamp
-        } else {
-            self.timestamp
+        let timestamp = match (self.timestamp, rhs.timestamp) {
+            (Stamp::Static, rhs_stamp) => rhs_stamp,
+            (self_stamp, Stamp::Static) => self_stamp,
+            (Stamp::At(lhs), Stamp::At(rhs_time)) => {
+                if lhs != rhs_time {
+                    return Err(TransformError::TimestampMismatch {
+                        lhs: lhs.as_seconds_lossy(),
+                        rhs: rhs_time.as_seconds_lossy(),
+                    });
+                }
+                Stamp::At(lhs)
+            }
         };
+
         let mut result = self.compose_ignoring_time(rhs)?;
         result.timestamp = timestamp;
         Ok(result)

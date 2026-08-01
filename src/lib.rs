@@ -16,9 +16,9 @@
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Transforms carrying the static timestamp sentinel
-//!   (`Timestamp::STATIC`, i.e. `u128::MAX` nanoseconds by default) are valid for
-//!   all time; build them with `Transform::static_between`.
+//! - **Static Transforms**: Transforms carrying `Stamp::Static` are valid for
+//!   all time; build them with `Transform::static_between`. No timestamp value
+//!   is reserved — every instant, including `t = 0`, is ordinary dynamic data.
 //! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
 //!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
@@ -50,7 +50,7 @@
 //! use transforms::{
 //!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -69,7 +69,7 @@
 //! let transform = Transform {
 //!     translation: Vector3::new(1.0, 0.0, 0.0),
 //!     rotation: Quaternion::identity(),
-//!     timestamp,
+//!     timestamp: Stamp::At(timestamp),
 //!     parent: "base".into(),
 //!     child: "sensor".into(),
 //! };
@@ -99,7 +99,7 @@
 //! use transforms::{
 //!     Transformable,
 //!     geometry::{Point, Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
 //!
 //! // Create a point in the camera frame
@@ -117,7 +117,7 @@
 //! let transform = Transform {
 //!     translation: Vector3::new(0.0, 1.0, 0.0),
 //!     rotation: Quaternion::identity(),
-//!     timestamp: point.timestamp,
+//!     timestamp: Stamp::At(point.timestamp),
 //!     parent: "base".into(),
 //!     child: "camera".into(),
 //! };

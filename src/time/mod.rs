@@ -10,9 +10,11 @@
 
 /// Error types for time operations.
 mod error;
+pub(crate) mod stamp;
 pub(crate) mod timestamp;
 pub(crate) mod traits;
 pub use error::TimeError;
+pub use stamp::Stamp;
 pub use timestamp::Timestamp;
 pub use traits::TimePoint;
 

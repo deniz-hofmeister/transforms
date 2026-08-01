@@ -16,8 +16,11 @@ pub enum BufferError {
     #[error("the buffer holds no transforms")]
     NoTransformAvailable,
 
-    /// The buffer already holds transforms of the other kind; a child frame
-    /// is either static or dynamic, never both.
+    /// The transform's kind (static or dynamic) does not match the buffer's
+    /// declared kind, fixed at construction (`Buffer::static_edge` vs.
+    /// `Buffer::dynamic`); a child frame is either static or dynamic, never
+    /// both. Fires even on an empty buffer — the kind is a property of the
+    /// buffer, not of what it currently stores.
     #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
 

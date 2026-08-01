@@ -16,15 +16,31 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 
 ### Changed
 
-- **Breaking:** the static-transform sentinel moves from `t=0` to
-  `Timestamp::STATIC` (`u128::MAX` nanoseconds). Zero was the first
-  reading of exactly the boot-relative clocks the embedded story courts,
-  collided with `UNIX_EPOCH`, and made zero-initialized wire messages
-  silently static; the new sentinel is a value no clock produces
-  organically, so every real instant — including `t=0` — is ordinary
-  dynamic data. `Transform::static_between` builds static transforms
-  without spelling the sentinel out. `SystemTime` keeps `UNIX_EPOCH` as
-  its sentinel (no wall-clock data predates it).
+- **Breaking:** the static-transform sentinel is eliminated, not moved:
+  `Transform.timestamp` is retyped from `T` to `Stamp<T> { Static, At(T) }`.
+  Staticness is a variant of the type, so **no timestamp value is
+  reserved** — every instant a clock can produce, including `t=0` on the
+  boot-relative clocks the embedded story courts and `UNIX_EPOCH` for
+  `SystemTime`, is ordinary dynamic data. In the new wire format a
+  zero-stamped message is an ordinary dynamic sample, and a message
+  *missing* its timestamp field is rejected rather than silently becoming
+  an eternal static transform.
+  `Transform::static_between` builds static transforms; every `Transform`
+  literal wraps its timestamp in `Stamp::At(...)`.
+- **Breaking:** `TimePoint` loses `static_timestamp()` and `is_static()`
+  and becomes pure time arithmetic. This closes a soundness hole — the
+  trait is unsealed and `is_static` was overridable independently of
+  `static_timestamp`, silently breaking kind detection — and custom clock
+  impls no longer invent sentinel values.
+- **Breaking:** `Buffer` declares its kind at construction:
+  `Buffer::dynamic()`, `Buffer::dynamic_with_max_age(d)`, and
+  `Buffer::static_edge()` replace `Buffer::new()`, `with_max_age(d)`, and
+  `Default`. The kind is structural (an internal enum) and fixed for the
+  buffer's lifetime; new accessors `is_static()` and `len()`.
+- **Breaking:** serde: `Stamp` serializes as an optional timestamp —
+  `Stamp::At(t)` as `t` itself (JSON shape for dynamic transforms is
+  unchanged), `Stamp::Static` as `null`; postcard/bincode gain a 1-byte
+  `Option` tag. No magic value appears on the wire.
 - **Breaking:** every error payload field is named: `TimestampMismatch
   { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
   `Disconnected { target_frame, source_frame }`, and `NotFoundAt
@@ -40,9 +56,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
   associated const on `Transform<T>` that demanded a turbofish.
 - `get_transform_at` composes its two legs through a private
-  time-agnostic path instead of stamping them with the static sentinel
-  to bypass `Mul`'s timestamp check — the sentinel has exactly one
-  meaning again.
+  time-agnostic path instead of fabricating staticness on them to bypass
+  `Mul`'s timestamp check.
 
 - **Breaking:** `TransformError::TransformTreeEmpty` is removed. It was
   provably unconstructible from any public path; removing an enum variant
@@ -81,22 +96,51 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - Behavioral pin tests for commitments that freeze at stable: duplicate-
   timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
   semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
-  MAX-valued static sentinels, interior-point and near-antipodal slerp,
-  `Point` error paths, mid-tree `remove_frame`, exact `NotFoundAt`
-  payloads, and a postcard golden-bytes test freezing the serde wire
-  format for non-self-describing formats (struct field order is part of
-  the wire contract).
+  static transforms over custom clocks including range extremes,
+  interior-point and near-antipodal slerp, `Point` error paths, mid-tree
+  `remove_frame`, exact `NotFoundAt` payloads, and postcard golden-bytes
+  tests for both `Stamp` arms freezing the serde wire format for
+  non-self-describing formats (struct field order is part of the wire
+  contract).
+- `TransformError::StaticInterpolation`: a static transform used as an
+  interpolation endpoint is rejected explicitly instead of falling
+  through to an incidental error.
+- Two of the six examples (`std_full`, `no_std_full`) now demonstrate a
+  static sensor mount chained with dynamic edges — the feature was
+  previously unexercised outside the test suite.
+- Benchmarks for the shapes real users hit: a realistic 6-edge robot tree
+  (mixed static/dynamic), a 3-hop interpolating dynamic chain,
+  `get_transform_at`, and a 100k-resident insert bench pinning the
+  eviction fix at depth.
+- CI: clippy and MSRV jobs now also cover the `serde` feature (std and
+  no_std), closing the thinnest spot in the matrix.
 
 ### Fixed
 
+- `Buffer::delete_before` resets the `max_age` expiry reference along with
+  the samples: previously a wiped buffer kept its pre-wipe latest
+  timestamp, so a restarted stream at earlier times was evicted by the
+  very insert that added it — `Ok(())` returned, buffer stayed empty.
+- The `std` feature forwards `serde?/std`, so `Transform<SystemTime>`
+  implements `Serialize`/`Deserialize` for downstream users who enable
+  `std` + `serde` without depending on serde's `std` feature themselves.
+- `t = 0` is usable as an ordinary dynamic timestamp: the most natural
+  insert loop there is (`for i in 0.. { insert(tf(i * step)) }`) no
+  longer silently creates a static buffer at `i = 0` and fails with
+  `StaticDynamicConflict` at `i = 1`. Pinned by a regression test and the
+  property-test timestamp strategy now includes zero.
+- A dynamic `Buffer` emptied by `delete_before` could silently flip to
+  static on the next insert (the kind was a flag re-decided on emptiness)
+  and then reject dynamic samples. The kind is now declared at
+  construction and structural — the flip is unrepresentable, pinned by a
+  regression test.
 - Docs: duplicate-timestamp inserts are documented as last-write-wins
   upserts; `remove_frame` documents that it strands descendants of a
   mid-tree frame; interpolation is documented to span interior gaps of any
   size (bounding freshness is the caller's job); error `Display` strings
   are documented as not a stability surface; the O(log n) lookup claim is
   qualified (per-frame; linear in chain depth; O(frames) failure
-  diagnosis); `TimePoint::static_timestamp` has contract language
-  including a boot-relative-clock warning; the `approx` 0.5 public-API
+  diagnosis); the `approx` 0.5 public-API
   commitment is recorded; allocation-failure behavior and the
   deterministic-hasher trade-off are stated for `no_std`.
 - Docs: the README no longer claims `Registry::new()` is shorthand for

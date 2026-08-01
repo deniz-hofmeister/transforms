@@ -3,7 +3,7 @@ mod point_tests {
     use crate::{
         Transform, Transformable,
         geometry::{Point, Quaternion, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
     use approx::assert_abs_diff_eq;
 
@@ -32,7 +32,7 @@ mod point_tests {
         let transform = Transform {
             translation: Vector3::zero(),
             rotation: rot_z_90,
-            timestamp: Timestamp::zero(),
+            timestamp: Stamp::At(Timestamp::zero()),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -64,7 +64,7 @@ mod point_tests {
         let transform = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::zero(),
+            timestamp: Stamp::At(Timestamp::zero()),
             parent: "base".into(),
             child: "camera".into(),
         };
@@ -95,7 +95,7 @@ mod point_tests {
         let transform = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: Timestamp::from_nanos(2_000_000_000),
+            timestamp: Stamp::At(Timestamp::from_nanos(2_000_000_000)),
             parent: "base".into(),
             child: "camera".into(),
         };

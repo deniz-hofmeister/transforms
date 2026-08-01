@@ -20,9 +20,10 @@ let mut registry = Registry::with_max_age(Duration::from_secs(60));
 says "remove the extra argument", which produces `Registry::new()` — that
 compiles, but creates a registry with **no automatic cleanup**: transforms
 accumulate until you call `delete_transforms_before`. If you had a
-`max_age`, you want `with_max_age`. (`Buffer::new(max_age)` splits the same
-way.) In `no_std`, both constructors now exist too — automatic cleanup no
-longer requires `std`.
+`max_age`, you want `with_max_age`. (`Buffer::new(max_age)` splits into
+`Buffer::dynamic_with_max_age` — see the `Stamp` section below.) In
+`no_std`, both constructors now exist too — automatic cleanup no longer
+requires `std`.
 
 ### 2. Fallible insertion
 
@@ -42,17 +43,21 @@ self-referential frames, re-parenting (`ReparentingNotSupported` — call
 `remove_frame` first), cycles (`CycleDetected`), and mixing static with
 dynamic transforms in one child frame (`StaticDynamicConflict`).
 
-### Static transforms are no longer `t = 0`
+### Static transforms are a `Stamp` variant, not `t = 0`
 
-The static sentinel moved from `t = 0` to `Timestamp::STATIC`
-(`u128::MAX` nanoseconds), so every real instant — including zero, the
-first reading of a boot-relative clock — is ordinary dynamic data.
+`Transform.timestamp` is retyped from a bare timestamp to
+`Stamp<T> { Static, At(T) }`: a dynamic sample carries `Stamp::At(t)`, a
+static transform carries `Stamp::Static`. **No timestamp value is
+reserved** — every real instant, including zero, the first reading of a
+boot-relative clock, is ordinary dynamic data.
 
 ```rust
-// 1.x: static mount published at t = 0
-let mount = Transform { timestamp: Timestamp::zero(), /* ... */ };
+// 1.x
+let sample = Transform { timestamp: t, /* ... */ };
+let mount = Transform { timestamp: Timestamp::zero(), /* ... */ }; // static via sentinel
 
 // 2.0
+let sample = Transform { timestamp: Stamp::At(t), /* ... */ };
 let mount: Transform = Transform::static_between(
     "base", "camera",
     Vector3::new(0.1, 0.0, 0.5),
@@ -60,11 +65,45 @@ let mount: Transform = Transform::static_between(
 );
 ```
 
-A 1.x static transform inserted with `t = 0` still compiles — but it is
-now a **single dynamic sample at the epoch**, so any lookup at a real
-time fails loudly with `TimestampOutOfRange` instead of serving the
-mount. Switch static publishers to `Transform::static_between` (or
-`Timestamp::STATIC`).
+Every `Transform` literal is a compile error until its `timestamp` is
+wrapped — mechanical, and the compiler walks you through the sites. A 1.x
+static publisher migrated as `Stamp::At(Timestamp::zero())` would store a
+**single dynamic sample at the epoch**, so any lookup at a real time
+fails loudly with `TimestampOutOfRange` instead of serving the mount.
+Switch static publishers to `Transform::static_between` (or
+`Stamp::Static`).
+
+Two related breaks ride along:
+
+- **`TimePoint` is pure time arithmetic now.** Custom clock impls delete
+  `static_timestamp()` and `is_static()` — two methods fewer, and no
+  sentinel value to invent.
+- **`Buffer` declares its kind at construction.** `Buffer::new()` /
+  `Buffer::with_max_age(d)` / `Default` are replaced by
+  `Buffer::dynamic()`, `Buffer::dynamic_with_max_age(d)`, and
+  `Buffer::static_edge()`. The kind is fixed for the buffer's lifetime —
+  this also fixes a 1.x/2.0-beta bug where a dynamic buffer emptied by
+  `delete_before` silently flipped static on the next insert.
+
+**Serde wire format:** `Stamp` serializes as an optional timestamp. In
+JSON a dynamic transform's shape is unchanged
+(`"timestamp": { "t": ... }`), a static one is `"timestamp": null`, and a
+*missing* `timestamp` field is a hard error — it never silently becomes
+static. In postcard/bincode the stamp gains a 1-byte `Option` tag.
+
+Cross-version decoding is format-dependent, so version-tag your streams:
+
+- An old **JSON** payload that encoded staticness as `t = 0` decodes as a
+  dynamic sample at the epoch — real-time lookups then fail loudly with
+  `TimestampOutOfRange` rather than silently serving stale calibration.
+- An old **postcard** stream with a realistic dynamic timestamp fails to
+  decode outright (the timestamp varint is not a valid `Option` tag). The
+  one exception is a payload stamped exactly `t = 0` — the 1.x static
+  convention — whose single `0x00` byte reads as the `None` tag, keeping
+  the stream byte-aligned: it decodes cleanly as `Stamp::Static`. That is
+  the right meaning for a 1.x static publisher, but wrong for a genuine
+  boot-relative `t = 0` dynamic sample — do not rely on it in place of a
+  version tag.
 
 ### 3. Error enum overhaul
 
@@ -132,7 +171,7 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
    samples in the same child frame — the pattern 1.1.0 explicitly
    enabled — now fails at insert with `StaticDynamicConflict`. Give
    static mounts their own child frames. (A 1.x `t=0` sample no longer
-   triggers this: zero is ordinary dynamic data now — see the sentinel
+   triggers this: zero is ordinary dynamic data now — see the `Stamp`
    section above.)
 2. **Re-parenting is rejected.** 1.x let a new parent silently win;
    2.0 returns `ReparentingNotSupported`. Escape hatch:
@@ -159,11 +198,12 @@ Swapping the arguments silently yields the exact inverse.
 
 ## What does not break
 
-Struct literals and public fields of `Transform`, `Point`, `Vector3`, and
-`Quaternion`; `Timestamp::zero()`/`now()` and timestamp arithmetic;
+Struct literals and public fields of `Point`, `Vector3`, and `Quaternion`
+(`Transform` literals need only the `timestamp` field wrapped in `Stamp`);
+`Timestamp::zero()`/`now()` and timestamp arithmetic;
 `get_transform` / `get_transform_for` / `get_transform_at` signatures (all
-`&self`); the `Localized` and `Transformable` traits; the `no_std`
-`Registry::new()` path.
+`&self`, all taking bare timestamps); the `Localized` and `Transformable`
+traits; the `no_std` `Registry::new()` path.
 
 ## After migrating, re-test — don't just re-compile
 

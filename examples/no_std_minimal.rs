@@ -7,7 +7,7 @@ fn main() {
     use transforms::{
         Registry,
         geometry::{Quaternion, Transform, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     // Dummy transform generator
@@ -21,7 +21,7 @@ fn main() {
             rotation: Quaternion::identity(),
             parent: "a".into(),
             child: "b".into(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
         }
     }
 

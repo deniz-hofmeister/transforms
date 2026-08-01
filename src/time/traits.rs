@@ -10,6 +10,16 @@ use crate::time::TimeError;
 /// The trait requires `Copy` because transform lookups and composition are hot
 /// paths where timestamps are passed around frequently.
 ///
+/// Implementations must keep `Ord` total and consistent with
+/// [`TimePoint::duration_since`] and the checked arithmetic: if `a < b`,
+/// then `b.duration_since(a)` is the `Ok` span between them. Buffer
+/// ordering, interpolation, and eviction all rest on that consistency.
+///
+/// No timestamp value is reserved: staticness is expressed by
+/// [`Stamp::Static`](crate::time::Stamp), not by a sentinel instant, so
+/// every value the clock can produce — including `t = 0` on boot-relative
+/// clocks — is ordinary dynamic data.
+///
 /// # Adapter example
 ///
 /// If your external timestamp type does not fit this trait directly, you can
@@ -42,10 +52,6 @@ use crate::time::TimeError;
 /// }
 ///
 /// impl TimePoint for CoreTime {
-///     fn static_timestamp() -> Self {
-///         Self(0)
-///     }
-///
 ///     fn duration_since(
 ///         self,
 ///         earlier: Self,
@@ -92,33 +98,6 @@ use crate::time::TimeError;
 /// }
 /// ```
 pub trait TimePoint: Copy + Ord {
-    /// Returns the static timestamp value.
-    ///
-    /// This value is a reserved sentinel: a transform carrying it is
-    /// treated as static (valid for all time), so dynamic samples must
-    /// never be recorded at exactly this value. Pick a value the clock
-    /// cannot produce organically — the default `Timestamp` uses
-    /// `u128::MAX` nanoseconds (~10²² years), which keeps every real
-    /// instant, including `t = 0` on boot-relative clocks, valid as
-    /// dynamic data. A genuinely wall-clock type may instead reserve its
-    /// epoch, as the `SystemTime` implementation does with `UNIX_EPOCH`:
-    /// no data predates it.
-    ///
-    /// The sentinel is compared by equality only — the crate never orders
-    /// against it — so any reserved value works, including a maximum.
-    ///
-    /// Implementations must also keep `Ord` total and consistent with
-    /// [`TimePoint::duration_since`] and the checked arithmetic: if
-    /// `a < b`, then `b.duration_since(a)` is the `Ok` span between them.
-    /// Buffer ordering, interpolation, and eviction all rest on that
-    /// consistency.
-    fn static_timestamp() -> Self;
-
-    /// Returns `true` if this timestamp is the static value.
-    fn is_static(self) -> bool {
-        self == Self::static_timestamp()
-    }
-
     /// Returns elapsed time between two timestamps.
     ///
     /// # Errors

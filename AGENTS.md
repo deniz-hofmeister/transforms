@@ -73,8 +73,8 @@ would produce) a silent wrong answer:
   static.
 - A child frame's buffer is static **xor** dynamic. The first insert fixes the
   kind; a mismatched later insert must fail with
-  `BufferError::StaticDynamicConflict`. The static sentinel is
-  `T::static_timestamp()` (`t = 0` for `Timestamp`).
+  `BufferError::StaticDynamicConflict`. Staticness is `Stamp::Static` on the
+  transform — no timestamp value is reserved.
 - The frame tree is strict: the first insert also pins a child frame's parent
   (re-parenting fails with `ReparentingNotSupported`; `Registry::remove_frame`
   is the escape hatch), a frame cannot be its own parent, and inserts that
@@ -95,12 +95,12 @@ would produce) a silent wrong answer:
   a conversion error must never mask the error being reported.
 - Buffer expiry is data-driven: entries older than
   (latest **inserted** timestamp − `max_age`) are removed on insert (only for
-  buffers built `with_max_age`). Wall-clock time is never consulted. Manual
+  buffers built `dynamic_with_max_age`). Wall-clock time is never consulted. Manual
   cleanup (`delete_before` / `delete_transforms_before`) never touches static
   buffers — a static transform is valid for all time.
 - Transforms are validated at insertion (`Transform::validate`, called by
   `Buffer::insert`): non-finite components and rotations whose norm deviates
-  from 1 by more than `Transform::UNIT_NORM_TOLERANCE` are rejected. A
+  from 1 by more than `geometry::UNIT_NORM_TOLERANCE` are rejected. A
   denormalized rotation would silently corrupt every lookup it takes part in.
 - Rotations are expected to be unit quaternions; `Quaternion::new` does not
   normalize. Anything that inverts a rotation must normalize first (see
@@ -151,8 +151,8 @@ this section is convention, enforced in review — follow it anyway.
   behavior-descriptive snake_case names. Tests are deterministic: fixed
   `Timestamp::from_nanos` fixtures, never `Timestamp::now()` (one dedicated
   std-only smoke test covers `now()` itself). `Timestamp::zero()` is fine for
-  a single static sample, but never as the base of a *dynamic* time series —
-  `t = 0` is the static sentinel. Invariants ideally get a property test in
+  any fixture — `t = 0` is an ordinary dynamic instant; static transforms
+  carry `Stamp::Static`. Invariants ideally get a property test in
   `tests/properties.rs` alongside the example-based ones.
 - Strings into `String` fields: `"a".into()`. Format strings use inline
   captures: `{x}` / `{x:?}`.

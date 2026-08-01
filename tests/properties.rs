@@ -9,7 +9,7 @@ use transforms::{
     Registry, Transformable,
     errors::TransformError,
     geometry::{Point, Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
 };
 
 /// Tolerance for comparing computed against expected geometry.
@@ -47,10 +47,10 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
         })
 }
 
-/// Dynamic nanosecond timestamps; `t = 0` is the static sentinel and is
-/// deliberately excluded.
+/// Dynamic nanosecond timestamps. `t = 0` is included: no value is
+/// reserved — staticness is `Stamp::Static`, not a sentinel instant.
 fn timestamps() -> impl Strategy<Value = Timestamp> {
-    (1..MAX_NANOS).prop_map(Timestamp::from_nanos)
+    (0..MAX_NANOS).prop_map(Timestamp::from_nanos)
 }
 
 /// The quaternion dot product; `|dot| ≈ 1` for unit quaternions means both
@@ -81,7 +81,7 @@ proptest! {
         let original = Transform {
             translation,
             rotation,
-            timestamp,
+            timestamp: Stamp::At(timestamp),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -90,7 +90,7 @@ proptest! {
 
         prop_assert_eq!(roundtrip.parent.as_str(), "a");
         prop_assert_eq!(roundtrip.child.as_str(), "b");
-        prop_assert_eq!(roundtrip.timestamp, timestamp);
+        prop_assert_eq!(roundtrip.timestamp, Stamp::At(timestamp));
         prop_assert!(
             abs_diff_eq!(roundtrip.translation, original.translation, epsilon = EPSILON),
             "translation drifted: {:?} vs {:?}",
@@ -115,7 +115,7 @@ proptest! {
         let transform = Transform {
             translation,
             rotation,
-            timestamp,
+            timestamp: Stamp::At(timestamp),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -186,26 +186,26 @@ proptest! {
         let from = Transform {
             translation: translation_from,
             rotation: rotation_from,
-            timestamp: Timestamp::from_nanos(start),
+            timestamp: Stamp::At(Timestamp::from_nanos(start)),
             parent: "a".into(),
             child: "b".into(),
         };
         let to = Transform {
             translation: translation_to,
             rotation: rotation_to,
-            timestamp: Timestamp::from_nanos(start + span),
+            timestamp: Stamp::At(Timestamp::from_nanos(start + span)),
             parent: "a".into(),
             child: "b".into(),
         };
 
-        let at_from = Transform::interpolate(&from, &to, from.timestamp).unwrap();
+        let at_from = Transform::interpolate(&from, &to, from.timestamp.at().unwrap()).unwrap();
         prop_assert_eq!(at_from.timestamp, from.timestamp);
         prop_assert_eq!(at_from.parent.as_str(), "a");
         prop_assert_eq!(at_from.child.as_str(), "b");
         prop_assert!(abs_diff_eq!(at_from.translation, from.translation, epsilon = EPSILON));
         prop_assert!(same_rotation(at_from.rotation, from.rotation));
 
-        let at_to = Transform::interpolate(&from, &to, to.timestamp).unwrap();
+        let at_to = Transform::interpolate(&from, &to, to.timestamp.at().unwrap()).unwrap();
         prop_assert_eq!(at_to.timestamp, to.timestamp);
         prop_assert_eq!(at_to.parent.as_str(), "a");
         prop_assert_eq!(at_to.child.as_str(), "b");
@@ -239,7 +239,7 @@ proptest! {
             let transform = Transform {
                 translation: *translation,
                 rotation: *rotation,
-                timestamp,
+                timestamp: Stamp::At(timestamp),
                 parent: format!("f{i}"),
                 child: format!("f{}", i + 1),
             };
@@ -251,12 +251,12 @@ proptest! {
         let forward = registry.get_transform("f0", &leaf, timestamp).unwrap();
         prop_assert_eq!(forward.parent.as_str(), "f0");
         prop_assert_eq!(forward.child.as_str(), leaf.as_str());
-        prop_assert_eq!(forward.timestamp, timestamp);
+        prop_assert_eq!(forward.timestamp, Stamp::At(timestamp));
 
         let backward = registry.get_transform(&leaf, "f0", timestamp).unwrap();
         prop_assert_eq!(backward.parent.as_str(), leaf.as_str());
         prop_assert_eq!(backward.child.as_str(), "f0");
-        prop_assert_eq!(backward.timestamp, timestamp);
+        prop_assert_eq!(backward.timestamp, Stamp::At(timestamp));
 
         // The reverse lookup is the inverse: composing the two yields the
         // identity transform of the root frame.
@@ -283,7 +283,7 @@ proptest! {
         let transform = Transform {
             translation: Vector3::zero(),
             rotation: rotation.scale(factor),
-            timestamp: Timestamp::from_nanos(1),
+            timestamp: Stamp::At(Timestamp::from_nanos(1)),
             parent: "a".into(),
             child: "b".into(),
         };
@@ -303,7 +303,7 @@ proptest! {
         let transform = Transform {
             translation: Vector3::zero(),
             rotation: rotation.scale(1.0 + deviation),
-            timestamp: Timestamp::from_nanos(1),
+            timestamp: Stamp::At(Timestamp::from_nanos(1)),
             parent: "a".into(),
             child: "b".into(),
         };

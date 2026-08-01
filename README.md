@@ -25,7 +25,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps using spherical linear interpolation (SLERP) for rotations and linear interpolation for translations.
 - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames by traversing the frame tree.
-- **Static Transforms**: Transforms carrying the static sentinel (`Timestamp::STATIC`) are valid for all time; build them with `Transform::static_between`. Every real instant — including `t=0` on boot-relative clocks — is ordinary dynamic data.
+- **Static Transforms**: Transforms carrying `Stamp::Static` are valid for all time; build them with `Transform::static_between`. No timestamp value is reserved — every instant, including `t=0` on boot-relative clocks, is ordinary dynamic data.
 - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms automatically; `Registry::new` keeps them until manual cleanup. Both work with and without `std`.
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage — O(log n) in stored samples per frame, linear in chain depth for indirect frames.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
@@ -108,7 +108,7 @@ transforms = { version = "2.0.0-rc.1", default-features = false }
 use core::time::Duration;
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
     Registry,
 };
 
@@ -121,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let transform = Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp,
+        timestamp: Stamp::At(timestamp),
         parent: "base".into(),
         child: "sensor".into(),
     };
@@ -163,6 +163,7 @@ pub fn remove_frame(&mut self, child: &str) -> bool
 | `Vector3` | 3D vector with x, y, z components (f64) |
 | `Quaternion` | Quaternion for rotations (expected unit norm) with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u128) |
+| `Stamp<T = Timestamp>` | When a transform is valid: `At(T)` for one instant, `Static` for all time |
 | `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
 
@@ -202,7 +203,7 @@ The main interface for managing transforms. It stores `Buffer` instances (one pe
 
 ### Buffer
 
-Time-indexed storage for transforms between a specific child-parent frame pair. Uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values.
+Time-indexed storage for transforms between a specific child-parent frame pair. A dynamic buffer uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values; a static buffer stores its single transform inline and serves it for any requested time.
 
 ### Transform
 
@@ -215,7 +216,7 @@ where
 {
     pub translation: Vector3,   // Position offset (x, y, z)
     pub rotation: Quaternion,   // Orientation (w, x, y, z)
-    pub timestamp: T,           // When this transform is valid
+    pub timestamp: Stamp<T>,    // Stamp::At(t) sample, or Stamp::Static
     pub parent: String,         // Destination frame
     pub child: String,          // Source frame
 }
@@ -248,8 +249,8 @@ The `Localized` trait provides frame and timestamp introspection, while `Transfo
 
 ### Static vs Dynamic Transforms
 
-Static transforms (built with `Transform::static_between`, carrying the
-`Timestamp::STATIC` sentinel) are ideal for fixed relationships like sensor mounts.
+Static transforms (built with `Transform::static_between`, carrying
+`Stamp::Static`) are ideal for fixed relationships like sensor mounts.
 A given child frame is either static or dynamic: mixing the two kinds for the same
 child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 
@@ -276,7 +277,7 @@ let camera_mount: Transform = Transform::static_between(
 let robot_position = Transform {
     translation: Vector3::new(x, y, 0.0),
     rotation: Quaternion::identity(),
-    timestamp: Timestamp::now(),
+    timestamp: Stamp::At(Timestamp::now()),
     parent: "map".into(),
     child: "base".into(),
 };
@@ -325,7 +326,7 @@ Transform points between coordinate frames using the `Transformable` trait:
 ```rust
 use transforms::{
     geometry::{Point, Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
     Transformable,
 };
 
@@ -383,7 +384,7 @@ cleanup via `Registry::with_max_age`; only a registry built with
 ```rust
 use transforms::{
     geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
     Registry,
 };
 use core::time::Duration;
@@ -398,7 +399,7 @@ let timestamp = (Timestamp::zero() + Duration::from_secs(100)).unwrap();
 let transform = Transform {
     translation: Vector3::new(1.0, 0.0, 0.0),
     rotation: Quaternion::identity(),
-    timestamp,
+    timestamp: Stamp::At(timestamp),
     parent: "a".into(),
     child: "b".into(),
 };

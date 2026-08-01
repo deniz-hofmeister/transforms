@@ -3,7 +3,7 @@ use transforms::{
     Registry,
     errors::{BufferError, TransformError},
     geometry::{Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
 };
 
 #[test]
@@ -15,7 +15,7 @@ fn test_matching_tree() {
     let t_a_b_0 = Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: t,
+        timestamp: Stamp::At(t),
         parent: "a".into(),
         child: "b".into(),
     };
@@ -24,7 +24,7 @@ fn test_matching_tree() {
     let t_a_b_1 = Transform {
         translation: Vector3::new(2.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
         parent: "a".into(),
         child: "b".into(),
     };
@@ -32,7 +32,7 @@ fn test_matching_tree() {
     let t_b_c_0 = Transform {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_millis(500)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_millis(500)).unwrap()),
         parent: "b".into(),
         child: "c".into(),
     };
@@ -41,7 +41,7 @@ fn test_matching_tree() {
     let t_b_c_1 = Transform {
         translation: Vector3::new(0.0, 2.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_millis(1500)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_millis(1500)).unwrap()),
         parent: "b".into(),
         child: "c".into(),
     };
@@ -55,7 +55,7 @@ fn test_matching_tree() {
     let t_a_c = Transform {
         translation: Vector3::new(1.75, 1.25, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: middle_timestamp,
+        timestamp: Stamp::At(middle_timestamp),
         parent: "a".into(),
         child: "c".into(),
     };
@@ -75,7 +75,7 @@ fn test_non_matching_tree() {
     let t_a_b_0 = Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: t,
+        timestamp: Stamp::At(t),
         parent: "a".into(),
         child: "b".into(),
     };
@@ -84,7 +84,7 @@ fn test_non_matching_tree() {
     let t_a_b_1 = Transform {
         translation: Vector3::new(2.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_secs(1)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
         parent: "a".into(),
         child: "b".into(),
     };
@@ -93,7 +93,7 @@ fn test_non_matching_tree() {
     let t_b_c_0 = Transform {
         translation: Vector3::new(0.0, 1.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_secs(2)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_secs(2)).unwrap()),
         parent: "b".into(),
         child: "c".into(),
     };
@@ -102,7 +102,7 @@ fn test_non_matching_tree() {
     let t_b_c_1 = Transform {
         translation: Vector3::new(0.0, 2.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: (t + Duration::from_secs(3)).unwrap(),
+        timestamp: Stamp::At((t + Duration::from_secs(3)).unwrap()),
         parent: "b".into(),
         child: "c".into(),
     };

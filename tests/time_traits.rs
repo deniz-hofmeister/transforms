@@ -4,14 +4,14 @@ use transforms::{
     Registry,
     errors::{BufferError, TimeError},
     geometry::{Quaternion, Transform, Vector3},
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
 
 /// Builds a `TestTime` transform translated by `x` along the x-axis.
 fn test_transform(
     parent: &str,
     child: &str,
-    timestamp: TestTime,
+    timestamp: Stamp<TestTime>,
     x: f64,
 ) -> Transform<TestTime> {
     Transform {
@@ -23,14 +23,13 @@ fn test_transform(
     }
 }
 
+/// A custom nanosecond clock over `u64`: the trait is pure time
+/// arithmetic — no value is reserved for staticness, so the full `u64`
+/// range including `0` and `u64::MAX` is ordinary dynamic data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TestTime(u64);
 
 impl TimePoint for TestTime {
-    fn static_timestamp() -> Self {
-        Self(u64::MAX)
-    }
-
     fn duration_since(
         self,
         earlier: Self,
@@ -82,7 +81,7 @@ fn default_timestamp_api_remains_usable() {
     let transform = Transform {
         translation: Vector3::new(1.0, 2.0, 3.0),
         rotation: Quaternion::identity(),
-        timestamp: t,
+        timestamp: Stamp::At(t),
         parent: "map".into(),
         child: "base".into(),
     };
@@ -107,14 +106,14 @@ fn registry_supports_system_time() {
     let from = Transform::<SystemTime> {
         translation: Vector3::new(0.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: t0,
+        timestamp: Stamp::At(t0),
         parent: "a".into(),
         child: "b".into(),
     };
     let to = Transform::<SystemTime> {
         translation: Vector3::new(2.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: t2,
+        timestamp: Stamp::At(t2),
         parent: "a".into(),
         child: "b".into(),
     };
@@ -123,18 +122,18 @@ fn registry_supports_system_time() {
     registry.add_transform(to).unwrap();
 
     let mid = registry.get_transform("a", "b", t1).unwrap();
-    assert_eq!(mid.timestamp, t1);
+    assert_eq!(mid.timestamp, Stamp::At(t1));
     assert_eq!(mid.translation, Vector3::new(1.0, 0.0, 0.0));
 }
 
 #[test]
-fn custom_timestamp_static_policy_is_respected() {
+fn custom_timestamp_static_transform_is_served_for_any_time() {
     let mut registry = Registry::<TestTime>::new();
 
     let static_transform = Transform::<TestTime> {
         translation: Vector3::new(1.0, 0.0, 0.0),
         rotation: Quaternion::identity(),
-        timestamp: TestTime::static_timestamp(),
+        timestamp: Stamp::Static,
         parent: "map".into(),
         child: "sensor".into(),
     };
@@ -145,21 +144,21 @@ fn custom_timestamp_static_policy_is_respected() {
         .get_transform("map", "sensor", TestTime(5))
         .unwrap();
     // The static transform is served for any query time, and the result
-    // carries the query time rather than the custom static sentinel.
+    // carries the query time.
     assert_eq!(result.translation, static_transform.translation);
     assert_eq!(result.rotation, static_transform.rotation);
-    assert_eq!(result.timestamp, TestTime(5));
+    assert_eq!(result.timestamp, Stamp::At(TestTime(5)));
 }
 
 #[test]
-fn identity_uses_custom_static_timestamp() {
+fn identity_is_static() {
     let identity = Transform::<TestTime>::identity();
-    assert_eq!(identity.timestamp, TestTime::static_timestamp());
+    assert_eq!(identity.timestamp, Stamp::Static);
 }
 
 #[cfg(feature = "std")]
 #[test]
-fn system_time_pre_epoch_errs_and_epoch_is_static() {
+fn system_time_pre_epoch_errs_and_epoch_is_ordinary() {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // A pre-epoch time point cannot be expressed as seconds since the epoch;
@@ -170,126 +169,138 @@ fn system_time_pre_epoch_errs_and_epoch_is_static() {
         Err(TimeError::DurationUnderflow)
     ));
     assert!(TimePoint::as_seconds_lossy(pre_epoch).is_nan());
-    assert!(!pre_epoch.is_static());
 
-    // UNIX_EPOCH is the static sentinel for SystemTime: a transform stored
-    // there is served for any query time, and the result carries the query
-    // time.
-    assert!(UNIX_EPOCH.is_static());
-
+    // UNIX_EPOCH is an ordinary dynamic instant — a zero-initialized wire
+    // message stamped at the epoch stays a dynamic sample instead of
+    // silently becoming an eternal static transform.
     let mut registry = Registry::<SystemTime>::new();
     registry
         .add_transform(Transform::<SystemTime> {
             translation: Vector3::new(1.0, 0.0, 0.0),
             rotation: Quaternion::identity(),
-            timestamp: UNIX_EPOCH,
+            timestamp: Stamp::At(UNIX_EPOCH),
             parent: "map".into(),
             child: "sensor".into(),
         })
         .unwrap();
 
-    let query = UNIX_EPOCH.checked_add(Duration::from_secs(5)).unwrap();
-    let result = registry.get_transform("map", "sensor", query).unwrap();
+    // A single-sample dynamic buffer serves exactly its own instant...
+    let result = registry.get_transform("map", "sensor", UNIX_EPOCH).unwrap();
     assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
-    assert_eq!(result.timestamp, query);
+    assert_eq!(result.timestamp, Stamp::At(UNIX_EPOCH));
+
+    // ...and no other, proving it was not classified static.
+    let later = UNIX_EPOCH.checked_add(Duration::from_secs(5)).unwrap();
+    assert!(registry.get_transform("map", "sensor", later).is_err());
 }
 
-// The buffer docs suggest `u64::MAX` as an alternative static sentinel;
-// `TestTime` uses exactly that. These tests lock in that every
-// sentinel-dependent path works with a MAX-valued sentinel, where the
-// sentinel is the largest value instead of the smallest.
+// The remaining tests exercise every static-transform path with a custom
+// clock: lookups at range extremes, kind conflicts, mixed chains, eviction,
+// and the time-travel lookup. Staticness is a `Stamp` variant, so none of
+// this depends on any reserved timestamp value.
 
 #[test]
-fn max_sentinel_static_lookup_serves_any_time_including_extremes() {
+fn static_lookup_serves_any_time_including_extremes() {
     let mut registry = Registry::<TestTime>::new();
     registry
-        .add_transform(test_transform("a", "b", TestTime::static_timestamp(), 1.0))
+        .add_transform(test_transform("a", "b", Stamp::Static, 1.0))
         .unwrap();
 
     for probe in [0, 1, 12_345, u64::MAX - 1, u64::MAX] {
         let got = registry.get_transform("a", "b", TestTime(probe)).unwrap();
         assert_eq!(got.translation.x, 1.0);
-        // The result carries the requested timestamp, not the sentinel.
-        assert_eq!(got.timestamp, TestTime(probe));
+        // The result carries the requested timestamp.
+        assert_eq!(got.timestamp, Stamp::At(TestTime(probe)));
     }
 }
 
 #[test]
-fn max_sentinel_static_dynamic_conflict_fires_in_both_orders() {
+fn static_dynamic_conflict_fires_in_both_orders() {
     let mut registry = Registry::<TestTime>::new();
     registry
-        .add_transform(test_transform("a", "b", TestTime::static_timestamp(), 1.0))
+        .add_transform(test_transform("a", "b", Stamp::Static, 1.0))
         .unwrap();
     assert!(matches!(
-        registry.add_transform(test_transform("a", "b", TestTime(5), 2.0)),
+        registry.add_transform(test_transform("a", "b", Stamp::At(TestTime(5)), 2.0)),
         Err(BufferError::StaticDynamicConflict)
     ));
 
     let mut registry = Registry::<TestTime>::new();
     registry
-        .add_transform(test_transform("a", "b", TestTime(5), 2.0))
+        .add_transform(test_transform("a", "b", Stamp::At(TestTime(5)), 2.0))
         .unwrap();
     assert!(matches!(
-        registry.add_transform(test_transform("a", "b", TestTime::static_timestamp(), 1.0,)),
+        registry.add_transform(test_transform("a", "b", Stamp::Static, 1.0)),
         Err(BufferError::StaticDynamicConflict)
     ));
 }
 
 #[test]
-fn max_sentinel_near_max_value_is_ordinary_dynamic() {
-    // The sentinel check is equality-only: u64::MAX - 1 is a normal
-    // dynamic timestamp even though it is adjacent to the sentinel.
-    let t = TestTime(u64::MAX - 1);
-    assert!(!t.is_static());
-
-    let mut registry = Registry::<TestTime>::new();
-    registry
-        .add_transform(test_transform("a", "b", t, 1.0))
-        .unwrap();
-    assert_eq!(
-        registry.get_transform("a", "b", t).unwrap().translation.x,
-        1.0
-    );
-    // A single-sample dynamic buffer cannot serve other times, proving the
-    // buffer was not classified static.
-    assert!(registry.get_transform("a", "b", TestTime(0)).is_err());
+fn range_extremes_are_ordinary_dynamic_values() {
+    // No value is reserved: both ends of the clock's range are normal
+    // dynamic timestamps.
+    for extreme in [0, u64::MAX] {
+        let t = TestTime(extreme);
+        let mut registry = Registry::<TestTime>::new();
+        registry
+            .add_transform(test_transform("a", "b", Stamp::At(t), 1.0))
+            .unwrap();
+        assert_eq!(
+            registry.get_transform("a", "b", t).unwrap().translation.x,
+            1.0
+        );
+        // A single-sample dynamic buffer cannot serve other times, proving
+        // the buffer was not classified static.
+        let other = TestTime(if extreme == 0 { u64::MAX } else { 0 });
+        assert!(registry.get_transform("a", "b", other).is_err());
+    }
 }
 
 #[test]
-fn max_sentinel_mixed_static_dynamic_chain_interpolates() {
+fn mixed_static_dynamic_chain_interpolates() {
     // a -> b static (x = 1), b -> c dynamic moving x = 0 -> 1 over 10s.
     let mut registry = Registry::<TestTime>::new();
     registry
-        .add_transform(test_transform("a", "b", TestTime::static_timestamp(), 1.0))
+        .add_transform(test_transform("a", "b", Stamp::Static, 1.0))
         .unwrap();
     registry
-        .add_transform(test_transform("b", "c", TestTime(10_000_000_000), 0.0))
+        .add_transform(test_transform(
+            "b",
+            "c",
+            Stamp::At(TestTime(10_000_000_000)),
+            0.0,
+        ))
         .unwrap();
     registry
-        .add_transform(test_transform("b", "c", TestTime(20_000_000_000), 1.0))
+        .add_transform(test_transform(
+            "b",
+            "c",
+            Stamp::At(TestTime(20_000_000_000)),
+            1.0,
+        ))
         .unwrap();
 
     let probe = TestTime(15_000_000_000);
     let got = registry.get_transform("a", "c", probe).unwrap();
     assert!((got.translation.x - 1.5).abs() < 1e-12);
-    assert_eq!(got.timestamp, probe);
+    assert_eq!(got.timestamp, Stamp::At(probe));
     assert_eq!(got.parent, "a");
     assert_eq!(got.child, "c");
 }
 
 #[test]
-fn max_sentinel_eviction_spares_the_static_leg() {
+fn eviction_spares_the_static_leg() {
     let mut registry = Registry::<TestTime>::with_max_age(Duration::from_secs(10));
     registry
-        .add_transform(test_transform("a", "b", TestTime::static_timestamp(), 1.0))
+        .add_transform(test_transform("a", "b", Stamp::Static, 1.0))
         .unwrap();
     let t_old = TestTime(100_000_000_000);
     let t_new = TestTime(200_000_000_000);
     registry
-        .add_transform(test_transform("b", "c", t_old, 0.0))
+        .add_transform(test_transform("b", "c", Stamp::At(t_old), 0.0))
         .unwrap();
     registry
-        .add_transform(test_transform("b", "c", t_new, 5.0))
+        .add_transform(test_transform("b", "c", Stamp::At(t_new), 5.0))
         .unwrap();
 
     // The old dynamic sample is evicted; the chain through the static leg
@@ -308,20 +319,20 @@ fn max_sentinel_eviction_spares_the_static_leg() {
 }
 
 #[test]
-fn max_sentinel_time_travel_lookup_works() {
+fn time_travel_lookup_works_with_a_custom_clock() {
     // get_transform_at composes legs resolved at different times through a
-    // time-agnostic private path; verify the whole flow with a MAX sentinel.
+    // time-agnostic private path; verify the whole flow on a custom clock.
     let t1 = TestTime(1_000_000_000);
     let t2 = TestTime(2_000_000_000);
     let mut registry = Registry::<TestTime>::new();
     registry
-        .add_transform(test_transform("fixed", "a", t1, 1.0))
+        .add_transform(test_transform("fixed", "a", Stamp::At(t1), 1.0))
         .unwrap();
     registry
-        .add_transform(test_transform("fixed", "a", t2, 2.0))
+        .add_transform(test_transform("fixed", "a", Stamp::At(t2), 2.0))
         .unwrap();
     registry
-        .add_transform(test_transform("a", "b", t1, 0.0))
+        .add_transform(test_transform("a", "b", Stamp::At(t1), 0.0))
         .unwrap();
 
     let result = registry
@@ -330,5 +341,5 @@ fn max_sentinel_time_travel_lookup_works() {
     // b sat at fixed-x 1.0 at t1; a is at fixed-x 2.0 at t2, so b expressed
     // in a-at-t2 sits at x = -1.0.
     assert!((result.translation.x - (-1.0)).abs() < 1e-12);
-    assert_eq!(result.timestamp, t2);
+    assert_eq!(result.timestamp, Stamp::At(t2));
 }

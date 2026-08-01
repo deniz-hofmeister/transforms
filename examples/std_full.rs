@@ -13,7 +13,7 @@ async fn main() {
     use transforms::{
         Registry,
         geometry::{Quaternion, Transform, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     fn generate_transform(t: Timestamp) -> Transform {
@@ -26,13 +26,27 @@ async fn main() {
             rotation: Quaternion::identity(),
             parent: "a".into(),
             child: "b".into(),
-            timestamp: t,
+            timestamp: Stamp::At(t),
         }
     }
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     let registry = Arc::new(RwLock::new(Registry::with_max_age(Duration::from_secs(10))));
+
+    // A fixed sensor mount: static transforms carry `Stamp::Static`, are
+    // valid for any query time, and never expire — registered once at
+    // startup, they chain with the dynamic transforms below.
+    registry
+        .write()
+        .await
+        .add_transform(Transform::static_between(
+            "b",
+            "lidar",
+            Vector3::new(0.2, 0.0, 0.1),
+            Quaternion::identity(),
+        ))
+        .unwrap();
 
     // Writer task - generates and adds transforms (requires exclusive access)
     let registry_writer = registry.clone();
@@ -45,14 +59,16 @@ async fn main() {
         }
     });
 
-    // Reader task - queries transforms (shared access, does not block other readers)
+    // Reader task - queries transforms (shared access, does not block other
+    // readers). The lookup crosses the dynamic a -> b edge and the static
+    // b -> lidar mount in one chain.
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
         loop {
             let result = registry_reader
                 .read()
                 .await
-                .get_transform("a", "b", Timestamp::now());
+                .get_transform("a", "lidar", Timestamp::now());
             match result {
                 Ok(tf) => info!("Found transform: {tf:?}"),
                 Err(e) => error!("Transform not found: {e:?}"),
