@@ -20,6 +20,22 @@ Its priorities, in this order:
    robotics developers, zero desire to match tf2's API or feature set. Never
    justify a design with "that is how tf2 does it."
 
+## Mindset: minimal and intentional
+
+Every line must earn its place; the default answer to "should this exist?" is
+no. Concretely:
+
+- No speculative API. Nothing is added because a downstream user *might* want
+  it — additions follow a demonstrated, concrete need.
+- Prefer deletion. A fix that removes code beats one that adds code; treat a
+  net-negative diff as evidence of a good change.
+- Write the version without the new abstraction first. Keep a trait, wrapper,
+  or type parameter only if the concrete version is demonstrably worse.
+- One purpose per change. No "while I'm here" refactors, helpers, or options
+  riding along with a fix.
+- Question single-use generality: a helper with one caller, a type parameter
+  with one instantiation, a config knob with one setting.
+
 ## Architecture in five lines
 
 - `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
