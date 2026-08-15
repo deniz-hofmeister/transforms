@@ -204,7 +204,7 @@ mod registry_tests {
         registry.add_transform(t_a_b_0.clone()).unwrap();
         registry.add_transform(t_a_b_1.clone()).unwrap();
 
-        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+        let middle_timestamp = Timestamp::from_nanos(u64::midpoint(
             t_a_b_0.timestamp.at().unwrap().as_nanos(),
             t_a_b_1.timestamp.at().unwrap().as_nanos(),
         ));
@@ -268,7 +268,7 @@ mod registry_tests {
         registry.add_transform(t_b_c_0.clone()).unwrap();
         registry.add_transform(t_b_c_1.clone()).unwrap();
 
-        let middle_timestamp = Timestamp::from_nanos(u128::midpoint(
+        let middle_timestamp = Timestamp::from_nanos(u64::midpoint(
             t_a_b_0.timestamp.at().unwrap().as_nanos(),
             t_a_b_1.timestamp.at().unwrap().as_nanos(),
         ));

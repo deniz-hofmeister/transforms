@@ -195,7 +195,7 @@ fn transform_postcard_bytes_are_frozen() {
     let bytes = postcard::to_allocvec(&transform).unwrap();
 
     // translation.x/y/z and rotation.w/x/y/z as fixed 8-byte LE f64, the
-    // stamp as an Option (1-byte Some tag, then the u128 timestamp as a
+    // stamp as an Option (1-byte Some tag, then the u64 timestamp as a
     // LEB128 varint), then length-prefixed frame names.
     let expected: &[u8] = &[
         0, 0, 0, 0, 0, 0, 248, 63, // 1.5

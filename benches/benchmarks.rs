@@ -8,14 +8,14 @@ use transforms::{
 };
 
 /// Base timestamp for dynamic samples.
-const BASE_NANOS: u128 = 1_000_000_000;
+const BASE_NANOS: u64 = 1_000_000_000;
 /// Nanoseconds between consecutive samples in the prepared registries.
-const SAMPLE_INTERVAL_NANOS: u128 = 1_000_000;
+const SAMPLE_INTERVAL_NANOS: u64 = 1_000_000;
 
 fn transform_at(
     parent: &str,
     child: &str,
-    nanos: u128,
+    nanos: u64,
 ) -> Transform {
     Transform {
         translation: Vector3::new(1.0, 0.0, 0.0),
@@ -29,7 +29,7 @@ fn transform_at(
 /// A registry pre-warmed with `samples` dynamic transforms between "a" and
 /// "b", spaced `SAMPLE_INTERVAL_NANOS` apart starting at `BASE_NANOS`.
 /// Returns the registry and the first free timestamp after the samples.
-fn prewarmed_registry(samples: u128) -> (Registry, u128) {
+fn prewarmed_registry(samples: u64) -> (Registry, u64) {
     let mut registry = Registry::new();
     let mut nanos = BASE_NANOS;
     for _ in 0..samples {
@@ -160,7 +160,7 @@ fn benchmark_get_transform_interpolated(c: &mut Criterion) {
 /// The three dynamic edges hold `samples` samples each; the three mounts
 /// are static. Deep synthetic chains overstate real-world lookup costs;
 /// this is the shape most robots actually query.
-fn robot_tree(samples: u128) -> Registry {
+fn robot_tree(samples: u64) -> Registry {
     let mut registry = Registry::new();
 
     registry

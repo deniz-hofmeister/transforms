@@ -18,13 +18,6 @@ impl TimePoint for SystemTime {
         SystemTime::duration_since(&self, earlier).map_err(|_| TimeError::DurationUnderflow)
     }
 
-    fn checked_add(
-        self,
-        rhs: Duration,
-    ) -> Result<Self, TimeError> {
-        SystemTime::checked_add(&self, rhs).ok_or(TimeError::DurationOverflow)
-    }
-
     fn checked_sub(
         self,
         rhs: Duration,
@@ -32,12 +25,8 @@ impl TimePoint for SystemTime {
         SystemTime::checked_sub(&self, rhs).ok_or(TimeError::DurationUnderflow)
     }
 
-    fn as_seconds(self) -> Result<f64, TimeError> {
-        SystemTime::duration_since(&self, UNIX_EPOCH)
-            .map(|duration| duration.as_secs_f64())
-            .map_err(|_| TimeError::DurationUnderflow)
-    }
-
+    /// A time before `UNIX_EPOCH` has no representation as seconds since the
+    /// epoch, so it yields NaN rather than a plausible-looking number.
     fn as_seconds_lossy(self) -> f64 {
         SystemTime::duration_since(&self, UNIX_EPOCH)
             .map_or(f64::NAN, |duration| duration.as_secs_f64())

@@ -15,8 +15,10 @@ use transforms::{
 /// Tolerance for comparing computed against expected geometry.
 const EPSILON: f64 = 1e-9;
 
-/// Upper bound (exclusive) of the generated timestamp range, in nanoseconds.
-const MAX_NANOS: u128 = 1_000_000_000_000_000;
+/// 2^53 nanoseconds: the boundary beyond which `f64` can no longer represent
+/// every nanosecond count exactly, and where `Timestamp::as_seconds` starts
+/// refusing to convert.
+const ACCURACY_CLIFF_NANOS: u64 = 1 << 53;
 
 /// Finite translations, bounded so accumulated floating-point rounding stays
 /// well below `EPSILON`.
@@ -47,10 +49,25 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
         })
 }
 
+/// Nanosecond magnitudes spanning the regimes that behave differently:
+/// small counts, both sides of the 2^53 `f64` accuracy cliff, 2020s
+/// wall-clock nanoseconds (where an `f64` ulp is already ~256 ns), and the
+/// top of the `u64` range. `headroom` keeps the highest band that far below
+/// `u64::MAX`, for callers that add a span to the drawn value.
+fn timestamp_nanos(headroom: u64) -> impl Strategy<Value = u64> {
+    let top = u64::MAX - headroom;
+    prop_oneof![
+        0..1_000_000_000_000_000_u64,
+        ACCURACY_CLIFF_NANOS - 1_000_000_000..ACCURACY_CLIFF_NANOS + 1_000_000_000,
+        1_700_000_000_000_000_000_u64..1_800_000_000_000_000_000,
+        top - 1_000_000_000..=top,
+    ]
+}
+
 /// Dynamic nanosecond timestamps. `t = 0` is included: no value is
 /// reserved — staticness is `Stamp::Static`, not a sentinel instant.
 fn timestamps() -> impl Strategy<Value = Timestamp> {
-    (0..MAX_NANOS).prop_map(Timestamp::from_nanos)
+    timestamp_nanos(0).prop_map(Timestamp::from_nanos)
 }
 
 /// The quaternion dot product; `|dot| ≈ 1` for unit quaternions means both
@@ -179,9 +196,12 @@ proptest! {
         translation_to in translations(),
         rotation_from in unit_quaternions(),
         rotation_to in unit_quaternions(),
-        start in 1..MAX_NANOS,
-        span in 1..1_000_000_000_u128,
-        outside in 1..1_000_000_000_u128,
+        // `span` and `outside` are each below a second, so two seconds of
+        // headroom keeps `start + span + outside` inside the range. A start
+        // of at least 1 keeps the "strictly before" probe below it.
+        start in timestamp_nanos(2_000_000_000).prop_map(|nanos| nanos.max(1)),
+        span in 1..1_000_000_000_u64,
+        outside in 1..1_000_000_000_u64,
     ) {
         let from = Transform {
             translation: translation_from,

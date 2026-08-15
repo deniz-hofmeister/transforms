@@ -70,8 +70,17 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   introduced in beta.3, where every frame-related error names its frames.
 - **Breaking:** `Buffer::get` takes the timestamp by value, matching every
   sibling API (`TimePoint` is `Copy`).
-- **Breaking:** `Timestamp`'s inner nanosecond field is private;
-  `from_nanos`/`as_nanos` are the API. The serde wire format is unchanged.
+- **Breaking:** `Timestamp`'s inner nanosecond field is private and narrows
+  from `u128` to `u64`; `from_nanos(u64)` / `as_nanos() -> u64` are the API.
+  u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
+  service life of anything this crate positions — while halving per-sample
+  stamp storage and removing multi-word arithmetic from the 32-bit MCU
+  targets. The serde wire shape is unchanged for every representable value:
+  a JSON integer, a postcard LEB128 varint, byte-identical golden vectors.
+  MessagePack now emits a native integer instead of the 16-byte blob a
+  `u128` forced, so foreign-language consumers read it as a number.
+  `Timestamp::now()` gains a second (2554) way to panic, and `try_now`
+  reports it as `TimeError::DurationOverflow`.
 - **Breaking:** `Timestamp::as_seconds_unchecked` is renamed
   `as_seconds_lossy`, matching the `TimePoint` vocabulary — the operation
   is lossy, not unsafe.
@@ -85,14 +94,23 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   scan (previously ~144 µs per insert at 60k live entries, the README
   Quick Start configuration at 1 kHz). A 60k-entry steady-state benchmark
   guards the regression.
-- `TimePoint::checked_add` stays in the trait by decision: it completes
-  the time algebra for downstream generic code, although the crate itself
-  only calls `checked_sub`.
+- **Breaking:** `TimePoint` is slimmed to the three methods the core
+  actually calls — `duration_since`, `checked_sub`, and `as_seconds_lossy`
+  — and gains `Debug` as a supertrait next to `Copy + Ord`. `checked_add`
+  had no call site in the crate, and `as_seconds` existed only to feed the
+  default `as_seconds_lossy`, whose own docs told implementors to override
+  it; on a soft-float MCU target that unused checked conversion is a
+  double-precision divide nobody asked for. `as_seconds_lossy` is now
+  required rather than defaulted, which also states its contract in the
+  type system: error formatting cannot fail. The `Debug` bound stops a
+  clock type without its own derive from making `Transform<YourClock>`
+  silently unprintable in the diagnostics that report a bad lookup.
 
 ### Added
 
 - `Timestamp::try_now()`: panic-free counterpart of `now()`, returning
-  `TimeError::DurationUnderflow` on a pre-epoch system clock.
+  `TimeError::DurationUnderflow` on a pre-epoch system clock and
+  `TimeError::DurationOverflow` on one set past the u64 nanosecond range.
 - Behavioral pin tests for commitments that freeze at stable: duplicate-
   timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
   semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
@@ -167,10 +185,9 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - Docs: the README no longer claims `Registry::new()` is shorthand for
   `Registry::<Timestamp>::new()` — default type parameters do not apply in
   expression position, and inference can land on any `TimePoint`.
-- Docs: the vague serde `u128` caveat is replaced with the verified
-  format-support matrix (`serde_json`/`postcard`/`bincode` fully support
-  it; `rmp-serde` emits a 16-byte binary blob foreign consumers won't read
-  as an integer).
+- Docs: the vague serde `u128` caveat is replaced with the format-support
+  statement the narrowed `u64` stamp makes simple — every serde format
+  encodes it as a native integer.
 - Docs: the serde feature-gating is now stated on every serde-capable
   type (rustdoc cannot banner derive-generated impls — verified against
   the docs.rs configuration, which the gate now builds; the crate also

@@ -75,9 +75,15 @@ Switch static publishers to `Transform::static_between` (or
 
 Two related breaks ride along:
 
-- **`TimePoint` is pure time arithmetic now.** Custom clock impls delete
-  `static_timestamp()` and `is_static()` — two methods fewer, and no
-  sentinel value to invent.
+- **`TimePoint` is pure time arithmetic now, in three methods.** Custom
+  clock impls delete `static_timestamp()` and `is_static()` — no sentinel
+  value to invent — and also `checked_add()` and `as_seconds()`, neither
+  of which the crate ever called. What remains is `duration_since`,
+  `checked_sub`, and `as_seconds_lossy`, the last no longer defaulted:
+  implement it as a best-effort conversion that yields `f64::NAN` where
+  your clock cannot convert, never a plausible-looking number, because it
+  is what formats error messages. The trait also gains `Debug` as a
+  supertrait — derive it on your clock type if you had not.
 - **`Buffer` declares its kind at construction.** `Buffer::new()` /
   `Buffer::with_max_age(d)` / `Default` are replaced by
   `Buffer::dynamic()`, `Buffer::dynamic_with_max_age(d)`, and
@@ -159,9 +165,14 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 - `registry.data` is private. There is no public iteration API — restructure
   around `get_transform`, `remove_frame`, and your own bookkeeping.
-- `Timestamp`'s inner field is private: replace `ts.t` with `ts.as_nanos()`
-  and `Timestamp { t }` with `Timestamp::from_nanos(t)`. The serde wire
-  format is unchanged.
+- `Timestamp`'s inner field is private and holds `u64` nanoseconds instead
+  of `u128`: replace `ts.t` with `ts.as_nanos()` and `Timestamp { t }` with
+  `Timestamp::from_nanos(t)`, narrowing wider integers at the call site
+  (`u64::try_from(nanos)`). u64 nanoseconds cover ~584 years, running out
+  in 2554; a clock that must outlive that needs a custom `TimePoint`. The
+  serde wire shape is unchanged for every value that still fits — a JSON
+  integer, a postcard LEB128 varint — so only a stamp beyond 2554 stops
+  decoding.
 
 ### 6. Small signature changes
 

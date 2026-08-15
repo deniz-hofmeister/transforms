@@ -45,7 +45,9 @@ no. Concretely:
 - `geometry` — `Transform` (translation + rotation + timestamp + parent/child
   frames), `Vector3`, `Quaternion`, and `Point` as the reference implementation
   of the `Transformable`/`Localized` traits.
-- `time` — the `TimePoint` trait and the default `Timestamp` (u128 nanoseconds);
+- `time` — the `TimePoint` trait (`Copy + Ord + Debug` plus `duration_since`,
+  `checked_sub`, `as_seconds_lossy` — nothing the core does not call) and the
+  default `Timestamp` (u64 nanoseconds, ~584 years);
   `std::time::SystemTime` is supported behind the `std` feature.
 
 ## Non-negotiables
@@ -74,8 +76,9 @@ no. Concretely:
   non-linear interpolation, no tf2 API parity. Do not implement these even if an
   issue requests them; redirect to the maintainer.
 - Library code must not panic on reachable paths. The only documented panic is
-  `Timestamp::now()` on a pre-epoch system clock. Time arithmetic is checked,
-  always.
+  `Timestamp::now()` on a system clock outside the representable range (before
+  the Unix epoch, or beyond the u64 nanosecond range in 2554); `try_now`
+  returns those as errors. Time arithmetic is checked, always.
 
 ## Correctness invariants
 

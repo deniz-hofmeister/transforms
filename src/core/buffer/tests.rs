@@ -151,7 +151,7 @@ mod buffer_tests {
         // zero needs no special handling.
         let mut buffer = Buffer::dynamic();
         for i in 0..3u64 {
-            let t = Timestamp::from_nanos(u128::from(i) * 1_000_000_000);
+            let t = Timestamp::from_nanos(i * 1_000_000_000);
             buffer.insert(create_transform(t)).unwrap();
         }
 

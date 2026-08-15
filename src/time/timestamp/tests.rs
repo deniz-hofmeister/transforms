@@ -35,7 +35,7 @@ mod timestamp_tests {
 
     #[test]
     fn as_seconds_accuracy_loss() {
-        let timestamp = Timestamp::from_nanos(u128::MAX - 1);
+        let timestamp = Timestamp::from_nanos(u64::MAX - 1);
         assert!(matches!(
             timestamp.as_seconds(),
             Err(TimeError::AccuracyLoss)
@@ -69,15 +69,53 @@ mod timestamp_tests {
     }
 
     #[test]
-    fn checked_add_beyond_the_representable_range_overflows() {
-        use crate::time::TimePoint;
+    fn adding_beyond_the_representable_range_overflows() {
         use core::time::Duration;
 
-        let t = Timestamp::from_nanos(u128::MAX);
+        let t = Timestamp::from_nanos(u64::MAX);
         assert!(matches!(
-            t.checked_add(Duration::from_nanos(1)),
+            t + Duration::from_nanos(1),
             Err(TimeError::DurationOverflow)
         ));
+    }
+
+    #[test]
+    fn a_duration_wider_than_the_timestamp_range_is_rejected_both_ways() {
+        use core::time::Duration;
+
+        // `Duration` counts seconds in a u64, so it can express spans no
+        // `Timestamp` can hold. Both directions must report the range
+        // failure instead of truncating the nanosecond count.
+        let wide = Duration::from_secs(u64::MAX);
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        assert!(matches!(t + wide, Err(TimeError::DurationOverflow)));
+        assert!(matches!(t - wide, Err(TimeError::DurationUnderflow)));
+    }
+
+    #[test]
+    fn the_top_of_the_range_is_an_ordinary_timestamp() {
+        // u64 nanoseconds span ~584 years; the last one is ordinary data,
+        // not a sentinel.
+        let top = Timestamp::from_nanos(u64::MAX);
+        assert_eq!(top.as_nanos(), u64::MAX);
+        assert!(top > Timestamp::zero());
+    }
+
+    #[test]
+    fn subtraction_spans_the_whole_range() {
+        use core::time::Duration;
+
+        // The widest possible span is a valid `Duration` (~584 years), so
+        // the subtraction has no overflow arm to take.
+        let span = Timestamp::from_nanos(u64::MAX) - Timestamp::zero();
+        assert_eq!(span.unwrap(), Duration::from_nanos(u64::MAX));
+
+        let zero = Timestamp::from_nanos(7) - Timestamp::from_nanos(7);
+        assert_eq!(zero.unwrap(), Duration::ZERO);
+
+        let backwards = Timestamp::zero() - Timestamp::from_nanos(1);
+        assert!(matches!(backwards, Err(TimeError::DurationUnderflow)));
     }
 
     #[test]

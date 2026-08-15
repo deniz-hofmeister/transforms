@@ -79,13 +79,12 @@ transforms = "2.0.0-rc.1"
 
 Minimum supported Rust version: 1.86 (checked in CI).
 
-Note on `serde`: `Timestamp` serializes its nanosecond value as a `u128`.
-The formats robotics users typically pair with this crate fully support it:
-`serde_json`, `postcard`, and `bincode` (1.x and 2.x) all round-trip the
-full range. MessagePack via `rmp-serde` round-trips Rust-to-Rust but
-encodes the `u128` as a 16-byte binary blob that foreign-language consumers
-will not read as an integer. Struct field order is part of the wire
-contract for non-self-describing formats.
+Note on `serde`: `Timestamp` serializes its nanosecond value as a `u64`,
+an integer every serde format encodes natively — `serde_json`, `postcard`,
+`bincode` (1.x and 2.x), and MessagePack via `rmp-serde` all round-trip the
+full range, and a foreign-language consumer reads it as a plain integer.
+Struct field order is part of the wire contract for non-self-describing
+formats.
 Deserialization does not validate — like hand-built transforms, deserialized
 ones are validated when they enter a `Registry`.
 
@@ -162,7 +161,7 @@ pub fn remove_frame(&mut self, child: &str) -> bool
 | `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
 | `Vector3` | 3D vector with x, y, z components (f64) |
 | `Quaternion` | Quaternion for rotations (expected unit norm) with w, x, y, z components (f64) |
-| `Timestamp` | Time representation in nanoseconds (u128) |
+| `Timestamp` | Time representation in nanoseconds (u64, ~584 years of range) |
 | `Stamp<T = Timestamp>` | When a transform is valid: `At(T)` for one instant, `Static` for all time |
 | `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
@@ -485,8 +484,8 @@ This design makes the library suitable for:
 
 In plain terms:
 
-- `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated.
-- `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u128`.
+- `TimePoint` is a trait (an interface). It says what a time type must do so transforms can be stored, compared, and interpolated: be `Copy + Ord + Debug` and provide `duration_since`, `checked_sub`, and `as_seconds_lossy`.
+- `Timestamp` is the default struct (a concrete type). It stores time as nanoseconds in a `u64`, which covers about 584 years from the clock's epoch — mid-2554 for a Unix-epoch clock.
 
 Use `Timestamp` if you want the default behavior.
 `Registry` defaults its type parameter to `Timestamp`: in type position,

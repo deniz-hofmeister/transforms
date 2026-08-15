@@ -23,8 +23,9 @@ fn test_transform(
     }
 }
 
-/// A custom nanosecond clock over `u64`: the trait is pure time
-/// arithmetic — no value is reserved for staticness, so the full `u64`
+/// A custom nanosecond clock over `u64`, and the complete `TimePoint`
+/// implementation an integrator has to write: three methods of pure time
+/// arithmetic. No value is reserved for staticness, so the full `u64`
 /// range including `0` and `u64::MAX` is ordinary dynamic data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TestTime(u64);
@@ -38,20 +39,6 @@ impl TimePoint for TestTime {
             .checked_sub(earlier.0)
             .map(Duration::from_nanos)
             .ok_or(TimeError::DurationUnderflow)
-    }
-
-    fn checked_add(
-        self,
-        rhs: Duration,
-    ) -> Result<Self, TimeError> {
-        let rhs_ns = rhs
-            .as_nanos()
-            .try_into()
-            .map_err(|_| TimeError::DurationOverflow)?;
-        self.0
-            .checked_add(rhs_ns)
-            .map(Self)
-            .ok_or(TimeError::DurationOverflow)
     }
 
     fn checked_sub(
@@ -68,8 +55,8 @@ impl TimePoint for TestTime {
             .ok_or(TimeError::DurationUnderflow)
     }
 
-    fn as_seconds(self) -> Result<f64, TimeError> {
-        Ok(self.0 as f64 / 1_000_000_000.0)
+    fn as_seconds_lossy(self) -> f64 {
+        self.0 as f64 / 1_000_000_000.0
     }
 }
 
@@ -158,16 +145,13 @@ fn identity_is_static() {
 
 #[cfg(feature = "std")]
 #[test]
-fn system_time_pre_epoch_errs_and_epoch_is_ordinary() {
+fn system_time_pre_epoch_is_nan_and_epoch_is_ordinary() {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // A pre-epoch time point cannot be expressed as seconds since the epoch;
-    // the checked conversion must err and the lossy one must yield NaN.
+    // A pre-epoch time point cannot be expressed as seconds since the epoch.
+    // `as_seconds_lossy` is infallible by contract, so it reports NaN rather
+    // than a plausible-looking number an error message would then quote.
     let pre_epoch = UNIX_EPOCH.checked_sub(Duration::from_secs(1)).unwrap();
-    assert!(matches!(
-        TimePoint::as_seconds(pre_epoch),
-        Err(TimeError::DurationUnderflow)
-    ));
     assert!(TimePoint::as_seconds_lossy(pre_epoch).is_nan());
 
     // UNIX_EPOCH is an ordinary dynamic instant — a zero-initialized wire

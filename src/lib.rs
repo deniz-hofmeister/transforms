@@ -19,7 +19,8 @@
 //! - **Static Transforms**: Transforms carrying `Stamp::Static` are valid for
 //!   all time; build them with `Transform::static_between`. No timestamp value
 //!   is reserved — every instant, including `t = 0`, is ordinary dynamic data.
-//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
+//! - **Custom Timestamp Types**: You can use your own `Copy + Ord + Debug` timestamp type by
+//!   implementing `time::TimePoint`'s three methods.
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
 //!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
 //!   is called. Both work with and without `std`.
