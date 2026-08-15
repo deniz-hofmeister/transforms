@@ -34,3 +34,21 @@ on `feature/v2-audit-decisions` plus this table are the ground truth for resumin
 
 Status values: `PENDING` → `IN PROGRESS` → `DONE` (or `BLOCKED` with a reason in Notes).
 Review findings that led to a follow-up commit are noted in the same row.
+
+## Interruption record — 2026-08-15, after Stage 2
+
+Deliberate clean termination by the maintainer. Working tree clean at `f49c6f0`; Stages 1–2 are
+implemented, gated, and committed. Stage 2's **post-commit review was cut short**:
+
+- The adversarial reviewer filed one blocker, **verified real before shutdown**: the crate-root
+  panic-policy rustdoc (`src/lib.rs:192-195`) still claims the *single* documented panic cause is a
+  pre-epoch clock, but the u64 narrowing added a second reachable cause (`Timestamp::now()` on a
+  clock past `u64::MAX` ns, mid-2554). The commit updated `Timestamp::now`'s rustdoc and AGENTS.md
+  but missed this crate-root site. **First action on resume:** fix that doc, run the full gate,
+  commit as "Address Stage 2 review findings", append the outcome to the Stage 2 row.
+- The fidelity reviewer was terminated mid-run; its verdict is unknown. Optionally re-review
+  `f49c6f0` (spec-fidelity against the record's Stage 2 + sub-decisions) before moving on; its
+  last observed activity (leftover-`u128`/`Duration` sweeps, cross-target builds) had surfaced
+  nothing at termination time.
+
+Then proceed with Stage 3 per the protocol above.
