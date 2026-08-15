@@ -181,8 +181,15 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
    errored in 1.x; it now returns `Ok(identity)`.
 4. **Results always carry the requested timestamp**, including over
    all-static chains.
-5. **Cleanup preserves static transforms.** `delete_transforms_before`
-   deleted them in 1.x; it now spares them and prunes frames left empty.
+5. **Cleanup preserves static transforms — and frame pins.**
+   `delete_transforms_before` deleted static transforms in 1.x; it now
+   spares them. It also never releases a frame: a frame drained of every
+   sample keeps the parent and the static-or-dynamic kind pinned by its
+   first insert, so routine cleanup cannot quietly re-open it for
+   re-parenting or for a change of kind, and lookups on it report
+   `NotFoundAt` rather than `UnknownFrame`. `remove_frame` is the only
+   release — call it when a frame retires, or the frame map grows without
+   bound.
 6. **No extrapolation anywhere.** Out-of-range queries fail with
    `TimestampOutOfRange`; `Quaternion::slerp` clamps its factor to [0, 1].
 7. **Re-publishing at a stored timestamp replaces that sample** (documented

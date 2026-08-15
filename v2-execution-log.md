@@ -21,7 +21,7 @@ on `feature/v2-audit-decisions` plus this table are the ground truth for resumin
 
 | Stage | Scope | Status | Commit(s) | Gate | Notes / deviations |
 |---|---|---|---|---|---|
-| 1 | Correctness semantics (D1, D3, D4) | PENDING | — | — | — |
+| 1 | Correctness semantics (D1, D3, D4) | DONE | this commit | GREEN | No source drift: the retain, the test, the `Stamp` derive and the contradicted rustdoc were all where the record said. `Buffer`'s pin-doc needed no edit — it already promised what D1 now makes true, so only the registry side was corrected. No CHANGELOG entry for D4: `Stamp` ships first in this unreleased rc.1, so the ordering derives never reached a user; the rationale is pinned as `Stamp` rustdoc and an AGENTS.md invariant instead. AGENTS.md gained two invariant clauses (pins survive cleanup; `Stamp` is deliberately unordered) — beyond the stage bullets, but required by the normative-docs rule. |
 | 2 | Time types (D11, D12) | PENDING | — | — | — |
 | 3 | Numerics: libm everywhere (D10) | PENDING | — | — | — |
 | 4 | Surface trims + renames (D5, D7, D8) | PENDING | — | — | — |

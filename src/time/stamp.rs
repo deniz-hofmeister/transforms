@@ -25,11 +25,18 @@ use crate::time::{TimePoint, Timestamp};
 /// assert_eq!(fixed.at(), None);
 /// ```
 ///
+/// `Stamp` is deliberately not ordered. `Static` denotes all time rather
+/// than an instant, so it has no position on a time axis; a derived ordering
+/// would place it below every real instant and make the natural
+/// freshest-sample idiom (`max_by_key(|tf| tf.timestamp)`) rank an eternal
+/// transform as older than the epoch. Order the instants themselves — via
+/// [`Stamp::at`] — and decide what static means for the comparison at hand.
+///
 /// With the optional `serde` feature, `Stamp` serializes as an optional
 /// timestamp: `Stamp::At(t)` as `t` itself and `Stamp::Static` as `null`
 /// (in self-describing formats), keeping the wire format free of reserved
 /// magic values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stamp<T = Timestamp>
 where
     T: TimePoint,

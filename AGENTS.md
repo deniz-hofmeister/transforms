@@ -90,7 +90,10 @@ would produce) a silent wrong answer:
 - A child frame's buffer is static **xor** dynamic. The first insert fixes the
   kind; a mismatched later insert must fail with
   `BufferError::StaticDynamicConflict`. Staticness is `Stamp::Static` on the
-  transform — no timestamp value is reserved.
+  transform — no timestamp value is reserved. `Stamp` is deliberately
+  unordered (`PartialEq`/`Eq` only): `Static` denotes all time, so any
+  ordering would rank an eternal transform against real instants and make
+  `max_by_key(|tf| tf.timestamp)` silently pick the wrong sample.
 - The frame tree is strict: the first insert also pins a child frame's parent
   (re-parenting fails with `ReparentingNotSupported`; `Registry::remove_frame`
   is the escape hatch), a frame cannot be its own parent, and inserts that
@@ -113,7 +116,10 @@ would produce) a silent wrong answer:
   (latest **inserted** timestamp − `max_age`) are removed on insert (only for
   buffers built `dynamic_with_max_age`). Wall-clock time is never consulted. Manual
   cleanup (`delete_before` / `delete_transforms_before`) never touches static
-  buffers — a static transform is valid for all time.
+  buffers — a static transform is valid for all time — and never releases a
+  frame: a drained buffer keeps its pinned parent and its static/dynamic kind,
+  so cleanup cannot re-open a frame for re-parenting or a change of kind.
+  `Registry::remove_frame` is the only release.
 - Transforms are validated at insertion (`Transform::validate`, called by
   `Buffer::insert`): non-finite components and rotations whose norm deviates
   from 1 by more than `geometry::UNIT_NORM_TOLERANCE` are rejected. A

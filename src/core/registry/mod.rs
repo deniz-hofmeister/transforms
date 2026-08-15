@@ -157,9 +157,22 @@ where
 {
     /// Creates a new `Registry` without automatic cleanup.
     ///
-    /// Transforms are kept until removed manually with
-    /// [`Registry::delete_transforms_before`]. Use
-    /// [`Registry::with_max_age`] for automatic cleanup.
+    /// **Nothing bounds this registry.** Two consequences follow, and both
+    /// are the caller's to manage:
+    ///
+    /// - *Memory* grows with the insert rate. Transforms are kept until
+    ///   removed manually with [`Registry::delete_transforms_before`], and
+    ///   frames until [`Registry::remove_frame`].
+    /// - *Interpolation* spans any gap between two retained samples, however
+    ///   large. A lookup between samples recorded before and after a pause —
+    ///   a stalled publisher, a rebooting robot — interpolates straight
+    ///   across it and answers confidently, because both neighbors are still
+    ///   stored.
+    ///
+    /// [`Registry::with_max_age`] bounds both at once: evicting on insert
+    /// caps the retained window, and no gap between two retained samples can
+    /// then exceed `max_age`. Prefer it unless the retention policy is
+    /// genuinely the caller's.
     ///
     /// # Examples
     ///
@@ -481,8 +494,14 @@ where
     /// preserved: they are valid for all time, so cleaning them up by
     /// timestamp would silently destroy them.
     ///
-    /// Frames left without any transforms are removed entirely, so the
-    /// registry does not grow without bound as frames come and go.
+    /// A frame drained of every transform keeps its entry, and with it the
+    /// parent frame and the static-or-dynamic kind pinned by its first
+    /// insert. Routine cleanup therefore never re-opens a frame for
+    /// re-parenting or for a change of kind, and a lookup on a drained frame
+    /// fails with `TransformError::NotFoundAt` naming that frame rather than
+    /// reporting it as unknown. Frame entries are released only by
+    /// [`Registry::remove_frame`] — a process that mints transient frame
+    /// names must call it when a frame retires.
     pub fn delete_transforms_before(
         &mut self,
         timestamp: T,
@@ -490,7 +509,6 @@ where
         for buffer in self.data.values_mut() {
             buffer.delete_before(timestamp);
         }
-        self.data.retain(|_, buffer| !buffer.is_empty());
     }
 
     /// Removes a child frame and all of its transforms from the registry.
@@ -960,6 +978,9 @@ impl<T> Default for Registry<T>
 where
     T: TimePoint,
 {
+    /// Equivalent to [`Registry::new`], including its unbounded retention and
+    /// unbounded interpolation gap — read that constructor's documentation
+    /// before taking the default over [`Registry::with_max_age`].
     fn default() -> Self {
         Self::new()
     }

@@ -1095,7 +1095,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn delete_transforms_before_prunes_empty_frames() {
+    fn delete_transforms_before_keeps_the_parent_pin() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(3_000_000_000);
@@ -1110,20 +1110,95 @@ mod registry_tests {
             })
             .unwrap();
 
-        // Wiping every transform of a frame releases the frame itself, so
-        // the registry does not accumulate dead frames — and the frame can
-        // come back under a new parent.
+        // Regression test: draining a frame used to release it, so routine
+        // cleanup silently turned a rejected re-parenting into an accepted
+        // one and changed the topology behind the caller's back.
         registry.delete_transforms_before(t2);
+        let reparented = Transform {
+            translation: Vector3::new(0.0, 0.5, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Stamp::At(t2),
+            parent: "gripper".into(),
+            child: "object".into(),
+        };
+        let result = registry.add_transform(reparented.clone());
+        assert!(
+            matches!(
+                result,
+                Err(BufferError::ReparentingNotSupported(ref parent)) if parent == "world"
+            ),
+            "cleanup must not release the parent pin, got {result:?}"
+        );
+
+        // remove_frame remains the sole escape hatch, drained or not.
+        assert!(registry.remove_frame("object"));
+        registry.add_transform(reparented).unwrap();
+        assert!(registry.get_transform("gripper", "object", t2).is_ok());
+    }
+
+    #[test]
+    fn delete_transforms_before_keeps_the_buffer_kind() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+
         registry
             .add_transform(Transform {
-                translation: Vector3::new(0.0, 0.5, 0.0),
+                translation: Vector3::new(1.0, 0.0, 0.0),
                 rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "gripper".into(),
+                timestamp: Stamp::At(t1),
+                parent: "world".into(),
                 child: "object".into(),
             })
             .unwrap();
-        assert!(registry.get_transform("gripper", "object", t2).is_ok());
+
+        // Regression test: draining a frame used to release its kind too, so
+        // a moving frame could become an eternal static one that answered
+        // confidently at times its data never covered.
+        registry.delete_transforms_before(t2);
+        let result = registry.add_transform(Transform {
+            translation: Vector3::new(0.0, 0.5, 0.0),
+            rotation: Quaternion::identity(),
+            timestamp: Stamp::Static,
+            parent: "world".into(),
+            child: "object".into(),
+        });
+        assert!(
+            matches!(result, Err(BufferError::StaticDynamicConflict)),
+            "cleanup must not release the static/dynamic kind, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn delete_transforms_before_leaves_drained_frames_diagnosable() {
+        let mut registry = Registry::new();
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+
+        registry
+            .add_transform(Transform {
+                translation: Vector3::new(1.0, 0.0, 0.0),
+                rotation: Quaternion::identity(),
+                timestamp: Stamp::At(t1),
+                parent: "world".into(),
+                child: "object".into(),
+            })
+            .unwrap();
+
+        // A drained frame is known but empty. The lookup must say so —
+        // naming the frame that holds no data — instead of claiming the
+        // frame was never heard of, which reads as a publisher typo.
+        registry.delete_transforms_before(t2);
+        let result = registry.get_transform("world", "object", t2);
+        assert!(
+            matches!(
+                &result,
+                Err(TransformError::NotFoundAt { frame, source, .. })
+                    if frame == "object"
+                        && matches!(source.as_ref(), BufferError::NoTransformAvailable)
+            ),
+            "expected NotFoundAt naming the drained frame, got {result:?}"
+        );
     }
 
     #[test]

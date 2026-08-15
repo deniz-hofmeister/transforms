@@ -134,6 +134,23 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   and then reject dynamic samples. The kind is now declared at
   construction and structural — the flip is unrepresentable, pinned by a
   regression test.
+- **Behavior change:** `Registry::delete_transforms_before` no longer drops
+  frames it leaves empty. Dropping them un-pinned the frame's parent and
+  its static/dynamic kind, so routine cleanup silently re-opened decisions
+  the registry had already refused: a rejected re-parenting became an
+  accepted one and changed the topology behind the caller's back, and a
+  moving frame could become an eternal static one that answered
+  confidently at times its data never covered. A drained frame now keeps
+  its pins, lookups on it report `NotFoundAt` naming that frame instead of
+  `UnknownFrame`, and `Registry::remove_frame` is the only way to release
+  a frame — long-running processes that mint transient frame names must
+  call it. Three regression tests pin the pin, the kind, and the
+  diagnosis.
+- Docs: `Registry::new` states what its lack of a `max_age` costs — not
+  only unbounded retention, but an unbounded interpolation gap, since a
+  lookup between samples recorded either side of a publisher stall
+  interpolates straight across it. `Registry::with_max_age` bounds both,
+  and the `Default` impl points at the same explanation.
 - Docs: duplicate-timestamp inserts are documented as last-write-wins
   upserts; `remove_frame` documents that it strands descendants of a
   mid-tree frame; interpolation is documented to span interior gaps of any
