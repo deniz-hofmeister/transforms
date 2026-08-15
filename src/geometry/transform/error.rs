@@ -83,11 +83,20 @@ pub enum TransformError {
         source_frame: String,
     },
 
-    /// The lookup stopped at a frame whose buffer holds data but could not
-    /// serve the requested time — typically a transient gap: the request
-    /// is outside the frame's covered time range. `frame` names where the
-    /// chain walk stopped and `source` carries the buffer's error,
-    /// including the covered range.
+    /// The lookup stopped at a frame that exists in the tree but could not
+    /// serve the requested time. `frame` names where the chain walk stopped
+    /// and `source` says which of two cases it is:
+    /// [`BufferError::TransformError`] wrapping
+    /// [`TimestampOutOfRange`](Self::TimestampOutOfRange) — which carries
+    /// the frame's covered range — when the request falls outside data the
+    /// frame does hold, typically a transient gap; or
+    /// [`BufferError::NoTransformAvailable`], which carries no range, when
+    /// the frame holds no data at all. Only the first case is a timing
+    /// question. A frame drained by
+    /// [`Registry::delete_transforms_before`](crate::Registry::delete_transforms_before)
+    /// keeps its entry and reports the second for as long as nothing is
+    /// inserted into it, so waiting or widening the requested time window
+    /// will not make it answer.
     ///
     /// Receiving this variant does not guarantee the frames are connectable:
     /// when a data gap and a topological disconnection coexist, the recorded

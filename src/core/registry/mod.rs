@@ -288,11 +288,17 @@ where
     ///
     /// Returns `TransformError::UnknownFrame` if a requested frame exists
     /// nowhere in the tree, `TransformError::NotFoundAt` if the lookup
-    /// failed at a frame that holds data but could not serve the requested
-    /// time — the variant names that frame and carries the underlying
-    /// `BufferError`, including the frame's covered time range — and
-    /// `TransformError::Disconnected` if both frames exist but live in
+    /// failed at a frame that exists but could not serve the requested time,
+    /// and `TransformError::Disconnected` if both frames exist but live in
     /// trees that no transform chain connects.
+    ///
+    /// `NotFoundAt` names the frame the walk stopped at and carries the
+    /// underlying `BufferError`: `TimestampOutOfRange` with that frame's
+    /// covered time range when it holds data the request falls outside of,
+    /// or `NoTransformAvailable` — no range to carry — when it holds no
+    /// data at all, the state a frame drained by
+    /// [`Registry::delete_transforms_before`] stays in until something is
+    /// inserted into it again.
     ///
     /// # Examples
     ///
@@ -608,9 +614,10 @@ where
 
     /// Diagnoses a failed lookup, in order of certainty: a requested frame
     /// that exists nowhere in the tree, then a recorded chain-walk failure
-    /// (a frame with data that could not serve the requested time), and
-    /// otherwise — both frames known and both walks clean — the frames live
-    /// in disconnected trees. The scans run only on the failure path.
+    /// (a known frame that could not serve the requested time, whether it
+    /// holds data outside that time or no data at all), and otherwise —
+    /// both frames known and both walks clean — the frames live in
+    /// disconnected trees. The scans run only on the failure path.
     fn diagnose_not_found(
         from: &str,
         to: &str,
@@ -641,8 +648,9 @@ where
     /// # Errors
     ///
     /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If the lookup failed at a frame whose buffer holds data
-    ///   but could not serve the requested time
+    /// * `TransformError::NotFoundAt` - If the lookup failed at a frame that exists but could not
+    ///   serve the requested time, either because the request falls outside the data it holds or
+    ///   because it holds none
     /// * `TransformError::Disconnected` - If both frames exist but no chain connects them
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform(
@@ -777,8 +785,9 @@ where
     /// # Errors
     ///
     /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If a leg failed at a frame whose buffer holds data
-    ///   but could not serve the requested time
+    /// * `TransformError::NotFoundAt` - If a leg failed at a frame that exists but could not
+    ///   serve the requested time, either because the request falls outside the data it holds or
+    ///   because it holds none
     /// * `TransformError::Disconnected` - If a leg's frames exist but no chain connects them
     /// * Other variants of `TransformError` resulting from transform operations
     fn process_get_transform_at(

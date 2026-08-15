@@ -103,8 +103,11 @@ would produce) a silent wrong answer:
   frames exactly; a chain that resolves only partway must return an error,
   never a partial result — `UnknownFrame` for a frame that exists nowhere,
   `Disconnected` for two known frames no chain connects, and `NotFoundAt`
-  (carrying the frame and the underlying `BufferError`, e.g.
-  `TimestampOutOfRange`) for a mid-chain timestamp gap. Results always carry
+  for a known frame that cannot serve the requested time — carrying the
+  frame plus the underlying `BufferError`, which separates a gap in data the
+  frame holds (`TimestampOutOfRange`, with the covered range) from a frame
+  holding nothing at all (`NoTransformAvailable`, no range); a caller must
+  not read the second as a timing problem. Results always carry
   the requested timestamp (also over static chains), and a frame relative to
   itself is the identity.
 - Interpolation happens only between stored samples; a query outside the

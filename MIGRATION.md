@@ -118,7 +118,7 @@ match err {
 match err {
     TransformError::UnknownFrame(f) => wait_for_publisher(),   // typo / not yet published
     TransformError::Disconnected { target_frame, source_frame } => topology_bug(),
-    TransformError::NotFoundAt { frame, source, .. } => retry_later(), // data gap at `frame`
+    TransformError::NotFoundAt { frame, source, .. } => inspect(source), // see below: `frame` cannot answer
     _ => other(),                                              // mandatory: #[non_exhaustive]
 }
 ```
@@ -126,9 +126,13 @@ match err {
 The 1.x catch-all `TransformError::NotFound` is gone, replaced by the three
 diagnosed variants above (mirroring tf2's LookupException /
 ConnectivityException / ExtrapolationException). `NotFoundAt`'s `source`
-carries `TimestampOutOfRange(requested, start, end)` — `requested > end`
-means the lookup is merely too new (latency: retry), otherwise the data is
-stale or missing. All error enums are `#[non_exhaustive]`, so every match
+must be inspected before retrying, because it distinguishes two situations:
+`TimestampOutOfRange { requested, start, end }` means `frame` holds data the
+request falls outside of — `requested > end` is merely too new (latency:
+retry), otherwise the data is stale — while `NoTransformAvailable` means
+`frame` holds no data at all and carries no range, so retrying achieves
+nothing until someone inserts into it (see runtime behavior change 5).
+All error enums are `#[non_exhaustive]`, so every match
 needs a `_` arm. Also removed: the `TimestampError` alias (use
 `TimeError`), `BufferError::MaxAgeInvalid`, and
 `TransformError::TransformTreeEmpty` (never produced).
@@ -187,7 +191,8 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
    sample keeps the parent and the static-or-dynamic kind pinned by its
    first insert, so routine cleanup cannot quietly re-open it for
    re-parenting or for a change of kind, and lookups on it report
-   `NotFoundAt` rather than `UnknownFrame`. `remove_frame` is the only
+   `NotFoundAt` — with `NoTransformAvailable` as the cause, not a covered
+   range — rather than `UnknownFrame`. `remove_frame` is the only
    release — call it when a frame retires, or the frame map grows without
    bound.
 6. **No extrapolation anywhere.** Out-of-range queries fail with

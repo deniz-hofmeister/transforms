@@ -145,7 +145,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `UnknownFrame`, and `Registry::remove_frame` is the only way to release
   a frame — long-running processes that mint transient frame names must
   call it. Three regression tests pin the pin, the kind, and the
-  diagnosis.
+  diagnosis. `NotFoundAt`'s documentation now separates its two causes,
+  because a drained frame is the first one reachable from `Registry`:
+  `TimestampOutOfRange` carries the frame's covered range and is a timing
+  question, `NoTransformAvailable` carries no range and means the frame
+  holds nothing — retrying or widening the window will not make it answer.
 - Docs: `Registry::new` states what its lack of a `max_age` costs — not
   only unbounded retention, but an unbounded interpolation gap, since a
   lookup between samples recorded either side of a publisher stall
