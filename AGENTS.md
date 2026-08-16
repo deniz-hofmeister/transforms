@@ -55,7 +55,7 @@ no. Concretely:
 - `#![forbid(unsafe_code)]`. No exceptions.
 - No new dependencies without maintainer approval. Middleware independence is
   the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, `libm`
-  (the `no_std` float-math fallback), and the optional, default-off `serde`
+  (all float math, in every feature mode), and the optional, default-off `serde`
   are the entire runtime dependency list. (The `[dev-dependencies]` —
   `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
   for benches, `proptest` for property tests, `serde_json` for serde
@@ -70,7 +70,11 @@ no. Concretely:
   allocator (`alloc`).
   Features must be additive: the same API exists in both modes; the only
   feature-gated items are `Timestamp::now()`, the `SystemTime` time type
-  (`std`), and the serde derives (`serde`, default-off).
+  (`std`), and the serde derives (`serde`, default-off). Additive also means
+  numerically identical: `sqrt`, `sin`, and `acos` go through `libm` in both
+  modes — never `f64`'s std methods — so enabling `std` changes which API
+  exists, never a computed value. Slerp is pinned bit for bit in the tests
+  to keep it that way.
 - The README **Non-Goals** section is load-bearing. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity. Do not implement these even if an

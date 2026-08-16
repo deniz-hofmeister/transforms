@@ -312,4 +312,73 @@ mod quaternion_tests {
             "near-antipodal midpoint off the small arc: {s:?}"
         );
     }
+
+    /// The four components as raw bit patterns, for exact comparison.
+    ///
+    /// The three tests below pin `slerp` bit for bit instead of comparing it
+    /// within a tolerance. `sqrt`, `sin`, and `acos` are `libm`'s in every
+    /// feature mode, so the same bits must come out under `cargo test` and
+    /// under `cargo test --no-default-features`: a platform intrinsic put
+    /// back into the math path moves the last bits in one mode only — by one
+    /// ulp per component in the interior case below, on x86-64 glibc — and
+    /// that is precisely what a tolerant comparison cannot see. The operands
+    /// are decimal literals rather than computed rotations so that no
+    /// platform trig function reaches the inputs either. A `libm` upgrade
+    /// that moves a last bit fails these too; re-derive the constants then,
+    /// deliberately.
+    fn bits(q: Quaternion) -> [u64; 4] {
+        [q.w.to_bits(), q.x.to_bits(), q.y.to_bits(), q.z.to_bits()]
+    }
+
+    #[test]
+    fn slerp_interior_point_is_bit_pinned() {
+        // Halfway along a 1.22-radian arc about x (operands: cos and sin of
+        // 0.61), so the trig branch runs on a dot of 0.82. The exact answer
+        // is (cos(0.305), sin(0.305)), whose correctly rounded doubles are
+        // 0x3FEE_85EA_0B55_5D66 and 0x3FD3_3800_DDAF_16F5 — one ulp below
+        // each pinned value.
+        let q1 = Quaternion::identity();
+        let q2 = Quaternion::new(0.819_648_017_845_479_5, 0.572_867_460_100_481_3, 0.0, 0.0);
+
+        assert_eq!(
+            bits(q1.slerp(q2, 0.5)),
+            [0x3FEE_85EA_0B55_5D67, 0x3FD3_3800_DDAF_16F6, 0, 0]
+        );
+    }
+
+    #[test]
+    fn slerp_near_antipodal_point_is_bit_pinned() {
+        // The negated 0.02-radian rotation about z: dot is -cos(0.01), so
+        // the shortest-path flip fires and the trig branch runs on the
+        // 0.01-radian remainder, where acos gives up most of its input
+        // precision. Here the pinned values are the correctly rounded
+        // cos(0.005) and sin(0.005) exactly.
+        let q1 = Quaternion::identity();
+        let q2 = Quaternion::new(
+            -0.999_950_000_416_665_3,
+            0.0,
+            0.0,
+            -0.009_999_833_334_166_664,
+        );
+
+        assert_eq!(
+            bits(q1.slerp(q2, 0.5)),
+            [0x3FEF_FFE5_C920_A926, 0, 0, 0x3F74_7ADB_B006_A986]
+        );
+    }
+
+    #[test]
+    fn slerp_near_identity_point_is_bit_pinned() {
+        // Two rotations a ten-thousandth of a radian apart, well inside
+        // UNIT_NORM_TOLERANCE of unit length: dot rounds to exactly 1.0, so
+        // the switchover takes the normalized-lerp branch and this pins
+        // `libm::sqrt` where the two above pin the trig path.
+        let q1 = Quaternion::identity();
+        let q2 = Quaternion::new(1.0, 0.0001, 0.0, 0.0);
+
+        assert_eq!(
+            bits(q1.slerp(q2, 0.25)),
+            [0x3FEF_FFFF_FFD5_0CE2, 0x3EFA_36E2_EAF9_13FA, 0, 0]
+        );
+    }
 }

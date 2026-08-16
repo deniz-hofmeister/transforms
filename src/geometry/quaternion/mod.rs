@@ -7,47 +7,9 @@ pub use error::QuaternionError;
 
 mod error;
 
-/// Float math that works with and without `std`.
-///
-/// `f64::sqrt`, `sin`, and `acos` are `std` methods rather than `core`
-/// intrinsics; without `std` the equivalent `libm` implementations are used.
-mod math {
-    #[inline]
-    pub fn sqrt(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.sqrt()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::sqrt(x)
-        }
-    }
-
-    #[inline]
-    pub fn sin(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.sin()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::sin(x)
-        }
-    }
-
-    #[inline]
-    pub fn acos(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.acos()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::acos(x)
-        }
-    }
-}
+// The `sqrt`, `sin`, and `acos` below are `libm`'s in every feature mode,
+// never `std`'s: a desktop replay and the MCU it replays must agree bit for
+// bit, and `std`'s implementations are the platform's, which do not.
 
 /// A quaternion representing a rotation in 3D space.
 ///
@@ -199,7 +161,7 @@ impl Quaternion {
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn norm(self) -> f64 {
-        math::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
+        libm::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
     /// Computes the squared norm of the quaternion.
@@ -292,6 +254,10 @@ impl Quaternion {
     /// crate-wide policy. Infinite factors saturate to the corresponding
     /// endpoint; a NaN factor yields a NaN result.
     ///
+    /// The trigonometry runs through `libm` whether or not `std` is enabled,
+    /// so the same operands yield bit-identical results in both feature
+    /// modes.
+    ///
     /// # Examples
     ///
     /// ```
@@ -336,11 +302,11 @@ impl Quaternion {
             };
         }
 
-        let theta = math::acos(dot);
+        let theta = libm::acos(dot);
 
-        let sin_theta = math::sin(theta);
-        let scale_self = math::sin((1.0 - t) * theta) / sin_theta;
-        let scale_other = math::sin(t * theta) / sin_theta;
+        let sin_theta = libm::sin(theta);
+        let scale_self = libm::sin((1.0 - t) * theta) / sin_theta;
+        let scale_other = libm::sin(t * theta) / sin_theta;
 
         self.scale(scale_self) + other.scale(scale_other)
     }

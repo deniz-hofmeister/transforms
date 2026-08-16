@@ -202,6 +202,10 @@
 //!   `Registry::delete_transforms_before`.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
+//! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`
+//!   whether or not `std` is enabled, never from the platform's math
+//!   library, so the same inputs give bit-identical results on a host and on
+//!   the target it replays.
 //! - **Validated inputs**: transforms are validated at the registry boundary
 //!   (finite values, unit rotations, an acyclic single-parent frame tree);
 //!   invalid data is rejected with an error rather than corrupting lookups.

@@ -105,6 +105,17 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   type system: error formatting cannot fail. The `Debug` bound stops a
   clock type without its own derive from making `Transform<YourClock>`
   silently unprintable in the diagnostics that report a bad lookup.
+- **Behavior change:** float math is `libm`'s in every feature mode.
+  `Quaternion::norm`, `normalize`, and `slerp` called `f64`'s own
+  `sqrt`/`sin`/`acos` under `std` and `libm`'s without it, so an
+  interpolated rotation depended on the host's math library: a desktop
+  replay of a flight log could differ from the flight controller that
+  produced it, in a domain where the two are compared to decide which one
+  was right. The `std` feature now changes which API exists, never a
+  computed value. Under `std` on glibc this moves interpolated rotations by
+  up to one ulp per component; `sqrt` is unaffected, being correctly
+  rounded everywhere. Three slerp cases — interior, near-antipodal, and
+  near-identity — are pinned bit for bit and run in both feature modes.
 
 ### Added
 

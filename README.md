@@ -93,8 +93,7 @@ make `approx` 0.5 part of this crate's public API — a deliberate
 commitment, since tolerant comparison is the documented alternative to the
 exact `==`.
 
-For `no_std` environments (requires a heap allocator; float math falls back to
-[libm](https://crates.io/crates/libm)):
+For `no_std` environments (requires a heap allocator):
 
 ```toml
 [dependencies]
@@ -511,6 +510,10 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
 - **All arithmetic is `f64`**: on single-precision-FPU cores (Cortex-M4F,
   M33) transform math runs through soft-float; only double-precision FPUs
   (M7-class) execute it in hardware
+- **Identical numbers in both feature modes**: `sqrt`, `sin`, and `acos`
+  come from [libm](https://crates.io/crates/libm) with and without `std`,
+  never from the platform's own math library, so a desktop replay
+  reproduces the target's interpolated rotations bit for bit
 
 Benchmarks are available in the `benches/` directory. Run with:
 
