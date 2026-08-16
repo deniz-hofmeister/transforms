@@ -191,9 +191,11 @@
 //! - **Memory safety**: `#![forbid(unsafe_code)]` — pure Rust throughout.
 //! - **Panic policy**: library code does not panic on reachable paths; the
 //!   single documented exception is `Timestamp::now()` on a system clock
-//!   before the Unix epoch (`Timestamp::try_now` is the panic-free
-//!   variant). This is enforced with clippy's `unwrap_used`,
-//!   `expect_used`, `panic`, and `indexing_slicing` restriction lints.
+//!   outside the representable range — before the Unix epoch, or more than
+//!   `u64::MAX` nanoseconds after it (mid-2554) — for which
+//!   `Timestamp::try_now` is the panic-free variant. This is enforced with
+//!   clippy's `unwrap_used`, `expect_used`, `panic`, and `indexing_slicing`
+//!   restriction lints.
 //!   In `no_std` builds, allocation failure aborts via the global
 //!   allocation error handler, as with any `alloc`-based crate: size the
 //!   heap for `max_age` times the insert rate, or bound growth with
