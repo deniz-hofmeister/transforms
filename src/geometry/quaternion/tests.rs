@@ -5,7 +5,6 @@ mod quaternion_tests {
         geometry::{Quaternion, Vector3},
     };
     use approx::{assert_abs_diff_eq, assert_relative_eq};
-    use core::f64;
 
     #[test]
     fn quaternion_creation() {
@@ -86,10 +85,10 @@ mod quaternion_tests {
     #[test]
     fn rotate_vector() {
         let q = Quaternion::new(
-            (f64::consts::PI / 4.0).cos(),
+            (core::f64::consts::PI / 4.0).cos(),
             0.0,
             0.0,
-            (f64::consts::PI / 4.0).sin(),
+            (core::f64::consts::PI / 4.0).sin(),
         );
         let v = Vector3::new(1.0, 0.0, 0.0);
         let rotated = q.rotate_vector(v);
@@ -103,15 +102,15 @@ mod quaternion_tests {
     #[test]
     fn rotate_vector_multiple_axes() {
         let q_z = Quaternion::new(
-            (f64::consts::PI / 4.0).cos(),
+            (core::f64::consts::PI / 4.0).cos(),
             0.0,
             0.0,
-            (f64::consts::PI / 4.0).sin(),
+            (core::f64::consts::PI / 4.0).sin(),
         );
 
         let q_x = Quaternion::new(
-            (f64::consts::PI / 4.0).cos(),
-            (f64::consts::PI / 4.0).sin(),
+            (core::f64::consts::PI / 4.0).cos(),
+            (core::f64::consts::PI / 4.0).sin(),
             0.0,
             0.0,
         );
