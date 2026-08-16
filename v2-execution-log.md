@@ -51,4 +51,28 @@ implemented, gated, and committed. Stage 2's **post-commit review was cut short*
   last observed activity (leftover-`u128`/`Duration` sweeps, cross-target builds) had surfaced
   nothing at termination time.
 
-Then proceed with Stage 3 per the protocol above.
+Then proceed with Stage 3 per the protocol above. (Both items were resolved on resume — see the
+Stage 2 row and commits f1a401b/b3a98f9; f1a401b also absorbed a toolchain drift, the newer nightly
+deprecating the `std::f64` module constants the quaternion tests used.)
+
+## Interruption record — 2026-08-15 evening, during Stage 3 review
+
+Second deliberate clean termination by the maintainer. Working tree clean at `b2026be`; Stages 1–3
+are implemented, gated, and committed (Stage 3 = libm everywhere, D10). Stage 3's **post-commit
+review had filed its verdicts but the fix agent was stopped before editing anything.** Both
+reviewers verified their findings with reproduced evidence (extracting and building v1.4.1,
+ulp sweeps on both math paths). Two real defects, both documentation-accuracy in `b2026be`:
+
+1. **MIGRATION.md runtime item 8 (~:213-220) invents false 1.x history** — it says 1.x used
+   `f64`'s methods under `std` and "libm's without it". Verified false: `v1.4.1:Cargo.toml` has no
+   libm dependency and its quaternion code calls `.sqrt()`/`.acos()`/`.sin()` unconditionally —
+   1.x used platform math in both modes; the libm fallback only appeared in 2.0.0-alpha.1. The
+   item must describe the real baseline (and not scope the change to `std` builds only).
+2. **CHANGELOG.md (~:115-116) says the numeric shift is "up to one ulp per component"** — the
+   commit's own pinned fixture already moves 2 ulps in w, and a reviewer sweep (2000 arcs ×
+   101 factors, identical operands on glibc vs libm paths) measured up to **4 ulps** (worst at
+   ~1.1655 rad, t = 0.39). Restate the bound honestly (e.g. "a few ulps, measured ≤ 4") so
+   migrating users don't size exact-comparison windows at 1 ulp.
+
+**First action on resume:** fix both doc sites, run the full gate, commit as "Address Stage 3
+review findings", append the outcome to the Stage 3 row. Then proceed with Stage 4.
