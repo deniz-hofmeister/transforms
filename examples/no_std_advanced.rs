@@ -119,7 +119,7 @@ fn main() {
     info!("Conveyor drift (t1 -> t2): {:?}", drift.translation);
 
     // Clean up old transforms manually (this registry has no max_age)
-    registry.delete_transforms_before(t2);
+    registry.remove_transforms_before(t2);
 }
 
 #[cfg(feature = "std")]

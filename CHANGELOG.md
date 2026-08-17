@@ -32,11 +32,14 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   trait is unsealed and `is_static` was overridable independently of
   `static_timestamp`, silently breaking kind detection — and custom clock
   impls no longer invent sentinel values.
-- **Breaking:** `Buffer` declares its kind at construction:
-  `Buffer::dynamic()`, `Buffer::dynamic_with_max_age(d)`, and
-  `Buffer::static_edge()` replace `Buffer::new()`, `with_max_age(d)`, and
-  `Default`. The kind is structural (an internal enum) and fixed for the
-  buffer's lifetime; new accessors `is_static()` and `len()`.
+- **Breaking:** `Buffer` and the `core` module are private. `Registry` — at
+  the crate root, where it was already re-exported — is the entire public
+  entry point. The standalone-buffer API is gone with it: a hand-held
+  `Buffer` bypassed the invariant boundary, since the cycle, re-parenting,
+  and frame-tree checks live in `Registry`, so it was a second, weaker way
+  to store transforms for a use case nobody had. Its storage is now free to
+  change without a major release. A child frame is still static xor dynamic,
+  fixed by its first insert.
 - **Breaking:** serde: `Stamp` serializes as an optional timestamp —
   `Stamp::At(t)` as `t` itself (JSON shape for dynamic transforms is
   unchanged), `Stamp::Static` as `null`; postcard/bincode gain a 1-byte
@@ -49,9 +52,19 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `source` belongs to the error trait's source-chaining convention,
   which `NotFoundAt`'s boxed `BufferError` keeps.
 - **Breaking:** every public type has a single canonical path
-  (`geometry::Point`, `core::Buffer`, `time::Timestamp`, ...): the leaf
-  modules are private, matching the error-module pattern. Error types
-  live at `errors::*`.
+  (`geometry::Point`, `time::Timestamp`, ...): the leaf modules are private,
+  matching the error-module pattern. Error types live at `errors::*`.
+- **Breaking:** `Quaternion::new(w, x, y, z)` is renamed
+  `Quaternion::from_wxyz(w, x, y, z)`. `new` said nothing about component
+  order while the other common convention puts the scalar part last, so a
+  caller passing `(x, y, z, w)` built a perfectly valid unit quaternion
+  describing the wrong rotation — an error no validation can catch, because
+  nothing about the result is invalid. The name now states the order at every
+  call site. `Quaternion` literals are unaffected.
+- **Breaking:** `Registry::delete_transforms_before` is renamed
+  `Registry::remove_transforms_before`. The crate spelled one operation two
+  ways — `remove_frame` next to `delete_transforms_before` — inviting readers
+  to look for a distinction that never existed.
 - **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
   (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
   associated const on `Transform<T>` that demanded a turbofish.
@@ -68,8 +81,6 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `IncompatibleFrames { expected, found }` and
   `SameFrameMultiplication { frame }` — completing the diagnosis model
   introduced in beta.3, where every frame-related error names its frames.
-- **Breaking:** `Buffer::get` takes the timestamp by value, matching every
-  sibling API (`TimePoint` is `Copy`).
 - **Breaking:** `Timestamp`'s inner nanosecond field is private and narrows
   from `u128` to `u64`; `from_nanos(u64)` / `as_nanos() -> u64` are the API.
   u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
@@ -148,10 +159,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 
 ### Fixed
 
-- `Buffer::delete_before` resets the `max_age` expiry reference along with
-  the samples: previously a wiped buffer kept its pre-wipe latest
-  timestamp, so a restarted stream at earlier times was evicted by the
-  very insert that added it — `Ok(())` returned, buffer stayed empty.
+- `Registry::remove_transforms_before` resets each frame's `max_age` expiry
+  reference along with its samples: previously a wiped buffer kept its
+  pre-wipe latest timestamp, so a restarted stream at earlier times was
+  evicted by the very insert that added it — `Ok(())` returned, the frame
+  stayed empty.
 - The `std` feature forwards `serde?/std`, so `Transform<SystemTime>`
   implements `Serialize`/`Deserialize` for downstream users who enable
   `std` + `serde` without depending on serde's `std` feature themselves.
@@ -160,12 +172,12 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   longer silently creates a static buffer at `i = 0` and fails with
   `StaticDynamicConflict` at `i = 1`. Pinned by a regression test and the
   property-test timestamp strategy now includes zero.
-- A dynamic `Buffer` emptied by `delete_before` could silently flip to
-  static on the next insert (the kind was a flag re-decided on emptiness)
-  and then reject dynamic samples. The kind is now declared at
-  construction and structural — the flip is unrepresentable, pinned by a
-  regression test.
-- **Behavior change:** `Registry::delete_transforms_before` no longer drops
+- A dynamic child frame drained by `remove_transforms_before` could silently
+  flip to static on the next insert (the kind was a flag re-decided on
+  emptiness) and then reject dynamic samples. The kind is now declared when
+  the frame is created and structural — the flip is unrepresentable, pinned
+  by a regression test.
+- **Behavior change:** `Registry::remove_transforms_before` no longer drops
   frames it leaves empty. Dropping them un-pinned the frame's parent and
   its static/dynamic kind, so routine cleanup silently re-opened decisions
   the registry had already refused: a rejected re-parenting became an
@@ -206,8 +218,7 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   the docs.rs configuration, which the gate now builds; the crate also
   opts into `doc(auto_cfg)` for future rustdoc support); the
   `no_std_full` example imports `core::time::Duration` in its `no_std`
-  branch; `Buffer` docs say B-tree instead of "binary tree" and the
-  crate docs no longer call the public `Buffer` type "internal".
+  branch; the buffer docs say B-tree instead of "binary tree".
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected

@@ -3,5 +3,5 @@
 pub(crate) mod buffer;
 pub(crate) mod registry;
 
-pub use buffer::Buffer;
+pub(crate) use buffer::Buffer;
 pub use registry::Registry;

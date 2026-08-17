@@ -5,12 +5,13 @@
 //!
 //! # Architecture
 //!
-//! The library is organized around three main components:
+//! The library is organized around two public components:
 //!
 //! - **Registry**: The main interface for managing transforms
-//! - **Buffer**: The time-indexed store for one parent-child frame pair,
-//!   also usable standalone
 //! - **Transform**: The core data structure representing spatial transformations
+//!
+//! Internally the registry keeps one time-indexed buffer per child frame;
+//! that storage is a private implementation detail.
 //!
 //! # Features
 //!
@@ -22,7 +23,7 @@
 //! - **Custom Timestamp Types**: You can use your own `Copy + Ord + Debug` timestamp type by
 //!   implementing `time::TimePoint`'s three methods.
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
-//!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
+//!   automatically on insert; `Registry::new` keeps them until `remove_transforms_before`
 //!   is called. Both work with and without `std`.
 //! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
 //!
@@ -82,9 +83,9 @@
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! # // Delete old transforms
+//! # // Remove old transforms
 //! # #[cfg(not(feature = "std"))]
-//! # registry.delete_transforms_before(timestamp);
+//! # registry.remove_transforms_before(timestamp);
 //! ```
 //!
 //! # Transform and Data Transformation
@@ -199,7 +200,7 @@
 //!   In `no_std` builds, allocation failure aborts via the global
 //!   allocation error handler, as with any `alloc`-based crate: size the
 //!   heap for `max_age` times the insert rate, or bound growth with
-//!   `Registry::delete_transforms_before`.
+//!   `Registry::remove_transforms_before`.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
 //! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`
@@ -244,7 +245,7 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 
 extern crate alloc;
-pub mod core;
+mod core;
 pub mod errors;
 pub mod geometry;
 pub mod time;

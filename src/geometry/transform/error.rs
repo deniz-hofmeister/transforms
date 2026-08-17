@@ -93,7 +93,7 @@ pub enum TransformError {
     /// [`BufferError::NoTransformAvailable`], which carries no range, when
     /// the frame holds no data at all. Only the first case is a timing
     /// question. A frame drained by
-    /// [`Registry::delete_transforms_before`](crate::Registry::delete_transforms_before)
+    /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
     /// keeps its entry and reports the second for as long as nothing is
     /// inserted into it, so waiting or widening the requested time window
     /// will not make it answer.

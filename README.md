@@ -149,7 +149,7 @@ pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferErr
 pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, TransformError>
 pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
 pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, TransformError>
-pub fn delete_transforms_before(&mut self, timestamp: T)
+pub fn remove_transforms_before(&mut self, timestamp: T)
 pub fn remove_frame(&mut self, child: &str) -> bool
 ```
 
@@ -162,14 +162,15 @@ pub fn remove_frame(&mut self, child: &str) -> bool
 | `Quaternion` | Quaternion for rotations (expected unit norm) with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u64, ~584 years of range) |
 | `Stamp<T = Timestamp>` | When a transform is valid: `At(T)` for one instant, `Static` for all time |
-| `TimePoint` | Trait for custom timestamp types used by `Transform`, `Buffer`, and `Registry` |
+| `TimePoint` | Trait for custom timestamp types used by `Transform` and `Registry` |
 | `Point` | Example transformable type with position, orientation, timestamp, frame |
 
 For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).
 
 ## Architecture
 
-The library is organized around three core components:
+`Registry` is the entire public entry point; the buffers below it are
+crate-private storage, shown here because they explain the lookup costs:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -199,9 +200,9 @@ The main interface for managing transforms. It stores `Buffer` instances (one pe
 - Traversing the frame tree to compute indirect transforms
 - Automatic cleanup of expired transforms (with `Registry::with_max_age`)
 
-### Buffer
+### Buffer (internal)
 
-Time-indexed storage for transforms between a specific child-parent frame pair. A dynamic buffer uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values; a static buffer stores its single transform inline and serves it for any requested time.
+Time-indexed storage for transforms between a specific child-parent frame pair, owned by the registry and not reachable from outside the crate. A dynamic buffer uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values; a static buffer stores its single transform inline and serves it for any requested time.
 
 ### Transform
 
@@ -406,7 +407,7 @@ registry.add_transform(transform).unwrap();
 
 // Manual cleanup for registries built without with_max_age
 let cutoff = (Timestamp::zero() + Duration::from_secs(50)).unwrap();
-registry.delete_transforms_before(cutoff);
+registry.remove_transforms_before(cutoff);
 ```
 
 ### Concurrent Access

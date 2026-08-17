@@ -8,7 +8,7 @@ mod quaternion_tests {
 
     #[test]
     fn quaternion_creation() {
-        let _ = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+        let _ = Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0);
     }
 
     #[test]
@@ -28,14 +28,14 @@ mod quaternion_tests {
 
     #[test]
     fn conjugate() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let expected = Quaternion::new(1.0, -2.0, -3.0, -4.0);
+        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let expected = Quaternion::from_wxyz(1.0, -2.0, -3.0, -4.0);
         assert_eq!(q.conjugate(), expected);
     }
 
     #[test]
     fn normalize() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let result = q.normalize();
         assert!(
             result.is_ok(),
@@ -51,7 +51,7 @@ mod quaternion_tests {
 
     #[test]
     fn normalize_zero_length() {
-        let q = Quaternion::new(0.0, 0.0, 0.0, 0.0);
+        let q = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
         let result = q.normalize();
         assert!(
             matches!(result, Err(QuaternionError::ZeroLengthNormalization)),
@@ -61,7 +61,7 @@ mod quaternion_tests {
 
     #[test]
     fn norm() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let expected: f64 = (1.0_f64 + 4.0 + 9.0 + 16.0).sqrt();
 
         assert_relative_eq!(q.norm(), expected, epsilon = f64::EPSILON);
@@ -69,22 +69,22 @@ mod quaternion_tests {
 
     #[test]
     fn norm_squared() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let expected = 1.0_f64 + 4.0 + 9.0 + 16.0;
         assert_relative_eq!(q.norm_squared(), expected, epsilon = f64::EPSILON);
     }
 
     #[test]
     fn scale() {
-        let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let factor = 2.0;
-        let expected = Quaternion::new(2.0, 4.0, 6.0, 8.0);
+        let expected = Quaternion::from_wxyz(2.0, 4.0, 6.0, 8.0);
         assert_eq!(q.scale(factor), expected);
     }
 
     #[test]
     fn rotate_vector() {
-        let q = Quaternion::new(
+        let q = Quaternion::from_wxyz(
             (core::f64::consts::PI / 4.0).cos(),
             0.0,
             0.0,
@@ -101,14 +101,14 @@ mod quaternion_tests {
 
     #[test]
     fn rotate_vector_multiple_axes() {
-        let q_z = Quaternion::new(
+        let q_z = Quaternion::from_wxyz(
             (core::f64::consts::PI / 4.0).cos(),
             0.0,
             0.0,
             (core::f64::consts::PI / 4.0).sin(),
         );
 
-        let q_x = Quaternion::new(
+        let q_x = Quaternion::from_wxyz(
             (core::f64::consts::PI / 4.0).cos(),
             (core::f64::consts::PI / 4.0).sin(),
             0.0,
@@ -127,8 +127,8 @@ mod quaternion_tests {
 
     #[test]
     fn quaternion_multiplication_properties() {
-        let q1 = Quaternion::new(0.5, 0.5, 0.5, 0.5);
-        let q2 = Quaternion::new(0.0, 1.0, 0.0, 0.0);
+        let q1 = Quaternion::from_wxyz(0.5, 0.5, 0.5, 0.5);
+        let q2 = Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0);
 
         let q1_times_q2 = q1 * q2;
         let q2_times_q1 = q2 * q1;
@@ -141,32 +141,32 @@ mod quaternion_tests {
 
     #[test]
     fn add() {
-        let q1 = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::new(5.0, 6.0, 7.0, 8.0);
-        let expected = Quaternion::new(6.0, 8.0, 10.0, 12.0);
+        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
+        let expected = Quaternion::from_wxyz(6.0, 8.0, 10.0, 12.0);
         assert_eq!(q1 + q2, expected);
     }
 
     #[test]
     fn sub() {
-        let q1 = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::new(5.0, 6.0, 7.0, 8.0);
-        let expected = Quaternion::new(-4.0, -4.0, -4.0, -4.0);
+        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
+        let expected = Quaternion::from_wxyz(-4.0, -4.0, -4.0, -4.0);
         assert_eq!(q1 - q2, expected);
     }
 
     #[test]
     fn mul() {
-        let q1 = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::new(5.0, 6.0, 7.0, 8.0);
-        let expected = Quaternion::new(-60.0, 12.0, 30.0, 24.0);
+        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
+        let expected = Quaternion::from_wxyz(-60.0, 12.0, 30.0, 24.0);
         assert_eq!(q1 * q2, expected);
     }
 
     #[test]
     fn div() {
-        let q1 = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::new(5.0, 6.0, 7.0, 8.0);
+        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
         let result = q1 / q2;
         assert!(
             result.is_ok(),
@@ -176,8 +176,8 @@ mod quaternion_tests {
 
     #[test]
     fn div_by_zero() {
-        let q1 = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::new(0.0, 0.0, 0.0, 0.0);
+        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+        let q2 = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
         let result = q1 / q2;
         assert!(
             matches!(result, Err(QuaternionError::DivisionByZero)),
@@ -188,10 +188,10 @@ mod quaternion_tests {
     #[test]
     fn slerp() {
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new(0.0, 1.0, 0.0, 0.0);
+        let q2 = Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0);
         let t = 0.5;
         let result = q1.slerp(q2, t);
-        let expected = Quaternion::new((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
+        let expected = Quaternion::from_wxyz((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
 
         assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
         assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
@@ -201,7 +201,9 @@ mod quaternion_tests {
 
     #[test]
     fn slerp_edge_cases() {
-        let q1 = Quaternion::new(0.5, 0.5, 0.5, 0.5).normalize().unwrap();
+        let q1 = Quaternion::from_wxyz(0.5, 0.5, 0.5, 0.5)
+            .normalize()
+            .unwrap();
         let q2 = Quaternion::identity();
 
         let result = q1.slerp(q2, 0.0);
@@ -216,10 +218,10 @@ mod quaternion_tests {
         assert_relative_eq!(result.y, q2.y, epsilon = f64::EPSILON);
         assert_relative_eq!(result.z, q2.z, epsilon = f64::EPSILON);
 
-        let q1 = Quaternion::new(0.9999, 0.0001, 0.0, 0.0)
+        let q1 = Quaternion::from_wxyz(0.9999, 0.0001, 0.0, 0.0)
             .normalize()
             .unwrap();
-        let q2 = Quaternion::new(0.9998, 0.0002, 0.0, 0.0)
+        let q2 = Quaternion::from_wxyz(0.9998, 0.0002, 0.0, 0.0)
             .normalize()
             .unwrap();
 
@@ -233,7 +235,7 @@ mod quaternion_tests {
     #[test]
     fn slerp_uses_shortest_path_for_antipodal_quaternions() {
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new(-1.0, 0.0, 0.0, 0.0);
+        let q2 = Quaternion::from_wxyz(-1.0, 0.0, 0.0, 0.0);
 
         let result = q1.slerp(q2, 0.5);
 
@@ -246,10 +248,10 @@ mod quaternion_tests {
 
     #[test]
     fn normalize_rejects_non_finite_quaternions() {
-        let nan = Quaternion::new(f64::NAN, 0.0, 0.0, 0.0);
+        let nan = Quaternion::from_wxyz(f64::NAN, 0.0, 0.0, 0.0);
         assert!(matches!(nan.normalize(), Err(QuaternionError::NonFinite)));
 
-        let inf = Quaternion::new(f64::INFINITY, 0.0, 0.0, 0.0);
+        let inf = Quaternion::from_wxyz(f64::INFINITY, 0.0, 0.0, 0.0);
         assert!(matches!(inf.normalize(), Err(QuaternionError::NonFinite)));
     }
 
@@ -257,7 +259,7 @@ mod quaternion_tests {
     fn slerp_clamps_t_to_the_unit_interval() {
         let theta = core::f64::consts::PI / 2.0;
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
+        let q2 = Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
 
         // No extrapolation: out-of-range factors saturate at the endpoints.
         assert_abs_diff_eq!(q1.slerp(q2, 2.0), q1.slerp(q2, 1.0));
@@ -266,7 +268,7 @@ mod quaternion_tests {
 
     /// A rotation of `angle` radians about the z-axis.
     fn rotation_about_z(angle: f64) -> Quaternion {
-        Quaternion::new((angle / 2.0).cos(), 0.0, 0.0, (angle / 2.0).sin())
+        Quaternion::from_wxyz((angle / 2.0).cos(), 0.0, 0.0, (angle / 2.0).sin())
     }
 
     /// Rotational agreement up to sign (q and -q are the same rotation).
@@ -338,7 +340,7 @@ mod quaternion_tests {
         // 0x3FEE_85EA_0B55_5D66 and 0x3FD3_3800_DDAF_16F5 — one ulp below
         // each pinned value.
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new(0.819_648_017_845_479_5, 0.572_867_460_100_481_3, 0.0, 0.0);
+        let q2 = Quaternion::from_wxyz(0.819_648_017_845_479_5, 0.572_867_460_100_481_3, 0.0, 0.0);
 
         assert_eq!(
             bits(q1.slerp(q2, 0.5)),
@@ -354,7 +356,7 @@ mod quaternion_tests {
         // precision. Here the pinned values are the correctly rounded
         // cos(0.005) and sin(0.005) exactly.
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new(
+        let q2 = Quaternion::from_wxyz(
             -0.999_950_000_416_665_3,
             0.0,
             0.0,
@@ -374,7 +376,7 @@ mod quaternion_tests {
         // the switchover takes the normalized-lerp branch and this pins
         // `libm::sqrt` where the two above pin the trig path.
         let q1 = Quaternion::identity();
-        let q2 = Quaternion::new(1.0, 0.0001, 0.0, 0.0);
+        let q2 = Quaternion::from_wxyz(1.0, 0.0001, 0.0, 0.0);
 
         assert_eq!(
             bits(q1.slerp(q2, 0.25)),

@@ -20,7 +20,7 @@ mod point_tests {
     #[test]
     fn transform_rotates_orientation() {
         let theta = core::f64::consts::PI / 2.0;
-        let rot_z_90 = Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
+        let rot_z_90 = Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
 
         let mut point = Point {
             position: Vector3::new(1.0, 0.0, 0.0),

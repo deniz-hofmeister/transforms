@@ -36,9 +36,11 @@ impl Default for Quaternion {
 }
 
 impl Quaternion {
-    /// Creates a new quaternion from its `w`, `x`, `y`, and `z` components.
+    /// Creates a quaternion from its `w`, `x`, `y`, and `z` components.
     ///
-    /// The scalar part `w` comes first, matching the field order of this type.
+    /// The scalar part `w` comes first — the name spells the order out,
+    /// because the other common convention puts it last and a silently
+    /// swapped `w` is a valid quaternion describing a different rotation.
     /// No normalization is performed; rotations are expected to be unit
     /// quaternions, so call [`Quaternion::normalize`] if the components do not
     /// already form one.
@@ -48,11 +50,11 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+    /// let q = Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0);
     /// assert_eq!(q, Quaternion::identity());
     /// ```
     #[must_use]
-    pub const fn new(
+    pub const fn from_wxyz(
         w: f64,
         x: f64,
         y: f64,
@@ -94,8 +96,8 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-    /// assert_eq!(q.conjugate(), Quaternion::new(1.0, -2.0, -3.0, -4.0));
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.conjugate(), Quaternion::from_wxyz(1.0, -2.0, -3.0, -4.0));
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
@@ -126,11 +128,11 @@ impl Quaternion {
     /// ```
     /// use transforms::{errors::QuaternionError, geometry::Quaternion};
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
     /// let normalized = q.normalize().unwrap();
     /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
     ///
-    /// let zero_q = Quaternion::new(0.0, 0.0, 0.0, 0.0);
+    /// let zero_q = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
     /// assert!(matches!(
     ///     zero_q.normalize(),
     ///     Err(QuaternionError::ZeroLengthNormalization)
@@ -155,7 +157,7 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 1.0, 1.0, 1.0);
+    /// let q = Quaternion::from_wxyz(1.0, 1.0, 1.0, 1.0);
     /// assert_eq!(q.norm(), 2.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -173,7 +175,7 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 2.0, 2.0);
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 2.0, 2.0);
     /// assert_eq!(q.norm_squared(), 13.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -191,8 +193,8 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-    /// assert_eq!(q.scale(2.0), Quaternion::new(2.0, 4.0, 6.0, 8.0));
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.scale(2.0), Quaternion::from_wxyz(2.0, 4.0, 6.0, 8.0));
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
@@ -218,7 +220,7 @@ impl Quaternion {
     /// use transforms::geometry::{Quaternion, Vector3};
     /// # use approx::assert_relative_eq;
     ///
-    /// let q = Quaternion::new(
+    /// let q = Quaternion::from_wxyz(
     ///     (core::f64::consts::PI / 4.0).cos(),
     ///     0.0,
     ///     0.0,
@@ -265,9 +267,9 @@ impl Quaternion {
     /// # use approx::assert_relative_eq;
     ///
     /// let q1 = Quaternion::identity();
-    /// let q2 = Quaternion::new(0.0, 1.0, 0.0, 0.0);
+    /// let q2 = Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0);
     /// let result = q1.slerp(q2, 0.5);
-    /// let expected = Quaternion::new((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
+    /// let expected = Quaternion::from_wxyz((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
     /// assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);

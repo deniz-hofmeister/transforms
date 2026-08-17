@@ -5,7 +5,7 @@ use crate::time::TimeError;
 /// Trait describing time-point behavior required by the transform core.
 ///
 /// Implementing this trait allows using custom time types with
-/// `Transform`, `Buffer`, and `Registry`.
+/// `Transform` and `Registry`.
 ///
 /// The trait requires `Copy` because transform lookups and composition are hot
 /// paths where timestamps are passed around frequently, and `Debug` because
@@ -18,7 +18,7 @@ use crate::time::TimeError;
 ///
 /// Implementations must keep `Ord` total and consistent with
 /// [`TimePoint::duration_since`] and [`TimePoint::checked_sub`]: if `a < b`,
-/// then `b.duration_since(a)` is the `Ok` span between them. Buffer
+/// then `b.duration_since(a)` is the `Ok` span between them. Sample
 /// ordering, interpolation, and eviction all rest on that consistency.
 ///
 /// No timestamp value is reserved: staticness is expressed by

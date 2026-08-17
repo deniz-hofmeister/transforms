@@ -107,7 +107,7 @@ mod registry_tests {
         let theta = core::f64::consts::PI / 2.0;
         let t_b_c = Transform {
             translation: Vector3::new(0.0, 0.0, 0.0),
-            rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
             timestamp: Stamp::At(t),
             parent: "b".into(),
             child: "c".into(),
@@ -128,7 +128,7 @@ mod registry_tests {
 
         let t_a_d = Transform {
             translation: Vector3::new(1.0, 1.0, 0.0),
-            rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
             timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "d".into(),
@@ -157,7 +157,7 @@ mod registry_tests {
         let theta = core::f64::consts::PI / 2.0;
         let t_a_c = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
             timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "c".into(),
@@ -195,7 +195,7 @@ mod registry_tests {
         let theta = core::f64::consts::PI / 2.0;
         let t_a_b_1 = Transform {
             translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
             timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
             parent: "a".into(),
             child: "b".into(),
@@ -563,7 +563,7 @@ mod registry_tests {
         registry
             .add_transform(Transform {
                 translation: Vector3::new(0.0, 0.0, 0.0),
-                rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+                rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
                 timestamp: Stamp::At(t2),
                 parent: "fixed".into(),
                 child: "a".into(),
@@ -1095,7 +1095,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn delete_transforms_before_keeps_the_parent_pin() {
+    fn remove_transforms_before_keeps_the_parent_pin() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(3_000_000_000);
@@ -1113,7 +1113,7 @@ mod registry_tests {
         // Regression test: draining a frame used to release it, so routine
         // cleanup silently turned a rejected re-parenting into an accepted
         // one and changed the topology behind the caller's back.
-        registry.delete_transforms_before(t2);
+        registry.remove_transforms_before(t2);
         let reparented = Transform {
             translation: Vector3::new(0.0, 0.5, 0.0),
             rotation: Quaternion::identity(),
@@ -1137,7 +1137,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn delete_transforms_before_keeps_the_buffer_kind() {
+    fn remove_transforms_before_keeps_the_buffer_kind() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(3_000_000_000);
@@ -1155,7 +1155,7 @@ mod registry_tests {
         // Regression test: draining a frame used to release its kind too, so
         // a moving frame could become an eternal static one that answered
         // confidently at times its data never covered.
-        registry.delete_transforms_before(t2);
+        registry.remove_transforms_before(t2);
         let result = registry.add_transform(Transform {
             translation: Vector3::new(0.0, 0.5, 0.0),
             rotation: Quaternion::identity(),
@@ -1170,7 +1170,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn delete_transforms_before_leaves_drained_frames_diagnosable() {
+    fn remove_transforms_before_leaves_drained_frames_diagnosable() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(3_000_000_000);
@@ -1188,7 +1188,7 @@ mod registry_tests {
         // A drained frame is known but empty. The lookup must say so —
         // naming the frame that holds no data — instead of claiming the
         // frame was never heard of, which reads as a publisher typo.
-        registry.delete_transforms_before(t2);
+        registry.remove_transforms_before(t2);
         let result = registry.get_transform("world", "object", t2);
         assert!(
             matches!(
@@ -1461,7 +1461,7 @@ mod registry_tests {
     }
 
     #[test]
-    fn delete_transforms_before_removes_old_dynamic_transforms() {
+    fn remove_transforms_before_removes_old_dynamic_transforms() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(3_000_000_000);
@@ -1478,17 +1478,17 @@ mod registry_tests {
                 .unwrap();
         }
 
-        registry.delete_transforms_before(Timestamp::from_nanos(2_000_000_000));
+        registry.remove_transforms_before(Timestamp::from_nanos(2_000_000_000));
 
         assert!(
             registry.get_transform("a", "b", t1).is_err(),
-            "transforms before the cutoff must be deleted"
+            "transforms before the cutoff must be removed"
         );
         assert!(registry.get_transform("a", "b", t2).is_ok());
     }
 
     #[test]
-    fn delete_transforms_before_preserves_static_transforms() {
+    fn remove_transforms_before_preserves_static_transforms() {
         let mut registry = Registry::new();
 
         let static_tf = Transform {
@@ -1502,7 +1502,7 @@ mod registry_tests {
 
         // The documented manual-cleanup workflow must not destroy static
         // transforms: they are valid for all time.
-        registry.delete_transforms_before(Timestamp::from_nanos(5_000_000_000));
+        registry.remove_transforms_before(Timestamp::from_nanos(5_000_000_000));
 
         let query = Timestamp::from_nanos(9_000_000_000);
         let result = registry.get_transform("base", "lidar", query).unwrap();
@@ -1566,7 +1566,7 @@ mod registry_tests {
         // would silently scale every lookup.
         let result = registry.add_transform(Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::new(2.0, 0.0, 0.0, 0.0),
+            rotation: Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
             timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "b".into(),
@@ -1644,7 +1644,7 @@ mod registry_tests {
         // registry map...
         let invalid = Transform {
             translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::new(2.0, 0.0, 0.0, 0.0),
+            rotation: Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
             timestamp: Stamp::At(t),
             parent: "b".into(),
             child: "a".into(),
@@ -1765,7 +1765,6 @@ mod registry_tests {
     fn public_types_are_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Registry>();
-        assert_send_sync::<crate::core::Buffer>();
         assert_send_sync::<Transform>();
         assert_send_sync::<Point>();
         assert_send_sync::<Vector3>();

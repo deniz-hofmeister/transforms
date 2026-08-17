@@ -130,7 +130,7 @@ where
 
 /// The `Localized` trait provides frame and timestamp introspection for a `Point`,
 /// enabling automatic transform lookup via
-/// [`Registry::get_transform_for`](crate::core::Registry::get_transform_for).
+/// [`Registry::get_transform_for`](crate::Registry::get_transform_for).
 ///
 /// # Examples
 ///

@@ -104,6 +104,13 @@ mod buffer_tests {
             matches!(result, Err(BufferError::NoTransformAvailable)),
             "expected NoTransformAvailable on an empty static buffer, got {result:?}"
         );
+
+        let buffer = Buffer::<Timestamp>::dynamic_with_max_age(Duration::from_secs(10));
+        let result = buffer.get(Timestamp::from_nanos(1_000_000_000));
+        assert!(
+            matches!(result, Err(BufferError::NoTransformAvailable)),
+            "expected NoTransformAvailable on an empty max-age buffer, got {result:?}"
+        );
     }
 
     #[test]
@@ -139,7 +146,16 @@ mod buffer_tests {
         buffer.insert(recalibrated).unwrap();
 
         assert_eq!(buffer.get(Timestamp::zero()).unwrap().translation.x, 9.0);
-        assert_eq!(buffer.len(), 1);
+        // The replacement is served at every instant, so the original is
+        // stored nowhere: a static buffer holds one transform, not a history.
+        assert_eq!(
+            buffer
+                .get(Timestamp::from_nanos(9_000_000_000))
+                .unwrap()
+                .translation
+                .x,
+            9.0
+        );
     }
 
     #[test]
@@ -155,21 +171,22 @@ mod buffer_tests {
             buffer.insert(create_transform(t)).unwrap();
         }
 
-        assert_eq!(buffer.len(), 3);
+        // All three samples are stored and served exactly, the t = 0 one
+        // included.
+        for i in 0..3u64 {
+            let t = Timestamp::from_nanos(i * 1_000_000_000);
+            assert_eq!(buffer.get(t).unwrap().timestamp, Stamp::At(t));
+        }
 
-        // The t = 0 sample is served exactly...
-        let at_zero = buffer.get(Timestamp::zero()).unwrap();
-        assert_eq!(at_zero.timestamp, Stamp::At(Timestamp::zero()));
-
-        // ...and interpolation across it works like any other span.
+        // Interpolation across t = 0 works like any other span.
         let midpoint = Timestamp::from_nanos(500_000_000);
         let interpolated = buffer.get(midpoint).unwrap();
         assert_eq!(interpolated.timestamp, Stamp::At(midpoint));
     }
 
     #[test]
-    fn delete_before_resets_the_expiry_reference() {
-        // Regression test: delete_before used to clear only the sample map,
+    fn remove_before_resets_the_expiry_reference() {
+        // Regression test: remove_before used to clear only the sample map,
         // leaving the max_age expiry reference at the pre-wipe maximum. A
         // restarted stream at earlier timestamps was then evicted by the
         // very insert that added it — Ok(()) returned, buffer stayed empty.
@@ -178,13 +195,15 @@ mod buffer_tests {
             .insert(create_transform(Timestamp::from_nanos(1_000_000_000_000)))
             .unwrap();
 
-        buffer.delete_before(Timestamp::from_nanos(2_000_000_000_000));
-        assert!(buffer.is_empty());
+        buffer.remove_before(Timestamp::from_nanos(2_000_000_000_000));
+        assert!(matches!(
+            buffer.get(Timestamp::from_nanos(1_000_000_000_000)),
+            Err(BufferError::NoTransformAvailable)
+        ));
 
         // A restarted stream from t = 0 must be retained again.
         let t = Timestamp::zero();
         buffer.insert(create_transform(t)).unwrap();
-        assert_eq!(buffer.len(), 1);
         assert!(buffer.get(t).is_ok());
     }
 
@@ -192,15 +211,18 @@ mod buffer_tests {
     fn emptied_dynamic_buffer_keeps_its_kind() {
         // Regression test: the kind used to be a flag re-decided whenever
         // the buffer was empty, so a dynamic buffer emptied by
-        // delete_before accepted a static insert, silently flipped kind,
+        // remove_before accepted a static insert, silently flipped kind,
         // and then rejected dynamic inserts. The kind is now declared at
         // construction and structural: it cannot flip.
         let t = Timestamp::from_nanos(1_000_000_000);
         let mut buffer = Buffer::dynamic();
         buffer.insert(create_transform(t)).unwrap();
 
-        buffer.delete_before((t + Duration::from_secs(1)).unwrap());
-        assert!(buffer.is_empty());
+        buffer.remove_before((t + Duration::from_secs(1)).unwrap());
+        assert!(matches!(
+            buffer.get(t),
+            Err(BufferError::NoTransformAvailable)
+        ));
 
         let result = buffer.insert(create_static_transform());
         assert!(
@@ -211,7 +233,6 @@ mod buffer_tests {
         // Dynamic inserts keep working.
         buffer.insert(create_transform(t)).unwrap();
         assert!(buffer.get(t).is_ok());
-        assert!(!buffer.is_static());
     }
 
     #[test]
@@ -276,7 +297,7 @@ mod buffer_tests {
     }
 
     #[test]
-    fn delete_before() {
+    fn remove_before() {
         let mut buffer = Buffer::dynamic();
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = (t1 + Duration::from_secs(2)).unwrap();
@@ -287,14 +308,14 @@ mod buffer_tests {
         assert!(buffer.get(t1).is_ok());
         assert!(buffer.get(t2).is_ok());
 
-        buffer.delete_before(Timestamp::from_nanos(2_000_000_000));
+        buffer.remove_before(Timestamp::from_nanos(2_000_000_000));
 
         assert!(buffer.get(t1).is_err());
         assert!(buffer.get(t2).is_ok());
     }
 
     #[test]
-    fn delete_expired() {
+    fn remove_expired() {
         let mut buffer = Buffer::dynamic_with_max_age(Duration::from_secs(10));
         let t = Timestamp::from_nanos(20_000_000_000);
 
@@ -380,8 +401,18 @@ mod buffer_tests {
         let result = buffer.insert(create_transform(Timestamp::zero()));
         assert!(matches!(result, Err(BufferError::StaticDynamicConflict)));
         assert_eq!(buffer.parent(), None);
-        assert_eq!(buffer.child(), None);
-        assert!(buffer.is_empty());
+        assert!(matches!(
+            buffer.get(Timestamp::zero()),
+            Err(BufferError::NoTransformAvailable)
+        ));
+
+        // Neither frame was pinned: a static transform for an entirely
+        // different frame pair is still accepted.
+        let mut other = create_static_transform();
+        other.parent = "odom".into();
+        other.child = "lidar".into();
+        buffer.insert(other).unwrap();
+        assert_eq!(buffer.parent(), Some("odom"));
     }
 
     #[test]
@@ -421,7 +452,7 @@ mod buffer_tests {
     }
 
     #[test]
-    fn delete_before_preserves_static_transforms() {
+    fn remove_before_preserves_static_transforms() {
         let mut buffer: Buffer = Buffer::static_edge();
 
         let static_tf = create_static_transform();
@@ -429,7 +460,7 @@ mod buffer_tests {
 
         // Manual cleanup with any cutoff must not destroy a static transform:
         // it is valid for all time, not just before the cutoff.
-        buffer.delete_before(Timestamp::from_nanos(5_000_000_000));
+        buffer.remove_before(Timestamp::from_nanos(5_000_000_000));
 
         assert_eq!(
             buffer.get(Timestamp::from_nanos(9_000_000_000)).unwrap(),
@@ -449,7 +480,7 @@ mod buffer_tests {
         // A rotation-equivalent but non-unit quaternion would silently scale
         // every lookup it takes part in.
         let mut non_unit = create_transform(t);
-        non_unit.rotation = Quaternion::new(2.0, 0.0, 0.0, 0.0);
+        non_unit.rotation = Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0);
         assert!(matches!(
             buffer.insert(non_unit),
             Err(BufferError::TransformError(
@@ -466,44 +497,37 @@ mod buffer_tests {
 
         // Unit-norm rotations with f32-grade precision loss must be accepted.
         let mut f32_grade = create_transform(t);
-        f32_grade.rotation = Quaternion::new(1.0 + 1e-8, 0.0, 0.0, 0.0);
+        f32_grade.rotation = Quaternion::from_wxyz(1.0 + 1e-8, 0.0, 0.0, 0.0);
         assert!(buffer.insert(f32_grade).is_ok());
     }
 
     #[test]
-    fn frame_accessors_reflect_pinning() {
+    fn frame_pins_survive_the_buffer_being_emptied() {
         let mut buffer = Buffer::dynamic();
         assert_eq!(buffer.parent(), None);
-        assert_eq!(buffer.child(), None);
 
         let t = Timestamp::from_nanos(1_000_000_000);
         buffer.insert(create_transform(t)).unwrap();
         assert_eq!(buffer.parent(), Some("map"));
-        assert_eq!(buffer.child(), Some("base"));
 
         // The pins survive the buffer being emptied, matching the documented
         // parent behavior: dropping the buffer is the only release.
-        buffer.delete_before((t + Duration::from_secs(1)).unwrap());
-        assert!(buffer.is_empty());
+        buffer.remove_before((t + Duration::from_secs(1)).unwrap());
+        assert!(matches!(
+            buffer.get(t),
+            Err(BufferError::NoTransformAvailable)
+        ));
         assert_eq!(buffer.parent(), Some("map"));
-        assert_eq!(buffer.child(), Some("base"));
-    }
 
-    #[test]
-    fn kind_accessors_reflect_construction() {
-        let dynamic: Buffer = Buffer::dynamic();
-        assert!(!dynamic.is_static());
-        assert_eq!(dynamic.len(), 0);
-        assert!(dynamic.is_empty());
-
-        let mut fixed: Buffer = Buffer::static_edge();
-        assert!(fixed.is_static());
-        assert_eq!(fixed.len(), 0);
-        assert!(fixed.is_empty());
-
-        fixed.insert(create_static_transform()).unwrap();
-        assert_eq!(fixed.len(), 1);
-        assert!(!fixed.is_empty());
+        // The child pin survives too, so a drained buffer still refuses a
+        // transform for another child frame.
+        let mut other = create_transform(t);
+        other.child = "lidar".into();
+        let result = buffer.insert(other);
+        assert!(
+            matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
+            "expected ChildFrameMismatch, got {result:?}"
+        );
     }
 
     #[test]

@@ -18,7 +18,7 @@ fn vector3_json_roundtrip_is_exact() {
 
 #[test]
 fn quaternion_json_roundtrip_is_exact() {
-    let quaternion = Quaternion::new(0.5, 0.5, -0.5, 0.5);
+    let quaternion = Quaternion::from_wxyz(0.5, 0.5, -0.5, 0.5);
 
     let json = serde_json::to_string(&quaternion).unwrap();
     let deserialized: Quaternion = serde_json::from_str(&json).unwrap();
@@ -162,7 +162,7 @@ fn transform_over_system_time_roundtrips() {
 
     let transform: Transform<std::time::SystemTime> = Transform {
         translation: Vector3::new(1.5, -2.25, 3.125),
-        rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        rotation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
         timestamp: Stamp::At(
             UNIX_EPOCH
                 .checked_add(Duration::from_secs(1_753_142_400))
@@ -186,7 +186,7 @@ fn transform_over_system_time_roundtrips() {
 fn transform_postcard_bytes_are_frozen() {
     let transform: Transform = Transform {
         translation: Vector3::new(1.5, -2.25, 3.125),
-        rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        rotation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
         timestamp: Stamp::At(Timestamp::from_nanos(1_753_142_400_000_000_000)),
         parent: "map".into(),
         child: "base_link".into(),
@@ -223,7 +223,7 @@ fn transform_postcard_bytes_are_frozen() {
 fn point_postcard_bytes_are_frozen() {
     let point: Point = Point {
         position: Vector3::new(1.5, -2.25, 3.125),
-        orientation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        orientation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
         timestamp: Timestamp::from_nanos(1_753_142_400_000_000_000),
         frame: "camera".into(),
     };
@@ -255,7 +255,7 @@ fn static_transform_postcard_bytes_are_frozen() {
         "map",
         "base_link",
         Vector3::new(1.5, -2.25, 3.125),
-        Quaternion::new(1.0, 0.0, 0.0, 0.0),
+        Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
     );
 
     let bytes = postcard::to_allocvec(&transform).unwrap();

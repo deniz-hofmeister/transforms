@@ -40,8 +40,9 @@ no. Concretely:
 
 - `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
   frame name, plus chain resolution between arbitrary frames.
-- `Buffer` — per-child-frame `BTreeMap<T, Transform<T>>` ordered by timestamp,
-  with interpolation between stored samples.
+- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Transform<T>>`
+  ordered by timestamp, with interpolation between stored samples. Only
+  `Registry` reaches it; it is not part of the public API.
 - `geometry` — `Transform` (translation + rotation + timestamp + parent/child
   frames), `Vector3`, `Quaternion`, and `Point` as the reference implementation
   of the `Transformable`/`Localized` traits.
@@ -124,17 +125,18 @@ would produce) a silent wrong answer:
   a conversion error must never mask the error being reported.
 - Buffer expiry is data-driven: entries older than
   (latest **inserted** timestamp − `max_age`) are removed on insert (only for
-  buffers built `dynamic_with_max_age`). Wall-clock time is never consulted. Manual
-  cleanup (`delete_before` / `delete_transforms_before`) never touches static
-  buffers — a static transform is valid for all time — and never releases a
-  frame: a drained buffer keeps its pinned parent and its static/dynamic kind,
-  so cleanup cannot re-open a frame for re-parenting or a change of kind.
+  buffers built `dynamic_with_max_age`). Wall-clock time is never consulted.
+  Manual cleanup (`Registry::remove_transforms_before`, and the internal
+  `Buffer::remove_before` under it) never touches static buffers — a static
+  transform is valid for all time — and never releases a frame: a drained
+  buffer keeps its pinned parent and its static/dynamic kind, so cleanup cannot
+  re-open a frame for re-parenting or a change of kind.
   `Registry::remove_frame` is the only release.
 - Transforms are validated at insertion (`Transform::validate`, called by
   `Buffer::insert`): non-finite components and rotations whose norm deviates
   from 1 by more than `geometry::UNIT_NORM_TOLERANCE` are rejected. A
   denormalized rotation would silently corrupt every lookup it takes part in.
-- Rotations are expected to be unit quaternions; `Quaternion::new` does not
+- Rotations are expected to be unit quaternions; `Quaternion::from_wxyz` does not
   normalize. Anything that inverts a rotation must normalize first (see
   `Transform::inverse`). Direct `Transform * Transform` composition and
   `Transformable::transform` do not validate — the fields are public — so the
@@ -161,7 +163,7 @@ this section is convention, enforced in review — follow it anyway.
   allows on the numeric conversions in `src/time/timestamp/`, and the scoped
   `clippy::expect_used` allow on `Timestamp::now`'s documented panic — do not
   remove them, and do not treat them as precedent.
-- Construction: `Vector3::new/zero/unit_*`, `Quaternion::new(w, x, y, z)` /
+- Construction: `Vector3::new/zero/unit_*`, `Quaternion::from_wxyz(w, x, y, z)` /
   `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()` —
   never struct literals in tests, examples, or docs. `Transform { .. }` and
   `Point { .. }` keep named-field literals (no full constructor by design).

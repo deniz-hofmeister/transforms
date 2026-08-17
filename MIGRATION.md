@@ -19,9 +19,9 @@ let mut registry = Registry::with_max_age(Duration::from_secs(60));
 **Do not accept the compiler's suggestion.** rustc's help for this error
 says "remove the extra argument", which produces `Registry::new()` — that
 compiles, but creates a registry with **no automatic cleanup**: transforms
-accumulate until you call `delete_transforms_before`. If you had a
-`max_age`, you want `with_max_age`. (`Buffer::new(max_age)` splits into
-`Buffer::dynamic_with_max_age` — see the `Stamp` section below.) In
+accumulate until you call `remove_transforms_before`. If you had a
+`max_age`, you want `with_max_age`. (`Buffer::new(max_age)` has no
+replacement — `Buffer` is private in 2.0; see break 5.) In
 `no_std`, both constructors now exist too — automatic cleanup no longer
 requires `std`.
 
@@ -35,7 +35,7 @@ registry.add_transform(transform);
 registry.add_transform(transform)?;
 ```
 
-`add_transform` and `Buffer::insert` return `Result` and validate on
+`add_transform` returns `Result` and validates on
 insertion. An ignored `Err` means **nothing was stored** — later lookups
 will fail mysteriously. New rejections your 1.x data may already trigger:
 non-finite values, non-unit rotations (beyond `UNIT_NORM_TOLERANCE`),
@@ -84,12 +84,10 @@ Two related breaks ride along:
   your clock cannot convert, never a plausible-looking number, because it
   is what formats error messages. The trait also gains `Debug` as a
   supertrait — derive it on your clock type if you had not.
-- **`Buffer` declares its kind at construction.** `Buffer::new()` /
-  `Buffer::with_max_age(d)` / `Default` are replaced by
-  `Buffer::dynamic()`, `Buffer::dynamic_with_max_age(d)`, and
-  `Buffer::static_edge()`. The kind is fixed for the buffer's lifetime —
-  this also fixes a 1.x/2.0-beta bug where a dynamic buffer emptied by
-  `delete_before` silently flipped static on the next insert.
+- **A child frame is static or dynamic for its lifetime.** The kind is
+  fixed by the frame's first insert and survives the frame being drained,
+  which also fixes a 1.x bug where an emptied frame silently flipped
+  static on the next insert (see runtime change 5).
 
 **Serde wire format:** `Stamp` serializes as an optional timestamp. In
 JSON a dynamic transform's shape is unchanged
@@ -165,6 +163,14 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 - `registry.data` is private. There is no public iteration API — restructure
   around `get_transform`, `remove_frame`, and your own bookkeeping.
+- **`Buffer` and the `core` module are gone from the public API.** `Registry`
+  is the whole entry point, re-exported at the crate root: `use
+  transforms::Registry`, never `transforms::core::Registry`. Code that stored
+  transforms in a `Buffer` of its own has no drop-in replacement type — give
+  the frame pair to a `Registry` (one buffer per child frame is what it keeps
+  internally) and use `add_transform` / `get_transform`. rustc reports this as
+  E0603 (`module core is private`) on the `use` line and offers no
+  replacement path, because the private module is what it sees.
 - `Timestamp`'s inner field is private and holds `u64` nanoseconds instead
   of `u128`: replace `ts.t` with `ts.as_nanos()` and `Timestamp { t }` with
   `Timestamp::from_nanos(t)`, narrowing wider integers at the call site
@@ -176,7 +182,10 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 ### 6. Small signature changes
 
-- `Buffer::get(&ts)` → `Buffer::get(ts)` (timestamp by value).
+- `registry.delete_transforms_before(t)` →
+  `registry.remove_transforms_before(t)` (rename only; the crate now spells
+  every removal `remove_`, next to `remove_frame`). Its cleanup semantics did
+  change — see runtime change 5.
 - `Timestamp::as_seconds_unchecked()` → `Timestamp::as_seconds_lossy()`
   (rename only; same behavior).
 
@@ -197,8 +206,8 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 4. **Results always carry the requested timestamp**, including over
    all-static chains.
 5. **Cleanup preserves static transforms — and frame pins.**
-   `delete_transforms_before` deleted static transforms in 1.x; it now
-   spares them. It also never releases a frame: a frame drained of every
+   `remove_transforms_before` (1.x: `delete_transforms_before`) deleted
+   static transforms in 1.x; it now spares them. It also never releases a frame: a frame drained of every
    sample keeps the parent and the static-or-dynamic kind pinned by its
    first insert, so routine cleanup cannot quietly re-open it for
    re-parenting or for a change of kind, and lookups on it report

@@ -11,7 +11,7 @@
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
 //!   automatically cleans up old dynamic transforms on insert; one built with
-//!   `Registry::new` keeps them until `delete_transforms_before` is called.
+//!   `Registry::new` keeps them until `remove_transforms_before` is called.
 //!
 //! ## Usage
 //!
@@ -161,7 +161,7 @@ where
     /// are the caller's to manage:
     ///
     /// - *Memory* grows with the insert rate. Transforms are kept until
-    ///   removed manually with [`Registry::delete_transforms_before`], and
+    ///   removed manually with [`Registry::remove_transforms_before`], and
     ///   frames until [`Registry::remove_frame`].
     /// - *Interpolation* spans any gap between two retained samples, however
     ///   large. A lookup between samples recorded before and after a pause —
@@ -297,7 +297,7 @@ where
     /// covered time range when it holds data the request falls outside of,
     /// or `NoTransformAvailable` — no range to carry — when it holds no
     /// data at all, the state a frame drained by
-    /// [`Registry::delete_transforms_before`] stays in until something is
+    /// [`Registry::remove_transforms_before`] stays in until something is
     /// inserted into it again.
     ///
     /// # Examples
@@ -495,7 +495,7 @@ where
 
     /// Removes dynamic transforms older than the given threshold.
     ///
-    /// Iterates over all buffers and deletes their dynamic entries with a
+    /// Iterates over all buffers and removes their dynamic entries with a
     /// timestamp lower than the input argument. Static transforms are
     /// preserved: they are valid for all time, so cleaning them up by
     /// timestamp would silently destroy them.
@@ -508,12 +508,12 @@ where
     /// reporting it as unknown. Frame entries are released only by
     /// [`Registry::remove_frame`] — a process that mints transient frame
     /// names must call it when a frame retires.
-    pub fn delete_transforms_before(
+    pub fn remove_transforms_before(
         &mut self,
         timestamp: T,
     ) {
         for buffer in self.data.values_mut() {
-            buffer.delete_before(timestamp);
+            buffer.remove_before(timestamp);
         }
     }
 

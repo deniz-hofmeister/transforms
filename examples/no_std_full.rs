@@ -4,8 +4,8 @@
 //! This example also showcases the ability of the registry to interpolate transforms for
 //! timestamps between known timestamps.
 //!
-//! This example uses `Registry::new`, which does not automatically delete old
-//! transforms; cleanup is done manually with `delete_transforms_before`.
+//! This example uses `Registry::new`, which does not automatically remove old
+//! transforms; cleanup is done manually with `remove_transforms_before`.
 
 #[cfg(not(feature = "std"))]
 fn main() {
@@ -102,7 +102,7 @@ fn main() {
     // Registry::new() does not automatically wipe old transforms
     // (Registry::with_max_age would)
     // Flush old transforms from the registry
-    registry.delete_transforms_before(time);
+    registry.remove_transforms_before(time);
 }
 
 #[cfg(feature = "std")]

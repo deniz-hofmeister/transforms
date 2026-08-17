@@ -8,7 +8,7 @@ use crate::{
 /// A trait for types that are localized in a specific coordinate frame at a specific time.
 ///
 /// This trait provides frame and timestamp introspection, enabling automatic transform
-/// lookup via [`Registry::get_transform_for`](crate::core::Registry::get_transform_for).
+/// lookup via [`Registry::get_transform_for`](crate::Registry::get_transform_for).
 ///
 /// Separate from [`Transformable`] so that types without frame/timestamp metadata
 /// can still implement `Transformable` independently.

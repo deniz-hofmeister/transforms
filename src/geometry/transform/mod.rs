@@ -108,7 +108,7 @@ where
     /// let mut transform = Transform::<Timestamp>::identity();
     /// assert!(transform.validate().is_ok());
     ///
-    /// transform.rotation = Quaternion::new(2.0, 0.0, 0.0, 0.0);
+    /// transform.rotation = Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0);
     /// assert!(matches!(
     ///     transform.validate(),
     ///     Err(TransformError::NonUnitRotation(_))
@@ -330,7 +330,9 @@ where
     /// // Create a transform with specific translation and rotation
     /// let transform = Transform {
     ///     translation: Vector3::new(1.0, 2.0, 3.0),
-    ///     rotation: Quaternion::new(0.0, 1.0, 0.0, 0.0).normalize().unwrap(),
+    ///     rotation: Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0)
+    ///         .normalize()
+    ///         .unwrap(),
     ///     timestamp: Stamp::At(Timestamp::zero()),
     ///     parent: "a".into(),
     ///     child: "b".into(),

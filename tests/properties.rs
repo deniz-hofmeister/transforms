@@ -43,7 +43,7 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
             }
             let half = angle / 2.0;
             let s = half.sin() / norm;
-            Quaternion::new(half.cos(), s * x, s * y, s * z)
+            Quaternion::from_wxyz(half.cos(), s * x, s * y, s * z)
                 .normalize()
                 .ok()
         })

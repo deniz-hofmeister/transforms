@@ -57,7 +57,7 @@ mod transform_tests {
 
         let t_a_b = Transform {
             translation: Vector3::zero(),
-            rotation: Quaternion::new((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
             timestamp: Stamp::At(t),
             parent: "a".into(),
             child: "b".into(),
@@ -127,7 +127,9 @@ mod transform_tests {
     fn mul_inverse_identity() {
         let t_a_b = Transform {
             translation: Vector3::new(1.0, 2.0, 3.0),
-            rotation: Quaternion::new(0.707, 0.707, 0.0, 0.0).normalize().unwrap(),
+            rotation: Quaternion::from_wxyz(0.707, 0.707, 0.0, 0.0)
+                .normalize()
+                .unwrap(),
             timestamp: Stamp::At(Timestamp::zero()),
             parent: "a".into(),
             child: "b".into(),
@@ -344,19 +346,19 @@ mod transform_tests {
 
         // f32-grade precision loss on a unit rotation is accepted.
         let mut f32_grade = transform_at("a", "b", t);
-        f32_grade.rotation = Quaternion::new(1.0 + 1e-8, 0.0, 0.0, 0.0);
+        f32_grade.rotation = Quaternion::from_wxyz(1.0 + 1e-8, 0.0, 0.0, 0.0);
         assert!(f32_grade.validate().is_ok());
 
         // A genuinely denormalized rotation is rejected with its norm.
         let mut denormalized = transform_at("a", "b", t);
-        denormalized.rotation = Quaternion::new(1.001, 0.0, 0.0, 0.0);
+        denormalized.rotation = Quaternion::from_wxyz(1.001, 0.0, 0.0, 0.0);
         assert!(matches!(
             denormalized.validate(),
             Err(TransformError::NonUnitRotation(_))
         ));
 
         let mut non_finite = transform_at("a", "b", t);
-        non_finite.rotation = Quaternion::new(f64::NAN, 0.0, 0.0, 0.0);
+        non_finite.rotation = Quaternion::from_wxyz(f64::NAN, 0.0, 0.0, 0.0);
         assert!(matches!(
             non_finite.validate(),
             Err(TransformError::NonFiniteValues)
