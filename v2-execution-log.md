@@ -82,3 +82,20 @@ third site carrying the same wrong ulp figure — the `bits()` doc comment in
 `src/geometry/quaternion/tests.rs`. Findings re-verified independently first: the v1.4.1 tree was
 extracted and run in both feature modes, and the glibc-vs-libm sweep was reproduced. See the
 Stage 3 row.)
+
+## Interruption record — 2026-08-15 night, during Stage 5 review
+
+Third deliberate clean termination by the maintainer. Working tree clean at `77c73a7`; Stages 1–5
+are implemented, gated, and committed. Stage 4 (surface trims, `ff2bd6f` + review fix `3a2e1ee`)
+and Stage 5 (full enforcement + invert-once rework, `77c73a7`) both landed this session.
+
+Stage 5's **post-commit review was interrupted with no verdicts filed**: the adversarial reviewer
+was mid-run exercising an out-of-crate probe project against the new public API (checking invalid
+transforms are truly unrepresentable downstream) and re-running the no_std suite; the fidelity
+reviewer was still working through the 27-file diff. Neither had reported findings at termination.
+
+**First action on resume:** re-run the Stage 5 review of `77c73a7` from scratch (fidelity against
+the record's Stage 5 + sub-decisions, adversarial against the AGENTS.md invariants — the largest
+and most safety-relevant diff of the program; do not skip it), fix any real blockers with gate +
+"Address Stage 5 review findings" commit, then proceed with Stage 6 (error overhaul) per the
+protocol above.
