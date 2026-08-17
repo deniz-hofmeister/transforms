@@ -16,13 +16,14 @@ fn main() {
         let y = t.as_seconds_lossy().cos();
         let z = 0.0;
 
-        Transform {
-            translation: Vector3::new(x, y, z),
-            rotation: Quaternion::identity(),
-            parent: "a".into(),
-            child: "b".into(),
-            timestamp: Stamp::At(t),
-        }
+        Transform::new(
+            "a",
+            "b",
+            Vector3::new(x, y, z),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap()
     }
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();

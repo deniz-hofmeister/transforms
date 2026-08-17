@@ -37,10 +37,13 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
 ### v2.0.0 highlights
 
-- **Correct by construction**: transforms are validated on insertion (finite
-  values, unit rotations), the frame tree is strict (single pinned parent,
-  no cycles), and lookups either answer the exact question asked or return an
-  error — the silent-wrong-answer failure modes of 1.x are gone.
+- **Correct by construction**: a `Transform` is validated where it is built —
+  `Transform::new` and `Transform::static_between` return `Result` and reject
+  non-finite values and non-unit rotations, deserialization runs the same
+  check, and the private fields keep a built transform valid. The frame tree
+  is strict (single pinned parent, no cycles), and lookups either answer the
+  exact question asked or return an error — the silent-wrong-answer failure
+  modes of 1.x are gone.
 - **Tested on deployment architectures**: CI executes the full test suite
   natively on x86_64 and ARM64 (Raspberry Pi, NVIDIA Jetson).
 - **Real `no_std`**: builds for bare-metal targets — CI proves it on
@@ -85,8 +88,9 @@ an integer every serde format encodes natively — `serde_json`, `postcard`,
 full range, and a foreign-language consumer reads it as a plain integer.
 Struct field order is part of the wire contract for non-self-describing
 formats.
-Deserialization does not validate — like hand-built transforms, deserialized
-ones are validated when they enter a `Registry`.
+Deserializing a `Transform` runs the constructors' validation, so a
+denormalized rotation or a non-finite component is a deserialization error
+rather than a transform that answers lookups with plausible nonsense.
 
 Note on `approx`: the `AbsDiffEq`/`RelativeEq` impls on the geometry types
 make `approx` 0.5 part of this crate's public API — a deliberate
@@ -116,13 +120,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let timestamp = Timestamp::now();
 
     // Define a transform: sensor is 1 meter along X-axis from base
-    let transform = Transform {
-        translation: Vector3::new(1.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(timestamp),
-        parent: "base".into(),
-        child: "sensor".into(),
-    };
+    let transform = Transform::new(
+        "base",
+        "sensor",
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(timestamp),
+    )?;
 
     // Add and retrieve the transform (target frame first, then source:
     // "sensor"-frame data expressed in "base")
@@ -157,13 +161,13 @@ pub fn remove_frame(&mut self, child: &str) -> bool
 
 | Type | Description |
 |------|-------------|
-| `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames) |
+| `Transform<T = Timestamp>` | Rigid body transformation (translation + rotation + timestamp + frames), validated at construction |
 | `Vector3` | 3D vector with x, y, z components (f64) |
 | `Quaternion` | Quaternion for rotations (expected unit norm) with w, x, y, z components (f64) |
 | `Timestamp` | Time representation in nanoseconds (u64, ~584 years of range) |
 | `Stamp<T = Timestamp>` | When a transform is valid: `At(T)` for one instant, `Static` for all time |
 | `TimePoint` | Trait for custom timestamp types used by `Transform` and `Registry` |
-| `Point` | Example transformable type with position, orientation, timestamp, frame |
+| `Point` | Example transformable type with position, orientation, timestamp, frame (public fields, built with `Point::new`) |
 
 For complete API documentation, see [docs.rs/transforms](https://docs.rs/transforms).
 
@@ -209,17 +213,29 @@ Time-indexed storage for transforms between a specific child-parent frame pair, 
 The core data structure representing a rigid body transformation:
 
 ```rust
-pub struct Transform<T = Timestamp>
-where
-    T: TimePoint,
-{
-    pub translation: Vector3,   // Position offset (x, y, z)
-    pub rotation: Quaternion,   // Orientation (w, x, y, z)
-    pub timestamp: Stamp<T>,    // Stamp::At(t) sample, or Stamp::Static
-    pub parent: String,         // Destination frame
-    pub child: String,          // Source frame
+// Fields are private: a Transform is built validated and stays valid.
+impl<T: TimePoint> Transform<T> {
+    pub fn new(parent: &str, child: &str, translation: Vector3, rotation: Quaternion, timestamp: Stamp<T>) -> Result<Self, TransformError>
+    pub fn static_between(parent: &str, child: &str, translation: Vector3, rotation: Quaternion) -> Result<Self, TransformError>
+
+    pub fn translation(&self) -> Vector3   // Position offset (x, y, z)
+    pub fn rotation(&self) -> Quaternion   // Orientation (w, x, y, z)
+    pub fn timestamp(&self) -> Stamp<T>    // Stamp::At(t) sample, or Stamp::Static
+    pub fn parent(&self) -> &str           // Destination frame
+    pub fn child(&self) -> &str            // Source frame
+
+    pub fn inverse(&self) -> Result<Self, TransformError>
+    pub fn validate(&self) -> Result<(), TransformError>
 }
 ```
+
+`new` and `static_between` reject non-finite components and rotations whose
+norm deviates from `1.0` by more than `geometry::UNIT_NORM_TOLERANCE`. Values
+*derived* from validated transforms — `inverse`, `interpolate`, `*`
+composition, and registry lookups — are not re-checked, because rotation norms
+drift by a few ulps per composition and rejecting that would fail legitimate
+long chains; `validate` is there for a transform whose provenance you do not
+control.
 
 ### Localized and Transformable Traits
 
@@ -270,16 +286,16 @@ let camera_mount: Transform = Transform::static_between(
     "camera",
     Vector3::new(0.1, 0.0, 0.5),
     Quaternion::identity(),
-);
+)?;
 
 // Dynamic transform: robot position (changes over time)
-let robot_position = Transform {
-    translation: Vector3::new(x, y, 0.0),
-    rotation: Quaternion::identity(),
-    timestamp: Stamp::At(Timestamp::now()),
-    parent: "map".into(),
-    child: "base".into(),
-};
+let robot_position = Transform::new(
+    "map",
+    "base",
+    Vector3::new(x, y, 0.0),
+    Quaternion::identity(),
+    Stamp::At(Timestamp::now()),
+)?;
 ```
 
 ### Transform Chaining
@@ -330,12 +346,12 @@ use transforms::{
 };
 
 // Create a point in the camera frame
-let mut point = Point {
-    position: Vector3::new(1.0, 0.0, 0.0),
-    orientation: Quaternion::identity(),
-    timestamp: Timestamp::now(),
-    frame: "camera".into(),
-};
+let mut point = Point::new(
+    Vector3::new(1.0, 0.0, 0.0),
+    Quaternion::identity(),
+    Timestamp::now(),
+    "camera",
+);
 
 // Get the transform that maps camera-frame coordinates into the base frame
 let transform = registry.get_transform("base", "camera", point.timestamp)?;
@@ -350,12 +366,12 @@ Use `get_transform_for` to resolve and apply a transform in one step, without ma
 
 ```rust
 // Create a point in the camera frame
-let mut point = Point {
-    position: Vector3::new(1.0, 0.0, 0.0),
-    orientation: Quaternion::identity(),
-    timestamp: Timestamp::now(),
-    frame: "camera".into(),
-};
+let mut point = Point::new(
+    Vector3::new(1.0, 0.0, 0.0),
+    Quaternion::identity(),
+    Timestamp::now(),
+    "camera",
+);
 
 // Resolve transform from the point's frame to map, then apply it
 let transform = registry.get_transform_for(&point, "map")?;
@@ -395,13 +411,14 @@ let mut registry = Registry::new();
 // Create timestamp manually (no Timestamp::now() in no_std)
 let timestamp = (Timestamp::zero() + Duration::from_secs(100)).unwrap();
 
-let transform = Transform {
-    translation: Vector3::new(1.0, 0.0, 0.0),
-    rotation: Quaternion::identity(),
-    timestamp: Stamp::At(timestamp),
-    parent: "a".into(),
-    child: "b".into(),
-};
+let transform = Transform::new(
+    "a",
+    "b",
+    Vector3::new(1.0, 0.0, 0.0),
+    Quaternion::identity(),
+    Stamp::At(timestamp),
+)
+.unwrap();
 
 registry.add_transform(transform).unwrap();
 
@@ -501,11 +518,16 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
   timestamp; multi-hop lookups scale linearly with chain depth, and a failed
   lookup runs an O(frames) diagnosis scan to name the cause
 - **Early-exit chain resolution**: walks stop as soon as the target frame is reached
+- **At most one inversion per lookup**: each half of the chain is composed in
+  its natural direction, so a lookup toward an ancestor
+  (`get_transform("map", "lidar", t)`) inverts nothing at all — a single-hop
+  lookup at a stored timestamp returns that stored transform bit for bit
 - **Automatic cleanup**: `with_max_age` registries prevent unbounded memory
   growth; eviction pops expired entries from the front of the map,
   O(log n + evicted) per insert
-- **Allocation profile**: a single-hop lookup performs ~11 heap allocations
-  (~1.5 KB churn) regardless of buffer size, plus ~4 per additional hop —
+- **Allocation profile**: a single-hop lookup performs 5 heap allocations
+  toward an ancestor and 6 in the reverse direction (~0.5 KB churn),
+  regardless of buffer size, plus ~2 per additional hop (135 at 64 hops) —
   frame names are `String`s; insertion into an existing frame does not clone
   the frame name
 - **All arithmetic is `f64`**: on single-precision-FPU cores (Cortex-M4F,

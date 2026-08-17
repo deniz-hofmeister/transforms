@@ -132,15 +132,30 @@ would produce) a silent wrong answer:
   buffer keeps its pinned parent and its static/dynamic kind, so cleanup cannot
   re-open a frame for re-parenting or a change of kind.
   `Registry::remove_frame` is the only release.
-- Transforms are validated at insertion (`Transform::validate`, called by
-  `Buffer::insert`): non-finite components and rotations whose norm deviates
-  from 1 by more than `geometry::UNIT_NORM_TOLERANCE` are rejected. A
+- Transforms are validated where they are built: `Transform::new`,
+  `Transform::static_between` and the `Deserialize` impl all run
+  `Transform::validate`, rejecting non-finite components and rotations whose
+  norm deviates from 1 by more than `geometry::UNIT_NORM_TOLERANCE`. A
   denormalized rotation would silently corrupt every lookup it takes part in.
-- Rotations are expected to be unit quaternions; `Quaternion::from_wxyz` does not
-  normalize. Anything that inverts a rotation must normalize first (see
-  `Transform::inverse`). Direct `Transform * Transform` composition and
-  `Transformable::transform` do not validate — the fields are public — so the
-  registry boundary is where the invariant is enforced.
+  The fields are private so a built transform cannot be edited back out of
+  that guarantee; the crate-internal `Transform::unvalidated` exists only for
+  values derived from already-valid ones, and every new caller of it must be
+  able to name the validated transform its inputs came from.
+- Values *derived* from valid transforms — `Mul`, `inverse`, `interpolate`,
+  every registry lookup — are deliberately not re-validated: rotation norms
+  drift a few ulps per composition, so re-checking a long chain would reject
+  legitimate results. `Transform::validate` stays public for transforms of
+  uncontrolled provenance, and `Transformable` documents that as its
+  precondition.
+- Rotations are expected to be unit quaternions; `Quaternion::from_wxyz` does
+  not normalize. Anything that inverts a rotation must normalize first (see
+  `Transform::inverse`, which also rejects a non-finite inverted translation).
+- A lookup composes each half of the resolved chain in the direction the walk
+  produced it and inverts at most once — never once per hop. A lookup toward
+  an ancestor (`get_transform("map", "lidar", t)`, the documented direction)
+  therefore inverts nothing, and a single-hop lookup at a stored timestamp
+  returns that stored transform bit for bit. Reintroducing a per-element
+  inversion is both a 2x cost and a loss of that exactness.
 - `==` on geometry types is exact. Use `approx::assert_abs_diff_eq!` for
   tolerant comparison of computed results; never reintroduce epsilon-based
   `PartialEq`/`Eq` (it violates the trait contracts).
@@ -163,14 +178,22 @@ this section is convention, enforced in review — follow it anyway.
   allows on the numeric conversions in `src/time/timestamp/`, and the scoped
   `clippy::expect_used` allow on `Timestamp::now`'s documented panic — do not
   remove them, and do not treat them as precedent.
-- Construction: `Vector3::new/zero/unit_*`, `Quaternion::from_wxyz(w, x, y, z)` /
-  `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()` —
-  never struct literals in tests, examples, or docs. `Transform { .. }` and
-  `Point { .. }` keep named-field literals (no full constructor by design).
+- Construction goes through constructors everywhere — tests, examples, docs:
+  `Transform::new(parent, child, translation, rotation, stamp)` /
+  `Transform::static_between(..)` (both fallible),
+  `Point::new(position, orientation, timestamp, frame)`,
+  `Vector3::new/zero/unit_*`, `Quaternion::from_wxyz(w, x, y, z)` /
+  `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()`.
+  `Transform` and `Point` are `#[non_exhaustive]`; `Transform`'s fields are
+  private, and a test that needs a deliberately invalid transform uses the
+  crate-internal `Transform::unvalidated` rather than a struct literal.
+  `Vector3` and `Quaternion` keep their public fields — they are plain
+  numbers with no invariant to protect.
 - Float literals carry digits on both sides of the dot: `1.0`, never `1.`.
 - Doc comments come first, then attributes (`#[cfg]`, `#[must_use]`,
-  `#[inline]`). Constructors get bare `#[must_use]`; pure transforming
-  operations get the std phrasing
+  `#[inline]`). Constructors get bare `#[must_use]` — except the fallible
+  ones, where `Result` already carries it and clippy's `double_must_use`
+  fires; pure transforming operations get the std phrasing
   `#[must_use = "this returns the result of the operation, without modifying the original"]`.
 - Rustdoc: no `# Arguments` / `# Returns` / `# Fields` sections — fold anything
   non-obvious into prose. Keep `# Errors` and `# Panics`; `# Examples` comes

@@ -68,13 +68,14 @@
 //! # let timestamp = Timestamp::zero();
 //!
 //! // Create a transform from frame "base" to frame "sensor"
-//! let transform = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp: Stamp::At(timestamp),
-//!     parent: "base".into(),
-//!     child: "sensor".into(),
-//! };
+//! let transform = Transform::new(
+//!     "base",
+//!     "sensor",
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(timestamp),
+//! )
+//! .unwrap();
 //!
 //! // Add the transform to the registry
 //! registry.add_transform(transform).unwrap();
@@ -104,25 +105,28 @@
 //!     time::{Stamp, Timestamp},
 //! };
 //!
-//! // Create a point in the camera frame
-//! let mut point = Point {
-//!     position: Vector3::new(1.0, 0.0, 0.0),
-//!     orientation: Quaternion::identity(),
 //! # #[cfg(not(feature = "std"))]
-//! # timestamp: Timestamp::zero(),
+//! # let now = Timestamp::zero();
 //! # #[cfg(feature = "std")]
-//!     timestamp: Timestamp::now(),
-//!     frame: "camera".into(),
-//! };
+//! let now = Timestamp::now();
+//!
+//! // Create a point in the camera frame
+//! let mut point = Point::new(
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     now,
+//!     "camera",
+//! );
 //!
 //! // Define transform from camera to base frame
-//! let transform = Transform {
-//!     translation: Vector3::new(0.0, 1.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp: Stamp::At(point.timestamp),
-//!     parent: "base".into(),
-//!     child: "camera".into(),
-//! };
+//! let transform = Transform::new(
+//!     "base",
+//!     "camera",
+//!     Vector3::new(0.0, 1.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(point.timestamp),
+//! )
+//! .unwrap();
 //!
 //! // Transform the point from camera frame to base frame
 //! point.transform(&transform).unwrap();
@@ -207,9 +211,12 @@
 //!   whether or not `std` is enabled, never from the platform's math
 //!   library, so the same inputs give bit-identical results on a host and on
 //!   the target it replays.
-//! - **Validated inputs**: transforms are validated at the registry boundary
-//!   (finite values, unit rotations, an acyclic single-parent frame tree);
-//!   invalid data is rejected with an error rather than corrupting lookups.
+//! - **Validated inputs**: a `Transform` is validated where it is built —
+//!   the constructors and the `serde` `Deserialize` impl reject non-finite
+//!   values and non-unit rotations, and the private fields keep a built one
+//!   valid — while the registry enforces what only it can see: an acyclic,
+//!   single-parent frame tree. Invalid data is rejected with an error rather
+//!   than corrupting lookups.
 //! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
 //!   your preferred lock for concurrent use (see the README for an example).
 //! - **Deterministic hashing**: the frame map uses hashbrown's default

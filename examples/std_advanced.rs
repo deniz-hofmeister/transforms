@@ -28,49 +28,61 @@ fn main() {
 
     // The conveyor belt is at x=1 in the map frame at t1
     registry
-        .add_transform(Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t1),
-            parent: "map".into(),
-            child: "conveyor".into(),
-        })
+        .add_transform(
+            Transform::new(
+                "map",
+                "conveyor",
+                Vector3::new(1.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(t1),
+            )
+            .unwrap(),
+        )
         .unwrap();
 
     // By t2 the conveyor has moved to x=3
     registry
-        .add_transform(Transform {
-            translation: Vector3::new(3.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t2),
-            parent: "map".into(),
-            child: "conveyor".into(),
-        })
+        .add_transform(
+            Transform::new(
+                "map",
+                "conveyor",
+                Vector3::new(3.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(t2),
+            )
+            .unwrap(),
+        )
         .unwrap();
 
     // The object sits at y=0.5 on the conveyor (same at both times)
     for &t in &[t1, t2] {
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 0.5, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "conveyor".into(),
-                child: "object".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "conveyor",
+                    "object",
+                    Vector3::new(0.0, 0.5, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
     }
 
     // The camera is fixed in the map frame at (0, 2, 0)
     for &t in &[t1, t2] {
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 2.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "map".into(),
-                child: "camera".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "map",
+                    "camera",
+                    Vector3::new(0.0, 2.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
     }
 
@@ -79,13 +91,13 @@ fn main() {
     let object_in_map_t1 = registry
         .get_transform("map", "object", t1)
         .expect("lookup at t1 failed");
-    info!("Object in map at t1: {:?}", object_in_map_t1.translation);
+    info!("Object in map at t1: {:?}", object_in_map_t1.translation());
 
     // At t2 the object is at (3, 0.5, 0) in map
     let object_in_map_t2 = registry
         .get_transform("map", "object", t2)
         .expect("lookup at t2 failed");
-    info!("Object in map at t2: {:?}", object_in_map_t2.translation);
+    info!("Object in map at t2: {:?}", object_in_map_t2.translation());
 
     // --- Time travel ---
     // "Where was the object at t1, expressed in the camera frame at t2?"
@@ -102,7 +114,7 @@ fn main() {
         .expect("time travel lookup failed");
     info!(
         "Object-at-t1 in camera-at-t2 (time travel): {:?}",
-        result.translation
+        result.translation()
     );
 
     // "Where is the object now (t2), expressed in its own position at t1?"
@@ -117,7 +129,7 @@ fn main() {
             "map",    // fixed_frame
         )
         .expect("drift lookup failed");
-    info!("Conveyor drift (t1 -> t2): {:?}", drift.translation);
+    info!("Conveyor drift (t1 -> t2): {:?}", drift.translation());
 }
 
 #[cfg(not(feature = "std"))]

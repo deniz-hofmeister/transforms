@@ -17,17 +17,26 @@ mod buffer_tests {
     }
 
     fn stamped_transform(timestamp: Stamp) -> Transform {
-        let translation = Vector3::new(1.0, 2.0, 3.0);
-        let rotation = Quaternion::identity();
-        let parent = "map".into();
-        let child = "base".into();
-        Transform {
-            translation,
-            rotation,
-            timestamp,
+        frames_transform("map", "base", Vector3::new(1.0, 2.0, 3.0), timestamp)
+    }
+
+    /// A valid transform between the named frames, for the tests that vary
+    /// frames or translation. `Transform`'s fields are private, so a variant
+    /// is built, not edited into existence.
+    fn frames_transform(
+        parent: &str,
+        child: &str,
+        translation: Vector3,
+        timestamp: Stamp,
+    ) -> Transform {
+        Transform::new(
             parent,
             child,
-        }
+            translation,
+            Quaternion::identity(),
+            timestamp,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -141,18 +150,18 @@ mod buffer_tests {
 
         buffer.insert(create_static_transform()).unwrap();
 
-        let mut recalibrated = create_static_transform();
-        recalibrated.translation = Vector3::new(9.0, 9.0, 9.0);
+        let recalibrated =
+            frames_transform("map", "base", Vector3::new(9.0, 9.0, 9.0), Stamp::Static);
         buffer.insert(recalibrated).unwrap();
 
-        assert_eq!(buffer.get(Timestamp::zero()).unwrap().translation.x, 9.0);
+        assert_eq!(buffer.get(Timestamp::zero()).unwrap().translation().x, 9.0);
         // The replacement is served at every instant, so the original is
         // stored nowhere: a static buffer holds one transform, not a history.
         assert_eq!(
             buffer
                 .get(Timestamp::from_nanos(9_000_000_000))
                 .unwrap()
-                .translation
+                .translation()
                 .x,
             9.0
         );
@@ -175,13 +184,13 @@ mod buffer_tests {
         // included.
         for i in 0..3u64 {
             let t = Timestamp::from_nanos(i * 1_000_000_000);
-            assert_eq!(buffer.get(t).unwrap().timestamp, Stamp::At(t));
+            assert_eq!(buffer.get(t).unwrap().timestamp(), Stamp::At(t));
         }
 
         // Interpolation across t = 0 works like any other span.
         let midpoint = Timestamp::from_nanos(500_000_000);
         let interpolated = buffer.get(midpoint).unwrap();
-        assert_eq!(interpolated.timestamp, Stamp::At(midpoint));
+        assert_eq!(interpolated.timestamp(), Stamp::At(midpoint));
     }
 
     #[test]
@@ -408,9 +417,7 @@ mod buffer_tests {
 
         // Neither frame was pinned: a static transform for an entirely
         // different frame pair is still accepted.
-        let mut other = create_static_transform();
-        other.parent = "odom".into();
-        other.child = "lidar".into();
+        let other = frames_transform("odom", "lidar", Vector3::zero(), Stamp::Static);
         buffer.insert(other).unwrap();
         assert_eq!(buffer.parent(), Some("odom"));
     }
@@ -470,38 +477,6 @@ mod buffer_tests {
     }
 
     #[test]
-    fn insert_rejects_invalid_transforms() {
-        use crate::errors::TransformError;
-
-        let mut buffer: Buffer = Buffer::dynamic();
-
-        let t = Timestamp::from_nanos(1_000_000_000);
-
-        // A rotation-equivalent but non-unit quaternion would silently scale
-        // every lookup it takes part in.
-        let mut non_unit = create_transform(t);
-        non_unit.rotation = Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0);
-        assert!(matches!(
-            buffer.insert(non_unit),
-            Err(BufferError::TransformError(
-                TransformError::NonUnitRotation(_)
-            ))
-        ));
-
-        let mut non_finite = create_transform(t);
-        non_finite.translation = Vector3::new(f64::NAN, 0.0, 0.0);
-        assert!(matches!(
-            buffer.insert(non_finite),
-            Err(BufferError::TransformError(TransformError::NonFiniteValues))
-        ));
-
-        // Unit-norm rotations with f32-grade precision loss must be accepted.
-        let mut f32_grade = create_transform(t);
-        f32_grade.rotation = Quaternion::from_wxyz(1.0 + 1e-8, 0.0, 0.0, 0.0);
-        assert!(buffer.insert(f32_grade).is_ok());
-    }
-
-    #[test]
     fn frame_pins_survive_the_buffer_being_emptied() {
         let mut buffer = Buffer::dynamic();
         assert_eq!(buffer.parent(), None);
@@ -521,8 +496,7 @@ mod buffer_tests {
 
         // The child pin survives too, so a drained buffer still refuses a
         // transform for another child frame.
-        let mut other = create_transform(t);
-        other.child = "lidar".into();
+        let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t));
         let result = buffer.insert(other);
         assert!(
             matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
@@ -540,9 +514,7 @@ mod buffer_tests {
 
         // Same parent, different child (a frame-naming bug): without child
         // pinning this key collision silently overwrote the stored data.
-        let mut other = create_static_transform();
-        other.child = "lidar".into();
-        other.translation = Vector3::new(9.0, 9.0, 9.0);
+        let other = frames_transform("map", "lidar", Vector3::new(9.0, 9.0, 9.0), Stamp::Static);
         let result = buffer.insert(other);
         assert!(
             matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
@@ -570,8 +542,7 @@ mod buffer_tests {
         // A different child between the stored samples: without child pinning
         // this insert succeeded and made interpolating lookups fail with
         // IncompatibleFrames while exact-hit lookups kept working.
-        let mut other = create_transform(t2);
-        other.child = "lidar".into();
+        let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t2));
         assert!(matches!(
             buffer.insert(other),
             Err(BufferError::ChildFrameMismatch(_))
@@ -579,8 +550,8 @@ mod buffer_tests {
 
         // Interpolation over the pinned child's samples must keep working.
         let result = buffer.get(t2).unwrap();
-        assert_eq!(result.child, "base");
-        assert_eq!(result.timestamp, Stamp::At(t2));
+        assert_eq!(result.child(), "base");
+        assert_eq!(result.timestamp(), Stamp::At(t2));
     }
 
     #[test]
@@ -607,13 +578,7 @@ mod buffer_tests {
         t: Timestamp,
         x: f64,
     ) -> Transform {
-        Transform {
-            translation: Vector3::new(x, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        }
+        frames_transform("a", "b", Vector3::new(x, 0.0, 0.0), Stamp::At(t))
     }
 
     #[test]
@@ -626,7 +591,7 @@ mod buffer_tests {
         buffer.insert(transform_with_x(t, 1.0)).unwrap();
         // Same timestamp, different payload: Ok, silently replaces.
         buffer.insert(transform_with_x(t, 2.0)).unwrap();
-        assert_eq!(buffer.get(t).unwrap().translation.x, 2.0);
+        assert_eq!(buffer.get(t).unwrap().translation().x, 2.0);
     }
 
     #[test]
@@ -642,7 +607,7 @@ mod buffer_tests {
         let mut buffer = Buffer::dynamic_with_max_age(Duration::ZERO);
         buffer.insert(transform_with_x(t2, 2.0)).unwrap();
         buffer.insert(transform_with_x(t1, 1.0)).unwrap();
-        assert_eq!(buffer.get(t2).unwrap().translation.x, 2.0);
+        assert_eq!(buffer.get(t2).unwrap().translation().x, 2.0);
         assert!(buffer.get(t1).is_err(), "older insert must be evicted");
     }
 
@@ -663,7 +628,7 @@ mod buffer_tests {
 
         // threshold = (t0 + max_age) - max_age = t0; eviction keeps
         // k >= threshold, so the sample exactly max_age old survives.
-        assert_eq!(buffer.get(t0).unwrap().translation.x, 1.0);
+        assert_eq!(buffer.get(t0).unwrap().translation().x, 1.0);
     }
 
     #[test]
@@ -683,6 +648,6 @@ mod buffer_tests {
             buffer.get(t0).is_err(),
             "sample older than max_age must be evicted"
         );
-        assert_eq!(buffer.get(t_past).unwrap().translation.x, 2.0);
+        assert_eq!(buffer.get(t_past).unwrap().translation().x, 2.0);
     }
 }

@@ -4,7 +4,8 @@ use crate::time::{TimePoint, Timestamp};
 
 /// When a transform is valid: at one instant, or for all time.
 ///
-/// `Stamp` is the type of [`Transform::timestamp`](crate::Transform):
+/// `Stamp` is what [`Transform::timestamp`](crate::Transform::timestamp)
+/// returns and what its constructors take:
 /// a dynamic sample carries `Stamp::At(t)`, a fixed relationship such as a
 /// sensor mount carries `Stamp::Static`. Staticness is a separate variant
 /// rather than a reserved timestamp value, so every instant the clock can

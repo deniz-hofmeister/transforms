@@ -14,13 +14,14 @@ fn test_transform(
     timestamp: Stamp<TestTime>,
     x: f64,
 ) -> Transform<TestTime> {
-    Transform {
-        translation: Vector3::new(x, 0.0, 0.0),
-        rotation: Quaternion::identity(),
+    Transform::new(
+        parent,
+        child,
+        Vector3::new(x, 0.0, 0.0),
+        Quaternion::identity(),
         timestamp,
-        parent: parent.into(),
-        child: child.into(),
-    }
+    )
+    .unwrap()
 }
 
 /// A custom nanosecond clock over `u64`, and the complete `TimePoint`
@@ -65,13 +66,14 @@ fn default_timestamp_api_remains_usable() {
     let mut registry = Registry::new();
     let t = Timestamp::from_nanos(1_000_000_000);
 
-    let transform = Transform {
-        translation: Vector3::new(1.0, 2.0, 3.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(t),
-        parent: "map".into(),
-        child: "base".into(),
-    };
+    let transform = Transform::new(
+        "map",
+        "base",
+        Vector3::new(1.0, 2.0, 3.0),
+        Quaternion::identity(),
+        Stamp::At(t),
+    )
+    .unwrap();
 
     registry.add_transform(transform.clone()).unwrap();
     let result = registry.get_transform("map", "base", t).unwrap();
@@ -90,40 +92,43 @@ fn registry_supports_system_time() {
     let t2 = t0.checked_add(Duration::from_secs(2)).unwrap();
     let t1 = t0.checked_add(Duration::from_secs(1)).unwrap();
 
-    let from = Transform::<SystemTime> {
-        translation: Vector3::new(0.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(t0),
-        parent: "a".into(),
-        child: "b".into(),
-    };
-    let to = Transform::<SystemTime> {
-        translation: Vector3::new(2.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(t2),
-        parent: "a".into(),
-        child: "b".into(),
-    };
+    let from = Transform::<SystemTime>::new(
+        "a",
+        "b",
+        Vector3::new(0.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(t0),
+    )
+    .unwrap();
+    let to = Transform::<SystemTime>::new(
+        "a",
+        "b",
+        Vector3::new(2.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(t2),
+    )
+    .unwrap();
 
     registry.add_transform(from).unwrap();
     registry.add_transform(to).unwrap();
 
     let mid = registry.get_transform("a", "b", t1).unwrap();
-    assert_eq!(mid.timestamp, Stamp::At(t1));
-    assert_eq!(mid.translation, Vector3::new(1.0, 0.0, 0.0));
+    assert_eq!(mid.timestamp(), Stamp::At(t1));
+    assert_eq!(mid.translation(), Vector3::new(1.0, 0.0, 0.0));
 }
 
 #[test]
 fn custom_timestamp_static_transform_is_served_for_any_time() {
     let mut registry = Registry::<TestTime>::new();
 
-    let static_transform = Transform::<TestTime> {
-        translation: Vector3::new(1.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::Static,
-        parent: "map".into(),
-        child: "sensor".into(),
-    };
+    let static_transform = Transform::<TestTime>::new(
+        "map",
+        "sensor",
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::Static,
+    )
+    .unwrap();
 
     registry.add_transform(static_transform.clone()).unwrap();
 
@@ -132,15 +137,21 @@ fn custom_timestamp_static_transform_is_served_for_any_time() {
         .unwrap();
     // The static transform is served for any query time, and the result
     // carries the query time.
-    assert_eq!(result.translation, static_transform.translation);
-    assert_eq!(result.rotation, static_transform.rotation);
-    assert_eq!(result.timestamp, Stamp::At(TestTime(5)));
+    assert_eq!(result.translation(), static_transform.translation());
+    assert_eq!(result.rotation(), static_transform.rotation());
+    assert_eq!(result.timestamp(), Stamp::At(TestTime(5)));
 }
 
 #[test]
-fn identity_is_static() {
-    let identity = Transform::<TestTime>::identity();
-    assert_eq!(identity.timestamp, Stamp::Static);
+fn static_between_stamps_a_custom_time_transform_as_static() {
+    let mount = Transform::<TestTime>::static_between(
+        "map",
+        "sensor",
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+    )
+    .unwrap();
+    assert_eq!(mount.timestamp(), Stamp::Static);
 }
 
 #[cfg(feature = "std")]
@@ -159,19 +170,22 @@ fn system_time_pre_epoch_is_nan_and_epoch_is_ordinary() {
     // silently becoming an eternal static transform.
     let mut registry = Registry::<SystemTime>::new();
     registry
-        .add_transform(Transform::<SystemTime> {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(UNIX_EPOCH),
-            parent: "map".into(),
-            child: "sensor".into(),
-        })
+        .add_transform(
+            Transform::<SystemTime>::new(
+                "map",
+                "sensor",
+                Vector3::new(1.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(UNIX_EPOCH),
+            )
+            .unwrap(),
+        )
         .unwrap();
 
     // A single-sample dynamic buffer serves exactly its own instant...
     let result = registry.get_transform("map", "sensor", UNIX_EPOCH).unwrap();
-    assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
-    assert_eq!(result.timestamp, Stamp::At(UNIX_EPOCH));
+    assert_eq!(result.translation(), Vector3::new(1.0, 0.0, 0.0));
+    assert_eq!(result.timestamp(), Stamp::At(UNIX_EPOCH));
 
     // ...and no other, proving it was not classified static.
     let later = UNIX_EPOCH.checked_add(Duration::from_secs(5)).unwrap();
@@ -192,9 +206,9 @@ fn static_lookup_serves_any_time_including_extremes() {
 
     for probe in [0, 1, 12_345, u64::MAX - 1, u64::MAX] {
         let got = registry.get_transform("a", "b", TestTime(probe)).unwrap();
-        assert_eq!(got.translation.x, 1.0);
+        assert_eq!(got.translation().x, 1.0);
         // The result carries the requested timestamp.
-        assert_eq!(got.timestamp, Stamp::At(TestTime(probe)));
+        assert_eq!(got.timestamp(), Stamp::At(TestTime(probe)));
     }
 }
 
@@ -230,7 +244,7 @@ fn range_extremes_are_ordinary_dynamic_values() {
             .add_transform(test_transform("a", "b", Stamp::At(t), 1.0))
             .unwrap();
         assert_eq!(
-            registry.get_transform("a", "b", t).unwrap().translation.x,
+            registry.get_transform("a", "b", t).unwrap().translation().x,
             1.0
         );
         // A single-sample dynamic buffer cannot serve other times, proving
@@ -266,10 +280,10 @@ fn mixed_static_dynamic_chain_interpolates() {
 
     let probe = TestTime(15_000_000_000);
     let got = registry.get_transform("a", "c", probe).unwrap();
-    assert!((got.translation.x - 1.5).abs() < 1e-12);
-    assert_eq!(got.timestamp, Stamp::At(probe));
-    assert_eq!(got.parent, "a");
-    assert_eq!(got.child, "c");
+    assert!((got.translation().x - 1.5).abs() < 1e-12);
+    assert_eq!(got.timestamp(), Stamp::At(probe));
+    assert_eq!(got.parent(), "a");
+    assert_eq!(got.child(), "c");
 }
 
 #[test]
@@ -291,12 +305,12 @@ fn eviction_spares_the_static_leg() {
     // still resolves, and the static leg answers at any time on its own.
     assert!(registry.get_transform("b", "c", t_old).is_err());
     let got = registry.get_transform("a", "c", t_new).unwrap();
-    assert!((got.translation.x - 6.0).abs() < 1e-12);
+    assert!((got.translation().x - 6.0).abs() < 1e-12);
     assert_eq!(
         registry
             .get_transform("a", "b", TestTime(0))
             .unwrap()
-            .translation
+            .translation()
             .x,
         1.0
     );
@@ -324,6 +338,6 @@ fn time_travel_lookup_works_with_a_custom_clock() {
         .unwrap();
     // b sat at fixed-x 1.0 at t1; a is at fixed-x 2.0 at t2, so b expressed
     // in a-at-t2 sits at x = -1.0.
-    assert!((result.translation.x - (-1.0)).abs() < 1e-12);
-    assert_eq!(result.timestamp, Stamp::At(t2));
+    assert!((result.translation().x - (-1.0)).abs() < 1e-12);
+    assert_eq!(result.timestamp(), Stamp::At(t2));
 }

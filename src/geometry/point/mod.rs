@@ -17,29 +17,35 @@ use approx::{AbsDiffEq, RelativeEq};
 /// using a `Quaternion`, a `Timestamp` to indicate when the point was recorded, and  a `String`
 /// representing the coordinate reference frame its data is relative to.
 ///
+/// A `Point` is a data record, not an invariant carrier: build it with
+/// [`Point::new`] and read or write its fields freely. It is the reference
+/// implementation of [`Transformable`] and [`Localized`]; the invariants that
+/// matter live on the [`Transform`] being applied, not here.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+///
 /// # Examples
 ///
 /// ```
 /// use transforms::{
 ///     geometry::{Point, Quaternion, Vector3},
-///     time::{Stamp, Timestamp},
+///     time::Timestamp,
 /// };
 ///
-/// let point = Point {
-///     position: Vector3::new(1.0, 2.0, 3.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "a".into(),
-/// };
+/// let point: Point = Point::new(
+///     Vector3::new(1.0, 2.0, 3.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "a",
+/// );
 ///
 /// assert_eq!(point.position.x, 1.0);
 /// assert_eq!(point.orientation.w, 1.0);
 /// ```
-///
-/// With the optional `serde` feature, this type implements `Serialize` and
-/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Point<T = Timestamp>
 where
     T: TimePoint,
@@ -52,6 +58,45 @@ where
     pub timestamp: T,
     /// The reference frame the point's data is relative to.
     pub frame: String,
+}
+
+impl<T> Point<T>
+where
+    T: TimePoint,
+{
+    /// Builds a point observed in `frame` at `timestamp`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     geometry::{Point, Quaternion, Vector3},
+    ///     time::Timestamp,
+    /// };
+    ///
+    /// let point: Point = Point::new(
+    ///     Vector3::new(1.0, 0.0, 0.0),
+    ///     Quaternion::identity(),
+    ///     Timestamp::zero(),
+    ///     "camera",
+    /// );
+    ///
+    /// assert_eq!(point.frame, "camera");
+    /// ```
+    #[must_use]
+    pub fn new(
+        position: Vector3,
+        orientation: Quaternion,
+        timestamp: T,
+        frame: &str,
+    ) -> Self {
+        Self {
+            position,
+            orientation,
+            timestamp,
+            frame: frame.into(),
+        }
+    }
 }
 
 /// The `Transformable` trait defines an interface for objects that can be transformed
@@ -67,20 +112,21 @@ where
 ///     time::{Stamp, Timestamp},
 /// };
 ///
-/// let mut point = Point {
-///     position: Vector3::new(1.0, 2.0, 3.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "b".into(),
-/// };
+/// let mut point: Point = Point::new(
+///     Vector3::new(1.0, 2.0, 3.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "b",
+/// );
 ///
-/// let transform = Transform {
-///     translation: Vector3::new(2.0, 0.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: Stamp::At(Timestamp::zero()),
-///     parent: "a".into(),
-///     child: "b".into(),
-/// };
+/// let transform: Transform = Transform::new(
+///     "a",
+///     "b",
+///     Vector3::new(2.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(Timestamp::zero()),
+/// )
+/// .unwrap();
 ///
 /// let r = point.transform(&transform);
 /// assert!(r.is_ok());
@@ -93,6 +139,10 @@ where
 {
     /// Applies a transformation to the `Point`, updating its position, orientation, and frame.
     ///
+    /// The transform's geometry is applied as given: a `Transform` is valid by
+    /// construction, so there is nothing left to check here beyond the frame
+    /// and the time.
+    ///
     /// # Errors
     ///
     /// Returns a [`TransformError`] if the point's frame does not match the transform's child
@@ -103,13 +153,13 @@ where
         &mut self,
         transform: &Transform<T>,
     ) -> Result<(), TransformError> {
-        if self.frame != transform.child {
+        if self.frame != transform.child() {
             return Err(TransformError::IncompatibleFrames {
-                expected: transform.child.clone(),
+                expected: transform.child().into(),
                 found: self.frame.clone(),
             });
         }
-        match transform.timestamp {
+        match transform.timestamp() {
             // A static transform is valid for all time and applies to a
             // point of any timestamp.
             Stamp::Static => {}
@@ -121,9 +171,9 @@ where
                 });
             }
         }
-        self.position = transform.rotation.rotate_vector(self.position) + transform.translation;
-        self.orientation = transform.rotation * self.orientation;
-        self.frame.clone_from(&transform.parent);
+        self.position = transform.rotation().rotate_vector(self.position) + transform.translation();
+        self.orientation = transform.rotation() * self.orientation;
+        self.frame = transform.parent().into();
         Ok(())
     }
 }
@@ -153,21 +203,24 @@ where
 /// # let t = Timestamp::zero();
 ///
 /// registry
-///     .add_transform(Transform {
-///         translation: Vector3::new(1.0, 0.0, 0.0),
-///         rotation: Quaternion::identity(),
-///         timestamp: Stamp::At(t),
-///         parent: "map".into(),
-///         child: "camera".into(),
-///     })
+///     .add_transform(
+///         Transform::new(
+///             "map",
+///             "camera",
+///             Vector3::new(1.0, 0.0, 0.0),
+///             Quaternion::identity(),
+///             Stamp::At(t),
+///         )
+///         .unwrap(),
+///     )
 ///     .unwrap();
 ///
-/// let mut point = Point {
-///     position: Vector3::new(1.0, 0.0, 0.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: t,
-///     frame: "camera".into(),
-/// };
+/// let mut point = Point::new(
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     t,
+///     "camera",
+/// );
 ///
 /// // Localized lets the registry extract frame and timestamp automatically
 /// let tf = registry.get_transform_for(&point, "map").unwrap();

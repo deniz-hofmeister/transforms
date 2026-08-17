@@ -19,15 +19,15 @@ use crate::{
 /// use transforms::{
 ///     Localized,
 ///     geometry::{Point, Quaternion, Vector3},
-///     time::{Stamp, Timestamp},
+///     time::Timestamp,
 /// };
 ///
-/// let point = Point {
-///     position: Vector3::new(1.0, 0.0, 0.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "camera".into(),
-/// };
+/// let point: Point = Point::new(
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "camera",
+/// );
 ///
 /// assert_eq!(point.frame(), "camera");
 /// ```
@@ -62,6 +62,17 @@ where
 /// a sensor frame), while the parent frame is typically the more general/global frame
 /// (e.g., map or world frame).
 ///
+/// # Precondition
+///
+/// An implementation applies the transform's geometry as given; it checks
+/// frames and time, not numbers. That is safe because a [`Transform`] is
+/// valid by construction — its constructors and its `Deserialize` impl reject
+/// non-finite components and non-unit rotations — and every transform derived
+/// from valid ones stays within tolerance. A transform obtained from
+/// somewhere that bypasses those paths deserves a
+/// [`Transform::validate`] call before it is applied: a rotation whose norm
+/// is 1.01 scales everything it touches by 2% and reports success.
+///
 /// # Errors
 ///
 /// Returns `TransformError` if:
@@ -79,20 +90,21 @@ where
 ///     time::{Stamp, Timestamp},
 /// };
 ///
-/// let mut point = Point {
-///     position: Vector3::new(1.0, 0.0, 0.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "camera".into(),
-/// };
+/// let mut point: Point = Point::new(
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "camera",
+/// );
 ///
-/// let transform = Transform {
-///     translation: Vector3::new(0.0, 1.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: Stamp::At(point.timestamp),
-///     parent: "base".into(),
-///     child: "camera".into(),
-/// };
+/// let transform: Transform = Transform::new(
+///     "base",
+///     "camera",
+///     Vector3::new(0.0, 1.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(point.timestamp),
+/// )
+/// .unwrap();
 ///
 /// // Transform the point from camera frame to base frame
 /// point

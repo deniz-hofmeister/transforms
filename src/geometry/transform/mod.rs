@@ -14,7 +14,7 @@ mod error;
 mod traits;
 
 /// The accepted deviation of a rotation's norm from 1 in
-/// [`Transform::validate`].
+/// [`Transform::new`].
 ///
 /// Loose enough to accept unit quaternions that were stored or
 /// transmitted as `f32` and widened to `f64`, tight enough to reject
@@ -22,73 +22,248 @@ mod traits;
 /// lookup they take part in without any error.
 pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 
-/// Represents a 3D transformation with translation, rotation, and timestamp.
+/// Where a child frame sits inside its parent frame, and when that holds.
 ///
-/// The `Transform` struct is used to represent a transformation in 3D space,
-/// including translation, rotation, and associated metadata such as timestamps
-/// and frame identifiers.
+/// A transform with frames `(parent, child)` maps child-frame coordinates
+/// into the parent frame. It carries a translation, a rotation, and a
+/// [`Stamp`]: one instant, or all time.
+///
+/// A `Transform` that exists is valid. [`Transform::new`] and
+/// [`Transform::static_between`] are the only ways to build one, both reject
+/// non-finite components and rotations whose norm deviates from 1 by more
+/// than [`UNIT_NORM_TOLERANCE`], and the fields are private so a built
+/// transform cannot be edited back into an invalid state. Read the
+/// components with [`translation`](Self::translation),
+/// [`rotation`](Self::rotation), [`timestamp`](Self::timestamp),
+/// [`parent`](Self::parent) and [`child`](Self::child); to change one, build
+/// a new transform.
+///
+/// Transforms *derived* from validated ones — [`inverse`](Self::inverse),
+/// [`interpolate`](Self::interpolate), `*` composition, and every registry
+/// lookup — are deliberately not re-validated: rotation norms drift by a few
+/// ulps per composition, so re-checking a long chain would reject legitimate
+/// results. [`validate`](Self::validate) is there for a transform whose
+/// provenance a caller does not control.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+/// Deserialization runs the same validation as the constructors, so a
+/// transform read off the wire is valid too.
 ///
 /// # Examples
 ///
 /// ```
 /// use transforms::{
 ///     geometry::{Quaternion, Transform, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
-/// // Create an identity transform
-/// let identity = Transform::<Timestamp>::identity();
+/// let t_map_base: Transform = Transform::new(
+///     "map",
+///     "base",
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(Timestamp::zero()),
+/// )
+/// .unwrap();
 ///
-/// assert_eq!(identity.translation, Vector3::zero());
-/// assert_eq!(identity.rotation, Quaternion::identity());
+/// assert_eq!(t_map_base.parent(), "map");
+/// assert_eq!(t_map_base.translation(), Vector3::new(1.0, 0.0, 0.0));
 /// ```
-///
-/// With the optional `serde` feature, this type implements `Serialize` and
-/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        try_from = "TransformRepr<T>",
+        bound(deserialize = "T: TimePoint + serde::Deserialize<'de>")
+    )
+)]
+#[non_exhaustive]
 pub struct Transform<T = Timestamp>
 where
     T: TimePoint,
 {
-    /// The translational component of the transform.
-    pub translation: Vector3,
-    /// The rotational component of the transform.
-    pub rotation: Quaternion,
-    /// When the transform is valid: at one instant (`Stamp::At`) or for
-    /// all time (`Stamp::Static`).
-    ///
-    /// The `deserialize_with` detour makes an *absent* `timestamp` field a
-    /// hard error. Without it, serde's missing-field fallback would route
-    /// through `Stamp`'s optional encoding and silently produce
-    /// `Stamp::Static` — a malformed message must never become an eternal
-    /// static transform. An explicit `null` still deserializes as
-    /// `Stamp::Static`.
-    #[cfg_attr(
-        feature = "serde",
-        serde(
-            deserialize_with = "serde::Deserialize::deserialize",
-            bound(deserialize = "T: TimePoint + serde::Deserialize<'de>")
-        )
-    )]
-    pub timestamp: Stamp<T>,
-    /// The target frame; the transform maps child-frame coordinates into this frame.
-    pub parent: String,
-    /// The source frame whose coordinates are mapped into the parent frame.
-    pub child: String,
+    translation: Vector3,
+    rotation: Quaternion,
+    timestamp: Stamp<T>,
+    parent: String,
+    child: String,
 }
 
 impl<T> Transform<T>
 where
     T: TimePoint,
 {
+    /// Builds a validated transform mapping `child`-frame coordinates into
+    /// the `parent` frame.
+    ///
+    /// `timestamp` says when it holds: `Stamp::At(t)` for a dynamic sample,
+    /// `Stamp::Static` for a fixed relationship (see
+    /// [`Transform::static_between`], which is this constructor with
+    /// `Stamp::Static`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransformError::NonFiniteValues` if any component is NaN or
+    /// infinite, and `TransformError::NonUnitRotation` if the rotation's norm
+    /// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`]. Both would
+    /// otherwise corrupt every lookup the transform takes part in without any
+    /// error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     errors::TransformError,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// let stamp = Stamp::At(Timestamp::zero());
+    /// let valid: Transform = Transform::new(
+    ///     "map",
+    ///     "base",
+    ///     Vector3::zero(),
+    ///     Quaternion::identity(),
+    ///     stamp,
+    /// )
+    /// .unwrap();
+    /// assert_eq!(valid.child(), "base");
+    ///
+    /// let denormalized = Transform::new(
+    ///     "map",
+    ///     "base",
+    ///     Vector3::zero(),
+    ///     Quaternion::from_wxyz(1.01, 0.0, 0.0, 0.0),
+    ///     stamp,
+    /// );
+    /// assert!(matches!(
+    ///     denormalized,
+    ///     Err(TransformError::NonUnitRotation(_))
+    /// ));
+    /// ```
+    pub fn new(
+        parent: &str,
+        child: &str,
+        translation: Vector3,
+        rotation: Quaternion,
+        timestamp: Stamp<T>,
+    ) -> Result<Self, TransformError> {
+        let transform = Self::unvalidated(
+            parent.into(),
+            child.into(),
+            translation,
+            rotation,
+            timestamp,
+        );
+        transform.validate()?;
+        Ok(transform)
+    }
+
+    /// Builds a validated static transform between two frames: valid for all
+    /// time.
+    ///
+    /// The transform carries `Stamp::Static`, so the registry serves it for
+    /// any requested time and never expires it. Use this for fixed
+    /// relationships like sensor mounts.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Transform::new`], of which this is the `Stamp::Static`
+    /// case: `TransformError::NonFiniteValues` for a non-finite component and
+    /// `TransformError::NonUnitRotation` for a rotation outside
+    /// [`UNIT_NORM_TOLERANCE`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::geometry::{Quaternion, Transform, Vector3};
+    ///
+    /// let mount: Transform = Transform::static_between(
+    ///     "base",
+    ///     "camera",
+    ///     Vector3::new(0.1, 0.0, 0.5),
+    ///     Quaternion::identity(),
+    /// )
+    /// .unwrap();
+    /// assert!(mount.timestamp().is_static());
+    /// ```
+    pub fn static_between(
+        parent: &str,
+        child: &str,
+        translation: Vector3,
+        rotation: Quaternion,
+    ) -> Result<Self, TransformError> {
+        Self::new(parent, child, translation, rotation, Stamp::Static)
+    }
+
+    /// Assembles a transform without validating it.
+    ///
+    /// For values derived from already-validated transforms — interpolation,
+    /// inversion, composition, the registry's synthesized identity — where
+    /// re-validating would reject legitimate results whose rotation norm has
+    /// drifted within tolerance across a long chain. Every input reaching
+    /// this constructor must come from a transform that was validated once.
+    pub(crate) fn unvalidated(
+        parent: String,
+        child: String,
+        translation: Vector3,
+        rotation: Quaternion,
+        timestamp: Stamp<T>,
+    ) -> Self {
+        Self {
+            translation,
+            rotation,
+            timestamp,
+            parent,
+            child,
+        }
+    }
+
+    /// The translational component: where the child frame's origin sits in
+    /// the parent frame.
+    #[must_use]
+    pub fn translation(&self) -> Vector3 {
+        self.translation
+    }
+
+    /// The rotational component: how the child frame is oriented in the
+    /// parent frame.
+    #[must_use]
+    pub fn rotation(&self) -> Quaternion {
+        self.rotation
+    }
+
+    /// When the transform is valid: at one instant (`Stamp::At`) or for all
+    /// time (`Stamp::Static`).
+    #[must_use]
+    pub fn timestamp(&self) -> Stamp<T> {
+        self.timestamp
+    }
+
+    /// The target frame; the transform maps child-frame coordinates into
+    /// this frame.
+    #[must_use]
+    pub fn parent(&self) -> &str {
+        &self.parent
+    }
+
+    /// The source frame whose coordinates are mapped into the parent frame.
+    #[must_use]
+    pub fn child(&self) -> &str {
+        &self.child
+    }
+
     /// Checks that the transform is usable for composition and lookup.
     ///
     /// A valid transform has finite translation and rotation components and a
-    /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of
-    /// `1.0`. The registry enforces this on insertion; call it directly when
-    /// composing hand-built transforms with `*` or applying them via
-    /// `Transformable`, which do not validate.
+    /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of `1.0`. The
+    /// constructors run this, so a transform built through them passes;
+    /// results of `*`, [`inverse`](Self::inverse) and
+    /// [`interpolate`](Self::interpolate) are not re-checked, and neither is
+    /// a transform a third-party [`Transformable`] implementation receives
+    /// from elsewhere — call this when that provenance matters.
     ///
     /// # Errors
     ///
@@ -100,19 +275,21 @@ where
     ///
     /// ```
     /// use transforms::{
-    ///     errors::TransformError,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
-    /// let mut transform = Transform::<Timestamp>::identity();
-    /// assert!(transform.validate().is_ok());
+    /// let transform: Transform = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::new(1.0, 2.0, 3.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(Timestamp::zero()),
+    /// )
+    /// .unwrap();
     ///
-    /// transform.rotation = Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0);
-    /// assert!(matches!(
-    ///     transform.validate(),
-    ///     Err(TransformError::NonUnitRotation(_))
-    /// ));
+    /// assert!(transform.validate().is_ok());
+    /// assert!(transform.inverse().unwrap().validate().is_ok());
     /// ```
     pub fn validate(&self) -> Result<(), TransformError> {
         let t = self.translation;
@@ -166,31 +343,28 @@ where
     ///     time::{Stamp, Timestamp},
     /// };
     ///
-    /// let from = Transform {
-    ///     translation: Vector3::zero(),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::At(Timestamp::zero()),
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
-    /// let to = Transform {
-    ///     translation: Vector3::new(2.0, 2.0, 2.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::At(Timestamp::from_nanos(2_000_000_000)),
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
-    /// let result = Transform {
-    ///     translation: Vector3::new(1.0, 1.0, 1.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
+    /// let from: Transform = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::zero(),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(Timestamp::zero()),
+    /// )
+    /// .unwrap();
+    /// let to: Transform = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::new(2.0, 2.0, 2.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(Timestamp::from_nanos(2_000_000_000)),
+    /// )
+    /// .unwrap();
     /// let timestamp = Timestamp::from_nanos(1_000_000_000);
     ///
     /// let interpolated = Transform::interpolate(&from, &to, timestamp).unwrap();
-    /// assert_eq!(result, interpolated);
+    ///
+    /// assert_eq!(interpolated.translation(), Vector3::new(1.0, 1.0, 1.0));
+    /// assert_eq!(interpolated.timestamp(), Stamp::At(timestamp));
     /// ```
     pub fn interpolate(
         from: &Transform<T>,
@@ -228,96 +402,29 @@ where
         let diff = timestamp.duration_since(from_time)?;
         let ratio = diff.as_secs_f64() / range.as_secs_f64();
 
-        Ok(Transform {
-            translation: (1.0 - ratio) * from.translation + ratio * to.translation,
-            rotation: from.rotation.slerp(to.rotation, ratio),
-            timestamp: Stamp::At(timestamp),
-            child: from.child.clone(),
-            parent: from.parent.clone(),
-        })
+        Ok(Self::unvalidated(
+            from.parent.clone(),
+            from.child.clone(),
+            (1.0 - ratio) * from.translation + ratio * to.translation,
+            from.rotation.slerp(to.rotation, ratio),
+            Stamp::At(timestamp),
+        ))
     }
 
-    /// Returns a blank transform: zero translation, identity rotation, a
-    /// static stamp, and empty frame names.
+    /// Computes the inverse of the transform: the same relationship read the
+    /// other way round, with the frames swapped.
     ///
-    /// Useful as a starting point to build transforms from. Note that it is
-    /// not usable as-is: its empty parent and child frames are
-    /// self-referential, so it cannot be inserted into a registry or composed
-    /// with `*` until the frames are set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
-    ///
-    /// let identity = Transform::<Timestamp>::identity();
-    /// let transform = Transform {
-    ///     translation: Vector3::zero(),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::Static,
-    ///     parent: "".into(),
-    ///     child: "".into(),
-    /// };
-    ///
-    /// assert_eq!(identity, transform);
-    /// ```
-    #[must_use]
-    pub fn identity() -> Self {
-        Transform {
-            translation: Vector3::zero(),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::Static,
-            parent: String::new(),
-            child: String::new(),
-        }
-    }
-
-    /// Builds a static transform between two frames: valid for all time.
-    ///
-    /// The transform carries `Stamp::Static`, so the registry serves it for
-    /// any requested time and never expires it. Use this for fixed
-    /// relationships like sensor mounts.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::{Quaternion, Transform, Vector3};
-    ///
-    /// let mount: Transform = Transform::static_between(
-    ///     "base",
-    ///     "camera",
-    ///     Vector3::new(0.1, 0.0, 0.5),
-    ///     Quaternion::identity(),
-    /// );
-    /// assert!(mount.timestamp.is_static());
-    /// ```
-    #[must_use]
-    pub fn static_between(
-        parent: &str,
-        child: &str,
-        translation: Vector3,
-        rotation: Quaternion,
-    ) -> Self {
-        Transform {
-            translation,
-            rotation,
-            timestamp: Stamp::Static,
-            parent: parent.into(),
-            child: child.into(),
-        }
-    }
-
-    /// Computes the inverse of the transform.
-    ///
-    /// Returns a new `Transform` that is the inverse of the current transform.
+    /// The rotation is normalized first — inverting a rotation that has
+    /// drifted off the unit sphere would scale every value the result is
+    /// applied to.
     ///
     /// # Errors
     ///
-    /// This function returns a `TransformError` if:
-    /// - The quaternion normalization fails, resulting in a `QuaternionError`.
+    /// Returns `TransformError::QuaternionError` if the rotation cannot be
+    /// normalized, and `TransformError::NonFiniteValues` if the inverted
+    /// translation is not finite. Neither can happen for a transform that
+    /// came straight from a constructor; both are reachable for one composed
+    /// out of extreme-magnitude operands, which `*` does not re-check.
     ///
     /// # Examples
     ///
@@ -327,42 +434,57 @@ where
     ///     time::{Stamp, Timestamp},
     /// };
     ///
-    /// // Create a transform with specific translation and rotation
-    /// let transform = Transform {
-    ///     translation: Vector3::new(1.0, 2.0, 3.0),
-    ///     rotation: Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0)
-    ///         .normalize()
-    ///         .unwrap(),
-    ///     timestamp: Stamp::At(Timestamp::zero()),
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
+    /// let transform: Transform = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::new(1.0, 2.0, 3.0),
+    ///     Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0),
+    ///     Stamp::At(Timestamp::zero()),
+    /// )
+    /// .unwrap();
     ///
-    /// // Compute its inverse
-    /// let inverse = transform.inverse().unwrap();
+    /// let inverse = transform.clone().inverse().unwrap();
     ///
-    /// // Verify that the inverse has swapped frames
-    /// assert_eq!(inverse.parent, "b");
-    /// assert_eq!(inverse.child, "a");
+    /// // The inverse has the frames swapped ...
+    /// assert_eq!(inverse.parent(), "b");
+    /// assert_eq!(inverse.child(), "a");
     ///
-    /// // Verify that applying the inverse transformation results in the identity
-    /// let identity = Transform::<Timestamp>::identity();
+    /// // ... and composing the two yields the identity.
     /// let result = (transform * inverse).unwrap();
-    /// assert_eq!(result.translation, identity.translation);
-    /// assert_eq!(result.rotation, identity.rotation);
+    /// assert_eq!(result.translation(), Vector3::zero());
+    /// assert_eq!(result.rotation(), Quaternion::identity());
     /// ```
     pub fn inverse(&self) -> Result<Self, TransformError> {
         let q = self.rotation.normalize()?;
         let inverse_rotation = q.conjugate();
         let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
 
-        Ok(Transform {
-            translation: inverse_translation,
-            rotation: inverse_rotation,
-            timestamp: self.timestamp,
-            parent: self.child.clone(),
-            child: self.parent.clone(),
-        })
+        if !inverse_translation.x.is_finite()
+            || !inverse_translation.y.is_finite()
+            || !inverse_translation.z.is_finite()
+        {
+            return Err(TransformError::NonFiniteValues);
+        }
+
+        Ok(Self::unvalidated(
+            self.child.clone(),
+            self.parent.clone(),
+            inverse_translation,
+            inverse_rotation,
+            self.timestamp,
+        ))
+    }
+
+    /// Replaces the stamp, for the registry's re-stamping of a resolved
+    /// chain: a lookup answers for the *requested* instant, whatever mix of
+    /// static and dynamic edges produced the answer.
+    #[must_use]
+    pub(crate) fn restamped(
+        mut self,
+        timestamp: Stamp<T>,
+    ) -> Self {
+        self.timestamp = timestamp;
+        self
     }
 
     /// Composes without the timestamp-agreement check, for callers that
@@ -387,13 +509,13 @@ where
         let rotation = self.rotation * rhs.rotation;
         let translation = self.rotation.rotate_vector(rhs.translation) + self.translation;
 
-        Ok(Transform {
+        Ok(Self::unvalidated(
+            self.parent,
+            rhs.child,
             translation,
             rotation,
-            timestamp: self.timestamp,
-            parent: self.parent,
-            child: rhs.child,
-        })
+            self.timestamp,
+        ))
     }
 }
 
@@ -409,6 +531,11 @@ where
     /// parent frame; any other pairing is not a valid composition and
     /// returns an error. Unless one operand is static, both timestamps
     /// must be equal.
+    ///
+    /// The result is not re-validated: rotation norms drift by a few ulps per
+    /// composition, and rejecting that drift would fail legitimate long
+    /// chains. Composing operands of extreme magnitude can therefore overflow
+    /// the translation to infinity — [`Transform::validate`] catches it.
     #[inline]
     fn mul(
         self,
@@ -431,6 +558,50 @@ where
         let mut result = self.compose_ignoring_time(rhs)?;
         result.timestamp = timestamp;
         Ok(result)
+    }
+}
+
+/// The field-for-field record serde reads a [`Transform`] from, converted
+/// through [`TryFrom`] so that a deserialized transform runs the same
+/// validation as [`Transform::new`]. Renamed to `Transform` so the wire
+/// format is unchanged.
+#[cfg(feature = "serde")]
+#[derive(serde::Deserialize)]
+#[serde(rename = "Transform")]
+#[serde(bound(deserialize = "T: TimePoint + serde::Deserialize<'de>"))]
+struct TransformRepr<T>
+where
+    T: TimePoint,
+{
+    translation: Vector3,
+    rotation: Quaternion,
+    /// The `deserialize_with` detour makes an *absent* `timestamp` field a
+    /// hard error. Without it, serde's missing-field fallback would route
+    /// through `Stamp`'s optional encoding and silently produce
+    /// `Stamp::Static` — a malformed message must never become an eternal
+    /// static transform. An explicit `null` still deserializes as
+    /// `Stamp::Static`.
+    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
+    timestamp: Stamp<T>,
+    parent: String,
+    child: String,
+}
+
+#[cfg(feature = "serde")]
+impl<T> TryFrom<TransformRepr<T>> for Transform<T>
+where
+    T: TimePoint,
+{
+    type Error = TransformError;
+
+    fn try_from(repr: TransformRepr<T>) -> Result<Self, Self::Error> {
+        Self::new(
+            &repr.parent,
+            &repr.child,
+            repr.translation,
+            repr.rotation,
+            repr.timestamp,
+        )
     }
 }
 

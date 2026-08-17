@@ -54,13 +54,14 @@
 //! let t2 = t1;
 //!
 //! // Define a transform from frame "a" to frame "b"
-//! let t_a_b_1 = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp: Stamp::At(t1),
-//!     parent: "a".into(),
-//!     child: "b".into(),
-//! };
+//! let t_a_b_1 = Transform::new(
+//!     "a",
+//!     "b",
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(t1),
+//! )
+//! .unwrap();
 //!
 //! // For validation
 //! let t_a_b_2 = t_a_b_1.clone();
@@ -81,11 +82,7 @@ use crate::{
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
-use alloc::{
-    boxed::Box,
-    collections::{BTreeSet, VecDeque},
-    string::String,
-};
+use alloc::{boxed::Box, collections::VecDeque, string::String};
 use hashbrown::HashMap;
 
 use core::time::Duration;
@@ -122,13 +119,14 @@ use core::time::Duration;
 /// let t2 = t1;
 ///
 /// // Define a transform from frame "a" to frame "b"
-/// let t_a_b_1 = Transform {
-///     translation: Vector3::new(1.0, 0.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: Stamp::At(t1),
-///     parent: "a".into(),
-///     child: "b".into(),
-/// };
+/// let t_a_b_1 = Transform::new(
+///     "a",
+///     "b",
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(t1),
+/// )
+/// .unwrap();
 ///
 /// // For validation
 /// let t_a_b_2 = t_a_b_1.clone();
@@ -221,10 +219,9 @@ where
     /// either static (`Stamp::Static`) or dynamic (`Stamp::At`), never both.
     /// The kind is decided by the first transform inserted for the frame.
     ///
-    /// Returns `BufferError::TransformError` if the transform fails
-    /// validation (non-finite values or a non-unit rotation),
-    /// `BufferError::SelfReferentialFrame` if its parent and child are the
-    /// same frame, `BufferError::ReparentingNotSupported` if the child frame
+    /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
+    /// and child are the same frame,
+    /// `BufferError::ReparentingNotSupported` if the child frame
     /// already has a different parent (remove the frame first with
     /// [`Registry::remove_frame`]), and `BufferError::CycleDetected` if the
     /// new relationship would create a cycle in the frame tree.
@@ -243,13 +240,14 @@ where
     /// };
     ///
     /// let mut registry = Registry::<Timestamp>::new();
-    /// let transform = Transform {
-    ///     translation: Vector3::new(1.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::At(Timestamp::zero()),
-    ///     parent: "base".into(),
-    ///     child: "sensor".into(),
-    /// };
+    /// let transform = Transform::new(
+    ///     "base",
+    ///     "sensor",
+    ///     Vector3::new(1.0, 0.0, 0.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(Timestamp::zero()),
+    /// )
+    /// .unwrap();
     ///
     /// registry.add_transform(transform).unwrap();
     /// ```
@@ -324,13 +322,14 @@ where
     /// let t2 = t1;
     ///
     /// // Define a transform from frame "a" to frame "b"
-    /// let t_a_b_1 = Transform {
-    ///     translation: Vector3::new(1.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Stamp::At(t1),
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
+    /// let t_a_b_1 = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::new(1.0, 0.0, 0.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(t1),
+    /// )
+    /// .unwrap();
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
@@ -433,35 +432,44 @@ where
     ///
     /// // fixed -> a at t1: a is at x=1
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(1.0, 0.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: Stamp::At(t1),
-    ///         parent: "fixed".into(),
-    ///         child: "a".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "fixed",
+    ///             "a",
+    ///             Vector3::new(1.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t1),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // fixed -> a at t2: a has moved to x=2
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(2.0, 0.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: Stamp::At(t2),
-    ///         parent: "fixed".into(),
-    ///         child: "a".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "fixed",
+    ///             "a",
+    ///             Vector3::new(2.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t2),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // a -> b at t1: b is at y=1 relative to a
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(0.0, 1.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: Stamp::At(t1),
-    ///         parent: "a".into(),
-    ///         child: "b".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "a",
+    ///             "b",
+    ///             Vector3::new(0.0, 1.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t1),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
@@ -549,11 +557,11 @@ where
         // A new child->parent relationship changes the tree topology; reject
         // it if it would close a cycle. (Existing buffers have their parent
         // pinned, so occupied inserts cannot.)
-        if !data.contains_key(&t.child) && Self::creates_cycle(&t.child, &t.parent, data) {
+        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
             return Err(BufferError::CycleDetected);
         }
 
-        if let Some(buffer) = data.get_mut(&t.child) {
+        if let Some(buffer) = data.get_mut(t.child()) {
             return buffer.insert(t);
         }
 
@@ -561,12 +569,12 @@ where
         // failed insert cannot leave an empty, parentless frame behind —
         // which would bypass the cycle check on a later insert of the same
         // child frame. The transform's stamp declares the buffer's kind.
-        let mut buffer = match (t.timestamp, max_age) {
+        let mut buffer = match (t.timestamp(), max_age) {
             (Stamp::Static, _) => Buffer::static_edge(),
             (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
             (Stamp::At(_), None) => Buffer::dynamic(),
         };
-        let child = t.child.clone();
+        let child: String = t.child().into();
         buffer.insert(t)?;
         data.insert(child, buffer);
         Ok(())
@@ -575,20 +583,17 @@ where
     /// Returns `true` if adding the relationship `child -> parent` would
     /// create a cycle in the frame tree.
     ///
-    /// Walks upward from `parent` through the pinned buffer parents. The
-    /// existing tree is acyclic (every insert passes this check), so the walk
-    /// terminates at a root; the visited set is a defensive bound only.
+    /// Walks upward from `parent` through the pinned buffer parents. The walk
+    /// terminates because the existing tree is acyclic: every edge was added
+    /// through this check, an existing buffer's parent is pinned and cannot
+    /// change, and `remove_frame` only deletes edges.
     fn creates_cycle(
         child: &str,
         parent: &str,
         data: &HashMap<String, Buffer<T>>,
     ) -> bool {
-        let mut visited = BTreeSet::new();
         let mut current = parent;
         while let Some(buffer) = data.get(current) {
-            if !visited.insert(current) {
-                return true;
-            }
             match buffer.parent() {
                 Some(next) => {
                     if next == child {
@@ -663,17 +668,17 @@ where
         // the frame is known: the answer holds either way, and it keeps
         // same-frame queries consistent with `get_transform_for`.
         if target == source {
-            return Ok(Transform {
-                translation: Vector3::zero(),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(timestamp),
-                parent: target.into(),
-                child: source.into(),
-            });
+            return Ok(Transform::unvalidated(
+                target.into(),
+                source.into(),
+                Vector3::zero(),
+                Quaternion::identity(),
+                Stamp::At(timestamp),
+            ));
         }
 
         let reached = |chain: &VecDeque<Transform<T>>, goal: &str| {
-            chain.back().is_some_and(|tf| tf.parent == goal)
+            chain.back().is_some_and(|tf| tf.parent() == goal)
         };
 
         let mut walk_failure = None;
@@ -692,8 +697,7 @@ where
             ) {
                 // `target` is an ancestor of `source`: the source-side chain
                 // spans the whole path by itself.
-                (_, Some(mut source_chain)) if reached(&source_chain, target) => {
-                    Self::reverse_and_invert_transforms(&mut source_chain)?;
+                (_, Some(source_chain)) if reached(&source_chain, target) => {
                     Self::combine_transforms(VecDeque::new(), source_chain)
                 }
                 // Both chains ran to the root: drop the shared suffix above
@@ -708,12 +712,11 @@ where
                     // a misleading IncompatibleFrames.
                     let connected = match (target_chain.back(), source_chain.back()) {
                         (Some(target_top), Some(source_top)) => {
-                            target_top.parent == source_top.parent
+                            target_top.parent() == source_top.parent()
                         }
                         _ => false,
                     };
                     if connected {
-                        Self::reverse_and_invert_transforms(&mut source_chain)?;
                         Self::combine_transforms(target_chain, source_chain)
                     } else {
                         Some(Err(Self::diagnose_not_found(
@@ -727,8 +730,7 @@ where
                 (Some(target_chain), None) => {
                     Self::combine_transforms(target_chain, VecDeque::new())
                 }
-                (None, Some(mut source_chain)) => {
-                    Self::reverse_and_invert_transforms(&mut source_chain)?;
+                (None, Some(source_chain)) => {
                     Self::combine_transforms(VecDeque::new(), source_chain)
                 }
                 (None, None) => Some(Err(Self::diagnose_not_found(
@@ -755,7 +757,7 @@ where
         // example when `source` does not exist in the tree and the walk
         // stopped at the root instead. Verify the combined transform answers
         // the exact question asked; otherwise report it as not found.
-        if result.parent != target || result.child != source {
+        if result.parent() != target || result.child() != source {
             return Err(Self::diagnose_not_found(
                 target,
                 source,
@@ -768,9 +770,7 @@ where
         // requested time", so it carries the requested timestamp — also for
         // chains of static transforms, which are themselves stamped
         // `Stamp::Static`.
-        let mut result = result;
-        result.timestamp = Stamp::At(timestamp);
-        Ok(result)
+        Ok(result.restamped(Stamp::At(timestamp)))
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
@@ -813,28 +813,24 @@ where
         // fixed_frame is not an option: `Mul` rejects self-referential
         // operands as `SameFrameMultiplication`.
         if source_frame == fixed_frame && target_frame == fixed_frame {
-            return Ok(Transform {
-                translation: Vector3::zero(),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(target_time),
-                parent: target_frame.into(),
-                child: source_frame.into(),
-            });
+            return Ok(Transform::unvalidated(
+                target_frame.into(),
+                source_frame.into(),
+                Vector3::zero(),
+                Quaternion::identity(),
+                Stamp::At(target_time),
+            ));
         }
         if source_frame == fixed_frame {
             // The answer is the target leg alone, inverted.
-            let mut result =
-                Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
-                    .inverse()?;
-            result.timestamp = Stamp::At(target_time);
-            return Ok(result);
+            let result = Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
+                .inverse()?;
+            return Ok(result.restamped(Stamp::At(target_time)));
         }
         if target_frame == fixed_frame {
             // The answer is the source leg alone.
-            let mut result =
-                Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
-            result.timestamp = Stamp::At(target_time);
-            return Ok(result);
+            let result = Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
+            return Ok(result.restamped(Stamp::At(target_time)));
         }
 
         // Step 1: Get transform expressing source_frame in fixed_frame at source_time
@@ -849,13 +845,12 @@ where
         // is the point of the time-travel lookup — so they compose through
         // the private time-agnostic path rather than `Mul`, whose timestamp
         // check exists to catch *accidental* cross-time composition.
-        let mut result = target_to_fixed
+        let result = target_to_fixed
             .inverse()?
             .compose_ignoring_time(source_to_fixed)?;
-        // We set the final timestamp to the target_time as per the API contract.
-        result.timestamp = Stamp::At(target_time);
 
-        Ok(result)
+        // The result carries the target time as per the API contract.
+        Ok(result.restamped(Stamp::At(target_time)))
     }
 
     /// Constructs a chain of transforms from a starting frame to a target
@@ -877,18 +872,13 @@ where
         let mut current_frame: String = from.into();
 
         // The frame tree is acyclic by construction (cycles are rejected at
-        // insertion), so the walk terminates at a root; the depth bound is a
-        // defensive backstop only.
-        let mut remaining = data.len();
+        // insertion), so the walk visits every frame at most once and
+        // terminates at a root.
         while let Some(frame_buffer) = data.get(&current_frame) {
-            if remaining == 0 {
-                return None;
-            }
-            remaining -= 1;
-
             match frame_buffer.get(timestamp) {
                 Ok(tf) => {
-                    current_frame.clone_from(&tf.parent);
+                    current_frame.clear();
+                    current_frame.push_str(tf.parent());
                     transforms.push_back(tf);
                 }
                 Err(source) => {
@@ -932,11 +922,21 @@ where
         to_chain.truncate(to_chain.len() - start_idx);
     }
 
-    /// Combines two transform chains into a single transform representing the transformation from the source frame to the target frame.
+    /// Combines the two half-chains of a lookup into the transform that
+    /// expresses `source` in `target`.
     ///
-    /// `from_chain` runs from the source frame toward the common ancestor;
-    /// `to_chain` must already be reversed and inverted (from the target frame
-    /// toward the common ancestor).
+    /// Both arguments are walks *upward* from a frame toward the common
+    /// ancestor, so each composes in its natural order into "that frame
+    /// expressed in the ancestor" without a single inversion. Only the target
+    /// half is then inverted, giving
+    /// `t_target_common * t_common_source = t_target_source`: at most one
+    /// inversion per lookup, against one per hop plus one at the end for the
+    /// pass this replaced, which reversed and inverted the source half
+    /// element by element and inverted the combined result again. A lookup
+    /// toward an ancestor (the documented direction,
+    /// `get_transform("map", "lidar", t)`) resolves entirely from the source
+    /// half and inverts nothing, so a single-hop lookup at a stored timestamp
+    /// returns that stored transform bit for bit.
     ///
     /// Returns `None` when both chains are empty — there is nothing to
     /// combine, and the caller reports the lookup failure through
@@ -946,40 +946,51 @@ where
     ///
     /// * Variants of `TransformError` resulting from invalid transform operations
     fn combine_transforms(
-        mut from_chain: VecDeque<Transform<T>>,
-        mut to_chain: VecDeque<Transform<T>>,
+        target_chain: VecDeque<Transform<T>>,
+        source_chain: VecDeque<Transform<T>>,
     ) -> Option<Result<Transform<T>, TransformError>> {
-        from_chain.append(&mut to_chain);
+        let target = match Self::compose_chain(target_chain) {
+            Ok(composed) => composed,
+            Err(e) => return Some(Err(e)),
+        };
+        let source = match Self::compose_chain(source_chain) {
+            Ok(composed) => composed,
+            Err(e) => return Some(Err(e)),
+        };
 
-        let mut iter = from_chain.into_iter();
-        let mut final_transform = iter.next()?;
-
-        for transform in iter {
-            match transform * final_transform {
-                Ok(combined) => final_transform = combined,
-                Err(e) => return Some(Err(e)),
+        match (target, source) {
+            (None, None) => None,
+            (Some(target), None) => Some(target.inverse()),
+            (None, Some(source)) => Some(Ok(source)),
+            (Some(target), Some(source)) => {
+                Some(target.inverse().and_then(|inverted| inverted * source))
             }
         }
-
-        Some(final_transform.inverse())
     }
 
-    /// Reverses a transform chain and inverts each transform within it.
+    /// Composes a chain walked upward from a frame into the single transform
+    /// expressing that frame in the chain's topmost parent, or `None` for an
+    /// empty chain.
+    ///
+    /// Each element's child is the previous element's parent, so folding from
+    /// the front composes them in the order the walk produced them.
     ///
     /// # Errors
     ///
-    /// Returns `TransformError` if any transform in the chain cannot be inverted
-    fn reverse_and_invert_transforms(
-        chain: &mut VecDeque<Transform<T>>
-    ) -> Result<(), TransformError> {
-        let reversed_and_inverted = chain
-            .iter()
-            .rev()
-            .map(Transform::inverse)
-            .collect::<Result<VecDeque<Transform<T>>, TransformError>>()?;
+    /// * Variants of `TransformError` resulting from invalid transform operations
+    fn compose_chain(
+        chain: VecDeque<Transform<T>>
+    ) -> Result<Option<Transform<T>>, TransformError> {
+        let mut iter = chain.into_iter();
+        let Some(mut composed) = iter.next() else {
+            return Ok(None);
+        };
 
-        *chain = reversed_and_inverted;
-        Ok(())
+        for transform in iter {
+            composed = (transform * composed)?;
+        }
+
+        Ok(Some(composed))
     }
 }
 

@@ -35,13 +35,13 @@ registry.add_transform(transform);
 registry.add_transform(transform)?;
 ```
 
-`add_transform` returns `Result` and validates on
-insertion. An ignored `Err` means **nothing was stored** — later lookups
-will fail mysteriously. New rejections your 1.x data may already trigger:
-non-finite values, non-unit rotations (beyond `UNIT_NORM_TOLERANCE`),
-self-referential frames, re-parenting (`ReparentingNotSupported` — call
-`remove_frame` first), cycles (`CycleDetected`), and mixing static with
-dynamic transforms in one child frame (`StaticDynamicConflict`).
+`add_transform` returns `Result`. An ignored `Err` means **nothing was
+stored** — later lookups will fail mysteriously. New rejections your 1.x
+data may already trigger: self-referential frames, re-parenting
+(`ReparentingNotSupported` — call `remove_frame` first), cycles
+(`CycleDetected`), and mixing static with dynamic transforms in one child
+frame (`StaticDynamicConflict`). Non-finite values and non-unit rotations
+are rejected earlier, by the constructor — see break 7.
 
 ### Static transforms are a `Stamp` variant, not `t = 0`
 
@@ -57,16 +57,21 @@ let sample = Transform { timestamp: t, /* ... */ };
 let mount = Transform { timestamp: Timestamp::zero(), /* ... */ }; // static via sentinel
 
 // 2.0
-let sample = Transform { timestamp: Stamp::At(t), /* ... */ };
+let sample: Transform = Transform::new(
+    "map", "base",
+    translation, rotation,
+    Stamp::At(t),
+)?;
 let mount: Transform = Transform::static_between(
     "base", "camera",
     Vector3::new(0.1, 0.0, 0.5),
     Quaternion::identity(),
-);
+)?;
 ```
 
-Every `Transform` literal is a compile error until its `timestamp` is
-wrapped — mechanical, and the compiler walks you through the sites. A 1.x
+Every `Transform` literal is a compile error anyway — the fields are private
+now (break 7) — so the stamp is one of the arguments you move into the
+constructor. A 1.x
 static publisher migrated as `Stamp::At(Timestamp::zero())` would store a
 **single dynamic sample at the epoch**, so any lookup at a real time
 fails loudly with `TimestampOutOfRange` instead of serving the mount.
@@ -193,6 +198,51 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 - `Timestamp::as_seconds_unchecked()` → `Timestamp::as_seconds_lossy()`
   (rename only; same behavior).
 
+### 7. Transforms are built, not written
+
+```rust
+// 1.x
+let mut tf = Transform {
+    translation: Vector3::new(1.0, 0.0, 0.0),
+    rotation: Quaternion::identity(),
+    timestamp: t,
+    parent: "map".into(),
+    child: "base".into(),
+};
+tf.translation = Vector3::new(2.0, 0.0, 0.0);
+let x = tf.translation.x;
+
+// 2.0
+let tf: Transform = Transform::new(
+    "map",
+    "base",
+    Vector3::new(2.0, 0.0, 0.0),
+    Quaternion::identity(),
+    Stamp::At(t),
+)?;
+let x = tf.translation().x;
+```
+
+`Transform`'s fields are private and the type is `#[non_exhaustive]`:
+`Transform::new(parent, child, translation, rotation, stamp)` and
+`Transform::static_between(parent, child, translation, rotation)` are the
+only ways to build one, both return `Result<_, TransformError>`, and both
+reject non-finite components and rotations whose norm deviates from `1.0` by
+more than `geometry::UNIT_NORM_TOLERANCE`. Read the components back with
+`translation()`, `rotation()`, `timestamp()`, `parent()` and `child()`; to
+change one, build a new transform. Deserialization runs the same validation,
+so a denormalized rotation on the wire is now a decode error rather than a
+transform that answers lookups with plausible nonsense.
+
+`Transform::identity()` is removed: it produced empty frame names, which no
+registry would accept and no composition would allow, and its only use was as
+a base for the field assignment that no longer compiles.
+
+`Point` keeps its public fields — it is a data record, not an invariant
+carrier — but gains `#[non_exhaustive]`, so its literal becomes
+`Point::new(position, orientation, timestamp, frame)`. `Vector3` and
+`Quaternion` literals are untouched.
+
 ## Runtime behavior changes (compile clean, behave differently)
 
 1. **Static + dynamic mixing is rejected.** A static sample and dynamic
@@ -233,6 +283,16 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
    full precision notice; if you have such fixtures, re-record them —
    whether or not you enabled `std`.
 
+9. **Lookups toward an ancestor return stored data unchanged.** Each half of
+   a resolved chain is now composed in its natural direction, so
+   `get_transform("map", "lidar", t)` — the documented direction — inverts
+   nothing instead of once per hop plus once at the end. A single-hop lookup
+   at a stored timestamp returns that stored transform bit for bit; before,
+   it came back through two inversions, whose rounding moved the translation
+   by up to ten ulps per component (measured on x86-64). Rotations in that
+   direction are no longer renormalized on the way out either, another few
+   ulps. Only comparisons against recorded output at full precision notice.
+
 ## Renamed, but not breaking
 
 `get_transform`'s parameters are now named `target, source` (was
@@ -243,8 +303,8 @@ Swapping the arguments silently yields the exact inverse.
 
 ## What does not break
 
-Struct literals and public fields of `Point`, `Vector3`, and `Quaternion`
-(`Transform` literals need only the `timestamp` field wrapped in `Stamp`);
+Struct literals and public fields of `Vector3` and `Quaternion`, and
+`Point`'s public fields (its literal becomes `Point::new` — see break 7);
 `Timestamp::zero()`/`now()` and timestamp arithmetic;
 `get_transform` / `get_transform_for` / `get_transform_at` signatures (all
 `&self`, all taking bare timestamps); the `Localized` and `Transformable`

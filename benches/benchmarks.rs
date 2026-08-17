@@ -17,13 +17,14 @@ fn transform_at(
     child: &str,
     nanos: u64,
 ) -> Transform {
-    Transform {
-        translation: Vector3::new(1.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(Timestamp::from_nanos(nanos)),
-        parent: parent.into(),
-        child: child.into(),
-    }
+    Transform::new(
+        parent,
+        child,
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(Timestamp::from_nanos(nanos)),
+    )
+    .unwrap()
 }
 
 /// A registry pre-warmed with `samples` dynamic transforms between "a" and
@@ -164,28 +165,37 @@ fn robot_tree(samples: u64) -> Registry {
     let mut registry = Registry::new();
 
     registry
-        .add_transform(Transform::static_between(
-            "base_link",
-            "laser",
-            Vector3::new(0.2, 0.0, 0.1),
-            Quaternion::identity(),
-        ))
+        .add_transform(
+            Transform::static_between(
+                "base_link",
+                "laser",
+                Vector3::new(0.2, 0.0, 0.1),
+                Quaternion::identity(),
+            )
+            .unwrap(),
+        )
         .unwrap();
     registry
-        .add_transform(Transform::static_between(
-            "base_link",
-            "imu",
-            Vector3::new(0.0, 0.0, 0.05),
-            Quaternion::identity(),
-        ))
+        .add_transform(
+            Transform::static_between(
+                "base_link",
+                "imu",
+                Vector3::new(0.0, 0.0, 0.05),
+                Quaternion::identity(),
+            )
+            .unwrap(),
+        )
         .unwrap();
     registry
-        .add_transform(Transform::static_between(
-            "camera",
-            "camera_optical",
-            Vector3::zero(),
-            Quaternion::identity(),
-        ))
+        .add_transform(
+            Transform::static_between(
+                "camera",
+                "camera_optical",
+                Vector3::zero(),
+                Quaternion::identity(),
+            )
+            .unwrap(),
+        )
         .unwrap();
 
     let mut nanos = BASE_NANOS;
@@ -273,14 +283,21 @@ fn benchmark_get_transform_at(c: &mut Criterion) {
     group.finish();
 }
 
+/// A static edge between two frames, with no offset or rotation.
+fn static_edge(
+    parent: &str,
+    child: &str,
+) -> Transform {
+    Transform::static_between(parent, child, Vector3::zero(), Quaternion::identity()).unwrap()
+}
+
 /// Builds a 1000-deep static chain "0" -> "1" -> ... -> "1000".
 fn deep_static_chain() -> Registry {
     let mut registry = Registry::new();
     for i in 0..1000 {
-        let mut transform = Transform::identity();
-        transform.parent = i.to_string();
-        transform.child = (i + 1).to_string();
-        registry.add_transform(transform).unwrap();
+        registry
+            .add_transform(static_edge(&i.to_string(), &(i + 1).to_string()))
+            .unwrap();
     }
     registry
 }
@@ -323,33 +340,20 @@ fn benchmark_tree_climb_common_parent_elim(c: &mut Criterion) {
     group.bench_function("tree_climb_1k_common_parent_elim", |b| {
         let mut registry = Registry::new();
 
-        let mut transform = Transform::identity();
-        transform.parent = "a_999".into();
-        transform.child = "b_0".into();
-        registry.add_transform(transform).unwrap();
-
-        let mut transform = Transform::identity();
-        transform.parent = "a_999".into();
-        transform.child = "c_0".into();
-        registry.add_transform(transform).unwrap();
+        registry.add_transform(static_edge("a_999", "b_0")).unwrap();
+        registry.add_transform(static_edge("a_999", "c_0")).unwrap();
 
         for i in 0..1000 {
             let next = i + 1;
 
-            let mut transform = Transform::identity();
-            transform.parent = format!("a_{i}");
-            transform.child = format!("a_{next}");
-            registry.add_transform(transform).unwrap();
-
-            let mut transform = Transform::identity();
-            transform.parent = format!("b_{i}");
-            transform.child = format!("b_{next}");
-            registry.add_transform(transform).unwrap();
-
-            let mut transform = Transform::identity();
-            transform.parent = format!("c_{i}");
-            transform.child = format!("c_{next}");
-            registry.add_transform(transform).unwrap();
+            for prefix in ["a", "b", "c"] {
+                registry
+                    .add_transform(static_edge(
+                        &format!("{prefix}_{i}"),
+                        &format!("{prefix}_{next}"),
+                    ))
+                    .unwrap();
+            }
         }
 
         b.iter(|| black_box(registry.get_transform("b_999", "c_999", Timestamp::zero())).unwrap());

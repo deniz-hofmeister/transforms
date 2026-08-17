@@ -8,13 +8,17 @@
 //! per child frame and is the only way to reach it. The invariants that make a
 //! frame tree well-formed are split between the two, and most of them live
 //! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
-//! pin, the child pin, the static-xor-dynamic kind, and transform validation.
-//! `Registry` adds only the check that needs a view of the whole tree — the
-//! cycle check — and runs it solely for a child frame it has not seen before,
-//! precisely because this module's pin makes an existing buffer's parent
-//! immutable. Any rework of the storage below must keep those pins: without
-//! them a re-parenting insert reaches no check at all, and every later lookup
-//! through the frame returns a pose expressed relative to the wrong parent.
+//! pin, the child pin, and the static-xor-dynamic kind. `Registry` adds only
+//! the check that needs a view of the whole tree — the cycle check — and runs
+//! it solely for a child frame it has not seen before, precisely because this
+//! module's pin makes an existing buffer's parent immutable. Any rework of the
+//! storage below must keep those pins: without them a re-parenting insert
+//! reaches no check at all, and every later lookup through the frame returns a
+//! pose expressed relative to the wrong parent.
+//!
+//! Nothing here validates a transform's *numbers*. That invariant is enforced
+//! where a [`Transform`] is built, so an unusable one never reaches storage in
+//! the first place.
 //!
 //! # Features
 //!
@@ -173,18 +177,12 @@ where
 
     /// Adds a transform to the buffer.
     ///
-    /// The transform is validated first: it must have finite components and
-    /// a unit rotation (see [`Transform::validate`]). The transform's stamp
-    /// must match the buffer's kind, declared at construction: a static
-    /// buffer accepts only `Stamp::Static`, a dynamic buffer only
-    /// `Stamp::At`.
+    /// The transform's components need no checking — a [`Transform`] is
+    /// finite and unit-rotated by construction. Its stamp must match the
+    /// buffer's kind, declared at construction: a static buffer accepts only
+    /// `Stamp::Static`, a dynamic buffer only `Stamp::At`.
     ///
     /// # Errors
-    ///
-    /// Returns `BufferError::TransformError` wrapping
-    /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
-    /// if the transform fails validation — storing such a transform would
-    /// make later lookups return silently wrong results.
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
     /// (static or dynamic) does not match the buffer's declared kind. Mixing
@@ -207,18 +205,16 @@ where
         &mut self,
         transform: Transform<T>,
     ) -> Result<(), BufferError> {
-        transform.validate()?;
-
-        if transform.parent == transform.child {
+        if transform.parent() == transform.child() {
             return Err(BufferError::SelfReferentialFrame);
         }
         if let Some(parent) = &self.parent {
-            if *parent != transform.parent {
+            if parent != transform.parent() {
                 return Err(BufferError::ReparentingNotSupported(parent.clone()));
             }
         }
         if let Some(child) = &self.child {
-            if *child != transform.child {
+            if child != transform.child() {
                 return Err(BufferError::ChildFrameMismatch(child.clone()));
             }
         }
@@ -229,9 +225,9 @@ where
         let pin = self
             .parent
             .is_none()
-            .then(|| (transform.parent.clone(), transform.child.clone()));
+            .then(|| (transform.parent().into(), transform.child().into()));
 
-        match (&mut self.kind, transform.timestamp) {
+        match (&mut self.kind, transform.timestamp()) {
             (Kind::Static(slot), Stamp::Static) => {
                 *slot = Some(transform);
             }

@@ -15,35 +15,38 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at y=1m
-        let t_b_c = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c = Transform::new(
+            "b",
+            "c",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b.clone()).unwrap();
         registry.add_transform(t_b_c.clone()).unwrap();
 
-        let t_a_c = Transform {
-            translation: Vector3::new(1.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "c".into(),
-        };
+        let t_a_c = Transform::new(
+            "a",
+            "c",
+            Vector3::new(1.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
-        let r = registry.get_transform("a", "c", t_a_b.timestamp.at().unwrap());
+        let r = registry.get_transform("a", "c", t_a_b.timestamp().at().unwrap());
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_abs_diff_eq!(r.unwrap(), t_a_c);
@@ -55,35 +58,38 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at y=1m
-        let t_b_c = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c = Transform::new(
+            "b",
+            "c",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b.clone()).unwrap();
         registry.add_transform(t_b_c.clone()).unwrap();
 
-        let t_c_a = Transform {
-            translation: Vector3::new(-1.0, -1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "c".into(),
-            child: "a".into(),
-        };
+        let t_c_a = Transform::new(
+            "c",
+            "a",
+            Vector3::new(-1.0, -1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
-        let r = registry.get_transform("c", "a", t_a_b.timestamp.at().unwrap());
+        let r = registry.get_transform("c", "a", t_a_b.timestamp().at().unwrap());
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_abs_diff_eq!(r.unwrap(), t_c_a);
@@ -95,45 +101,49 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at +90 degrees
         let theta = core::f64::consts::PI / 2.0;
-        let t_b_c = Transform {
-            translation: Vector3::new(0.0, 0.0, 0.0),
-            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c = Transform::new(
+            "b",
+            "c",
+            Vector3::new(0.0, 0.0, 0.0),
+            Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame D at x=1m
-        let t_c_d = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "c".into(),
-            child: "d".into(),
-        };
+        let t_c_d = Transform::new(
+            "c",
+            "d",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b.clone()).unwrap();
         registry.add_transform(t_b_c.clone()).unwrap();
         registry.add_transform(t_c_d.clone()).unwrap();
 
-        let t_a_d = Transform {
-            translation: Vector3::new(1.0, 1.0, 0.0),
-            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "d".into(),
-        };
-        let r = registry.get_transform("a", "d", t_a_b.timestamp.at().unwrap());
+        let t_a_d = Transform::new(
+            "a",
+            "d",
+            Vector3::new(1.0, 1.0, 0.0),
+            Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            Stamp::At(t),
+        )
+        .unwrap();
+        let r = registry.get_transform("a", "d", t_a_b.timestamp().at().unwrap());
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_abs_diff_eq!(r.unwrap(), t_a_d);
@@ -145,33 +155,35 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at y=1m with 90 degrees rotation around +Z
         let theta = core::f64::consts::PI / 2.0;
-        let t_a_c = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "c".into(),
-        };
+        let t_a_c = Transform::new(
+            "a",
+            "c",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b.clone()).unwrap();
         registry.add_transform(t_a_c.clone()).unwrap();
 
-        let r = registry.get_transform("a", "b", t_a_b.timestamp.at().unwrap());
+        let r = registry.get_transform("a", "b", t_a_b.timestamp().at().unwrap());
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_abs_diff_eq!(r.unwrap(), t_a_b);
 
-        let r = registry.get_transform("a", "c", t_a_c.timestamp.at().unwrap());
+        let r = registry.get_transform("a", "c", t_a_c.timestamp().at().unwrap());
 
         assert!(r.is_ok(), "Registry returned Error, expected Ok");
         assert_abs_diff_eq!(r.unwrap(), t_a_c);
@@ -183,39 +195,42 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at x=1m without rotation
-        let t_a_b_0 = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b_0 = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame B at y=1m with 90 degrees rotation around +Z
         let theta = core::f64::consts::PI / 2.0;
-        let t_a_b_1 = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-            timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b_1 = Transform::new(
+            "a",
+            "b",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+            Stamp::At((t + Duration::from_secs(1)).unwrap()),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b_0.clone()).unwrap();
         registry.add_transform(t_a_b_1.clone()).unwrap();
 
         let middle_timestamp = Timestamp::from_nanos(u64::midpoint(
-            t_a_b_0.timestamp.at().unwrap().as_nanos(),
-            t_a_b_1.timestamp.at().unwrap().as_nanos(),
+            t_a_b_0.timestamp().at().unwrap().as_nanos(),
+            t_a_b_1.timestamp().at().unwrap().as_nanos(),
         ));
 
-        let t_a_b_2 = Transform {
-            translation: (t_a_b_0.translation + t_a_b_1.translation) / 2.0,
-            rotation: (t_a_b_0.rotation.slerp(t_a_b_1.rotation, 0.5)),
-            timestamp: Stamp::At(middle_timestamp),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b_2 = Transform::new(
+            "a",
+            "b",
+            (t_a_b_0.translation() + t_a_b_1.translation()) / 2.0,
+            t_a_b_0.rotation().slerp(t_a_b_1.rotation(), 0.5),
+            Stamp::At(middle_timestamp),
+        )
+        .unwrap();
 
         let r = registry.get_transform("a", "b", middle_timestamp);
 
@@ -229,39 +244,43 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at t=0, x=1m without rotation
-        let t_a_b_0 = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b_0 = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame B at t=1, x=2m without rotation
-        let t_a_b_1 = Transform {
-            translation: Vector3::new(2.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b_1 = Transform::new(
+            "a",
+            "b",
+            Vector3::new(2.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At((t + Duration::from_secs(1)).unwrap()),
+        )
+        .unwrap();
         // Child frame C at t=0, y=1m without rotation
-        let t_b_c_0 = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c_0 = Transform::new(
+            "b",
+            "c",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at t=1, y=2m without rotation
-        let t_b_c_1 = Transform {
-            translation: Vector3::new(0.0, 2.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At((t + Duration::from_secs(1)).unwrap()),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c_1 = Transform::new(
+            "b",
+            "c",
+            Vector3::new(0.0, 2.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At((t + Duration::from_secs(1)).unwrap()),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b_0.clone()).unwrap();
         registry.add_transform(t_a_b_1.clone()).unwrap();
@@ -269,17 +288,18 @@ mod registry_tests {
         registry.add_transform(t_b_c_1.clone()).unwrap();
 
         let middle_timestamp = Timestamp::from_nanos(u64::midpoint(
-            t_a_b_0.timestamp.at().unwrap().as_nanos(),
-            t_a_b_1.timestamp.at().unwrap().as_nanos(),
+            t_a_b_0.timestamp().at().unwrap().as_nanos(),
+            t_a_b_1.timestamp().at().unwrap().as_nanos(),
         ));
 
-        let t_a_c = Transform {
-            translation: Vector3::new(1.5, 1.5, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(middle_timestamp),
-            parent: "a".into(),
-            child: "c".into(),
-        };
+        let t_a_c = Transform::new(
+            "a",
+            "c",
+            Vector3::new(1.5, 1.5, 0.0),
+            Quaternion::identity(),
+            Stamp::At(middle_timestamp),
+        )
+        .unwrap();
 
         let r = registry.get_transform("a", "c", middle_timestamp);
 
@@ -293,31 +313,34 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at t=0, y=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at t=0, x=1m without rotation
-        let t_b_c = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c = Transform::new(
+            "b",
+            "c",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame D at t=0, x=2m without rotation
-        let t_b_d = Transform {
-            translation: Vector3::new(2.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "d".into(),
-        };
+        let t_b_d = Transform::new(
+            "b",
+            "d",
+            Vector3::new(2.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b).unwrap();
         registry.add_transform(t_b_c).unwrap();
@@ -328,13 +351,14 @@ mod registry_tests {
         assert!(result.is_ok());
 
         let t_c_d = result.unwrap();
-        let t_c_d_expected = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "c".into(),
-            child: "d".into(),
-        };
+        let t_c_d_expected = Transform::new(
+            "c",
+            "d",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         assert_abs_diff_eq!(t_c_d, t_c_d_expected);
     }
@@ -345,56 +369,64 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // Child frame B at t=0, y=1m without rotation
-        let t_a_b = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let t_a_b = Transform::new(
+            "a",
+            "b",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame C at t=0, x=1m without rotation
-        let t_b_c = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "c".into(),
-        };
+        let t_b_c = Transform::new(
+            "b",
+            "c",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         // Child frame D at t=0, x=2m without rotation
-        let t_b_d = Transform {
-            translation: Vector3::new(2.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "d".into(),
-        };
+        let t_b_d = Transform::new(
+            "b",
+            "d",
+            Vector3::new(2.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
 
         registry.add_transform(t_a_b).unwrap();
         registry.add_transform(t_b_c).unwrap();
         registry.add_transform(t_b_d).unwrap();
 
         let mut walk_failure = None;
-        let from_chain =
+        let target_chain =
             Registry::get_transform_chain("d", "a", t, &registry.data, &mut walk_failure);
-        let mut to_chain =
+        let source_chain =
             Registry::get_transform_chain("c", "a", t, &registry.data, &mut walk_failure);
 
-        if let Some(chain) = to_chain.as_mut() {
-            Registry::reverse_and_invert_transforms(chain).expect("failed to reverse and invert");
-        }
+        assert!(target_chain.is_some());
+        assert!(source_chain.is_some());
 
-        assert!(from_chain.is_some());
-        assert!(to_chain.is_some());
+        let mut target = target_chain.unwrap();
+        let mut source = source_chain.unwrap();
 
-        let mut from = from_chain.unwrap();
-        let mut to = to_chain.unwrap();
+        // Both walks climb through "b" to "a"; the shared "a -> b" hop is
+        // dropped, leaving one hop on each side.
+        Registry::truncate_at_common_parent(&mut target, &mut source);
+        assert_eq!(target.len(), 1);
+        assert_eq!(source.len(), 1);
 
-        Registry::truncate_at_common_parent(&mut from, &mut to);
-        let result = Registry::combine_transforms(from, to).expect("chains are non-empty");
+        let result = Registry::combine_transforms(target, source)
+            .expect("chains are non-empty")
+            .expect("combining the truncated chains must succeed");
 
-        assert!(result.is_ok(), "combine_transforms failed: {result:?}");
+        assert_eq!(result.parent(), "d");
+        assert_eq!(result.child(), "c");
+        assert_eq!(result.translation(), Vector3::new(-1.0, 0.0, 0.0));
     }
 
     #[test]
@@ -416,46 +448,58 @@ mod registry_tests {
 
         // fixed -> a at t1: a is at x=1
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // fixed -> a at t2: a has moved to x=2
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(2.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(2.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // a -> b at t1: b is at y=1 relative to a
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // a -> b at t2: b is at y=2 relative to a
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 2.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.0, 2.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform_at(
@@ -470,19 +514,19 @@ mod registry_tests {
         let tf = result.unwrap();
 
         assert!(
-            (tf.translation.x - (-1.0)).abs() < f64::EPSILON,
+            (tf.translation().x - (-1.0)).abs() < f64::EPSILON,
             "Expected x=-1.0, got {}",
-            tf.translation.x
+            tf.translation().x
         );
         assert!(
-            (tf.translation.y - 1.0).abs() < f64::EPSILON,
+            (tf.translation().y - 1.0).abs() < f64::EPSILON,
             "Expected y=1.0, got {}",
-            tf.translation.y
+            tf.translation().y
         );
         assert!(
-            tf.translation.z.abs() < f64::EPSILON,
+            tf.translation().z.abs() < f64::EPSILON,
             "Expected z=0.0, got {}",
-            tf.translation.z
+            tf.translation().z
         );
     }
 
@@ -496,23 +540,29 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let regular = registry.get_transform("a", "b", t);
@@ -524,8 +574,8 @@ mod registry_tests {
         let regular_tf = regular.unwrap();
         let time_travel_tf = time_travel.unwrap();
 
-        assert_abs_diff_eq!(regular_tf.translation, time_travel_tf.translation);
-        assert_abs_diff_eq!(regular_tf.rotation, time_travel_tf.rotation);
+        assert_abs_diff_eq!(regular_tf.translation(), time_travel_tf.translation());
+        assert_abs_diff_eq!(regular_tf.rotation(), time_travel_tf.rotation());
     }
 
     #[test]
@@ -550,46 +600,58 @@ mod registry_tests {
 
         // fixed -> a at t1: at (1,0,0), no rotation
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // fixed -> a at t2: at origin, rotated 90° CCW around z
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 0.0, 0.0),
-                rotation: Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
-                timestamp: Stamp::At(t2),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(0.0, 0.0, 0.0),
+                    Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin()),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // a -> b at t1: b is at (0.5, 0, 0) relative to a
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.5, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.5, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // a -> b at t2: b still at (0.5, 0, 0) relative to a
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.5, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.5, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform_at(
@@ -610,19 +672,19 @@ mod registry_tests {
         // a is at origin rotated 90° CCW at t2.
         // In a's frame at t2: R(-90°) * (1.5, 0, 0) = (0, -1.5, 0)
         assert!(
-            tf.translation.x.abs() < 1e-10,
+            tf.translation().x.abs() < 1e-10,
             "Expected x=0.0, got {}",
-            tf.translation.x
+            tf.translation().x
         );
         assert!(
-            (tf.translation.y - (-1.5)).abs() < 1e-10,
+            (tf.translation().y - (-1.5)).abs() < 1e-10,
             "Expected y=-1.5, got {}",
-            tf.translation.y
+            tf.translation().y
         );
         assert!(
-            tf.translation.z.abs() < 1e-10,
+            tf.translation().z.abs() < 1e-10,
             "Expected z=0.0, got {}",
-            tf.translation.z
+            tf.translation().z
         );
     }
 
@@ -645,46 +707,58 @@ mod registry_tests {
 
         // fixed -> a at t1
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // fixed -> a at t2
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(2.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(2.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // fixed -> b at t1
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "fixed".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // fixed -> b at t2
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 2.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t2),
-                parent: "fixed".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "b",
+                    Vector3::new(0.0, 2.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t2),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform_at(
@@ -702,19 +776,19 @@ mod registry_tests {
         let tf = result.unwrap();
 
         assert!(
-            (tf.translation.x - (-2.0)).abs() < f64::EPSILON,
+            (tf.translation().x - (-2.0)).abs() < f64::EPSILON,
             "Expected x=-2.0, got {}",
-            tf.translation.x
+            tf.translation().x
         );
         assert!(
-            (tf.translation.y - 1.0).abs() < f64::EPSILON,
+            (tf.translation().y - 1.0).abs() < f64::EPSILON,
             "Expected y=1.0, got {}",
-            tf.translation.y
+            tf.translation().y
         );
         assert!(
-            tf.translation.z.abs() < f64::EPSILON,
+            tf.translation().z.abs() < f64::EPSILON,
             "Expected z=0.0, got {}",
-            tf.translation.z
+            tf.translation().z
         );
     }
 
@@ -731,13 +805,16 @@ mod registry_tests {
         // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
         for (t, x) in [(t1, 1.0), (t2, 2.0)] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(x, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "fixed".into(),
-                    child: "a".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "fixed",
+                        "a",
+                        Vector3::new(x, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -746,13 +823,13 @@ mod registry_tests {
         let tf = result.unwrap();
 
         // Inverse of fixed -> a at t2 (x=2): the origin sits at x=-2 in "a".
-        assert_eq!(tf.parent, "a");
-        assert_eq!(tf.child, "fixed");
-        assert_eq!(tf.timestamp, Stamp::At(t2));
+        assert_eq!(tf.parent(), "a");
+        assert_eq!(tf.child(), "fixed");
+        assert_eq!(tf.timestamp(), Stamp::At(t2));
         assert!(
-            (tf.translation.x - (-2.0)).abs() < f64::EPSILON,
+            (tf.translation().x - (-2.0)).abs() < f64::EPSILON,
             "Expected x=-2.0, got {}",
-            tf.translation.x
+            tf.translation().x
         );
     }
 
@@ -765,13 +842,16 @@ mod registry_tests {
         // fixed -> a at t1: a is at x=1; at t2: a has moved to x=2.
         for (t, x) in [(t1, 1.0), (t2, 2.0)] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(x, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "fixed".into(),
-                    child: "a".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "fixed",
+                        "a",
+                        Vector3::new(x, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -780,13 +860,13 @@ mod registry_tests {
         let tf = result.unwrap();
 
         // The source leg alone: a at t1 (x=1), stamped with target_time.
-        assert_eq!(tf.parent, "fixed");
-        assert_eq!(tf.child, "a");
-        assert_eq!(tf.timestamp, Stamp::At(t2));
+        assert_eq!(tf.parent(), "fixed");
+        assert_eq!(tf.child(), "a");
+        assert_eq!(tf.timestamp(), Stamp::At(t2));
         assert!(
-            (tf.translation.x - 1.0).abs() < f64::EPSILON,
+            (tf.translation().x - 1.0).abs() < f64::EPSILON,
             "Expected x=1.0, got {}",
-            tf.translation.x
+            tf.translation().x
         );
     }
 
@@ -799,24 +879,27 @@ mod registry_tests {
         // The registry content is irrelevant for the degenerate query, but
         // keep it non-empty to mirror real use.
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "fixed".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "fixed",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform_at("fixed", t2, "fixed", t1, "fixed");
         assert!(result.is_ok(), "get_transform_at failed: {result:?}");
         let tf = result.unwrap();
 
-        assert_eq!(tf.parent, "fixed");
-        assert_eq!(tf.child, "fixed");
-        assert_eq!(tf.timestamp, Stamp::At(t2));
-        assert_eq!(tf.translation, Vector3::zero());
-        assert_eq!(tf.rotation, Quaternion::identity());
+        assert_eq!(tf.parent(), "fixed");
+        assert_eq!(tf.child(), "fixed");
+        assert_eq!(tf.timestamp(), Stamp::At(t2));
+        assert_eq!(tf.translation(), Vector3::zero());
+        assert_eq!(tf.rotation(), Quaternion::identity());
     }
 
     #[test]
@@ -828,22 +911,28 @@ mod registry_tests {
         // Tree: fixed -> a -> b, known at both times.
         for &t in &[t1, t2] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "fixed".into(),
-                    child: "a".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "fixed",
+                        "a",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(0.0, 1.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "a".into(),
-                    child: "b".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "a",
+                        "b",
+                        Vector3::new(0.0, 1.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -867,23 +956,29 @@ mod registry_tests {
         // fixed -> a is known at t1 and t2; a -> b only at t1.
         for &t in &[t1, t2] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "fixed".into(),
-                    child: "a".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "fixed",
+                        "a",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // The source frame has no data at the requested source time: the
@@ -910,29 +1005,32 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(2.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "map".into(),
-                child: "camera".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "map",
+                    "camera",
+                    Vector3::new(2.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
-        let mut point = Point {
-            position: Vector3::new(1.0, 0.0, 0.0),
-            orientation: Quaternion::identity(),
-            timestamp: t,
-            frame: "camera".into(),
-        };
+        let mut point = Point::new(
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            t,
+            "camera",
+        );
 
         let transform = registry.get_transform_for(&point, "map");
 
         assert!(transform.is_ok(), "get_transform_for failed: {transform:?}");
         let transform = transform.unwrap();
-        assert_eq!(transform.parent, "map");
-        assert_eq!(transform.child, "camera");
-        assert_eq!(transform.timestamp, Stamp::At(t));
+        assert_eq!(transform.parent(), "map");
+        assert_eq!(transform.child(), "camera");
+        assert_eq!(transform.timestamp(), Stamp::At(t));
 
         let result = point.transform(&transform);
         assert!(result.is_ok(), "transform apply failed: {result:?}");
@@ -946,12 +1044,12 @@ mod registry_tests {
         let registry = Registry::new();
         let t = Timestamp::from_nanos(1_000_000_000);
 
-        let mut point = Point {
-            position: Vector3::new(1.0, 2.0, 3.0),
-            orientation: Quaternion::identity(),
-            timestamp: t,
-            frame: "camera".into(),
-        };
+        let mut point = Point::new(
+            Vector3::new(1.0, 2.0, 3.0),
+            Quaternion::identity(),
+            t,
+            "camera",
+        );
 
         let transform = registry.get_transform_for(&point, "camera");
 
@@ -960,11 +1058,11 @@ mod registry_tests {
             "same-frame get_transform_for should be Ok: {transform:?}"
         );
         let transform = transform.unwrap();
-        assert_eq!(transform.parent, "camera");
-        assert_eq!(transform.child, "camera");
-        assert_eq!(transform.timestamp, Stamp::At(t));
-        assert_eq!(transform.translation, Vector3::new(0.0, 0.0, 0.0));
-        assert_eq!(transform.rotation, Quaternion::identity());
+        assert_eq!(transform.parent(), "camera");
+        assert_eq!(transform.child(), "camera");
+        assert_eq!(transform.timestamp(), Stamp::At(t));
+        assert_eq!(transform.translation(), Vector3::new(0.0, 0.0, 0.0));
+        assert_eq!(transform.rotation(), Quaternion::identity());
 
         let result = point.transform(&transform);
         assert!(result.is_ok(), "identity apply failed: {result:?}");
@@ -977,12 +1075,12 @@ mod registry_tests {
         let registry = Registry::new();
         let t = Timestamp::from_nanos(1_000_000_000);
 
-        let point = Point {
-            position: Vector3::new(0.0, 0.0, 0.0),
-            orientation: Quaternion::identity(),
-            timestamp: t,
-            frame: "camera".into(),
-        };
+        let point = Point::new(
+            Vector3::new(0.0, 0.0, 0.0),
+            Quaternion::identity(),
+            t,
+            "camera",
+        );
 
         let result = registry.get_transform_for(&point, "map");
 
@@ -998,23 +1096,29 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // Two-frame cycle: a -> b already exists, so b -> a must be rejected.
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "a".into(),
-        });
+        let result = registry.add_transform(
+            Transform::new(
+                "b",
+                "a",
+                Vector3::new(0.0, 1.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(t),
+            )
+            .unwrap(),
+        );
         assert!(matches!(result, Err(BufferError::CycleDetected)));
 
         // The direct lookup keeps working; the poisoning path is gone.
@@ -1022,21 +1126,27 @@ mod registry_tests {
 
         // Three-frame cycle: extend the chain, then try to close it.
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "b".into(),
-                child: "c".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "b",
+                    "c",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(0.0, 0.0, 1.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "c".into(),
-            child: "a".into(),
-        });
+        let result = registry.add_transform(
+            Transform::new(
+                "c",
+                "a",
+                Vector3::new(0.0, 0.0, 1.0),
+                Quaternion::identity(),
+                Stamp::At(t),
+            )
+            .unwrap(),
+        );
         assert!(matches!(result, Err(BufferError::CycleDetected)));
     }
 
@@ -1044,13 +1154,16 @@ mod registry_tests {
     fn add_transform_rejects_self_referential_frames() {
         let mut registry = Registry::new();
 
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
-            parent: "a".into(),
-            child: "a".into(),
-        });
+        let result = registry.add_transform(
+            Transform::new(
+                "a",
+                "a",
+                Vector3::new(1.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(Timestamp::from_nanos(1_000_000_000)),
+            )
+            .unwrap(),
+        );
         assert!(matches!(result, Err(BufferError::SelfReferentialFrame)));
     }
 
@@ -1061,24 +1174,28 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(2_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "world".into(),
-                child: "object".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "world",
+                    "object",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // The object is "picked up": its parent changes. Not supported;
         // the frame must be removed first.
-        let reparented = Transform {
-            translation: Vector3::new(0.0, 0.5, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t2),
-            parent: "gripper".into(),
-            child: "object".into(),
-        };
+        let reparented = Transform::new(
+            "gripper",
+            "object",
+            Vector3::new(0.0, 0.5, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        )
+        .unwrap();
         let result = registry.add_transform(reparented.clone());
         assert!(matches!(
             result,
@@ -1101,26 +1218,30 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(3_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "world".into(),
-                child: "object".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "world",
+                    "object",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // Regression test: draining a frame used to release it, so routine
         // cleanup silently turned a rejected re-parenting into an accepted
         // one and changed the topology behind the caller's back.
         registry.remove_transforms_before(t2);
-        let reparented = Transform {
-            translation: Vector3::new(0.0, 0.5, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t2),
-            parent: "gripper".into(),
-            child: "object".into(),
-        };
+        let reparented = Transform::new(
+            "gripper",
+            "object",
+            Vector3::new(0.0, 0.5, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        )
+        .unwrap();
         let result = registry.add_transform(reparented.clone());
         assert!(
             matches!(
@@ -1143,26 +1264,32 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(3_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "world".into(),
-                child: "object".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "world",
+                    "object",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // Regression test: draining a frame used to release its kind too, so
         // a moving frame could become an eternal static one that answered
         // confidently at times its data never covered.
         registry.remove_transforms_before(t2);
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(0.0, 0.5, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::Static,
-            parent: "world".into(),
-            child: "object".into(),
-        });
+        let result = registry.add_transform(
+            Transform::new(
+                "world",
+                "object",
+                Vector3::new(0.0, 0.5, 0.0),
+                Quaternion::identity(),
+                Stamp::Static,
+            )
+            .unwrap(),
+        );
         assert!(
             matches!(result, Err(BufferError::StaticDynamicConflict)),
             "cleanup must not release the static/dynamic kind, got {result:?}"
@@ -1176,13 +1303,16 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(3_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "world".into(),
-                child: "object".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "world",
+                    "object",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // A drained frame is known but empty. The lookup must say so —
@@ -1207,13 +1337,16 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // The requested frame does not exist. The walk from "b" still resolves
@@ -1245,23 +1378,29 @@ mod registry_tests {
 
         // a -> b is only known at t0; b -> c is known at t0 and t1.
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t0),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t0),
+                )
+                .unwrap(),
+            )
             .unwrap();
         for &t in &[t0, t1] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(0.0, 1.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "b".into(),
-                    child: "c".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "b",
+                        "c",
+                        Vector3::new(0.0, 1.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -1301,32 +1440,41 @@ mod registry_tests {
 
         for &t in &[t1, t3] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "r".into(),
-                    child: "a".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "r",
+                        "a",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(0.0, 0.0, 1.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "b".into(),
-                    child: "c".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "b",
+                        "c",
+                        Vector3::new(0.0, 0.0, 1.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // With all hops resolvable (t1) the chain works: the topology is
@@ -1355,22 +1503,28 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "r1".into(),
-                child: "a".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "r1",
+                    "a",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "r2".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "r2",
+                    "b",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform("a", "b", t);
@@ -1396,13 +1550,16 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(2_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t1),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t1),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         let result = registry.get_transform("b", "nope", t2);
@@ -1416,20 +1573,22 @@ mod registry_tests {
     fn add_transform_rejects_static_dynamic_mixing() {
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 
-        let static_tf = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::Static,
-            parent: "a".into(),
-            child: "b".into(),
-        };
-        let dynamic_tf = Transform {
-            translation: Vector3::new(2.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t_dynamic),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let static_tf = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::Static,
+        )
+        .unwrap();
+        let dynamic_tf = Transform::new(
+            "a",
+            "b",
+            Vector3::new(2.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t_dynamic),
+        )
+        .unwrap();
 
         // Static first, then dynamic.
         let mut registry = Registry::new();
@@ -1468,13 +1627,16 @@ mod registry_tests {
 
         for &t in &[t1, t2] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "a".into(),
-                    child: "b".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "a",
+                        "b",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -1491,13 +1653,14 @@ mod registry_tests {
     fn remove_transforms_before_preserves_static_transforms() {
         let mut registry = Registry::new();
 
-        let static_tf = Transform {
-            translation: Vector3::new(0.5, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::Static,
-            parent: "base".into(),
-            child: "lidar".into(),
-        };
+        let static_tf = Transform::new(
+            "base",
+            "lidar",
+            Vector3::new(0.5, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::Static,
+        )
+        .unwrap();
         registry.add_transform(static_tf.clone()).unwrap();
 
         // The documented manual-cleanup workflow must not destroy static
@@ -1507,12 +1670,13 @@ mod registry_tests {
         let query = Timestamp::from_nanos(9_000_000_000);
         let result = registry.get_transform("base", "lidar", query).unwrap();
         assert_eq!(
-            result.translation, static_tf.translation,
+            result.translation(),
+            static_tf.translation(),
             "static transforms must survive manual cleanup"
         );
         // Lookup results carry the requested timestamp, not the static
         // sentinel, so they compose with timestamped data.
-        assert_eq!(result.timestamp, Stamp::At(query));
+        assert_eq!(result.timestamp(), Stamp::At(query));
     }
 
     #[test]
@@ -1521,13 +1685,16 @@ mod registry_tests {
 
         // Static sensor mount: lidar sits 0.5 m ahead of base.
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.5, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::Static,
-                parent: "base".into(),
-                child: "lidar".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "base",
+                    "lidar",
+                    Vector3::new(0.5, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::Static,
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // Dynamic robot pose: base moves from x=1 to x=3 between t1 and t2.
@@ -1535,13 +1702,16 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(3_000_000_000);
         for (t, x) in [(t1, 1.0), (t2, 3.0)] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(x, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "map".into(),
-                    child: "base".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "map",
+                        "base",
+                        Vector3::new(x, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -1551,47 +1721,10 @@ mod registry_tests {
         let mid = Timestamp::from_nanos(2_000_000_000);
         let result = registry.get_transform("map", "lidar", mid).unwrap();
 
-        assert_eq!(result.parent, "map");
-        assert_eq!(result.child, "lidar");
-        assert_eq!(result.timestamp, Stamp::At(mid));
-        assert_abs_diff_eq!(result.translation, Vector3::new(2.5, 0.0, 0.0));
-    }
-
-    #[test]
-    fn add_transform_rejects_invalid_rotations() {
-        let mut registry = Registry::new();
-        let t = Timestamp::from_nanos(1_000_000_000);
-
-        // Rotation-equivalent to identity but non-unit: if accepted, it
-        // would silently scale every lookup.
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        });
-        assert!(matches!(
-            result,
-            Err(BufferError::TransformError(
-                TransformError::NonUnitRotation(_)
-            ))
-        ));
-
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(f64::NAN, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "a".into(),
-            child: "b".into(),
-        });
-        assert!(matches!(
-            result,
-            Err(BufferError::TransformError(TransformError::NonFiniteValues))
-        ));
-
-        // Nothing was stored by the rejected inserts.
-        assert!(registry.get_transform("a", "b", t).is_err());
+        assert_eq!(result.parent(), "map");
+        assert_eq!(result.child(), "lidar");
+        assert_eq!(result.timestamp(), Stamp::At(mid));
+        assert_abs_diff_eq!(result.translation(), Vector3::new(2.5, 0.0, 0.0));
     }
 
     #[test]
@@ -1602,13 +1735,16 @@ mod registry_tests {
         let t2 = Timestamp::from_nanos(6_000_000_000);
         for &t in &[t1, t2] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "a".into(),
-                    child: "b".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "a",
+                        "b",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
 
@@ -1622,13 +1758,16 @@ mod registry_tests {
         let mut registry = Registry::new();
         for &t in &[t1, t2] {
             registry
-                .add_transform(Transform {
-                    translation: Vector3::new(1.0, 0.0, 0.0),
-                    rotation: Quaternion::identity(),
-                    timestamp: Stamp::At(t),
-                    parent: "a".into(),
-                    child: "b".into(),
-                })
+                .add_transform(
+                    Transform::new(
+                        "a",
+                        "b",
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
                 .unwrap();
         }
         assert!(registry.get_transform("a", "b", t1).is_ok());
@@ -1641,40 +1780,95 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         // A rejected insert must not leave an empty frame behind in the
-        // registry map...
-        let invalid = Transform {
-            translation: Vector3::new(1.0, 0.0, 0.0),
-            rotation: Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "a".into(),
-        };
-        assert!(registry.add_transform(invalid).is_err());
+        // registry map — here one rejected for naming "a" as its own parent,
+        // which still asks the registry to create the frame "a".
+        let invalid = Transform::new(
+            "a",
+            "a",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
+        assert!(matches!(
+            registry.add_transform(invalid),
+            Err(BufferError::SelfReferentialFrame)
+        ));
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // ...otherwise this valid insert would close the cycle a <-> b
         // without ever hitting the cycle check.
-        let result = registry.add_transform(Transform {
-            translation: Vector3::new(-1.0, 0.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::At(t),
-            parent: "b".into(),
-            child: "a".into(),
-        });
+        let result = registry.add_transform(
+            Transform::new(
+                "b",
+                "a",
+                Vector3::new(-1.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(t),
+            )
+            .unwrap(),
+        );
         assert!(matches!(result, Err(BufferError::CycleDetected)));
 
         // The stored transform still resolves, unpoisoned.
         let result = registry.get_transform("a", "b", t).unwrap();
-        assert_eq!(result.translation, Vector3::new(1.0, 0.0, 0.0));
+        assert_eq!(result.translation(), Vector3::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn single_hop_lookup_returns_the_stored_transform_bit_for_bit() {
+        // In the documented direction — target is the source's parent — only
+        // the source-side chain is walked, and a one-element chain composes
+        // into itself: no inversion, no renormalization, no arithmetic at
+        // all. The answer is the stored sample, down to the last bit. The
+        // pre-rework path reached the same transform through two inversions
+        // and returned a translation up to ten ulps away from the stored one.
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_734_000_000_123_456_789);
+        let stored = Transform::new(
+            "map",
+            "lidar",
+            Vector3::new(0.1, -2.5, 3.75),
+            Quaternion::from_wxyz(0.3, -0.5, 0.7, 0.2)
+                .normalize()
+                .unwrap(),
+            Stamp::At(t),
+        )
+        .unwrap();
+        registry.add_transform(stored.clone()).unwrap();
+
+        let result = registry.get_transform("map", "lidar", t).unwrap();
+
+        assert_eq!(result.parent(), stored.parent());
+        assert_eq!(result.child(), stored.child());
+        assert_eq!(result.timestamp(), stored.timestamp());
+        for (got, expected) in [
+            (result.translation().x, stored.translation().x),
+            (result.translation().y, stored.translation().y),
+            (result.translation().z, stored.translation().z),
+            (result.rotation().w, stored.rotation().w),
+            (result.rotation().x, stored.rotation().x),
+            (result.rotation().y, stored.rotation().y),
+            (result.rotation().z, stored.rotation().z),
+        ] {
+            assert_eq!(
+                got.to_bits(),
+                expected.to_bits(),
+                "component changed: {got} vs {expected}"
+            );
+        }
     }
 
     #[test]
@@ -1683,24 +1877,27 @@ mod registry_tests {
         let t = Timestamp::from_nanos(1_000_000_000);
 
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(1.0, 0.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::At(t),
-                parent: "a".into(),
-                child: "b".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "a",
+                    "b",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(t),
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // Identity for a known child frame, a root frame, and an unknown
         // frame alike: a frame relative to itself is always the identity.
         for frame in ["b", "a", "unknown"] {
             let result = registry.get_transform(frame, frame, t).unwrap();
-            assert_eq!(result.parent, frame);
-            assert_eq!(result.child, frame);
-            assert_eq!(result.timestamp, Stamp::At(t));
-            assert_eq!(result.translation, Vector3::zero());
-            assert_eq!(result.rotation, Quaternion::identity());
+            assert_eq!(result.parent(), frame);
+            assert_eq!(result.child(), frame);
+            assert_eq!(result.timestamp(), Stamp::At(t));
+            assert_eq!(result.translation(), Vector3::zero());
+            assert_eq!(result.rotation(), Quaternion::identity());
         }
     }
 
@@ -1710,28 +1907,31 @@ mod registry_tests {
 
         // Purely static chain: base -> camera mount.
         registry
-            .add_transform(Transform {
-                translation: Vector3::new(0.0, 1.0, 0.0),
-                rotation: Quaternion::identity(),
-                timestamp: Stamp::Static,
-                parent: "base".into(),
-                child: "camera".into(),
-            })
+            .add_transform(
+                Transform::new(
+                    "base",
+                    "camera",
+                    Vector3::new(0.0, 1.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::Static,
+                )
+                .unwrap(),
+            )
             .unwrap();
 
         // A detection stamped at observation time, in the camera frame.
         let t = Timestamp::from_nanos(5_000_000_000);
-        let mut point = Point {
-            position: Vector3::new(1.0, 0.0, 0.0),
-            orientation: Quaternion::identity(),
-            timestamp: t,
-            frame: "camera".into(),
-        };
+        let mut point = Point::new(
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            t,
+            "camera",
+        );
 
         // The flagship static-mount workflow: resolve and apply. The lookup
         // result carries the query time, so the application succeeds.
         let tf = registry.get_transform_for(&point, "base").unwrap();
-        assert_eq!(tf.timestamp, Stamp::At(t));
+        assert_eq!(tf.timestamp(), Stamp::At(t));
         point.transform(&tf).unwrap();
         assert_eq!(point.frame, "base");
         assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
@@ -1741,20 +1941,21 @@ mod registry_tests {
     fn static_transform_applies_directly_to_any_timestamp() {
         // A hand-built static transform (Stamp::Static) is valid
         // for all time when applied through Transformable.
-        let static_tf = Transform {
-            translation: Vector3::new(0.0, 1.0, 0.0),
-            rotation: Quaternion::identity(),
-            timestamp: Stamp::Static,
-            parent: "base".into(),
-            child: "camera".into(),
-        };
+        let static_tf = Transform::new(
+            "base",
+            "camera",
+            Vector3::new(0.0, 1.0, 0.0),
+            Quaternion::identity(),
+            Stamp::Static,
+        )
+        .unwrap();
 
-        let mut point = Point {
-            position: Vector3::new(1.0, 0.0, 0.0),
-            orientation: Quaternion::identity(),
-            timestamp: Timestamp::from_nanos(5_000_000_000),
-            frame: "camera".into(),
-        };
+        let mut point = Point::new(
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Timestamp::from_nanos(5_000_000_000),
+            "camera",
+        );
 
         point.transform(&static_tf).unwrap();
         assert_eq!(point.frame, "base");
@@ -1779,13 +1980,14 @@ mod registry_tests {
         timestamp: Stamp,
         x: f64,
     ) -> Transform {
-        Transform {
-            translation: Vector3::new(x, 0.0, 0.0),
-            rotation: Quaternion::identity(),
+        Transform::new(
+            parent,
+            child,
+            Vector3::new(x, 0.0, 0.0),
+            Quaternion::identity(),
             timestamp,
-            parent: parent.into(),
-            child: child.into(),
-        }
+        )
+        .unwrap()
     }
 
     #[test]
@@ -1802,7 +2004,7 @@ mod registry_tests {
             .add_transform(translated("a", "b", Stamp::At(t), 2.0))
             .unwrap();
         assert_eq!(
-            registry.get_transform("a", "b", t).unwrap().translation.x,
+            registry.get_transform("a", "b", t).unwrap().translation().x,
             2.0
         );
     }
@@ -1823,7 +2025,7 @@ mod registry_tests {
         let got = registry
             .get_transform("a", "b", Timestamp::from_nanos(3_000_000_000))
             .unwrap();
-        assert_eq!(got.translation.x, 7.0);
+        assert_eq!(got.translation().x, 7.0);
     }
 
     #[test]
@@ -1847,7 +2049,11 @@ mod registry_tests {
 
         // Exact hit on the newest sample still works.
         assert_eq!(
-            registry.get_transform("a", "b", t3).unwrap().translation.x,
+            registry
+                .get_transform("a", "b", t3)
+                .unwrap()
+                .translation()
+                .x,
             3.0
         );
 

@@ -38,13 +38,14 @@ fn timestamp_json_roundtrip_is_exact() {
 
 #[test]
 fn transform_json_roundtrip_is_exact() {
-    let transform = Transform {
-        translation: Vector3::new(1.0, 2.0, 3.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
-        parent: "map".into(),
-        child: "base".into(),
-    };
+    let transform = Transform::new(
+        "map",
+        "base",
+        Vector3::new(1.0, 2.0, 3.0),
+        Quaternion::identity(),
+        Stamp::At(Timestamp::from_nanos(1_000_000_000)),
+    )
+    .unwrap();
 
     let json = serde_json::to_string(&transform).unwrap();
     let deserialized: Transform<Timestamp> = serde_json::from_str(&json).unwrap();
@@ -54,12 +55,12 @@ fn transform_json_roundtrip_is_exact() {
 
 #[test]
 fn point_json_roundtrip_is_exact() {
-    let point = Point {
-        position: Vector3::new(-1.0, 0.5, 2.0),
-        orientation: Quaternion::identity(),
-        timestamp: Timestamp::from_nanos(2_000_000_000),
-        frame: "camera".into(),
-    };
+    let point = Point::new(
+        Vector3::new(-1.0, 0.5, 2.0),
+        Quaternion::identity(),
+        Timestamp::from_nanos(2_000_000_000),
+        "camera",
+    );
 
     let json = serde_json::to_string(&point).unwrap();
     let deserialized: Point<Timestamp> = serde_json::from_str(&json).unwrap();
@@ -82,13 +83,14 @@ fn transform_deserializes_from_handwritten_json_with_struct_field_names() {
 
     let deserialized: Transform<Timestamp> = serde_json::from_str(json).unwrap();
 
-    let expected = Transform {
-        translation: Vector3::new(1.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(Timestamp::from_nanos(1_000_000_000)),
-        parent: "map".into(),
-        child: "base".into(),
-    };
+    let expected = Transform::new(
+        "map",
+        "base",
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(Timestamp::from_nanos(1_000_000_000)),
+    )
+    .unwrap();
     assert_eq!(deserialized, expected);
 
     // Field names in the serialized form are the struct field names.
@@ -118,7 +120,8 @@ fn static_transform_serializes_timestamp_as_null() {
         "camera",
         Vector3::new(0.1, 0.0, 0.5),
         Quaternion::identity(),
-    );
+    )
+    .unwrap();
     assert_eq!(deserialized, expected);
 
     let value: serde_json::Value = serde_json::to_value(&expected).unwrap();
@@ -154,23 +157,74 @@ fn transform_missing_timestamp_field_is_an_error() {
     );
 }
 
+#[test]
+fn deserializing_a_denormalized_rotation_is_an_error() {
+    // Private fields and validating constructors would be worth nothing if
+    // the wire could still mint a rotation whose norm is 1.01 — it scales
+    // everything it is applied to by 2%, silently. `Transform`'s
+    // `Deserialize` runs the constructors' validation.
+    let json = r#"{
+        "translation": { "x": 1.0, "y": 0.0, "z": 0.0 },
+        "rotation": { "w": 1.01, "x": 0.0, "y": 0.0, "z": 0.0 },
+        "timestamp": { "t": 1000000000 },
+        "parent": "map",
+        "child": "base"
+    }"#;
+
+    let result = serde_json::from_str::<Transform<Timestamp>>(json);
+    assert!(
+        result.is_err(),
+        "a norm-1.01 rotation must be rejected on the wire, got {result:?}"
+    );
+    let message = result.unwrap_err().to_string();
+    assert!(
+        message.contains("unit quaternion"),
+        "the error must say what is wrong, got: {message}"
+    );
+}
+
+#[test]
+fn deserializing_a_non_finite_component_is_an_error() {
+    // JSON cannot spell NaN, but a binary format can. Field order is the one
+    // pinned by the golden-bytes tests, so overwriting the first eight bytes
+    // replaces `translation.x`.
+    let valid: Transform = Transform::new(
+        "map",
+        "base",
+        Vector3::new(1.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(Timestamp::zero()),
+    )
+    .unwrap();
+
+    let mut bytes = postcard::to_allocvec(&valid).unwrap();
+    bytes[..8].copy_from_slice(&f64::NAN.to_le_bytes());
+
+    let result = postcard::from_bytes::<Transform>(&bytes);
+    assert!(
+        result.is_err(),
+        "a NaN translation must be rejected on the wire, got {result:?}"
+    );
+}
+
 #[cfg(feature = "std")]
 #[test]
 fn transform_over_system_time_roundtrips() {
     use core::time::Duration;
     use std::time::UNIX_EPOCH;
 
-    let transform: Transform<std::time::SystemTime> = Transform {
-        translation: Vector3::new(1.5, -2.25, 3.125),
-        rotation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
-        timestamp: Stamp::At(
+    let transform: Transform<std::time::SystemTime> = Transform::new(
+        "map",
+        "base_link",
+        Vector3::new(1.5, -2.25, 3.125),
+        Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
+        Stamp::At(
             UNIX_EPOCH
                 .checked_add(Duration::from_secs(1_753_142_400))
                 .unwrap(),
         ),
-        parent: "map".into(),
-        child: "base_link".into(),
-    };
+    )
+    .unwrap();
 
     let json = serde_json::to_string(&transform).unwrap();
     let back: Transform<std::time::SystemTime> = serde_json::from_str(&json).unwrap();
@@ -184,13 +238,14 @@ fn transform_over_system_time_roundtrips() {
 /// postcard/bincode stream — this test is what catches it.
 #[test]
 fn transform_postcard_bytes_are_frozen() {
-    let transform: Transform = Transform {
-        translation: Vector3::new(1.5, -2.25, 3.125),
-        rotation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
-        timestamp: Stamp::At(Timestamp::from_nanos(1_753_142_400_000_000_000)),
-        parent: "map".into(),
-        child: "base_link".into(),
-    };
+    let transform: Transform = Transform::new(
+        "map",
+        "base_link",
+        Vector3::new(1.5, -2.25, 3.125),
+        Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
+        Stamp::At(Timestamp::from_nanos(1_753_142_400_000_000_000)),
+    )
+    .unwrap();
 
     let bytes = postcard::to_allocvec(&transform).unwrap();
 
@@ -221,12 +276,12 @@ fn transform_postcard_bytes_are_frozen() {
 /// `Timestamp`), then the frame name.
 #[test]
 fn point_postcard_bytes_are_frozen() {
-    let point: Point = Point {
-        position: Vector3::new(1.5, -2.25, 3.125),
-        orientation: Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
-        timestamp: Timestamp::from_nanos(1_753_142_400_000_000_000),
-        frame: "camera".into(),
-    };
+    let point: Point = Point::new(
+        Vector3::new(1.5, -2.25, 3.125),
+        Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
+        Timestamp::from_nanos(1_753_142_400_000_000_000),
+        "camera",
+    );
 
     let bytes = postcard::to_allocvec(&point).unwrap();
 
@@ -256,7 +311,8 @@ fn static_transform_postcard_bytes_are_frozen() {
         "base_link",
         Vector3::new(1.5, -2.25, 3.125),
         Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0),
-    );
+    )
+    .unwrap();
 
     let bytes = postcard::to_allocvec(&transform).unwrap();
 

@@ -22,44 +22,47 @@ fn main() {
     let time = Timestamp::now();
 
     // Create a point in the camera frame
-    let mut point = Point {
-        position: Vector3::new(0.0, 0.0, 1.0),
-        orientation: Quaternion::identity(),
-        timestamp: time,
-        frame: "camera".into(),
-    };
+    let mut point = Point::new(
+        Vector3::new(0.0, 0.0, 1.0),
+        Quaternion::identity(),
+        time,
+        "camera",
+    );
     info!("Created point in camera frame: {point:?}");
 
     // Create transform from camera to base frame, 1 second ago
-    let camera_to_base_t0 = Transform {
-        translation: Vector3::new(0.0, 1.0, 0.0),
-        rotation: Quaternion::identity(),
+    let camera_to_base_t0 = Transform::new(
+        "base",
+        "camera",
+        Vector3::new(0.0, 1.0, 0.0),
+        Quaternion::identity(),
         // 1 second ago
-        timestamp: Stamp::At((time - Duration::from_secs(1)).unwrap()),
-        parent: "base".into(),
-        child: "camera".into(),
-    };
+        Stamp::At((time - Duration::from_secs(1)).unwrap()),
+    )
+    .unwrap();
 
     // Create a transform 1 second in the future.
     // This forces the registry to interpolate the values to find
     // the transform for the timestamp of the point object.
-    let camera_to_base_t1 = Transform {
-        translation: Vector3::new(0.0, 3.0, 0.0),
-        rotation: Quaternion::identity(),
+    let camera_to_base_t1 = Transform::new(
+        "base",
+        "camera",
+        Vector3::new(0.0, 3.0, 0.0),
+        Quaternion::identity(),
         // 1 second in the future
-        timestamp: Stamp::At((time + Duration::from_secs(1)).unwrap()),
-        parent: "base".into(),
-        child: "camera".into(),
-    };
+        Stamp::At((time + Duration::from_secs(1)).unwrap()),
+    )
+    .unwrap();
 
     // Create transform from base to map frame
-    let base_to_map = Transform {
-        translation: Vector3::new(2.0, 0.0, 0.0),
-        rotation: Quaternion::identity(),
-        timestamp: Stamp::At(time),
-        parent: "map".into(),
-        child: "base".into(),
-    };
+    let base_to_map = Transform::new(
+        "map",
+        "base",
+        Vector3::new(2.0, 0.0, 0.0),
+        Quaternion::identity(),
+        Stamp::At(time),
+    )
+    .unwrap();
 
     // Add transforms to registry
     registry.add_transform(camera_to_base_t0).unwrap();

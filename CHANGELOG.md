@@ -25,8 +25,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   zero-stamped message is an ordinary dynamic sample, and a message
   *missing* its timestamp field is rejected rather than silently becoming
   an eternal static transform.
-  `Transform::static_between` builds static transforms; every `Transform`
-  literal wraps its timestamp in `Stamp::At(...)`.
+  `Transform::static_between` builds static transforms; every other
+  transform passes its stamp to `Transform::new` as `Stamp::At(...)`.
 - **Breaking:** `TimePoint` loses `static_timestamp()` and `is_static()`
   and becomes pure time arithmetic. This closes a soundness hole — the
   trait is unsealed and `is_static` was overridable independently of
@@ -130,6 +130,50 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   is unaffected, being correctly rounded everywhere. Three slerp cases —
   interior, near-antipodal, and near-identity — are pinned bit for bit and
   run in both feature modes.
+- **Breaking:** `Transform`'s fields are private and its constructors
+  validate. `Transform::new(parent, child, translation, rotation, stamp)` and
+  `Transform::static_between(parent, child, translation, rotation)` return
+  `Result<Self, TransformError>`, rejecting non-finite components and
+  rotations whose norm leaves `UNIT_NORM_TOLERANCE`; `translation()`,
+  `rotation()`, `timestamp()`, `parent()` and `child()` read the components
+  back, and the struct is `#[non_exhaustive]`. Validation previously sat at
+  the registry boundary, which left the public `Mul` and
+  `Transformable::transform` applying geometric garbage silently — a
+  norm-1.01 rotation scaled everything it touched by 2% and returned `Ok`,
+  and `static_between`, the README's recommended mount-builder, accepted a
+  norm-2 quaternion without complaint. An invalid transform is now
+  unrepresentable rather than merely unstorable, so the validation call in
+  the buffer's insert path is gone with it, and `add_transform` no longer
+  reports `NonUnitRotation` or `NonFiniteValues`. Results of `*`, `inverse`,
+  `interpolate` and registry lookups are deliberately not re-validated —
+  rotation norms drift a few ulps per composition and re-checking would
+  reject legitimate long chains — so `Transform::validate` stays public for
+  transforms of uncontrolled provenance.
+- **Breaking:** deserializing a `Transform` runs that validation. The
+  `Deserialize` impl reads a shadow record and converts through `TryFrom`, so
+  a denormalized rotation or a non-finite component is a deserialization
+  error. This closes the documented "deserialization does not validate" gap;
+  the wire format is unchanged, golden bytes included.
+- **Breaking:** `Transform::identity()` is removed. It returned empty parent
+  and child frames — self-referential, so it could be neither inserted nor
+  composed — and existed only as a base for field-poking, which private
+  fields end. The registry synthesizes its own identity for same-frame
+  lookups.
+- **Breaking:** `Point` gains `Point::new(position, orientation, timestamp,
+  frame)` and `#[non_exhaustive]`, which ends its struct literal. Its fields
+  stay public: a point is a data record, not an invariant carrier — the
+  invariants live on the `Transform` applied to it.
+- **Behavior change:** a lookup inverts at most once. Both halves of a
+  resolved chain are now composed in their natural direction, deleting a
+  reverse-and-invert pass that cost one inversion per hop plus one at the end
+  — in the crate's own documented direction
+  (`get_transform("map", "lidar", t)`), the one the README teaches. Measured
+  on x86-64: a single hop drops from 11 heap allocations (1456 B) to 5
+  (488 B), four hops from 23 to 11, and 64 hops from 271 to 135. That
+  direction is no longer renormalized on the way out, which is what makes a
+  single-hop lookup at a stored timestamp return the stored transform bit for
+  bit; previously it came back through two inversions, up to ten ulps off in
+  the translation.
 
 ### Added
 
