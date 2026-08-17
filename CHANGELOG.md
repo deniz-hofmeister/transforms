@@ -113,9 +113,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   produced it, in a domain where the two are compared to decide which one
   was right. The `std` feature now changes which API exists, never a
   computed value. Under `std` on glibc this moves interpolated rotations by
-  up to one ulp per component; `sqrt` is unaffected, being correctly
-  rounded everywhere. Three slerp cases — interior, near-antipodal, and
-  near-identity — are pinned bit for bit and run in both feature modes.
+  up to four ulps per component (measured over a sweep of arcs and
+  interpolation factors; the pinned interior case moves two in `w`); `sqrt`
+  is unaffected, being correctly rounded everywhere. Three slerp cases —
+  interior, near-antipodal, and near-identity — are pinned bit for bit and
+  run in both feature modes.
 
 ### Added
 

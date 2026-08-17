@@ -319,8 +319,8 @@ mod quaternion_tests {
     /// within a tolerance. `sqrt`, `sin`, and `acos` are `libm`'s in every
     /// feature mode, so the same bits must come out under `cargo test` and
     /// under `cargo test --no-default-features`: a platform intrinsic put
-    /// back into the math path moves the last bits in one mode only — by one
-    /// ulp per component in the interior case below, on x86-64 glibc — and
+    /// back into the math path moves the last bits in one mode only — by
+    /// two ulps in `w` in the interior case below, on x86-64 glibc — and
     /// that is precisely what a tolerant comparison cannot see. The operands
     /// are decimal literals rather than computed rotations so that no
     /// platform trig function reaches the inputs either. A `libm` upgrade

@@ -210,13 +210,15 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
    `TimestampOutOfRange`; `Quaternion::slerp` clamps its factor to [0, 1].
 7. **Re-publishing at a stored timestamp replaces that sample** (documented
    last-write-wins upsert — unchanged from 1.x mechanics, now a contract).
-8. **Interpolated rotations can move by an ulp under `std`.** 1.x used
-   `f64`'s own `sqrt`/`sin`/`acos` when `std` was enabled and `libm`'s
-   without it; 2.0 uses `libm` in both modes, so a host and the target it
-   replays now agree bit for bit — but a `std` build may differ from 1.x in
-   the last bits of a slerped rotation. Only comparisons against recorded
-   1.x output at full precision notice; if you have such fixtures, re-record
-   them.
+8. **Interpolated rotations can move by a few ulps — in both feature
+   modes.** 1.x had no `libm` dependency at all: `sqrt`, `sin`, and `acos`
+   were `f64`'s own — the platform's math library — with and without `std`.
+   2.0 uses `libm` in both modes, so a host and the target it replays now
+   agree bit for bit, but any 1.x build may differ from 2.0 in the last
+   bits of a slerped rotation: up to four ulps per component, measured
+   against x86-64 glibc. Only comparisons against recorded 1.x output at
+   full precision notice; if you have such fixtures, re-record them —
+   whether or not you enabled `std`.
 
 ## Renamed, but not breaking
 
