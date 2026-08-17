@@ -4,10 +4,17 @@
 //! a collection of transforms, each associated with a timestamp. The buffer uses
 //! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
 //!
-//! `Buffer` is internal to the crate: [`Registry`](crate::Registry) owns one per
-//! child frame and is the only way to reach it, so the invariants that make a
-//! frame tree well-formed — acyclic, single-parent — are enforced there, not
-//! here.
+//! `Buffer` is internal to the crate: [`Registry`](crate::Registry) owns one
+//! per child frame and is the only way to reach it. The invariants that make a
+//! frame tree well-formed are split between the two, and most of them live
+//! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
+//! pin, the child pin, the static-xor-dynamic kind, and transform validation.
+//! `Registry` adds only the check that needs a view of the whole tree — the
+//! cycle check — and runs it solely for a child frame it has not seen before,
+//! precisely because this module's pin makes an existing buffer's parent
+//! immutable. Any rework of the storage below must keep those pins: without
+//! them a re-parenting insert reaches no check at all, and every later lookup
+//! through the frame returns a pose expressed relative to the wrong parent.
 //!
 //! # Features
 //!

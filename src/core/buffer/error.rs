@@ -16,11 +16,13 @@ pub enum BufferError {
     #[error("the buffer holds no transforms")]
     NoTransformAvailable,
 
-    /// The transform's kind (static or dynamic) does not match the buffer's
-    /// declared kind, fixed at construction (`Buffer::static_edge` vs.
-    /// `Buffer::dynamic`); a child frame is either static or dynamic, never
-    /// both. Fires even on an empty buffer — the kind is a property of the
-    /// buffer, not of what it currently stores.
+    /// The transform's kind (static or dynamic) does not match the kind the
+    /// child frame was fixed to by its first insert — `Stamp::Static` makes
+    /// the frame static, `Stamp::At` makes it dynamic — and a child frame is
+    /// one or the other, never both. Fires even after the frame has been
+    /// drained of every sample: the kind is a property of the frame, not of
+    /// what it currently stores. `Registry::remove_frame` is the only way to
+    /// change it — remove the frame, then re-add it with the other kind.
     #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
 

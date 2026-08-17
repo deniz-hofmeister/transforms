@@ -168,9 +168,13 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
   transforms::Registry`, never `transforms::core::Registry`. Code that stored
   transforms in a `Buffer` of its own has no drop-in replacement type — give
   the frame pair to a `Registry` (one buffer per child frame is what it keeps
-  internally) and use `add_transform` / `get_transform`. rustc reports this as
-  E0603 (`module core is private`) on the `use` line and offers no
-  replacement path, because the private module is what it sees.
+  internally) and use `add_transform` / `get_transform`. Both imports fail with
+  E0603 (`module core is private`) on the `use` line, but rustc helps unevenly:
+  for `transforms::core::Registry` it adds `help: consider importing this
+  struct instead` with the replacement `use transforms::Registry;` — unlike the
+  suggestion in break 1, **that one is correct; take it**. For
+  `transforms::core::Buffer` there is no suggestion, because no public
+  re-export exists for rustc to point at.
 - `Timestamp`'s inner field is private and holds `u64` nanoseconds instead
   of `u128`: replace `ts.t` with `ts.as_nanos()` and `Timestamp { t }` with
   `Timestamp::from_nanos(t)`, narrowing wider integers at the call site

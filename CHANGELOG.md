@@ -34,10 +34,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   impls no longer invent sentinel values.
 - **Breaking:** `Buffer` and the `core` module are private. `Registry` — at
   the crate root, where it was already re-exported — is the entire public
-  entry point. The standalone-buffer API is gone with it: a hand-held
-  `Buffer` bypassed the invariant boundary, since the cycle, re-parenting,
-  and frame-tree checks live in `Registry`, so it was a second, weaker way
-  to store transforms for a use case nobody had. Its storage is now free to
+  entry point. The standalone-buffer API is gone with it: a single buffer
+  enforces only its own parent and child pins, while the cycle check needs a
+  view of the whole tree and lives in `Registry`, so hand-held buffers were a
+  second, weaker way to store transforms for a use case nobody had — one that
+  could close a cycle nothing would reject. Its storage is now free to
   change without a major release. A child frame is still static xor dynamic,
   fixed by its first insert.
 - **Breaking:** serde: `Stamp` serializes as an optional timestamp —
