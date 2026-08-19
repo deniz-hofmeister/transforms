@@ -35,18 +35,20 @@ registry.add_transform(transform);
 registry.add_transform(transform)?;
 ```
 
-`add_transform` returns `Result`. An ignored `Err` means **nothing was
-stored** — later lookups will fail mysteriously. New rejections your 1.x
-data may already trigger: self-referential frames, re-parenting
-(`ReparentingNotSupported` — call `remove_frame` first), cycles
-(`CycleDetected`), and mixing static with dynamic transforms in one child
-frame (`StaticDynamicConflict`). The 1.x rejections stay: `add_transform`
-still reports non-finite values and non-unit rotations. They are *also*
-rejected earlier now, by the constructor (see break 7), but that is an
-addition, not a move — a transform you compose with `*` or read back out of
-a lookup is deliberately not re-validated, so it is the insert that catches
-it. Existing handling of those two errors around `add_transform` still
-covers you.
+`add_transform` returns `Result`, with `RegistryError<T>` as the error type
+(see break 3). An ignored `Err` means **nothing was stored** — later lookups
+will fail mysteriously. New rejections your 1.x data may already trigger:
+self-referential frames, re-parenting (`ReparentingNotSupported` — call
+`remove_frame` first), cycles (`CycleDetected`), and mixing static with
+dynamic transforms in one child frame (`StaticDynamicConflict`). The 1.x
+rejections stay: `add_transform` still reports non-finite values and
+non-unit rotations, now as the flat `RegistryError::NonFiniteValues` and
+`RegistryError::NonUnitRotation(norm)`. They are *also* rejected earlier
+now, by the constructor (see break 7), but that is an addition, not a move —
+a transform you compose with `*` or read back out of a lookup is
+deliberately not re-validated, so it is the insert that catches it. Existing
+handling of those two conditions around `add_transform` still covers you,
+once the match arms are renamed.
 
 ### Static transforms are a `Stamp` variant, not `t = 0`
 
@@ -79,7 +81,8 @@ now (break 7) — so the stamp is one of the arguments you move into the
 constructor. A 1.x
 static publisher migrated as `Stamp::At(Timestamp::zero())` would store a
 **single dynamic sample at the epoch**, so any lookup at a real time
-fails loudly with `TimestampOutOfRange` instead of serving the mount.
+fails loudly with `NotFoundAt` — covering the epoch alone — instead of
+serving the mount.
 Switch static publishers to `Transform::static_between` (or
 `Stamp::Static`).
 
@@ -109,7 +112,7 @@ Cross-version decoding is format-dependent, so version-tag your streams:
 
 - An old **JSON** payload that encoded staticness as `t = 0` decodes as a
   dynamic sample at the epoch — real-time lookups then fail loudly with
-  `TimestampOutOfRange` rather than silently serving stale calibration.
+  `NotFoundAt` rather than silently serving stale calibration.
 - An old **postcard** stream with a realistic dynamic timestamp fails to
   decode outright (the timestamp varint is not a valid `Option` tag). The
   one exception is a payload stamped exactly `t = 0` — the 1.x static
@@ -121,6 +124,11 @@ Cross-version decoding is format-dependent, so version-tag your streams:
 
 ### 3. Error enum overhaul
 
+Every `Registry` call — `add_transform` and all three lookups — now reports
+one type, `errors::RegistryError<T>`. `TransformError` stays, but only for
+what it describes: geometry and time, i.e. the `Transform` constructors,
+`inverse`, `interpolate`, `*`, and `Transformable::transform`.
+
 ```rust
 // 1.x
 match err {
@@ -129,24 +137,48 @@ match err {
 }
 
 // 2.0
+use transforms::errors::RegistryError;
+
 match err {
-    TransformError::UnknownFrame(f) => wait_for_publisher(),   // typo / not yet published
-    TransformError::Disconnected { target_frame, source_frame } => topology_bug(),
-    TransformError::NotFoundAt { frame, source, .. } => inspect(source), // see below: `frame` cannot answer
-    _ => other(),                                              // mandatory: #[non_exhaustive]
+    RegistryError::UnknownFrame(f) => wait_for_publisher(f),  // typo / not yet published
+    RegistryError::Disconnected { target_frame, source_frame } => {
+        topology_bug(target_frame, source_frame)
+    }
+    // `frame` could not answer at `requested`; `covered` says why (see below)
+    RegistryError::NotFoundAt { frame, requested, covered: Some((_, end)), .. } => {
+        if requested > end { retry() } else { data_is_stale(frame) }
+    }
+    RegistryError::NotFoundAt { frame, covered: None, .. } => nobody_is_publishing(frame),
+    _ => other(),                                             // mandatory: #[non_exhaustive]
 }
 ```
 
 The 1.x catch-all `TransformError::NotFound` is gone, replaced by the three
 diagnosed variants above (mirroring tf2's LookupException /
-ConnectivityException / ExtrapolationException). `NotFoundAt`'s `source`
+ConnectivityException / ExtrapolationException). `NotFoundAt`'s `covered`
 must be inspected before retrying, because it distinguishes two situations:
-`TimestampOutOfRange { requested, start, end }` means `frame` holds data the
-request falls outside of — `requested > end` is merely too new (latency:
-retry), otherwise the data is stale — while `NoTransformAvailable` means
-`frame` holds no data at all and carries no range, so retrying achieves
-nothing until someone inserts into it (see runtime behavior change 5).
-All error enums are `#[non_exhaustive]`, so every match
+`Some((start, end))` means `frame` holds data the request falls outside of —
+`requested > end` is merely too new (latency: retry), otherwise the data is
+stale — while `None` means `frame` holds no data at all, so retrying
+achieves nothing until someone inserts into it (see runtime behavior change
+5). Both `requested` and `covered` are in the registry's own time type `T`,
+not in seconds: compare them against the timestamp you asked with. The
+`Display` text still renders seconds.
+
+`add_transform`'s rejections are variants of the same enum:
+`RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,
+`SelfReferentialFrame`, `ReparentingNotSupported { current_parent }`,
+`CycleDetected`, `StaticDynamicConflict`. The first two are flat rather than
+wrapped, and they are flat on every path — a lookup that overflows a
+translation across a long chain reports the same `NonFiniteValues`, so a
+condition never has two spellings to match on. The one wrapping variant,
+`RegistryError::TransformError`, carries a geometry or time failure of an
+operation on the resolved chain.
+
+`BufferError` is gone from the public API along with `Buffer` itself (break
+5); 1.x code that handled it did so around a hand-held `Buffer`, which now
+has no replacement type — give the frame pair to a `Registry` and match
+`RegistryError`. All error enums are `#[non_exhaustive]`, so every match
 needs a `_` arm. Also removed: the `TimestampError` alias (use
 `TimeError`), `BufferError::MaxAgeInvalid`, and
 `TransformError::TransformTreeEmpty` (never produced).
@@ -271,12 +303,14 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
    sample keeps the parent and the static-or-dynamic kind pinned by its
    first insert, so routine cleanup cannot quietly re-open it for
    re-parenting or for a change of kind, and lookups on it report
-   `NotFoundAt` — with `NoTransformAvailable` as the cause, not a covered
-   range — rather than `UnknownFrame`. `remove_frame` is the only
+   `NotFoundAt` — with `covered: None`, not a covered range — rather than
+   `UnknownFrame`. `remove_frame` is the only
    release — call it when a frame retires, or the frame map grows without
    bound.
-6. **No extrapolation anywhere.** Out-of-range queries fail with
-   `TimestampOutOfRange`; `Quaternion::slerp` clamps its factor to [0, 1].
+6. **No extrapolation anywhere.** An out-of-range lookup fails with
+   `RegistryError::NotFoundAt` carrying the frame's covered range, and
+   `Transform::interpolate` with `TransformError::TimestampOutOfRange`;
+   `Quaternion::slerp` clamps its factor to [0, 1].
 7. **Re-publishing at a stored timestamp replaces that sample** (documented
    last-write-wins upsert — unchanged from 1.x mechanics, now a contract).
 8. **Interpolated rotations can move by a few ulps — in both feature

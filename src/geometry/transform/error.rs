@@ -1,10 +1,16 @@
-use alloc::{boxed::Box, string::String};
+use alloc::string::String;
 
 use thiserror::Error;
 
-use crate::errors::{BufferError, QuaternionError, TimeError};
+use crate::errors::{QuaternionError, TimeError};
 
-/// Error type for transform lookup, composition, and application.
+/// Error type for building, composing, interpolating, and applying
+/// transforms.
+///
+/// Pure geometry and time: a failure of a [`Registry`](crate::Registry) call
+/// is a [`RegistryError`](crate::errors::RegistryError) instead, which flattens
+/// the two validation causes below into variants of its own and wraps the
+/// rest.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum TransformError {
@@ -53,69 +59,16 @@ pub enum TransformError {
         frame: String,
     },
 
-    /// The frames do not form a valid parent-child composition.
+    /// The frames do not match the pairing the operation requires: a
+    /// composition whose left-hand child is not the right-hand parent,
+    /// interpolation endpoints describing different frame pairs, or a value
+    /// whose frame is not the transform's child.
     #[error("frames do not have a parent-child relationship (expected {expected}, found {found})")]
     IncompatibleFrames {
         /// The frame (or frame pair) the operation required.
         expected: String,
         /// The frame (or frame pair) actually found.
         found: String,
-    },
-
-    /// The requested frame exists nowhere in the transform tree, neither
-    /// as a child nor as a parent frame. Usually a typo or a frame that
-    /// has not been published yet.
-    #[error("frame {0} does not exist in the transform tree")]
-    UnknownFrame(String),
-
-    /// Both frames exist, but no chain of transforms connects them: they
-    /// live in different trees. This reflects the tree topology at the
-    /// time of the lookup, not a transient data gap — gaps are reported as
-    /// [`NotFoundAt`](Self::NotFoundAt).
-    #[error("no transform chain connects {target_frame} and {source_frame}")]
-    Disconnected {
-        /// The `target` argument of the failed lookup.
-        ///
-        /// (Suffixed `_frame` because `source` is reserved by the error
-        /// trait's source-chaining convention.)
-        target_frame: String,
-        /// The `source` argument of the failed lookup.
-        source_frame: String,
-    },
-
-    /// The lookup stopped at a frame that exists in the tree but could not
-    /// serve the requested time. `frame` names where the chain walk stopped
-    /// and `source` says which of two cases it is:
-    /// [`BufferError::TransformError`] wrapping
-    /// [`TimestampOutOfRange`](Self::TimestampOutOfRange) — which carries
-    /// the frame's covered range — when the request falls outside data the
-    /// frame does hold, typically a transient gap; or
-    /// [`BufferError::NoTransformAvailable`], which carries no range, when
-    /// the frame holds no data at all. Only the first case is a timing
-    /// question. A frame drained by
-    /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
-    /// keeps its entry and reports the second for as long as nothing is
-    /// inserted into it, so waiting or widening the requested time window
-    /// will not make it answer.
-    ///
-    /// Receiving this variant does not guarantee the frames are connectable:
-    /// when a data gap and a topological disconnection coexist, the recorded
-    /// walk failure takes precedence over the [`Disconnected`](Self::Disconnected)
-    /// diagnosis.
-    #[error(
-        "transform from {source_frame} into {target_frame} not found (frame {frame}: {source})"
-    )]
-    NotFoundAt {
-        /// The `target` argument of the failed lookup — the frame the data
-        /// would have been expressed in.
-        target_frame: String,
-        /// The `source` argument of the failed lookup — the frame the data
-        /// would have come from.
-        source_frame: String,
-        /// The frame whose buffer could not serve the requested time.
-        frame: String,
-        /// The buffer error that stopped the chain walk.
-        source: Box<BufferError>,
     },
 
     /// A timestamp operation failed.

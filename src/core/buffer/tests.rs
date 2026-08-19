@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod buffer_tests {
     use crate::{
-        core::{Buffer, buffer::BufferError},
+        core::{
+            Buffer,
+            buffer::{GetError, InsertError},
+        },
         errors::TransformError,
         geometry::{Quaternion, Transform, Vector3},
         time::{Stamp, Timestamp},
@@ -60,9 +63,6 @@ mod buffer_tests {
     }
 
     #[test]
-    // The compared seconds are exactly representable; the assertion is on
-    // the reported values, not on float arithmetic.
-    #[allow(clippy::float_cmp)]
     fn get_out_of_range_reports_covered_range() {
         let mut buffer = Buffer::dynamic();
         let t1 = Timestamp::from_nanos(1_000_000_000);
@@ -70,18 +70,17 @@ mod buffer_tests {
         buffer.insert(create_transform(t1)).unwrap();
         buffer.insert(create_transform(t2)).unwrap();
 
-        // Too new: past the latest sample. The error carries the requested
-        // time and the covered range, so latency ("just too new") is
-        // distinguishable from stale data without further queries.
+        // Too new: past the latest sample. The error carries the covered
+        // range in the buffer's own timestamp type, so latency ("just too
+        // new") is distinguishable from stale data without further queries
+        // and without a lossy conversion to seconds.
         let result = buffer.get(Timestamp::from_nanos(3_000_000_000));
         assert!(
             matches!(
                 &result,
-                Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange { requested, start, end }
-                )) if *requested == 3.0 && *start == 1.0 && *end == 2.0
+                Err(GetError::OutOfRange { start, end }) if *start == t1 && *end == t2
             ),
-            "expected TimestampOutOfRange with the covered range, got {result:?}"
+            "expected OutOfRange with the covered range, got {result:?}"
         );
 
         // Too old: before the earliest sample.
@@ -89,11 +88,9 @@ mod buffer_tests {
         assert!(
             matches!(
                 &result,
-                Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange { requested, start, end }
-                )) if *requested == 0.5 && *start == 1.0 && *end == 2.0
+                Err(GetError::OutOfRange { start, end }) if *start == t1 && *end == t2
             ),
-            "expected TimestampOutOfRange with the covered range, got {result:?}"
+            "expected OutOfRange with the covered range, got {result:?}"
         );
     }
 
@@ -103,21 +100,21 @@ mod buffer_tests {
 
         let result = buffer.get(Timestamp::from_nanos(1_000_000_000));
         assert!(
-            matches!(result, Err(BufferError::NoTransformAvailable)),
+            matches!(result, Err(GetError::NoTransformAvailable)),
             "expected NoTransformAvailable on an empty dynamic buffer, got {result:?}"
         );
 
         let buffer = Buffer::<Timestamp>::static_edge();
         let result = buffer.get(Timestamp::from_nanos(1_000_000_000));
         assert!(
-            matches!(result, Err(BufferError::NoTransformAvailable)),
+            matches!(result, Err(GetError::NoTransformAvailable)),
             "expected NoTransformAvailable on an empty static buffer, got {result:?}"
         );
 
         let buffer = Buffer::<Timestamp>::dynamic_with_max_age(Duration::from_secs(10));
         let result = buffer.get(Timestamp::from_nanos(1_000_000_000));
         assert!(
-            matches!(result, Err(BufferError::NoTransformAvailable)),
+            matches!(result, Err(GetError::NoTransformAvailable)),
             "expected NoTransformAvailable on an empty max-age buffer, got {result:?}"
         );
     }
@@ -207,7 +204,7 @@ mod buffer_tests {
         buffer.remove_before(Timestamp::from_nanos(2_000_000_000_000));
         assert!(matches!(
             buffer.get(Timestamp::from_nanos(1_000_000_000_000)),
-            Err(BufferError::NoTransformAvailable)
+            Err(GetError::NoTransformAvailable)
         ));
 
         // A restarted stream from t = 0 must be retained again.
@@ -228,14 +225,11 @@ mod buffer_tests {
         buffer.insert(create_transform(t)).unwrap();
 
         buffer.remove_before((t + Duration::from_secs(1)).unwrap());
-        assert!(matches!(
-            buffer.get(t),
-            Err(BufferError::NoTransformAvailable)
-        ));
+        assert!(matches!(buffer.get(t), Err(GetError::NoTransformAvailable)));
 
         let result = buffer.insert(create_static_transform());
         assert!(
-            matches!(result, Err(BufferError::StaticDynamicConflict)),
+            matches!(result, Err(InsertError::StaticDynamicConflict)),
             "an emptied dynamic buffer must stay dynamic, got {result:?}"
         );
 
@@ -383,7 +377,7 @@ mod buffer_tests {
         buffer.insert(static_tf.clone()).unwrap();
         assert!(matches!(
             buffer.insert(dynamic_tf.clone()),
-            Err(BufferError::StaticDynamicConflict)
+            Err(InsertError::StaticDynamicConflict)
         ));
 
         // The static transform is still served after the rejected insert.
@@ -395,7 +389,7 @@ mod buffer_tests {
         buffer.insert(dynamic_tf.clone()).unwrap();
         assert!(matches!(
             buffer.insert(static_tf),
-            Err(BufferError::StaticDynamicConflict)
+            Err(InsertError::StaticDynamicConflict)
         ));
 
         // The dynamic transform is still served after the rejected insert.
@@ -408,11 +402,11 @@ mod buffer_tests {
         // untouched: no frames pinned, nothing stored.
         let mut buffer = Buffer::static_edge();
         let result = buffer.insert(create_transform(Timestamp::zero()));
-        assert!(matches!(result, Err(BufferError::StaticDynamicConflict)));
+        assert!(matches!(result, Err(InsertError::StaticDynamicConflict)));
         assert_eq!(buffer.parent(), None);
         assert!(matches!(
             buffer.get(Timestamp::zero()),
-            Err(BufferError::NoTransformAvailable)
+            Err(GetError::NoTransformAvailable)
         ));
 
         // Neither frame was pinned: a static transform for an entirely
@@ -495,9 +489,7 @@ mod buffer_tests {
         );
         assert!(matches!(
             buffer.insert(non_unit),
-            Err(BufferError::TransformError(
-                TransformError::NonUnitRotation(_)
-            ))
+            Err(InsertError::Invalid(TransformError::NonUnitRotation(_)))
         ));
 
         let non_finite = Transform::unvalidated(
@@ -509,14 +501,11 @@ mod buffer_tests {
         );
         assert!(matches!(
             buffer.insert(non_finite),
-            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+            Err(InsertError::Invalid(TransformError::NonFiniteValues))
         ));
 
         // A rejected insert stores nothing and pins nothing.
-        assert!(matches!(
-            buffer.get(t),
-            Err(BufferError::NoTransformAvailable)
-        ));
+        assert!(matches!(buffer.get(t), Err(GetError::NoTransformAvailable)));
         assert_eq!(buffer.parent(), None);
 
         // Unit-norm rotations with f32-grade precision loss must still be
@@ -544,10 +533,7 @@ mod buffer_tests {
         // The pins survive the buffer being emptied, matching the documented
         // parent behavior: dropping the buffer is the only release.
         buffer.remove_before((t + Duration::from_secs(1)).unwrap());
-        assert!(matches!(
-            buffer.get(t),
-            Err(BufferError::NoTransformAvailable)
-        ));
+        assert!(matches!(buffer.get(t), Err(GetError::NoTransformAvailable)));
         assert_eq!(buffer.parent(), Some("map"));
 
         // The child pin survives too, so a drained buffer still refuses a
@@ -555,7 +541,7 @@ mod buffer_tests {
         let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t));
         let result = buffer.insert(other);
         assert!(
-            matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
+            matches!(result, Err(InsertError::ChildFrameMismatch { ref pinned, ref found }) if pinned == "base" && found == "lidar"),
             "expected ChildFrameMismatch, got {result:?}"
         );
     }
@@ -573,7 +559,7 @@ mod buffer_tests {
         let other = frames_transform("map", "lidar", Vector3::new(9.0, 9.0, 9.0), Stamp::Static);
         let result = buffer.insert(other);
         assert!(
-            matches!(result, Err(BufferError::ChildFrameMismatch(ref pinned)) if pinned == "base"),
+            matches!(result, Err(InsertError::ChildFrameMismatch { ref pinned, ref found }) if pinned == "base" && found == "lidar"),
             "expected ChildFrameMismatch, got {result:?}"
         );
 
@@ -601,7 +587,7 @@ mod buffer_tests {
         let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t2));
         assert!(matches!(
             buffer.insert(other),
-            Err(BufferError::ChildFrameMismatch(_))
+            Err(InsertError::ChildFrameMismatch { .. })
         ));
 
         // Interpolation over the pinned child's samples must keep working.

@@ -48,10 +48,32 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - **Breaking:** every error payload field is named: `TimestampMismatch
   { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
   `Disconnected { target_frame, source_frame }`, and `NotFoundAt
-  { target_frame, source_frame, frame, source }` — the lookup-argument
-  fields carry the `_frame` suffix because a field literally named
-  `source` belongs to the error trait's source-chaining convention,
-  which `NotFoundAt`'s boxed `BufferError` keeps.
+  { target_frame, source_frame, frame, requested, covered }` — the
+  lookup-argument fields carry the `_frame` suffix because a field literally
+  named `source` belongs to the error trait's source-chaining convention.
+- **Breaking:** one flat error type for the registry. `Registry::add_transform`
+  and all three lookups return `errors::RegistryError<T>`; `BufferError` is
+  gone from the public API together with the `Buffer` it belonged to, and
+  `TransformError` shrinks to what its name says — the geometry and time
+  failures of the `Transform` constructors, `inverse`, `interpolate`, `*`
+  and `Transformable::transform` — losing `UnknownFrame`, `Disconnected` and
+  `NotFoundAt`. Diagnosing a failed lookup took three nested matches
+  (`TransformError::NotFoundAt` → `Box<BufferError>` →
+  `TransformError::TimestampOutOfRange`) for one question: can this frame
+  answer at this time? It is now one: `RegistryError::NotFoundAt` carries
+  `frame`, `requested: T` and `covered: Option<(T, T)>` directly — `Some` a
+  gap in data the frame holds, `None` a frame holding nothing at all — and
+  the two mutually recursive error types are no longer mutually recursive.
+  The lookup payloads are typed in the registry's own time type instead of
+  pre-formatted seconds, so they compare against the clock the caller asked
+  with; `Display` still renders seconds through `TimePoint::as_seconds_lossy`.
+  Insert rejections are flat variants of the same enum — `NonUnitRotation`,
+  `NonFiniteValues`, `SelfReferentialFrame`,
+  `ReparentingNotSupported { current_parent }`, `CycleDetected`,
+  `StaticDynamicConflict` — and the two validation causes are flat on every
+  path, including a lookup that overflows a translation across a long chain,
+  so no condition has two spellings to match on. `RegistryError` is
+  `#[non_exhaustive]`, like every error type here.
 - **Breaking:** every public type has a single canonical path
   (`geometry::Point`, `time::Timestamp`, ...): the leaf modules are private,
   matching the error-module pattern. Error types live at `errors::*`.

@@ -43,7 +43,7 @@
 //!   construction ([`Buffer::static_edge`] vs. [`Buffer::dynamic`]) and fixed for the buffer's
 //!   lifetime. A static buffer holds one transform carrying `Stamp::Static` and returns it for
 //!   any requested timestamp; a dynamic buffer holds a time series of `Stamp::At` samples.
-//!   Inserting the opposite kind is rejected with `BufferError::StaticDynamicConflict`.
+//!   Inserting the opposite kind is rejected with `InsertError::StaticDynamicConflict`.
 //!
 //! - **Automatic Expiration of Transforms**:
 //!   - Buffers created with `Buffer::dynamic_with_max_age` remove entries older than `max_age`
@@ -55,13 +55,12 @@
 //!     cleanup.
 
 use crate::{
-    errors::TransformError,
     geometry::Transform,
     time::{Stamp, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
 use core::time::Duration;
-pub use error::BufferError;
+pub(crate) use error::{GetError, InsertError};
 mod error;
 
 type NearestTransforms<'a, T> = (
@@ -80,13 +79,13 @@ type NearestTransforms<'a, T> = (
 /// holds one transform carrying `Stamp::Static` and serves it for any
 /// requested time; [`Buffer::dynamic`] and [`Buffer::dynamic_with_max_age`]
 /// build buffers that hold a time series of `Stamp::At` samples. Inserts of
-/// the opposite kind are rejected with `BufferError::StaticDynamicConflict`.
+/// the opposite kind are rejected with `InsertError::StaticDynamicConflict`.
 ///
 /// The first insert pins the buffer's parent and child frames: every later
 /// insert must carry the same pair, so a buffer stores the history of
 /// exactly one parent-child relationship. Re-parenting is rejected with
-/// `BufferError::ReparentingNotSupported`, and a transform for a different
-/// child frame with `BufferError::ChildFrameMismatch`.
+/// `InsertError::ReparentingNotSupported`, and a transform for a different
+/// child frame with `InsertError::ChildFrameMismatch`.
 ///
 /// When constructed with [`Buffer::dynamic_with_max_age`], entries older
 /// than `max_age` relative to the latest inserted timestamp are removed
@@ -197,20 +196,20 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::TransformError` wrapping
+    /// Returns `InsertError::Invalid` wrapping
     /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
     /// if the transform fails validation — storing such a transform would
     /// make later lookups return silently wrong results.
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
+    /// Returns `InsertError::StaticDynamicConflict` if the transform's kind
     /// (static or dynamic) does not match the buffer's declared kind. Mixing
     /// the two would silently corrupt interpolation.
     ///
-    /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
+    /// Returns `InsertError::SelfReferentialFrame` if the transform's parent
     /// and child are the same frame,
-    /// `BufferError::ReparentingNotSupported` if the buffer's parent frame
+    /// `InsertError::ReparentingNotSupported` if the buffer's parent frame
     /// (pinned by the first insert) differs from the transform's parent, and
-    /// `BufferError::ChildFrameMismatch` if the buffer's child frame (pinned
+    /// `InsertError::ChildFrameMismatch` if the buffer's child frame (pinned
     /// the same way) differs from the transform's child — accepting a second
     /// child frame would silently overwrite a static transform or corrupt
     /// interpolation between dynamic ones.
@@ -222,20 +221,23 @@ where
     pub fn insert(
         &mut self,
         transform: Transform<T>,
-    ) -> Result<(), BufferError> {
-        transform.validate()?;
+    ) -> Result<(), InsertError> {
+        transform.validate().map_err(InsertError::Invalid)?;
 
         if transform.parent() == transform.child() {
-            return Err(BufferError::SelfReferentialFrame);
+            return Err(InsertError::SelfReferentialFrame);
         }
         if let Some(parent) = &self.parent {
             if parent != transform.parent() {
-                return Err(BufferError::ReparentingNotSupported(parent.clone()));
+                return Err(InsertError::ReparentingNotSupported(parent.clone()));
             }
         }
         if let Some(child) = &self.child {
             if child != transform.child() {
-                return Err(BufferError::ChildFrameMismatch(child.clone()));
+                return Err(InsertError::ChildFrameMismatch {
+                    pinned: child.clone(),
+                    found: transform.child().into(),
+                });
             }
         }
 
@@ -266,7 +268,7 @@ where
                 data.insert(timestamp, transform);
                 remove_expired(data, *latest_timestamp, *max_age);
             }
-            _ => return Err(BufferError::StaticDynamicConflict),
+            _ => return Err(InsertError::StaticDynamicConflict),
         }
 
         if let Some((parent, child)) = pin {
@@ -281,19 +283,18 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::NoTransformAvailable` if the buffer holds no
+    /// Returns `GetError::NoTransformAvailable` if the buffer holds no
     /// transforms at all.
     ///
-    /// Returns `BufferError::TransformError` carrying
-    /// `TransformError::TimestampOutOfRange` — with the requested time and
-    /// both endpoints of the covered range, in seconds — if the buffer holds
+    /// Returns `GetError::OutOfRange`, carrying both endpoints of the
+    /// covered range in the buffer's own timestamp type, if the buffer holds
     /// transforms but the requested timestamp lies outside their range.
     /// There is no extrapolation; a timestamp between two stored samples
     /// always has neighbors to interpolate between, so an out-of-range
     /// request is the only way a lookup on a non-empty dynamic buffer can
     /// fail to find data. Static buffers serve any requested timestamp.
     ///
-    /// Returns `BufferError::TransformError` if interpolating between the two
+    /// Returns `GetError::Interpolation` if interpolating between the two
     /// neighboring samples fails. With both frames pinned at insertion and
     /// every stored sample keyed by its own `Stamp::At` instant, this is
     /// only reachable through timestamp arithmetic: a span between the
@@ -302,30 +303,26 @@ where
     pub fn get(
         &self,
         timestamp: T,
-    ) -> Result<Transform<T>, BufferError> {
+    ) -> Result<Transform<T>, GetError<T>> {
         let data = match &self.kind {
             // A static transform is valid for all time: the requested
             // timestamp is deliberately ignored.
             Kind::Static(Some(transform)) => return Ok(transform.clone()),
-            Kind::Static(None) => return Err(BufferError::NoTransformAvailable),
+            Kind::Static(None) => return Err(GetError::NoTransformAvailable),
             Kind::Dynamic { data, .. } => data,
         };
 
         let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
-            (Some(before), Some(after)) => {
-                Ok(Transform::interpolate(before.1, after.1, timestamp)?)
-            }
+            (Some(before), Some(after)) => Transform::interpolate(before.1, after.1, timestamp)
+                .map_err(GetError::Interpolation),
             _ => match (data.first_key_value(), data.last_key_value()) {
-                (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange {
-                        requested: timestamp.as_seconds_lossy(),
-                        start: first.as_seconds_lossy(),
-                        end: last.as_seconds_lossy(),
-                    },
-                )),
-                _ => Err(BufferError::NoTransformAvailable),
+                (Some((first, _)), Some((last, _))) => Err(GetError::OutOfRange {
+                    start: *first,
+                    end: *last,
+                }),
+                _ => Err(GetError::NoTransformAvailable),
             },
         }
     }

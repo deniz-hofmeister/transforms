@@ -77,15 +77,17 @@
 //! ```
 
 use crate::{
-    core::Buffer,
-    errors::{BufferError, TransformError},
+    core::{Buffer, buffer::GetError},
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
-use alloc::{boxed::Box, collections::VecDeque, string::String};
+use alloc::{collections::VecDeque, string::String};
+pub use error::RegistryError;
 use hashbrown::HashMap;
 
 use core::time::Duration;
+
+mod error;
 
 /// A registry for managing transforms between different frames. It can
 /// traverse the parent-child tree and calculate the final transform.
@@ -214,24 +216,25 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::TransformError` wrapping
-    /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
-    /// if the transform's numbers are unusable. A transform straight from a
-    /// constructor cannot fail this — but one composed with `*`, interpolated,
-    /// inverted, or read back out of a lookup was deliberately never
-    /// re-validated, so re-publishing such a value is checked here rather than
-    /// silently corrupting every lookup that later crosses the frame.
+    /// Returns `RegistryError::NonUnitRotation` or
+    /// `RegistryError::NonFiniteValues` if the transform's numbers are
+    /// unusable. A transform straight from a constructor cannot fail this —
+    /// but one composed with `*`, interpolated, inverted, or read back out of
+    /// a lookup was deliberately never re-validated, so re-publishing such a
+    /// value is checked here rather than silently corrupting every lookup
+    /// that later crosses the frame.
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the transform's child
-    /// frame already holds transforms of the opposite kind: a child frame is
-    /// either static (`Stamp::Static`) or dynamic (`Stamp::At`), never both.
-    /// The kind is decided by the first transform inserted for the frame.
+    /// Returns `RegistryError::StaticDynamicConflict` if the transform's
+    /// child frame already holds transforms of the opposite kind: a child
+    /// frame is either static (`Stamp::Static`) or dynamic (`Stamp::At`),
+    /// never both. The kind is decided by the first transform inserted for
+    /// the frame.
     ///
-    /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
-    /// and child are the same frame,
-    /// `BufferError::ReparentingNotSupported` if the child frame
+    /// Returns `RegistryError::SelfReferentialFrame` if the transform's
+    /// parent and child are the same frame,
+    /// `RegistryError::ReparentingNotSupported` if the child frame
     /// already has a different parent (remove the frame first with
-    /// [`Registry::remove_frame`]), and `BufferError::CycleDetected` if the
+    /// [`Registry::remove_frame`]), and `RegistryError::CycleDetected` if the
     /// new relationship would create a cycle in the frame tree.
     ///
     /// Inserting at a timestamp the child frame already stores replaces the
@@ -262,7 +265,7 @@ where
     pub fn add_transform(
         &mut self,
         t: Transform<T>,
-    ) -> Result<(), BufferError> {
+    ) -> Result<(), RegistryError<T>> {
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
@@ -292,19 +295,24 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::UnknownFrame` if a requested frame exists
-    /// nowhere in the tree, `TransformError::NotFoundAt` if the lookup
+    /// Returns `RegistryError::UnknownFrame` if a requested frame exists
+    /// nowhere in the tree, `RegistryError::NotFoundAt` if the lookup
     /// failed at a frame that exists but could not serve the requested time,
-    /// and `TransformError::Disconnected` if both frames exist but live in
+    /// and `RegistryError::Disconnected` if both frames exist but live in
     /// trees that no transform chain connects.
     ///
-    /// `NotFoundAt` names the frame the walk stopped at and carries the
-    /// underlying `BufferError`: `TimestampOutOfRange` with that frame's
-    /// covered time range when it holds data the request falls outside of,
-    /// or `NoTransformAvailable` — no range to carry — when it holds no
-    /// data at all, the state a frame drained by
+    /// `NotFoundAt` names the frame the walk stopped at, the timestamp asked
+    /// for, and `covered`: that frame's covered time range when it holds
+    /// data the request falls outside of, or `None` — no range to carry —
+    /// when it holds no data at all, the state a frame drained by
     /// [`Registry::remove_transforms_before`] stays in until something is
     /// inserted into it again.
+    ///
+    /// Composing, inverting or interpolating the transforms the walk
+    /// collected can itself fail — a chain of extreme magnitudes overflows a
+    /// translation to infinity, reported as `RegistryError::NonFiniteValues`;
+    /// anything else as `RegistryError::TransformError`. Those are the two
+    /// lookup failures that name no frame.
     ///
     /// # Examples
     ///
@@ -353,7 +361,7 @@ where
         target: &str,
         source: &str,
         timestamp: T,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         Self::process_get_transform(target, source, timestamp, &self.data)
     }
 
@@ -367,12 +375,13 @@ where
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if a transform cannot be resolved.
+    /// Returns a `RegistryError` if a transform cannot be resolved; the
+    /// variants are [`Registry::get_transform`]'s.
     pub fn get_transform_for<U>(
         &self,
         value: &U,
         target_frame: &str,
-    ) -> Result<Transform<T>, TransformError>
+    ) -> Result<Transform<T>, RegistryError<T>>
     where
         U: Localized<T>,
     {
@@ -408,8 +417,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if any of the required transforms cannot be found
-    /// at the specified times.
+    /// Returns a `RegistryError` if any of the required transforms cannot be
+    /// found at the specified times; the variants are
+    /// [`Registry::get_transform`]'s, reported per leg.
     ///
     /// # Examples
     ///
@@ -498,7 +508,7 @@ where
         source_frame: &str,
         source_time: T,
         fixed_frame: &str,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         Self::process_get_transform_at(
             target_frame,
             target_time,
@@ -520,7 +530,7 @@ where
     /// parent frame and the static-or-dynamic kind pinned by its first
     /// insert. Routine cleanup therefore never re-opens a frame for
     /// re-parenting or for a change of kind, and a lookup on a drained frame
-    /// fails with `TransformError::NotFoundAt` naming that frame rather than
+    /// fails with `RegistryError::NotFoundAt` naming that frame rather than
     /// reporting it as unknown. Frame entries are released only by
     /// [`Registry::remove_frame`] — a process that mints transient frame
     /// names must call it when a frame retires.
@@ -555,22 +565,24 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
-    /// already holds transforms of the opposite kind (static vs. dynamic).
+    /// Returns `RegistryError::CycleDetected` if the new relationship would
+    /// close a cycle, and the buffer's own rejection — mapped onto the
+    /// matching `RegistryError` variant — for everything the child frame's
+    /// buffer refuses.
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
         max_age: Option<Duration>,
-    ) -> Result<(), BufferError> {
+    ) -> Result<(), RegistryError<T>> {
         // A new child->parent relationship changes the tree topology; reject
         // it if it would close a cycle. (Existing buffers have their parent
         // pinned, so occupied inserts cannot.)
         if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
-            return Err(BufferError::CycleDetected);
+            return Err(RegistryError::CycleDetected);
         }
 
         if let Some(buffer) = data.get_mut(t.child()) {
-            return buffer.insert(t);
+            return buffer.insert(t).map_err(Into::into);
         }
 
         // New frame: fill the buffer BEFORE registering it in the map, so a
@@ -631,28 +643,39 @@ where
     /// holds data outside that time or no data at all), and otherwise —
     /// both frames known and both walks clean — the frames live in
     /// disconnected trees. The scans run only on the failure path.
+    ///
+    /// A walk that stopped on a failed *interpolation* is reported as that
+    /// failure rather than as a `NotFoundAt`: the frame does cover the
+    /// requested time, so neither `covered` shape would describe it.
     fn diagnose_not_found(
         from: &str,
         to: &str,
+        timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-        walk_failure: &mut Option<(String, BufferError)>,
-    ) -> TransformError {
+        walk_failure: &mut Option<(String, GetError<T>)>,
+    ) -> RegistryError<T> {
         for frame in [from, to] {
             if !Self::frame_exists(frame, data) {
-                return TransformError::UnknownFrame(frame.into());
+                return RegistryError::UnknownFrame(frame.into());
             }
         }
-        match walk_failure.take() {
-            Some((frame, cause)) => TransformError::NotFoundAt {
-                target_frame: from.into(),
-                source_frame: to.into(),
-                frame,
-                source: Box::new(cause),
-            },
-            None => TransformError::Disconnected {
-                target_frame: from.into(),
-                source_frame: to.into(),
-            },
+        let (frame, covered) = match walk_failure.take() {
+            Some((frame, GetError::NoTransformAvailable)) => (frame, None),
+            Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
+            Some((_, GetError::Interpolation(cause))) => return cause.into(),
+            None => {
+                return RegistryError::Disconnected {
+                    target_frame: from.into(),
+                    source_frame: to.into(),
+                };
+            }
+        };
+        RegistryError::NotFoundAt {
+            target_frame: from.into(),
+            source_frame: to.into(),
+            frame,
+            requested: timestamp,
+            covered,
         }
     }
 
@@ -660,18 +683,19 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If the lookup failed at a frame that exists but could not
+    /// * `RegistryError::UnknownFrame` - If a requested frame exists nowhere in the tree
+    /// * `RegistryError::NotFoundAt` - If the lookup failed at a frame that exists but could not
     ///   serve the requested time, either because the request falls outside the data it holds or
     ///   because it holds none
-    /// * `TransformError::Disconnected` - If both frames exist but no chain connects them
-    /// * Other variants of `TransformError` resulting from transform operations
+    /// * `RegistryError::Disconnected` - If both frames exist but no chain connects them
+    /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If an operation on
+    ///   the resolved chain failed
     fn process_get_transform(
         target: &str,
         source: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         // A frame relative to itself is the identity, regardless of whether
         // the frame is known: the answer holds either way, and it keeps
         // same-frame queries consistent with `get_transform_for`.
@@ -730,6 +754,7 @@ where
                         Some(Err(Self::diagnose_not_found(
                             target,
                             source,
+                            timestamp,
                             data,
                             &mut walk_failure,
                         )))
@@ -744,6 +769,7 @@ where
                 (None, None) => Some(Err(Self::diagnose_not_found(
                     target,
                     source,
+                    timestamp,
                     data,
                     &mut walk_failure,
                 ))),
@@ -756,6 +782,7 @@ where
             Err(Self::diagnose_not_found(
                 target,
                 source,
+                timestamp,
                 data,
                 &mut walk_failure,
             ))
@@ -769,6 +796,7 @@ where
             return Err(Self::diagnose_not_found(
                 target,
                 source,
+                timestamp,
                 data,
                 &mut walk_failure,
             ));
@@ -792,12 +820,13 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If a leg failed at a frame that exists but could not
+    /// * `RegistryError::UnknownFrame` - If a requested frame exists nowhere in the tree
+    /// * `RegistryError::NotFoundAt` - If a leg failed at a frame that exists but could not
     ///   serve the requested time, either because the request falls outside the data it holds or
     ///   because it holds none
-    /// * `TransformError::Disconnected` - If a leg's frames exist but no chain connects them
-    /// * Other variants of `TransformError` resulting from transform operations
+    /// * `RegistryError::Disconnected` - If a leg's frames exist but no chain connects them
+    /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If composing the
+    ///   two legs failed
     fn process_get_transform_at(
         target_frame: &str,
         target_time: T,
@@ -805,7 +834,7 @@ where
         source_time: T,
         fixed_frame: &str,
         data: &HashMap<String, Buffer<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         // Following tf2's algorithm:
         // 1. Get transform expressing source_frame in fixed_frame at source_time
         // 2. Get transform expressing target_frame in fixed_frame at target_time
@@ -874,7 +903,7 @@ where
         to: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-        walk_failure: &mut Option<(String, BufferError)>,
+        walk_failure: &mut Option<(String, GetError<T>)>,
     ) -> Option<VecDeque<Transform<T>>> {
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
@@ -952,11 +981,11 @@ where
     ///
     /// # Errors
     ///
-    /// * Variants of `TransformError` resulting from invalid transform operations
+    /// * The `RegistryError` a failed transform operation converts into
     fn combine_transforms(
         target_chain: VecDeque<Transform<T>>,
         source_chain: VecDeque<Transform<T>>,
-    ) -> Option<Result<Transform<T>, TransformError>> {
+    ) -> Option<Result<Transform<T>, RegistryError<T>>> {
         let target = match Self::compose_chain(target_chain) {
             Ok(composed) => composed,
             Err(e) => return Some(Err(e)),
@@ -968,11 +997,14 @@ where
 
         match (target, source) {
             (None, None) => None,
-            (Some(target), None) => Some(target.inverse()),
+            (Some(target), None) => Some(target.inverse().map_err(Into::into)),
             (None, Some(source)) => Some(Ok(source)),
-            (Some(target), Some(source)) => {
-                Some(target.inverse().and_then(|inverted| inverted * source))
-            }
+            (Some(target), Some(source)) => Some(
+                target
+                    .inverse()
+                    .and_then(|inverted| inverted * source)
+                    .map_err(Into::into),
+            ),
         }
     }
 
@@ -985,10 +1017,10 @@ where
     ///
     /// # Errors
     ///
-    /// * Variants of `TransformError` resulting from invalid transform operations
+    /// * The `RegistryError` a failed composition converts into
     fn compose_chain(
         chain: VecDeque<Transform<T>>
-    ) -> Result<Option<Transform<T>>, TransformError> {
+    ) -> Result<Option<Transform<T>>, RegistryError<T>> {
         let mut iter = chain.into_iter();
         let Some(mut composed) = iter.next() else {
             return Ok(None);

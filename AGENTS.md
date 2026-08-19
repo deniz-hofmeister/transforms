@@ -97,7 +97,7 @@ would produce) a silent wrong answer:
   static.
 - A child frame's buffer is static **xor** dynamic. The first insert fixes the
   kind; a mismatched later insert must fail with
-  `BufferError::StaticDynamicConflict`. Staticness is `Stamp::Static` on the
+  `RegistryError::StaticDynamicConflict`. Staticness is `Stamp::Static` on the
   transform — no timestamp value is reserved. `Stamp` is deliberately
   unordered (`PartialEq`/`Eq` only): `Static` denotes all time, so any
   ordering would rank an eternal transform against real instants and make
@@ -111,13 +111,23 @@ would produce) a silent wrong answer:
   frames exactly; a chain that resolves only partway must return an error,
   never a partial result — `UnknownFrame` for a frame that exists nowhere,
   `Disconnected` for two known frames no chain connects, and `NotFoundAt`
-  for a known frame that cannot serve the requested time — carrying the
-  frame plus the underlying `BufferError`, which separates a gap in data the
-  frame holds (`TimestampOutOfRange`, with the covered range) from a frame
-  holding nothing at all (`NoTransformAvailable`, no range); a caller must
-  not read the second as a timing problem. Results always carry
-  the requested timestamp (also over static chains), and a frame relative to
-  itself is the identity.
+  for a known frame that cannot serve the requested time — carrying that
+  frame, the `requested: T` instant, and `covered: Option<(T, T)>`, which
+  separates a gap in data the frame holds (`Some`, the covered range) from a
+  frame holding nothing at all (`None`); a caller must not read the second
+  as a timing problem. Results always carry the requested timestamp (also
+  over static chains), and a frame relative to itself is the identity.
+- Every `Registry` call reports `RegistryError<T>` and it stays **flat**:
+  one `match` reaches every cause and every payload. `TransformError` is
+  pure geometry and time, and the single `RegistryError::TransformError` arm
+  that wraps it must never carry `NonUnitRotation` or `NonFiniteValues` —
+  `From<TransformError> for RegistryError` canonicalizes those two into
+  their flat variants, so a condition never has two spellings a caller could
+  match one of and miss the other. Lookup payloads stay in the caller's time
+  type `T`; the conversion to seconds happens in `Display`, nowhere else.
+  The buffer's own error types (`InsertError`, `GetError<T>`) are internal
+  and split by operation so that every conversion into `RegistryError` is
+  total — one enum for both would force an unreachable arm on each.
 - Interpolation happens only between stored samples; a query outside the
   covered time range fails with `TimestampOutOfRange`. There is no
   extrapolation.

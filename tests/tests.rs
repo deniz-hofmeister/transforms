@@ -1,7 +1,7 @@
 use std::time::Duration;
 use transforms::{
     Registry,
-    errors::{BufferError, TransformError},
+    errors::RegistryError,
     geometry::{Quaternion, Transform, Vector3},
     time::{Stamp, Timestamp},
 };
@@ -125,28 +125,29 @@ fn test_non_matching_tree() {
     // frame "c" with the exact covered range in the payload.
     let r = registry.get_transform("a", "c", t);
 
+    // One `match`, one level: the frame the walk stopped at, the instant
+    // asked for, and the range that frame covers all sit in the variant, in
+    // the registry's own time type. `covered: None` would mean the frame
+    // holds nothing at all — a different situation, and not a timing one.
     match r {
-        Err(TransformError::NotFoundAt {
+        Err(RegistryError::NotFoundAt {
             target_frame,
             source_frame,
             frame,
-            source,
+            requested,
+            covered,
         }) => {
             assert_eq!(target_frame, "a");
             assert_eq!(source_frame, "c");
             assert_eq!(frame, "c");
-            match *source {
-                BufferError::TransformError(TransformError::TimestampOutOfRange {
-                    requested,
-                    start,
-                    end,
-                }) => {
-                    assert_eq!(requested, 1.0);
-                    assert_eq!(start, 3.0);
-                    assert_eq!(end, 4.0);
-                }
-                other => panic!("expected TimestampOutOfRange, got {other:?}"),
-            }
+            assert_eq!(requested, t);
+            assert_eq!(
+                covered,
+                Some((
+                    (t + Duration::from_secs(2)).unwrap(),
+                    (t + Duration::from_secs(3)).unwrap()
+                ))
+            );
         }
         other => panic!("expected NotFoundAt, got {other:?}"),
     }

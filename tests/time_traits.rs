@@ -2,7 +2,7 @@ use core::time::Duration;
 
 use transforms::{
     Registry,
-    errors::{BufferError, TimeError},
+    errors::{RegistryError, TimeError},
     geometry::{Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
@@ -220,7 +220,7 @@ fn static_dynamic_conflict_fires_in_both_orders() {
         .unwrap();
     assert!(matches!(
         registry.add_transform(test_transform("a", "b", Stamp::At(TestTime(5)), 2.0)),
-        Err(BufferError::StaticDynamicConflict)
+        Err(RegistryError::StaticDynamicConflict)
     ));
 
     let mut registry = Registry::<TestTime>::new();
@@ -229,7 +229,7 @@ fn static_dynamic_conflict_fires_in_both_orders() {
         .unwrap();
     assert!(matches!(
         registry.add_transform(test_transform("a", "b", Stamp::Static, 1.0)),
-        Err(BufferError::StaticDynamicConflict)
+        Err(RegistryError::StaticDynamicConflict)
     ));
 }
 

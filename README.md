@@ -51,6 +51,10 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
   `thumbv6m-none-eabi` (RP2040), `thumbv8m.main-none-eabihf` (Cortex-M33),
   and `riscv32imc-unknown-none-elf` (ESP32-C3) — the `std` feature is
   additive, and automatic cleanup (`with_max_age`) works in both modes.
+- **One flat error per call**: every `Registry` method reports
+  `RegistryError<T>` — insertion and lookup alike — with the lookup payloads
+  typed in your own time type instead of pre-formatted seconds. Diagnosing a
+  failed lookup is a single `match`, not three nested ones.
 - **Rust-first API cleanup**: exact `==` with tolerant comparison in the
   `approx` traits, `#[non_exhaustive]` errors, private internals, optional
   `serde` support, an enforced panic policy, and MSRV 1.86.
@@ -149,13 +153,27 @@ pub fn new() -> Self
 // Automatic cleanup of transforms older than max_age
 pub fn with_max_age(max_age: Duration) -> Self
 
-pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), BufferError>
-pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, TransformError>
-pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, TransformError>
-pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, TransformError>
+pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), RegistryError<T>>
+pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, RegistryError<T>>
+pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, RegistryError<T>>
+pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, RegistryError<T>>
 pub fn remove_transforms_before(&mut self, timestamp: T)
 pub fn remove_frame(&mut self, child: &str) -> bool
 ```
+
+Every registry call reports `errors::RegistryError<T>`, one flat
+`#[non_exhaustive]` enum: `NonUnitRotation`, `NonFiniteValues`,
+`SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected` and
+`StaticDynamicConflict` from insertion; `UnknownFrame`, `Disconnected` and
+`NotFoundAt` from lookups. One `match` reaches every cause and every
+payload — `NotFoundAt` carries the frame the walk stopped at, the
+`requested: T` timestamp, and `covered: Option<(T, T)>`: `Some(range)` is a
+gap in data the frame holds (a timing question), `None` is a frame holding
+nothing at all (waiting will not help). The timestamps stay in your own
+time type, so they compare directly against the clock you asked with. The
+one wrapping variant, `RegistryError::TransformError`, reports a geometry
+or time failure of an operation on the resolved chain; it never carries
+`NonUnitRotation` or `NonFiniteValues`, which have exactly one spelling.
 
 ### Core Types
 

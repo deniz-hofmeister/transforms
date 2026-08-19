@@ -2,7 +2,7 @@
 mod registry_tests {
     use crate::{
         Registry, Transformable,
-        errors::{BufferError, TransformError},
+        errors::RegistryError,
         geometry::{Point, Quaternion, Transform, UNIT_NORM_TOLERANCE, Vector3},
         time::{Stamp, Timestamp},
     };
@@ -941,7 +941,7 @@ mod registry_tests {
         // silently picking another reference — naming the unknown frame.
         let result = registry.get_transform_at("a", t2, "b", t1, "nowhere");
         assert!(
-            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "nowhere"),
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "nowhere"),
             "expected UnknownFrame for unknown fixed frame, got {result:?}"
         );
     }
@@ -986,7 +986,7 @@ mod registry_tests {
         // the frame that could not serve the time.
         let result = registry.get_transform_at("a", t1, "b", t2, "fixed");
         assert!(
-            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "b"),
+            matches!(&result, Err(RegistryError::NotFoundAt { frame, .. }) if frame == "b"),
             "expected NotFoundAt naming frame b for missing source data, got {result:?}"
         );
 
@@ -994,7 +994,7 @@ mod registry_tests {
         // a -> fixed leg cannot resolve at t3 (no extrapolation).
         let result = registry.get_transform_at("a", t3, "b", t1, "fixed");
         assert!(
-            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "a"),
+            matches!(&result, Err(RegistryError::NotFoundAt { frame, .. }) if frame == "a"),
             "expected NotFoundAt naming frame a for missing target data, got {result:?}"
         );
     }
@@ -1085,7 +1085,7 @@ mod registry_tests {
         let result = registry.get_transform_for(&point, "map");
 
         assert!(
-            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "map"),
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "map"),
             "expected UnknownFrame on an empty registry, got {result:?}"
         );
     }
@@ -1119,7 +1119,7 @@ mod registry_tests {
             )
             .unwrap(),
         );
-        assert!(matches!(result, Err(BufferError::CycleDetected)));
+        assert!(matches!(result, Err(RegistryError::CycleDetected)));
 
         // The direct lookup keeps working; the poisoning path is gone.
         assert!(registry.get_transform("a", "b", t).is_ok());
@@ -1147,7 +1147,7 @@ mod registry_tests {
             )
             .unwrap(),
         );
-        assert!(matches!(result, Err(BufferError::CycleDetected)));
+        assert!(matches!(result, Err(RegistryError::CycleDetected)));
     }
 
     #[test]
@@ -1164,7 +1164,7 @@ mod registry_tests {
             )
             .unwrap(),
         );
-        assert!(matches!(result, Err(BufferError::SelfReferentialFrame)));
+        assert!(matches!(result, Err(RegistryError::SelfReferentialFrame)));
     }
 
     #[test]
@@ -1199,7 +1199,7 @@ mod registry_tests {
         let result = registry.add_transform(reparented.clone());
         assert!(matches!(
             result,
-            Err(BufferError::ReparentingNotSupported(parent)) if parent == "world"
+            Err(RegistryError::ReparentingNotSupported { current_parent }) if current_parent == "world"
         ));
 
         // remove_frame is the escape hatch: after removal the new parent is
@@ -1246,7 +1246,7 @@ mod registry_tests {
         assert!(
             matches!(
                 result,
-                Err(BufferError::ReparentingNotSupported(ref parent)) if parent == "world"
+                Err(RegistryError::ReparentingNotSupported { ref current_parent }) if current_parent == "world"
             ),
             "cleanup must not release the parent pin, got {result:?}"
         );
@@ -1291,7 +1291,7 @@ mod registry_tests {
             .unwrap(),
         );
         assert!(
-            matches!(result, Err(BufferError::StaticDynamicConflict)),
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
             "cleanup must not release the static/dynamic kind, got {result:?}"
         );
     }
@@ -1323,9 +1323,8 @@ mod registry_tests {
         assert!(
             matches!(
                 &result,
-                Err(TransformError::NotFoundAt { frame, source, .. })
-                    if frame == "object"
-                        && matches!(source.as_ref(), BufferError::NoTransformAvailable)
+                Err(RegistryError::NotFoundAt { frame, requested, covered, .. })
+                    if frame == "object" && *requested == t2 && covered.is_none()
             ),
             "expected NotFoundAt naming the drained frame, got {result:?}"
         );
@@ -1355,13 +1354,13 @@ mod registry_tests {
         // frame.
         let result = registry.get_transform("b", "does_not_exist", t);
         assert!(
-            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "does_not_exist"),
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "does_not_exist"),
             "expected UnknownFrame for unknown target frame, got {result:?}"
         );
 
         let result = registry.get_transform("does_not_exist", "b", t);
         assert!(
-            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "does_not_exist"),
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "does_not_exist"),
             "expected UnknownFrame for unknown source frame, got {result:?}"
         );
     }
@@ -1413,12 +1412,8 @@ mod registry_tests {
         assert!(
             matches!(
                 &result,
-                Err(TransformError::NotFoundAt { frame, source, .. })
-                    if frame == "b"
-                        && matches!(
-                            source.as_ref(),
-                            BufferError::TransformError(TransformError::TimestampOutOfRange { requested, start, end }) if *requested == 2.0 && *start == 1.0 && *end == 1.0
-                        )
+                Err(RegistryError::NotFoundAt { frame, requested, covered, .. })
+                    if frame == "b" && *requested == t1 && *covered == Some((t0, t0))
             ),
             "expected NotFoundAt naming frame b with the covered range, got {result:?}"
         );
@@ -1487,7 +1482,7 @@ mod registry_tests {
 
         let result = registry.get_transform("a", "c", t2);
         assert!(
-            matches!(&result, Err(TransformError::NotFoundAt { frame, .. }) if frame == "b"),
+            matches!(&result, Err(RegistryError::NotFoundAt { frame, .. }) if frame == "b"),
             "expected NotFoundAt naming the gap frame b, got {result:?}"
         );
     }
@@ -1531,7 +1526,7 @@ mod registry_tests {
         assert!(
             matches!(
                 &result,
-                Err(TransformError::Disconnected { target_frame, source_frame })
+                Err(RegistryError::Disconnected { target_frame, source_frame })
                     if target_frame == "a" && source_frame == "b"
             ),
             "expected Disconnected for frames in disconnected trees, got {result:?}"
@@ -1564,7 +1559,7 @@ mod registry_tests {
 
         let result = registry.get_transform("b", "nope", t2);
         assert!(
-            matches!(&result, Err(TransformError::UnknownFrame(frame)) if frame == "nope"),
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "nope"),
             "expected UnknownFrame to take precedence over the data gap, got {result:?}"
         );
     }
@@ -1597,7 +1592,7 @@ mod registry_tests {
         assert!(
             matches!(
                 registry.add_transform(dynamic_tf.clone()),
-                Err(BufferError::StaticDynamicConflict)
+                Err(RegistryError::StaticDynamicConflict)
             ),
             "dynamic insert into a static child frame must be rejected"
         );
@@ -1609,7 +1604,7 @@ mod registry_tests {
         assert!(
             matches!(
                 registry.add_transform(static_tf),
-                Err(BufferError::StaticDynamicConflict)
+                Err(RegistryError::StaticDynamicConflict)
             ),
             "static insert into a dynamic child frame must be rejected"
         );
@@ -1748,9 +1743,7 @@ mod registry_tests {
         // every later lookup through the frame rotates, and report success.
         assert!(matches!(
             registry.add_transform(flattened),
-            Err(BufferError::TransformError(
-                TransformError::NonUnitRotation(_)
-            ))
+            Err(RegistryError::NonUnitRotation(_))
         ));
 
         // The same for a translation that overflowed during composition.
@@ -1775,7 +1768,7 @@ mod registry_tests {
 
         assert!(matches!(
             registry.add_transform(overflowed),
-            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+            Err(RegistryError::NonFiniteValues)
         ));
 
         // Nothing was stored, so no lookup can serve either value.
@@ -1847,7 +1840,7 @@ mod registry_tests {
         .unwrap();
         assert!(matches!(
             registry.add_transform(invalid),
-            Err(BufferError::SelfReferentialFrame)
+            Err(RegistryError::SelfReferentialFrame)
         ));
 
         registry
@@ -1875,7 +1868,7 @@ mod registry_tests {
             )
             .unwrap(),
         );
-        assert!(matches!(result, Err(BufferError::CycleDetected)));
+        assert!(matches!(result, Err(RegistryError::CycleDetected)));
 
         // The stored transform still resolves, unpoisoned.
         let result = registry.get_transform("a", "b", t).unwrap();
@@ -2021,6 +2014,7 @@ mod registry_tests {
     fn public_types_are_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Registry>();
+        assert_send_sync::<RegistryError>();
         assert_send_sync::<Transform>();
         assert_send_sync::<Point>();
         assert_send_sync::<Vector3>();
@@ -2043,6 +2037,61 @@ mod registry_tests {
             timestamp,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn a_lookup_that_overflows_reports_the_same_flat_variant_as_an_insert() {
+        // Two individually finite hops compose to an infinite translation,
+        // which the lookup notices when it inverts the chain. The condition
+        // must arrive as the same flat `NonFiniteValues` an insert reports:
+        // one spelling per condition, so a caller matching it cannot miss a
+        // wrapped copy arriving from the other code path.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t), 1.0e308))
+            .unwrap();
+        registry
+            .add_transform(translated("b", "c", Stamp::At(t), 1.0e308))
+            .unwrap();
+
+        let result = registry.get_transform("c", "a", t);
+        assert!(
+            matches!(result, Err(RegistryError::NonFiniteValues)),
+            "expected a flat NonFiniteValues, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn not_found_at_renders_both_coverage_cases_in_seconds() {
+        // Error formatting goes through `TimePoint::as_seconds_lossy`, which
+        // is infallible by contract: neither shape of `covered` can fail to
+        // render and mask the error being reported. The two shapes must also
+        // read differently — a drained frame is not a timing problem.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t2), 2.0))
+            .unwrap();
+
+        let gap = registry.get_transform("a", "b", t3).unwrap_err();
+        assert_eq!(
+            alloc::format!("{gap}"),
+            "transform from b into a at 3 not found (b covers [1, 2])"
+        );
+
+        registry.remove_transforms_before(t3);
+        let drained = registry.get_transform("a", "b", t3).unwrap_err();
+        assert_eq!(
+            alloc::format!("{drained}"),
+            "transform from b into a at 3 not found (b holds no transforms)"
+        );
     }
 
     #[test]
@@ -2114,20 +2163,15 @@ mod registry_tests {
 
         // Older samples are gone: the covered range collapsed to [t3, t3].
         match registry.get_transform("a", "b", t2) {
-            Err(TransformError::NotFoundAt { frame, source, .. }) => {
+            Err(RegistryError::NotFoundAt {
+                frame,
+                requested,
+                covered,
+                ..
+            }) => {
                 assert_eq!(frame, "b");
-                match *source {
-                    BufferError::TransformError(TransformError::TimestampOutOfRange {
-                        requested,
-                        start,
-                        end,
-                    }) => {
-                        assert_eq!(requested, 2.0);
-                        assert_eq!(start, 3.0);
-                        assert_eq!(end, 3.0);
-                    }
-                    other => panic!("unexpected buffer error: {other:?}"),
-                }
+                assert_eq!(requested, t2);
+                assert_eq!(covered, Some((t3, t3)));
             }
             other => panic!("expected NotFoundAt, got {other:?}"),
         }
@@ -2152,7 +2196,7 @@ mod registry_tests {
         assert!(registry.remove_frame("odom"));
 
         match registry.get_transform("map", "base_link", t) {
-            Err(TransformError::UnknownFrame(frame)) => assert_eq!(frame, "map"),
+            Err(RegistryError::UnknownFrame(frame)) => assert_eq!(frame, "map"),
             other => panic!("expected UnknownFrame, got {other:?}"),
         }
     }
