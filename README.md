@@ -17,7 +17,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 **Key characteristics:**
 
 - **Middleware-independent**: No ROS2, DDS, or any communication layer dependencies. Use it standalone or wrap it with your own pub-sub system. Checkout [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) if you are looking for a wrapped system.
-- **`no_std` compatible**: Works in embedded and resource-constrained environments.
+- **`no_std` compatible**: builds and runs on bare-metal targets, with a heap allocator. All arithmetic is `f64`, which is software-emulated on the single-precision FPUs most Cortex-M boards carry — see the [supported envelope](#supported-envelope) for the rates and tree depths that fit an MCU.
 - **Memory safe**: Uses `#![forbid(unsafe_code)]` throughout.
 - **Inspired by tf2**: Familiar concepts for robotics developers, but with a Rust-first API.
 
@@ -58,6 +58,11 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 - **Rust-first API cleanup**: exact `==` with tolerant comparison in the
   `approx` traits, `#[non_exhaustive]` errors, private internals, optional
   `serde` support, an enforced panic policy, and MSRV 1.86.
+- **A stated envelope**: `f64` is a commitment — f32 and mixed precision are
+  Non-Goals — and the [Performance](#performance) section publishes what
+  that costs: measured per-operation timings and allocation counts, ~320 B
+  of resident heap per stored sample, and the rates and tree depths that do
+  and do not fit an MCU.
 
 `add_transform` is now fallible — the headline migration for 1.x users:
 
@@ -451,28 +456,32 @@ registry.remove_transforms_before(cutoff);
 
 ### Concurrent Access
 
-For multi-threaded applications, wrap the registry in appropriate synchronization primitives:
+Every lookup takes `&self` and the registry has no interior mutability, so
+concurrent readers need no exclusive access: wrap it in an `RwLock` and only
+the publisher blocks.
 
 ```rust
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
-let registry = Arc::new(Mutex::new(Registry::with_max_age(Duration::from_secs(60))));
+let registry = Arc::new(RwLock::new(Registry::with_max_age(Duration::from_secs(60))));
 
-// Writer task
+// Writer task - exclusive access
 let registry_writer = registry.clone();
 tokio::spawn(async move {
-    let mut r = registry_writer.lock().await;
-    r.add_transform(transform).unwrap();
+    registry_writer.write().await.add_transform(transform).unwrap();
 });
 
-// Reader task
+// Reader task - shared access, does not block other readers
 let registry_reader = registry.clone();
 tokio::spawn(async move {
-    let r = registry_reader.lock().await;
-    let result = r.get_transform("a", "b", timestamp);
+    let result = registry_reader.read().await.get_transform("a", "b", timestamp);
 });
 ```
+
+`examples/std_full.rs` is this pattern as a program that compiles and runs
+(`cargo run --example std_full`), including how a reader picks a timestamp
+its publishers already cover.
 
 ## Comparison with ROS2 tf2
 
@@ -509,13 +518,13 @@ This means:
 
 - **No ROS2 required**: Use in any Rust application, not just ROS2 nodes
 - **No DDS overhead**: No network traffic, serialization, or distributed consensus
-- **Embedded-friendly**: Works in `no_std` environments with minimal footprint
+- **Embedded-capable**: runs in `no_std` with a heap allocator; how much tree and how much rate fit is set by `f64` math and per-sample memory, both quantified in [Supported envelope](#supported-envelope)
 - **Bring your own transport**: If you need distributed transforms, wrap with your preferred pub-sub system (DDS, MQTT, ZeroMQ, custom protocol, etc.)
 
 This design makes the library suitable for:
 
 - Monolithic robotics applications
-- Embedded systems and microcontrollers
+- Embedded systems and microcontrollers, at the rates and depths the supported envelope covers
 - Simulations and testing without ROS2
 - Applications with custom communication requirements
 
@@ -560,6 +569,50 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
   never from the platform's own math library, so a desktop replay
   reproduces the target's interpolated rotations bit for bit
 
+### Measured cost
+
+On x86-64 (Intel i7-1065G7, release + LTO, counting global allocator),
+against frames holding 1000 dynamic samples each:
+
+| Operation | Time | Allocations |
+|---|---|---|
+| `add_transform`, steady state under `with_max_age` | ~0.4 µs | 2 |
+| `get_transform`, 1 hop, at a stored stamp | ~0.6 µs | 5 |
+| `get_transform`, 1 hop, interpolated | ~0.7 µs | 5 |
+| `get_transform`, 4 hops toward an ancestor, interpolated | ~1.9 µs | 11 |
+| `get_transform` rejecting an unknown frame among 1000 frames | ~9 µs | 3 |
+
+Resident memory is about **320 B per stored sample** — a 120-byte
+`Transform`, its entry in the ordered map, and the two frame-name strings,
+including allocator block granularity. A dynamic edge published at 1 kHz
+under a one-second `max_age` therefore holds ~320 KB. 32-bit targets are
+smaller, so that figure is a safe upper bound for sizing an MCU heap.
+
+### Supported envelope
+
+The crate commits to `f64` (see [Non-Goals](#non-goals)), so on cores
+without a double-precision FPU every coordinate operation is emulated in
+software. That, together with the per-sample memory above, is what decides
+fitness:
+
+| Platform | Workload | Memory for a 1 s window | Basis |
+|---|---|---|---|
+| x86-64 / ARM64 SBC (Raspberry Pi, Jetson) | 1 kHz tick: 6 dynamic edges published and 3 lookups of 3–5 hops, ~11 µs/tick ≈ 1% of one core | ~1.9 MB, against gigabytes | measured |
+| Cortex-M7 (STM32 F7/H7 — hardware `f64`) | between the rows above and below: the one named MCU class that does not pay soft-float | same per-sample figure | neither measured nor estimated |
+| Cortex-M4F / M33 (`f64` in software) | ~100 Hz, mostly-static tree, one or two dynamic edges: single-digit percent of the core | ~64 KB of a 192 KB SRAM | estimated |
+| Cortex-M4F / M33 | 1 kHz over 6 dynamic edges: **does not fit** — RAM runs out before CPU does | ~1.9 MB against 192 KB SRAM | estimated |
+| Cortex-M0+ / RV32IMC (no FPU) | static trees and occasional lookups; one four-hop lookup is estimated above 1 ms | ~32 KB per dynamic edge at 100 Hz | estimated |
+
+The estimated rows come from first principles — the soft-float symbols a
+bare-metal build links, scaled by the x86-64 measurements above — and
+nothing here was executed on target, so treat them as ±2×. The memory
+column is arithmetic on the per-sample figure above, so it is an upper
+bound on the 32-bit rows.
+
+Static transforms cost one sample forever, so publishing fixed mounts with
+`Transform::static_between` is the cheapest way to keep an embedded tree
+inside this envelope; `with_max_age` bounds the rest.
+
 Benchmarks are available in the `benches/` directory. Run with:
 
 ```bash
@@ -578,6 +631,7 @@ This library intentionally limits its scope to **rigid body transformations** (t
 - API parity with ROS2 tf2
 - Non-linear interpolation
 - Extrapolation
+- f32 or mixed-precision arithmetic (every coordinate and rotation is f64)
 
 This focused scope keeps the library fast, predictable, and specialized for robotics applications. For more general transformation needs, consider a linear algebra or computer graphics library.
 

@@ -299,9 +299,36 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   diagnosis); the `approx` 0.5 public-API
   commitment is recorded; allocation-failure behavior and the
   deterministic-hasher trade-off are stated for `no_std`.
-- Docs: the README no longer claims `Registry::new()` is shorthand for
-  `Registry::<Timestamp>::new()` — default type parameters do not apply in
-  expression position, and inference can land on any `TimePoint`.
+- Docs: neither the README nor the rustdoc claims `Registry::new()` is
+  shorthand for `Registry::<Timestamp>::new()` — default type parameters do
+  not apply in expression position, and inference can land on any
+  `TimePoint`. The crate root and the registry module also stop teaching the
+  1.x constructor, `Registry::new(...)` with an argument list: the README had
+  been corrected, docs.rs — what a new user actually reads — had not.
+- Docs: the scalar type is a commitment, not an accident. f32 and
+  mixed-precision arithmetic are Non-Goals (README and crate root, one
+  identical list), and the README publishes the envelope that commitment
+  implies: measured per-operation cost and allocation counts on x86-64,
+  about 320 B of resident heap per stored sample, and a platform × rate ×
+  chain-depth table that says which workloads fit an MCU and which run out
+  of SRAM first. The crate root's "size the heap for `max_age` times the
+  insert rate" advice gains that coefficient, and the embedded positioning
+  now points at the table instead of promising a "minimal footprint".
+- Docs: `Quaternion::normalize` documents the threshold it actually applies
+  — a norm below `f64::EPSILON` — instead of the `1e-8` figure copied from
+  the `Div` impl, which was wrong by eight orders of magnitude in the
+  permissive direction; a doctest pins both sides of the boundary.
+- Docs: MIGRATION.md states the module-privatization rule. Every 1.x deep
+  import (`transforms::geometry::transform::Transform` and friends) fails
+  with E0603, and rustc's suggestion there — unlike the one for
+  `Registry::new(max_age)` — names the right path and should be taken.
+- Docs: the README concurrency snippet uses `RwLock`, matching the `&self`
+  read design it exists to demonstrate, and points at `examples/std_full.rs`
+  as the compiled version. That example no longer stamps its samples one
+  second into the future so its own `now()` lookups resolve — a pattern that
+  mis-stamps real sensor data. It publishes each sample at the instant the
+  sample describes and reads at a stamp its publisher already covers, which
+  is what no extrapolation requires of a reader.
 - Docs: the vague serde `u128` caveat is replaced with the format-support
   statement the narrowed `u64` stamp makes simple — every serde format
   encodes it as a native integer.
@@ -344,7 +371,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   ConnectivityException. The catch-all `TransformError::NotFound` variant —
   the primary lookup-miss error since 1.0 — is removed in favor of the
   diagnosed variants. (This entry originally called it "never-produced",
-  which was wrong; corrected in beta.5.)
+  which was wrong; corrected in 2.0.0-rc.1. There was no beta.5 release —
+  an earlier version of this note pointed at one.)
 - A miss on a non-empty buffer reports `TransformError::TimestampOutOfRange`
   with the requested time and the covered range (via
   `BufferError::TransformError`), distinguishing a lookup that is merely too

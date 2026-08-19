@@ -231,6 +231,20 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 ### 5. Private internals
 
+- **Every public type has exactly one path, and the leaf modules are not it.**
+  The modules the types live in — `geometry::transform`, `geometry::quaternion`,
+  `geometry::vector3`, `geometry::point`, `time::timestamp`, `time::traits`,
+  `core::registry`, `core::buffer` — are private in 2.0, so a 1.x deep import
+  fails on the `use` line with `error[E0603]: module ... is private`. The rule,
+  not an inventory: import a type from the module that re-exports it —
+  `transforms::{Registry, Transform, Transformable, Localized}`,
+  `transforms::geometry::{Point, Quaternion, Vector3, UNIT_NORM_TOLERANCE}`,
+  `transforms::time::{Stamp, TimePoint, Timestamp}`, and `transforms::errors::*`
+  for the error types. Unlike the suggestion in break 1, **rustc's suggestion
+  here is correct; take it**: every one of those imports gets a `help: consider
+  importing this struct instead` naming the canonical path (for example
+  `use transforms::time::Timestamp;`). It is marked `MaybeIncorrect`, so
+  `cargo fix` will not apply it for you.
 - `registry.data` is private. There is no public iteration API — restructure
   around `get_transform`, `remove_frame`, and your own bookkeeping.
 - **`Buffer` and the `core` module are gone from the public API.** `Registry`
@@ -238,13 +252,9 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
   transforms::Registry`, never `transforms::core::Registry`. Code that stored
   transforms in a `Buffer` of its own has no drop-in replacement type — give
   the frame pair to a `Registry` (one buffer per child frame is what it keeps
-  internally) and use `add_transform` / `get_transform`. Both imports fail with
-  E0603 (`module core is private`) on the `use` line, but rustc helps unevenly:
-  for `transforms::core::Registry` it adds `help: consider importing this
-  struct instead` with the replacement `use transforms::Registry;` — unlike the
-  suggestion in break 1, **that one is correct; take it**. For
-  `transforms::core::Buffer` there is no suggestion, because no public
-  re-export exists for rustc to point at.
+  internally) and use `add_transform` / `get_transform`. This is the one
+  privatized path with no correct suggestion above it: `transforms::core::Buffer`
+  gets a bare E0603, because no public re-export exists for rustc to point at.
 - `Timestamp`'s inner field is private and holds `u64` nanoseconds instead
   of `u128`: replace `ts.t` with `ts.as_nanos()` and `Timestamp { t }` with
   `Timestamp::from_nanos(t)`, narrowing wider integers at the call site

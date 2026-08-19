@@ -112,16 +112,18 @@ impl Quaternion {
 
     /// Normalizes the quaternion to unit length.
     ///
-    /// Intended for rotation-scale inputs: components with magnitudes
-    /// beyond roughly `1e150` overflow the intermediate norm to infinity
-    /// (reported as `NonFinite`), and below roughly `1e-8` the norm falls
-    /// under the zero threshold (reported as `ZeroLengthNormalization`).
+    /// The intermediate norm — the square root of the sum of squares — sets
+    /// both limits. A component beyond roughly `1.3e154`, the square root of
+    /// `f64::MAX`, squares to infinity (reported as `NonFinite`), and a norm
+    /// below `f64::EPSILON` (about `2.2e-16`) counts as zero (reported as
+    /// `ZeroLengthNormalization`). That threshold is exclusive: a norm of
+    /// exactly `f64::EPSILON` still normalizes.
     ///
     /// # Errors
     ///
-    /// Returns `QuaternionError::ZeroLengthNormalization` if the quaternion is
-    /// zero-length, and `QuaternionError::NonFinite` if any component is NaN
-    /// or infinite.
+    /// Returns `QuaternionError::ZeroLengthNormalization` if the norm is
+    /// below `f64::EPSILON`, and `QuaternionError::NonFinite` if any
+    /// component is NaN or the sum of squares overflows.
     ///
     /// # Examples
     ///
@@ -131,6 +133,18 @@ impl Quaternion {
     /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
     /// let normalized = q.normalize().unwrap();
     /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
+    ///
+    /// // The zero threshold is `f64::EPSILON` on the norm, not a
+    /// // rotation-scale epsilon: this one is far below rotation scale and
+    /// // still normalizes.
+    /// let at_threshold = Quaternion::from_wxyz(f64::EPSILON, 0.0, 0.0, 0.0);
+    /// assert_eq!(at_threshold.normalize().unwrap(), Quaternion::identity());
+    ///
+    /// let below_threshold = Quaternion::from_wxyz(f64::EPSILON / 2.0, 0.0, 0.0, 0.0);
+    /// assert!(matches!(
+    ///     below_threshold.normalize(),
+    ///     Err(QuaternionError::ZeroLengthNormalization)
+    /// ));
     ///
     /// let zero_q = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
     /// assert!(matches!(

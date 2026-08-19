@@ -2,6 +2,12 @@
 //! with concurrent readers and a single writer, using an `RwLock` to allow
 //! multiple readers to query transforms simultaneously without blocking
 //! each other.
+//!
+//! The writer stamps every sample with the instant it describes, as a real
+//! publisher must. There is no extrapolation, so the reader queries a fixed
+//! lag behind `now()` instead of at `now()` — the newest sample is always
+//! older than the clock, and asking for a time nobody has published yet is a
+//! `NotFoundAt` error, not a pose.
 
 #[tokio::main]
 #[cfg(feature = "std")]
@@ -31,6 +37,13 @@ async fn main() {
         .unwrap()
     }
 
+    /// How often the writer publishes a new sample.
+    const PUBLISH_PERIOD: Duration = Duration::from_millis(500);
+    /// How far behind `now()` the reader queries. Two publishing periods
+    /// keep the query inside the covered range even when the writer's next
+    /// sample has not landed yet.
+    const LOOKUP_LAG: Duration = Duration::from_millis(1000);
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
     let registry = Arc::new(RwLock::new(Registry::with_max_age(Duration::from_secs(10))));
@@ -52,32 +65,36 @@ async fn main() {
         )
         .unwrap();
 
-    // Writer task - generates and adds transforms (requires exclusive access)
+    // Writer task - generates and adds transforms (requires exclusive
+    // access). Each sample is stamped with the instant it describes.
     let registry_writer = registry.clone();
     let writer = tokio::spawn(async move {
         loop {
-            let time = (Timestamp::now() + Duration::from_secs(1)).unwrap();
-            let t = generate_transform(time);
+            let t = generate_transform(Timestamp::now());
             registry_writer.write().await.add_transform(t).unwrap();
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(PUBLISH_PERIOD).await;
         }
     });
 
     // Reader task - queries transforms (shared access, does not block other
     // readers). The lookup crosses the dynamic a -> b edge and the static
-    // b -> lidar mount in one chain.
+    // b -> lidar mount in one chain, at a stamp the writer has already
+    // covered: the first sleep is what makes that true from the first query
+    // on.
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
+        tokio::time::sleep(PUBLISH_PERIOD + LOOKUP_LAG).await;
         loop {
+            let query = (Timestamp::now() - LOOKUP_LAG).unwrap();
             let result = registry_reader
                 .read()
                 .await
-                .get_transform("a", "lidar", Timestamp::now());
+                .get_transform("a", "lidar", query);
             match result {
                 Ok(tf) => info!("Found transform: {tf:?}"),
                 Err(e) => error!("Transform not found: {e:?}"),
             }
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(PUBLISH_PERIOD).await;
         }
     });
 

@@ -41,6 +41,7 @@
 //! - API parity with ROS2 tf2
 //! - Non-linear interpolation
 //! - Extrapolation
+//! - f32 or mixed-precision arithmetic (every coordinate and rotation is f64)
 //!
 //! This decision helps maintain the library's focus on its core purpose: providing fast and efficient
 //! rigid body transformations for robotics applications. For more general transformation needs,
@@ -167,10 +168,13 @@
 //! # `TimePoint` vs `Timestamp`
 //!
 //! `time::TimePoint` defines the required behavior for timestamp types.
-//! `time::Timestamp` is the default implementation.
-//! `Registry::new(...)` therefore uses `Timestamp` by default.
+//! `time::Timestamp` is the default implementation, so `Registry` in type
+//! position — `let registry: Registry = Registry::new();` — is
+//! `Registry<Timestamp>`. A default type parameter does not apply in
+//! expression position, where the type is inferred from usage: annotate if
+//! the surrounding code does not pin it down.
 //! If you need a custom clock, implement `TimePoint` and use
-//! `Registry::<CustomTimestamp>::new(...)`.
+//! `Registry::<CustomTimestamp>::new()`.
 //! With `std`, `std::time::SystemTime` is already supported via an existing
 //! `TimePoint` implementation.
 //! See `time` module docs for custom time-type guidance.
@@ -203,8 +207,11 @@
 //!   restriction lints.
 //!   In `no_std` builds, allocation failure aborts via the global
 //!   allocation error handler, as with any `alloc`-based crate: size the
-//!   heap for `max_age` times the insert rate, or bound growth with
-//!   `Registry::remove_transforms_before`.
+//!   heap for `max_age` times the insert rate times about 320 B per stored
+//!   sample — measured on x86-64, and an upper bound for the 32-bit targets,
+//!   whose pointer-sized fields are half as wide — or bound growth with
+//!   `Registry::remove_transforms_before`. The README's supported-envelope
+//!   table turns that coefficient into rates and chain depths per platform.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
 //! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`

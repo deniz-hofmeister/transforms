@@ -19,11 +19,14 @@
 //!
 //! ## Time type selection
 //!
-//! `Registry` defaults to `Timestamp`, so `Registry::new()` is equivalent to
-//! `Registry::<Timestamp>::new()`.
+//! `Registry` defaults to `Timestamp` in type position, so
+//! `let registry: Registry = Registry::new();` is a `Registry<Timestamp>`.
+//! The default does not apply in expression position — there the time type
+//! is inferred from usage, so annotate it where the surrounding code does
+//! not pin it down.
 //!
 //! You can use custom timestamps by implementing `time::TimePoint` and then
-//! constructing `Registry::<CustomTimestamp>::new(...)`.
+//! constructing `Registry::<CustomTimestamp>::new()`.
 //!
 //! With the `std` feature enabled, `std::time::SystemTime` already implements
 //! `TimePoint`, so `Registry::<SystemTime>::with_max_age(Duration::from_secs(...))`

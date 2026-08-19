@@ -76,10 +76,14 @@ no. Concretely:
   modes — never `f64`'s std methods — so enabling `std` changes which API
   exists, never a computed value. Slerp is pinned bit for bit in the tests
   to keep it that way.
-- The README **Non-Goals** section is load-bearing. Rigid-body transforms only:
+- The README **Non-Goals** section is load-bearing, and the crate root carries
+  the same list verbatim — edit both or neither. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
-  non-linear interpolation, no tf2 API parity. Do not implement these even if an
-  issue requests them; redirect to the maintainer.
+  non-linear interpolation, no tf2 API parity, and no f32 or mixed-precision
+  scalar — every coordinate and rotation is `f64`, on every target, which is
+  why the README publishes a supported envelope instead of a rate claim. Do
+  not implement these even if an issue requests them; redirect to the
+  maintainer.
 - Library code must not panic on reachable paths. The only documented panic is
   `Timestamp::now()` on a system clock outside the representable range (before
   the Unix epoch, or beyond the u64 nanosecond range in 2554); `try_now`
