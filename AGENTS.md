@@ -147,6 +147,15 @@ would produce) a silent wrong answer:
   legitimate results. `Transform::validate` stays public for transforms of
   uncontrolled provenance, and `Transformable` documents that as its
   precondition.
+- Because of the clause above, "a `Transform` is valid by construction" is
+  true of built transforms only, never of derived ones — composing two
+  rotations at the edge of `UNIT_NORM_TOLERANCE` walks past it, and extreme
+  magnitudes overflow a translation to infinity. `Buffer::insert`, under
+  `Registry::add_transform`, therefore runs `Transform::validate` on
+  everything entering storage. That is the last boundary before a value
+  starts answering lookups, and the ordinary "flatten a chain, re-publish it"
+  pattern crosses it with a transform nothing else checked. Do not delete
+  that check as redundant with the constructors; it is not.
 - Rotations are expected to be unit quaternions; `Quaternion::from_wxyz` does
   not normalize. Anything that inverts a rotation must normalize first (see
   `Transform::inverse`, which also rejects a non-finite inverted translation).

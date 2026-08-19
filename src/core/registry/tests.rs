@@ -3,7 +3,7 @@ mod registry_tests {
     use crate::{
         Registry, Transformable,
         errors::{BufferError, TransformError},
-        geometry::{Point, Quaternion, Transform, Vector3},
+        geometry::{Point, Quaternion, Transform, UNIT_NORM_TOLERANCE, Vector3},
         time::{Stamp, Timestamp},
     };
     use approx::assert_abs_diff_eq;
@@ -1725,6 +1725,61 @@ mod registry_tests {
         assert_eq!(result.child(), "lidar");
         assert_eq!(result.timestamp(), Stamp::At(mid));
         assert_abs_diff_eq!(result.translation(), Vector3::new(2.5, 0.0, 0.0));
+    }
+
+    #[test]
+    fn add_transform_rejects_a_republished_chain_that_left_validity() {
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        // Both operands are valid: norm 1.000001 is inside
+        // UNIT_NORM_TOLERANCE — an f32-widened rotation, exactly what the
+        // tolerance exists to accept. Composition multiplies the norms and
+        // `*` deliberately does not re-check, so flattening an ordinary
+        // two-hop chain yields a rotation that is out of tolerance while
+        // looking entirely unremarkable.
+        let q = Quaternion::from_wxyz(1.0 + 1e-6, 0.0, 0.0, 0.0);
+        let t_a_b = Transform::new("a", "b", Vector3::new(1.0, 0.0, 0.0), q, Stamp::At(t)).unwrap();
+        let t_b_c = Transform::new("b", "c", Vector3::new(1.0, 0.0, 0.0), q, Stamp::At(t)).unwrap();
+        let flattened = (t_a_b * t_b_c).unwrap();
+        assert!(flattened.rotation().norm() > 1.0 + UNIT_NORM_TOLERANCE);
+
+        // Re-publishing it must fail. Stored, it would scale every vector
+        // every later lookup through the frame rotates, and report success.
+        assert!(matches!(
+            registry.add_transform(flattened),
+            Err(BufferError::TransformError(
+                TransformError::NonUnitRotation(_)
+            ))
+        ));
+
+        // The same for a translation that overflowed during composition.
+        let far = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0e308, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
+        let farther = Transform::new(
+            "b",
+            "c",
+            Vector3::new(1.0e308, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
+        let overflowed = (far * farther).unwrap();
+        assert_eq!(overflowed.translation().x, f64::INFINITY);
+
+        assert!(matches!(
+            registry.add_transform(overflowed),
+            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+        ));
+
+        // Nothing was stored, so no lookup can serve either value.
+        assert!(registry.get_transform("a", "c", t).is_err());
     }
 
     #[test]

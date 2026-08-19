@@ -477,6 +477,62 @@ mod buffer_tests {
     }
 
     #[test]
+    fn insert_rejects_invalid_transforms() {
+        let mut buffer: Buffer = Buffer::dynamic();
+
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        // The constructors reject both of these, so the only way one reaches
+        // an insert is the way a caller produces it: derived from valid
+        // transforms by `*`, `interpolate`, `inverse` or a lookup, none of
+        // which re-validate. `unvalidated` stands in for that derivation.
+        let non_unit = Transform::unvalidated(
+            "map".into(),
+            "base".into(),
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
+            Stamp::At(t),
+        );
+        assert!(matches!(
+            buffer.insert(non_unit),
+            Err(BufferError::TransformError(
+                TransformError::NonUnitRotation(_)
+            ))
+        ));
+
+        let non_finite = Transform::unvalidated(
+            "map".into(),
+            "base".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        );
+        assert!(matches!(
+            buffer.insert(non_finite),
+            Err(BufferError::TransformError(TransformError::NonFiniteValues))
+        ));
+
+        // A rejected insert stores nothing and pins nothing.
+        assert!(matches!(
+            buffer.get(t),
+            Err(BufferError::NoTransformAvailable)
+        ));
+        assert_eq!(buffer.parent(), None);
+
+        // Unit-norm rotations with f32-grade precision loss must still be
+        // accepted — the tolerance exists for exactly them.
+        let f32_grade = Transform::new(
+            "map",
+            "base",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::from_wxyz(1.0 + 1e-8, 0.0, 0.0, 0.0),
+            Stamp::At(t),
+        )
+        .unwrap();
+        assert!(buffer.insert(f32_grade).is_ok());
+    }
+
+    #[test]
     fn frame_pins_survive_the_buffer_being_emptied() {
         let mut buffer = Buffer::dynamic();
         assert_eq!(buffer.parent(), None);

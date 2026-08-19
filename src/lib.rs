@@ -214,9 +214,15 @@
 //! - **Validated inputs**: a `Transform` is validated where it is built —
 //!   the constructors and the `serde` `Deserialize` impl reject non-finite
 //!   values and non-unit rotations, and the private fields keep a built one
-//!   valid — while the registry enforces what only it can see: an acyclic,
-//!   single-parent frame tree. Invalid data is rejected with an error rather
-//!   than corrupting lookups.
+//!   valid. Composition, interpolation, inversion and lookups deliberately do
+//!   not re-validate what they derive (norms drift a few ulps per hop, and
+//!   rejecting that would fail legitimate long chains), so
+//!   `Registry::add_transform` re-runs the check on the way into storage —
+//!   a derived transform re-published into a registry is caught there rather
+//!   than answering every later lookup with plausible nonsense. The registry
+//!   additionally enforces what only it can see: an acyclic, single-parent
+//!   frame tree. Invalid data is rejected with an error rather than
+//!   corrupting lookups.
 //! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
 //!   your preferred lock for concurrent use (see the README for an example).
 //! - **Deterministic hashing**: the frame map uses hashbrown's default

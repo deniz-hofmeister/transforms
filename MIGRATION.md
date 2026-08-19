@@ -40,8 +40,13 @@ stored** — later lookups will fail mysteriously. New rejections your 1.x
 data may already trigger: self-referential frames, re-parenting
 (`ReparentingNotSupported` — call `remove_frame` first), cycles
 (`CycleDetected`), and mixing static with dynamic transforms in one child
-frame (`StaticDynamicConflict`). Non-finite values and non-unit rotations
-are rejected earlier, by the constructor — see break 7.
+frame (`StaticDynamicConflict`). The 1.x rejections stay: `add_transform`
+still reports non-finite values and non-unit rotations. They are *also*
+rejected earlier now, by the constructor (see break 7), but that is an
+addition, not a move — a transform you compose with `*` or read back out of
+a lookup is deliberately not re-validated, so it is the insert that catches
+it. Existing handling of those two errors around `add_transform` still
+covers you.
 
 ### Static transforms are a `Stamp` variant, not `t = 0`
 
@@ -226,7 +231,8 @@ let x = tf.translation().x;
 `Transform`'s fields are private and the type is `#[non_exhaustive]`:
 `Transform::new(parent, child, translation, rotation, stamp)` and
 `Transform::static_between(parent, child, translation, rotation)` are the
-only ways to build one, both return `Result<_, TransformError>`, and both
+only ways to build one from components, both return
+`Result<_, TransformError>`, and both
 reject non-finite components and rotations whose norm deviates from `1.0` by
 more than `geometry::UNIT_NORM_TOLERANCE`. Read the components back with
 `translation()`, `rotation()`, `timestamp()`, `parent()` and `child()`; to

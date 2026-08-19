@@ -47,7 +47,9 @@ pub enum BufferError {
     #[error("inserting the transform would create a cycle in the frame tree")]
     CycleDetected,
 
-    /// A transform operation failed during retrieval.
+    /// A transform operation failed: validation on insert
+    /// (`NonUnitRotation`, `NonFiniteValues`), or interpolation and range
+    /// checking on retrieval.
     #[error("transform error: {0}")]
     TransformError(#[from] TransformError),
 }

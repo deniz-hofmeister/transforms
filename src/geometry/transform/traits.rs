@@ -65,13 +65,15 @@ where
 /// # Precondition
 ///
 /// An implementation applies the transform's geometry as given; it checks
-/// frames and time, not numbers. That is safe because a [`Transform`] is
-/// valid by construction — its constructors and its `Deserialize` impl reject
-/// non-finite components and non-unit rotations — and every transform derived
-/// from valid ones stays within tolerance. A transform obtained from
-/// somewhere that bypasses those paths deserves a
-/// [`Transform::validate`] call before it is applied: a rotation whose norm
-/// is 1.01 scales everything it touches by 2% and reports success.
+/// frames and time, not numbers. A [`Transform`] built through its
+/// constructors or read through its `Deserialize` impl was checked there —
+/// both reject non-finite components and non-unit rotations. One *derived*
+/// from valid transforms was not: `*`, [`Transform::inverse`],
+/// [`Transform::interpolate`] and registry lookups deliberately skip the
+/// re-check, and composing operands at the edge of the tolerance walks past
+/// it. Applying such a transform deserves a [`Transform::validate`] call
+/// first: a rotation whose norm is 1.01 scales everything it touches by 2%
+/// and reports success.
 ///
 /// # Errors
 ///

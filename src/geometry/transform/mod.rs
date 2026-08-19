@@ -28,12 +28,11 @@ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 /// into the parent frame. It carries a translation, a rotation, and a
 /// [`Stamp`]: one instant, or all time.
 ///
-/// A `Transform` that exists is valid. [`Transform::new`] and
-/// [`Transform::static_between`] are the only ways to build one, both reject
-/// non-finite components and rotations whose norm deviates from 1 by more
-/// than [`UNIT_NORM_TOLERANCE`], and the fields are private so a built
-/// transform cannot be edited back into an invalid state. Read the
-/// components with [`translation`](Self::translation),
+/// [`Transform::new`] and [`Transform::static_between`] build one from
+/// components; both reject non-finite components and rotations whose norm
+/// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`], and the fields are
+/// private so a built transform cannot be edited back into an invalid state.
+/// Read the components with [`translation`](Self::translation),
 /// [`rotation`](Self::rotation), [`timestamp`](Self::timestamp),
 /// [`parent`](Self::parent) and [`child`](Self::child); to change one, build
 /// a new transform.
@@ -42,8 +41,13 @@ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 /// [`interpolate`](Self::interpolate), `*` composition, and every registry
 /// lookup — are deliberately not re-validated: rotation norms drift by a few
 /// ulps per composition, so re-checking a long chain would reject legitimate
-/// results. [`validate`](Self::validate) is there for a transform whose
-/// provenance a caller does not control.
+/// results. A derived transform is therefore *usually* valid but not
+/// guaranteed to be: composing operands that each sit at the edge of the
+/// tolerance walks past it, and extreme magnitudes overflow a translation to
+/// infinity. [`validate`](Self::validate) is there for exactly that — a
+/// transform whose provenance a caller does not control — and
+/// `Registry::add_transform` runs it, so a derived transform cannot re-enter
+/// storage unchecked.
 ///
 /// With the optional `serde` feature, this type implements `Serialize` and
 /// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).

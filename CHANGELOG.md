@@ -141,14 +141,15 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `Transformable::transform` applying geometric garbage silently — a
   norm-1.01 rotation scaled everything it touched by 2% and returned `Ok`,
   and `static_between`, the README's recommended mount-builder, accepted a
-  norm-2 quaternion without complaint. An invalid transform is now
-  unrepresentable rather than merely unstorable, so the validation call in
-  the buffer's insert path is gone with it, and `add_transform` no longer
-  reports `NonUnitRotation` or `NonFiniteValues`. Results of `*`, `inverse`,
+  norm-2 quaternion without complaint. Validation is now *added* at
+  construction, not moved there: `add_transform` still reports
+  `NonUnitRotation` and `NonFiniteValues`, because results of `*`, `inverse`,
   `interpolate` and registry lookups are deliberately not re-validated —
-  rotation norms drift a few ulps per composition and re-checking would
-  reject legitimate long chains — so `Transform::validate` stays public for
-  transforms of uncontrolled provenance.
+  rotation norms drift a few ulps per composition and re-checking a long
+  chain would reject legitimate results — so a caller who flattens a chain
+  and re-publishes it still hands the registry a value only the insert path
+  checks. `Transform::validate` stays public for transforms of uncontrolled
+  provenance.
 - **Breaking:** deserializing a `Transform` runs that validation. The
   `Deserialize` impl reads a shadow record and converts through `TryFrom`, so
   a denormalized rotation or a non-finite component is a deserialization

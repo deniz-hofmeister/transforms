@@ -214,6 +214,14 @@ where
     ///
     /// # Errors
     ///
+    /// Returns `BufferError::TransformError` wrapping
+    /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
+    /// if the transform's numbers are unusable. A transform straight from a
+    /// constructor cannot fail this — but one composed with `*`, interpolated,
+    /// inverted, or read back out of a lookup was deliberately never
+    /// re-validated, so re-publishing such a value is checked here rather than
+    /// silently corrupting every lookup that later crosses the frame.
+    ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's child
     /// frame already holds transforms of the opposite kind: a child frame is
     /// either static (`Stamp::Static`) or dynamic (`Stamp::At`), never both.

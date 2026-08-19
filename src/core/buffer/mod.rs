@@ -8,17 +8,26 @@
 //! per child frame and is the only way to reach it. The invariants that make a
 //! frame tree well-formed are split between the two, and most of them live
 //! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
-//! pin, the child pin, and the static-xor-dynamic kind. `Registry` adds only
-//! the check that needs a view of the whole tree — the cycle check — and runs
-//! it solely for a child frame it has not seen before, precisely because this
-//! module's pin makes an existing buffer's parent immutable. Any rework of the
-//! storage below must keep those pins: without them a re-parenting insert
-//! reaches no check at all, and every later lookup through the frame returns a
-//! pose expressed relative to the wrong parent.
+//! pin, the child pin, the static-xor-dynamic kind, and the numeric validity
+//! of what is stored. `Registry` adds only the check that needs a view of the
+//! whole tree — the cycle check — and runs it solely for a child frame it has
+//! not seen before, precisely because this module's pin makes an existing
+//! buffer's parent immutable. Any rework of the storage below must keep those
+//! pins: without them a re-parenting insert reaches no check at all, and every
+//! later lookup through the frame returns a pose expressed relative to the
+//! wrong parent.
 //!
-//! Nothing here validates a transform's *numbers*. That invariant is enforced
-//! where a [`Transform`] is built, so an unusable one never reaches storage in
-//! the first place.
+//! The numeric check is deliberately *not* redundant with the one the
+//! constructors run. A [`Transform`] is validated where it is built, but `*`,
+//! [`Transform::interpolate`], [`Transform::inverse`] and every registry
+//! lookup derive transforms without re-validating them — by design, because
+//! rotation norms drift across a long chain. A caller who flattens a chain
+//! and re-publishes the result therefore hands storage a value nothing has
+//! checked, and a rotation that has left
+//! [`UNIT_NORM_TOLERANCE`](crate::geometry::UNIT_NORM_TOLERANCE) silently
+//! scales every vector every later lookup rotates. This is the last boundary
+//! before a transform starts answering lookups, and the check is O(1) per
+//! insert.
 //!
 //! # Features
 //!
@@ -177,12 +186,21 @@ where
 
     /// Adds a transform to the buffer.
     ///
-    /// The transform's components need no checking — a [`Transform`] is
-    /// finite and unit-rotated by construction. Its stamp must match the
-    /// buffer's kind, declared at construction: a static buffer accepts only
-    /// `Stamp::Static`, a dynamic buffer only `Stamp::At`.
+    /// The transform is validated first: it must have finite components and a
+    /// unit rotation (see [`Transform::validate`]). The constructors ran that
+    /// check already, but a transform derived from valid ones — composed,
+    /// interpolated, inverted, or read back out of a lookup — was not
+    /// re-checked on the way here, so this is where such a value is caught.
+    /// Its stamp must match the buffer's kind, declared at construction: a
+    /// static buffer accepts only `Stamp::Static`, a dynamic buffer only
+    /// `Stamp::At`.
     ///
     /// # Errors
+    ///
+    /// Returns `BufferError::TransformError` wrapping
+    /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
+    /// if the transform fails validation — storing such a transform would
+    /// make later lookups return silently wrong results.
     ///
     /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
     /// (static or dynamic) does not match the buffer's declared kind. Mixing
@@ -205,6 +223,8 @@ where
         &mut self,
         transform: Transform<T>,
     ) -> Result<(), BufferError> {
+        transform.validate()?;
+
         if transform.parent() == transform.child() {
             return Err(BufferError::SelfReferentialFrame);
         }
