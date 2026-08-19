@@ -28,8 +28,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// With the optional `serde` feature, this type implements `Serialize` and
 /// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+/// It is `#[serde(transparent)]`: the wire carries the bare nanosecond
+/// integer, not a one-field record, so every format encodes it natively and
+/// a foreign-language consumer reads a plain number.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Timestamp {
     /// Nanoseconds since the epoch of the chosen clock.
     t: u64,

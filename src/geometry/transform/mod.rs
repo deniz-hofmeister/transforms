@@ -579,13 +579,6 @@ where
 {
     translation: Vector3,
     rotation: Quaternion,
-    /// The `deserialize_with` detour makes an *absent* `timestamp` field a
-    /// hard error. Without it, serde's missing-field fallback would route
-    /// through `Stamp`'s optional encoding and silently produce
-    /// `Stamp::Static` — a malformed message must never become an eternal
-    /// static transform. An explicit `null` still deserializes as
-    /// `Stamp::Static`.
-    #[serde(deserialize_with = "serde::Deserialize::deserialize")]
     timestamp: Stamp<T>,
     parent: String,
     child: String,

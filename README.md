@@ -86,12 +86,16 @@ transforms = "2.0.0-rc.1"
 
 Minimum supported Rust version: 1.86 (checked in CI).
 
-Note on `serde`: `Timestamp` serializes its nanosecond value as a `u64`,
-an integer every serde format encodes natively — `serde_json`, `postcard`,
-`bincode` (1.x and 2.x), and MessagePack via `rmp-serde` all round-trip the
-full range, and a foreign-language consumer reads it as a plain integer.
-Struct field order is part of the wire contract for non-self-describing
-formats.
+Note on `serde`: `Timestamp` is `#[serde(transparent)]`, so it serializes as
+the bare `u64` nanosecond count — an integer every serde format encodes
+natively, and `serde_json`, `postcard`, `bincode` (1.x and 2.x), and
+MessagePack via `rmp-serde` all round-trip the full range, with a
+foreign-language consumer reading a plain number. `Stamp` is an explicitly
+tagged enum — `{"At": 1753142400000000000}` and `"Static"` in JSON — so
+staticness is spelled out rather than implied by an absent value: a
+`timestamp` field that is missing or `null` is a decode error, never an
+eternal static transform. Struct field order and `Stamp`'s variant order
+are part of the wire contract for non-self-describing formats.
 Deserializing a `Transform` runs the constructors' validation, so a
 denormalized rotation or a non-finite component is a deserialization error
 rather than a transform that answers lookups with plausible nonsense.

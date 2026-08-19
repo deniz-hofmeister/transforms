@@ -37,6 +37,16 @@ fn timestamp_json_roundtrip_is_exact() {
 }
 
 #[test]
+fn timestamp_is_a_bare_integer_on_the_wire() {
+    // `#[serde(transparent)]`: the nanosecond count itself, not a one-field
+    // record. Every serde format encodes an integer natively, so a
+    // foreign-language consumer reads a number rather than an object.
+    let json = serde_json::to_string(&Timestamp::from_nanos(1_000_000_000)).unwrap();
+
+    assert_eq!(json, "1000000000");
+}
+
+#[test]
 fn transform_json_roundtrip_is_exact() {
     let transform = Transform::new(
         "map",
@@ -70,13 +80,12 @@ fn point_json_roundtrip_is_exact() {
 
 #[test]
 fn transform_deserializes_from_handwritten_json_with_struct_field_names() {
-    // `Stamp` serializes as an optional timestamp: `Stamp::At(t)` is `t`
-    // itself, so a dynamic transform's wire shape is identical to a bare
-    // timestamp field.
+    // `Stamp` is an explicitly tagged enum: a dynamic sample is
+    // `{"At": <nanoseconds>}`, the timestamp being a bare integer.
     let json = r#"{
         "translation": { "x": 1.0, "y": 0.0, "z": 0.0 },
         "rotation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
-        "timestamp": { "t": 1000000000 },
+        "timestamp": { "At": 1000000000 },
         "parent": "map",
         "child": "base"
     }"#;
@@ -102,13 +111,14 @@ fn transform_deserializes_from_handwritten_json_with_struct_field_names() {
 }
 
 #[test]
-fn static_transform_serializes_timestamp_as_null() {
-    // `Stamp::Static` is `null` on the wire — self-describing, with no
-    // reserved magic timestamp value.
+fn static_transform_serializes_its_stamp_as_the_static_tag() {
+    // `Stamp::Static` is the `"Static"` variant tag — self-describing, with
+    // no reserved magic timestamp value and nothing a dropped field could
+    // be confused with.
     let json = r#"{
         "translation": { "x": 0.1, "y": 0.0, "z": 0.5 },
         "rotation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
-        "timestamp": null,
+        "timestamp": "Static",
         "parent": "base",
         "child": "camera"
     }"#;
@@ -125,19 +135,16 @@ fn static_transform_serializes_timestamp_as_null() {
     assert_eq!(deserialized, expected);
 
     let value: serde_json::Value = serde_json::to_value(&expected).unwrap();
-    assert!(
-        value.as_object().unwrap()["timestamp"].is_null(),
-        "Stamp::Static must serialize as null"
-    );
+    assert_eq!(value.as_object().unwrap()["timestamp"], "Static");
 }
 
 #[test]
 fn transform_missing_timestamp_field_is_an_error() {
-    // `Stamp` uses an optional encoding, whose serde missing-field fallback
-    // would silently yield `Stamp::Static`. The `deserialize_with` detour
-    // on `Transform.timestamp` makes an absent field a hard error instead:
-    // a producer that drops the timestamp key must not mint an eternal
-    // static transform.
+    // A producer that drops the timestamp key must not mint an eternal
+    // static transform. `Stamp` is a tagged enum rather than an optional
+    // timestamp, so serde's missing-field fallback — which yields the
+    // absent value only for types that deserialize as an option — cannot
+    // reach `Stamp::Static`.
     let json = r#"{
         "translation": { "x": 1.0, "y": 0.0, "z": 0.0 },
         "rotation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
@@ -158,15 +165,15 @@ fn transform_missing_timestamp_field_is_an_error() {
 }
 
 #[test]
-fn deserializing_a_denormalized_rotation_is_an_error() {
-    // Private fields and validating constructors would be worth nothing if
-    // the wire could still mint a rotation whose norm is 1.01 — it scales
-    // everything it is applied to by 2%, silently. `Transform`'s
-    // `Deserialize` runs the constructors' validation.
+fn transform_with_a_null_timestamp_is_an_error() {
+    // The companion of the missing-field case: `null` is not a spelling of
+    // `Stamp::Static`, so a producer that nulls out a stamp it could not
+    // read gets a decode error instead of a transform the registry serves
+    // at every instant for the rest of the run.
     let json = r#"{
         "translation": { "x": 1.0, "y": 0.0, "z": 0.0 },
-        "rotation": { "w": 1.01, "x": 0.0, "y": 0.0, "z": 0.0 },
-        "timestamp": { "t": 1000000000 },
+        "rotation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
+        "timestamp": null,
         "parent": "map",
         "child": "base"
     }"#;
@@ -174,20 +181,46 @@ fn deserializing_a_denormalized_rotation_is_an_error() {
     let result = serde_json::from_str::<Transform<Timestamp>>(json);
     assert!(
         result.is_err(),
-        "a norm-1.01 rotation must be rejected on the wire, got {result:?}"
+        "a null timestamp must be rejected, got {result:?}"
     );
-    let message = result.unwrap_err().to_string();
-    assert!(
-        message.contains("unit quaternion"),
-        "the error must say what is wrong, got: {message}"
-    );
+}
+
+#[test]
+fn deserializing_a_denormalized_rotation_is_an_error() {
+    // Private fields and validating constructors would be worth nothing if
+    // the wire could still mint a rotation whose norm is 1.01 — it scales
+    // everything it is applied to by 2%, silently. `Transform`'s
+    // `Deserialize` runs the constructors' validation. Norm 2.0 is the
+    // blatant end of the same range.
+    for norm in ["1.01", "2.0"] {
+        let json = format!(
+            r#"{{
+                "translation": {{ "x": 1.0, "y": 0.0, "z": 0.0 }},
+                "rotation": {{ "w": {norm}, "x": 0.0, "y": 0.0, "z": 0.0 }},
+                "timestamp": {{ "At": 1000000000 }},
+                "parent": "map",
+                "child": "base"
+            }}"#
+        );
+
+        let result = serde_json::from_str::<Transform<Timestamp>>(&json);
+        assert!(
+            result.is_err(),
+            "a norm-{norm} rotation must be rejected on the wire, got {result:?}"
+        );
+        let message = result.unwrap_err().to_string();
+        assert!(
+            message.contains("unit quaternion"),
+            "the error must say what is wrong, got: {message}"
+        );
+    }
 }
 
 #[test]
 fn deserializing_a_non_finite_component_is_an_error() {
     // JSON cannot spell NaN, but a binary format can. Field order is the one
-    // pinned by the golden-bytes tests, so overwriting the first eight bytes
-    // replaces `translation.x`.
+    // pinned by the golden-bytes tests: the first eight bytes are
+    // `translation.x` and bytes 24..32 are `rotation.w`.
     let valid: Transform = Transform::new(
         "map",
         "base",
@@ -197,14 +230,16 @@ fn deserializing_a_non_finite_component_is_an_error() {
     )
     .unwrap();
 
-    let mut bytes = postcard::to_allocvec(&valid).unwrap();
-    bytes[..8].copy_from_slice(&f64::NAN.to_le_bytes());
+    for offset in [0, 24] {
+        let mut bytes = postcard::to_allocvec(&valid).unwrap();
+        bytes[offset..offset + 8].copy_from_slice(&f64::NAN.to_le_bytes());
 
-    let result = postcard::from_bytes::<Transform>(&bytes);
-    assert!(
-        result.is_err(),
-        "a NaN translation must be rejected on the wire, got {result:?}"
-    );
+        let result = postcard::from_bytes::<Transform>(&bytes);
+        assert!(
+            result.is_err(),
+            "a NaN component at byte {offset} must be rejected on the wire, got {result:?}"
+        );
+    }
 }
 
 #[cfg(feature = "std")]
@@ -250,8 +285,8 @@ fn transform_postcard_bytes_are_frozen() {
     let bytes = postcard::to_allocvec(&transform).unwrap();
 
     // translation.x/y/z and rotation.w/x/y/z as fixed 8-byte LE f64, the
-    // stamp as an Option (1-byte Some tag, then the u64 timestamp as a
-    // LEB128 varint), then length-prefixed frame names.
+    // stamp as a tagged enum (1-byte variant index, then the u64 timestamp
+    // as a LEB128 varint), then length-prefixed frame names.
     let expected: &[u8] = &[
         0, 0, 0, 0, 0, 0, 248, 63, // 1.5
         0, 0, 0, 0, 0, 0, 2, 192, // -2.25
@@ -260,7 +295,7 @@ fn transform_postcard_bytes_are_frozen() {
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
-        1, // Stamp::At = Some
+        1, // Stamp::At = variant 1
         128, 128, 180, 197, 150, 183, 154, 170, 24, // timestamp varint
         3, 109, 97, 112, // "map"
         9, 98, 97, 115, 101, 95, 108, 105, 110, 107, // "base_link"
@@ -302,8 +337,9 @@ fn point_postcard_bytes_are_frozen() {
     assert_eq!(back, point);
 }
 
-/// The static arm of the same pin: `Stamp::Static` is the 1-byte `None`
-/// tag — no reserved timestamp value appears on the wire.
+/// The static arm of the same pin: `Stamp::Static` is the 1-byte variant
+/// index 0 — no reserved timestamp value appears on the wire. Reordering
+/// `Stamp`'s variants would silently reinterpret every stored stamp.
 #[test]
 fn static_transform_postcard_bytes_are_frozen() {
     let transform: Transform = Transform::static_between(
@@ -324,7 +360,7 @@ fn static_transform_postcard_bytes_are_frozen() {
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
-        0, // Stamp::Static = None
+        0, // Stamp::Static = variant 0
         3, 109, 97, 112, // "map"
         9, 98, 97, 115, 101, 95, 108, 105, 110, 107, // "base_link"
     ];

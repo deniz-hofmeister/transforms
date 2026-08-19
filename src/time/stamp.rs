@@ -33,11 +33,14 @@ use crate::time::{TimePoint, Timestamp};
 /// transform as older than the epoch. Order the instants themselves — via
 /// [`Stamp::at`] — and decide what static means for the comparison at hand.
 ///
-/// With the optional `serde` feature, `Stamp` serializes as an optional
-/// timestamp: `Stamp::At(t)` as `t` itself and `Stamp::Static` as `null`
-/// (in self-describing formats), keeping the wire format free of reserved
-/// magic values.
+/// With the optional `serde` feature, `Stamp` serializes as an explicitly
+/// tagged enum: `Stamp::At(t)` as `{"At": t}` and `Stamp::Static` as
+/// `"Static"` in JSON, and as a variant index followed by the payload in
+/// non-self-describing formats. No timestamp value is reserved, and neither
+/// an absent nor a `null` `timestamp` field decodes — a message that lost
+/// its stamp is an error, never an eternal static transform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Stamp<T = Timestamp>
 where
     T: TimePoint,
@@ -65,40 +68,5 @@ where
             Stamp::Static => None,
             Stamp::At(t) => Some(t),
         }
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<T> serde::Serialize for Stamp<T>
-where
-    T: TimePoint + serde::Serialize,
-{
-    fn serialize<S>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Stamp::Static => serializer.serialize_none(),
-            Stamp::At(t) => serializer.serialize_some(t),
-        }
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de, T> serde::Deserialize<'de> for Stamp<T>
-where
-    T: TimePoint + serde::Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Option::<T>::deserialize(deserializer).map(|instant| match instant {
-            Some(t) => Stamp::At(t),
-            None => Stamp::Static,
-        })
     }
 }

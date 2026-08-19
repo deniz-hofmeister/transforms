@@ -41,10 +41,21 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   could close a cycle nothing would reject. Its storage is now free to
   change without a major release. A child frame is still static xor dynamic,
   fixed by its first insert.
-- **Breaking:** serde: `Stamp` serializes as an optional timestamp —
-  `Stamp::At(t)` as `t` itself (JSON shape for dynamic transforms is
-  unchanged), `Stamp::Static` as `null`; postcard/bincode gain a 1-byte
-  `Option` tag. No magic value appears on the wire.
+- **Breaking:** serde: the stamp is tagged explicitly and the timestamp is
+  transparent. `Stamp` derives its impls as an externally tagged enum —
+  `{"At": 1753142400000000000}` and `"Static"` in JSON, a 1-byte variant
+  index elsewhere — and `Timestamp` is `#[serde(transparent)]`, the bare
+  nanosecond integer rather than a one-field record. No magic value appears
+  on the wire, and staticness is now spelled rather than implied: an
+  optional encoding made `"timestamp": null` *and* a dropped `timestamp`
+  field both decode as `Stamp::Static`, so a producer that lost a stamp
+  minted a transform the registry then served at every instant for the rest
+  of the run. Both are decode errors now, the missing-field case without the
+  `deserialize_with` shim it used to need. Non-self-describing formats are
+  byte-identical to the optional encoding (variant index 0/1 where the
+  `Option` tag was, and a one-field struct was already just its field), so
+  postcard and bincode streams are unaffected; JSON, MessagePack and other
+  self-describing formats change shape.
 - **Breaking:** every error payload field is named: `TimestampMismatch
   { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
   `Disconnected { target_frame, source_frame }`, and `NotFoundAt
@@ -112,10 +123,12 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
   service life of anything this crate positions — while halving per-sample
   stamp storage and removing multi-word arithmetic from the 32-bit MCU
-  targets. The serde wire shape is unchanged for every representable value:
-  a JSON integer, a postcard LEB128 varint, byte-identical golden vectors.
-  MessagePack now emits a native integer instead of the 16-byte blob a
-  `u128` forced, so foreign-language consumers read it as a number.
+  targets. The narrowing costs nothing on the wire: every representable
+  value encodes to the same bytes it did as a `u128`, golden vectors
+  included (the shape itself is the transparent bare integer described in
+  the serde entry above). MessagePack now emits a native integer instead of
+  the 16-byte blob a `u128` forced, so foreign-language consumers read it as
+  a number.
   `Timestamp::now()` gains a second (2554) way to panic, and `try_now`
   reports it as `TimeError::DurationOverflow`.
 - **Breaking:** `Timestamp::as_seconds_unchecked` is renamed
@@ -178,8 +191,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - **Breaking:** deserializing a `Transform` runs that validation. The
   `Deserialize` impl reads a shadow record and converts through `TryFrom`, so
   a denormalized rotation or a non-finite component is a deserialization
-  error. This closes the documented "deserialization does not validate" gap;
-  the wire format is unchanged, golden bytes included.
+  error. This closes the documented "deserialization does not validate" gap
+  without touching the wire format, golden bytes included.
 - **Breaking:** `Transform::identity()` is removed. It returned empty parent
   and child frames — self-referential, so it could be neither inserted nor
   composed — and existed only as a base for field-poking, which private
@@ -213,8 +226,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   interior-point and near-antipodal slerp, `Point` error paths, mid-tree
   `remove_frame`, exact `NotFoundAt` payloads, and postcard golden-bytes
   tests for both `Stamp` arms freezing the serde wire format for
-  non-self-describing formats (struct field order is part of the wire
-  contract).
+  non-self-describing formats (struct field order and `Stamp`'s variant
+  order are part of the wire contract).
 - `TransformError::StaticInterpolation`: a static transform used as an
   interpolation endpoint is rejected explicitly instead of falling
   through to an incidental error.

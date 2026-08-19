@@ -102,21 +102,38 @@ Two related breaks ride along:
   which also fixes a 1.x bug where an emptied frame silently flipped
   static on the next insert (see runtime change 5).
 
-**Serde wire format:** `Stamp` serializes as an optional timestamp. In
-JSON a dynamic transform's shape is unchanged
-(`"timestamp": { "t": ... }`), a static one is `"timestamp": null`, and a
-*missing* `timestamp` field is a hard error — it never silently becomes
-static. In postcard/bincode the stamp gains a 1-byte `Option` tag.
+**Serde wire format:** 1.x had no `serde` feature, so this is the format
+you encode *into*, not one you migrate from — but if you hand-rolled
+serialization against the 1.x layout, the shapes differ.
+
+`Stamp` is an explicitly tagged enum and `Timestamp` is
+`#[serde(transparent)]`, so a JSON transform reads:
+
+```json
+{ "translation": { "x": 1.0, "y": 0.0, "z": 0.0 },
+  "rotation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
+  "timestamp": { "At": 1753142400000000000 },
+  "parent": "map", "child": "base" }
+```
+
+and a static one carries `"timestamp": "Static"`. Staticness is spelled
+out, never implied by an absent value: a `timestamp` field that is
+*missing* or `null` is a decode error, so a producer that drops or nulls a
+stamp cannot mint an eternal static transform. In postcard/bincode the
+stamp is a 1-byte variant index (`0` static, `1` followed by the timestamp
+varint) and the timestamp is the bare LEB128 varint it always was.
 
 Cross-version decoding is format-dependent, so version-tag your streams:
 
-- An old **JSON** payload that encoded staticness as `t = 0` decodes as a
-  dynamic sample at the epoch — real-time lookups then fail loudly with
-  `NotFoundAt` rather than silently serving stale calibration.
-- An old **postcard** stream with a realistic dynamic timestamp fails to
-  decode outright (the timestamp varint is not a valid `Option` tag). The
-  one exception is a payload stamped exactly `t = 0` — the 1.x static
-  convention — whose single `0x00` byte reads as the `None` tag, keeping
+- A 1.x-shaped **JSON** payload fails to decode, because the stamp must
+  name its variant: the `{ "t": ... }` record 1.x's public field would have
+  produced reports `unknown variant 't', expected 'Static' or 'At'`, and a
+  bare timestamp is rejected as not being an enum at all. Nothing about the
+  1.x `t = 0` static convention survives silently.
+- A 1.x-shaped **postcard** stream with a realistic dynamic timestamp
+  fails to decode outright (the timestamp varint is not a valid variant
+  index). The one exception is a payload stamped exactly `t = 0` — the 1.x
+  static convention — whose single `0x00` byte reads as variant 0, keeping
   the stream byte-aligned: it decodes cleanly as `Stamp::Static`. That is
   the right meaning for a 1.x static publisher, but wrong for a genuine
   boot-relative `t = 0` dynamic sample — do not rely on it in place of a
@@ -227,9 +244,10 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
   `Timestamp::from_nanos(t)`, narrowing wider integers at the call site
   (`u64::try_from(nanos)`). u64 nanoseconds cover ~584 years, running out
   in 2554; a clock that must outlive that needs a custom `TimePoint`. The
-  serde wire shape is unchanged for every value that still fits — a JSON
-  integer, a postcard LEB128 varint — so only a stamp beyond 2554 stops
-  decoding.
+  narrower width costs nothing on the wire — `Timestamp` is
+  `#[serde(transparent)]`, a bare JSON integer and a postcard LEB128
+  varint, identical bytes for every value that still fits — so only a stamp
+  beyond 2554 stops decoding.
 
 ### 6. Small signature changes
 

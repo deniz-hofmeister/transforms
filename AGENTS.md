@@ -101,7 +101,12 @@ would produce) a silent wrong answer:
   transform — no timestamp value is reserved. `Stamp` is deliberately
   unordered (`PartialEq`/`Eq` only): `Static` denotes all time, so any
   ordering would rank an eternal transform against real instants and make
-  `max_by_key(|tf| tf.timestamp)` silently pick the wrong sample.
+  `max_by_key(|tf| tf.timestamp)` silently pick the wrong sample. Its serde
+  encoding is explicitly tagged (`{"At": t}` / `"Static"`) for the same
+  reason: under an `Option`-shaped encoding a `null` *and* a dropped
+  `timestamp` field both decode as `Static`, so a producer that lost a stamp
+  minted a transform the registry then served at every instant. Both are
+  decode errors; do not trade the derive back for an optional encoding.
 - The frame tree is strict: the first insert also pins a child frame's parent
   (re-parenting fails with `ReparentingNotSupported`; `Registry::remove_frame`
   is the escape hatch), a frame cannot be its own parent, and inserts that
