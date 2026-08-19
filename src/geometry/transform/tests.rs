@@ -2,9 +2,10 @@
 mod transform_tests {
     use crate::{
         errors::TransformError,
-        geometry::{Quaternion, Transform, Vector3},
+        geometry::{Quaternion, Transform, UNIT_NORM_TOLERANCE, Vector3},
         time::{Stamp, Timestamp},
     };
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn new_exposes_the_components_it_was_built_from() {
@@ -88,6 +89,95 @@ mod transform_tests {
             stamp,
         );
         assert!(f32_grade.is_ok(), "got {f32_grade:?}");
+    }
+
+    /// A transform whose rotation has exactly the given norm: the norm of
+    /// `(w, 0, 0, 0)` is `w` itself, which the assertion here confirms
+    /// rather than assumes.
+    fn with_rotation_norm(norm: f64) -> Result<Transform, TransformError> {
+        let rotation = Quaternion::from_wxyz(norm, 0.0, 0.0, 0.0);
+        assert_eq!(rotation.norm().to_bits(), norm.to_bits());
+
+        Transform::new(
+            "a",
+            "b",
+            Vector3::zero(),
+            rotation,
+            Stamp::At(Timestamp::zero()),
+        )
+    }
+
+    #[test]
+    fn the_unit_norm_boundary_is_exactly_the_published_tolerance() {
+        // `UNIT_NORM_TOLERANCE` is public API — downstream code sizes its own
+        // rotation checks against it — so both halves are pinned here: the
+        // value, and the boundary drawn around it. Bit patterns, because
+        // both claims are exact ones.
+        assert_eq!(UNIT_NORM_TOLERANCE.to_bits(), 1e-6_f64.to_bits());
+
+        // Validation rejects a norm *further* than the tolerance from 1, so a
+        // norm of exactly `1 + UNIT_NORM_TOLERANCE` is still accepted and the
+        // very next representable norm above it is not. That step is one ulp,
+        // 2.2e-16 at this magnitude, so this is the boundary itself rather
+        // than a probe near it.
+        let accepted = 1.0 + UNIT_NORM_TOLERANCE;
+        let rejected = f64::from_bits(accepted.to_bits() + 1);
+        assert!(with_rotation_norm(accepted).is_ok());
+        let result = with_rotation_norm(rejected);
+        assert!(
+            matches!(result, Err(TransformError::NonUnitRotation(_))),
+            "one ulp past the tolerance must be rejected, got {result:?}"
+        );
+
+        // Below 1 the exponent is one lower and the spacing half as wide, so
+        // `1 - UNIT_NORM_TOLERANCE` rounds to slightly *more* than the
+        // tolerance away from 1 and is rejected, while the next norm back
+        // toward 1 is accepted. The boundary is symmetric in intent, not in
+        // bits, and a fixture that assumed otherwise would be testing the
+        // rounding rather than the rule.
+        let rejected = 1.0 - UNIT_NORM_TOLERANCE;
+        let accepted = f64::from_bits(rejected.to_bits() + 1);
+        let result = with_rotation_norm(rejected);
+        assert!(
+            matches!(result, Err(TransformError::NonUnitRotation(_))),
+            "one ulp past the tolerance must be rejected, got {result:?}"
+        );
+        assert!(with_rotation_norm(accepted).is_ok());
+    }
+
+    #[test]
+    fn inverse_renormalizes_a_rotation_that_drifted_off_the_unit_sphere() {
+        // The constructors accept every norm within UNIT_NORM_TOLERANCE, so a
+        // rotation that was transmitted as `f32` and widened back reaches
+        // storage a whisker off the unit sphere. `inverse` is the only
+        // renormalization point on a lookup: without it the drift scales
+        // every value the inverted transform is applied to, with no error to
+        // notice it by.
+        let drifted = Quaternion::from_wxyz(1.0 - 9e-7, 0.0, 0.0, 0.0);
+        let transform = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 2.0, 3.0),
+            drifted,
+            Stamp::At(Timestamp::zero()),
+        )
+        .unwrap();
+        assert!(
+            (transform.rotation().norm() - 1.0).abs() > 8e-7,
+            "the fixture must actually sit off the unit sphere"
+        );
+
+        let inverted = transform.inverse().unwrap();
+
+        assert_abs_diff_eq!(inverted.rotation().norm(), 1.0, epsilon = 1e-15);
+        // The drift would otherwise have scaled the inverted translation by
+        // the squared norm — here by 1.8e-6, five metres per thousand
+        // kilometres.
+        assert_abs_diff_eq!(
+            inverted.translation(),
+            Vector3::new(-1.0, -2.0, -3.0),
+            epsilon = 1e-12
+        );
     }
 
     #[test]
@@ -424,6 +514,37 @@ mod transform_tests {
             matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange, got {result:?}"
         );
+    }
+
+    #[test]
+    fn interpolate_over_a_zero_span_returns_the_earlier_endpoint() {
+        // Two endpoints stamped at the same instant leave no span to
+        // interpolate over, and the earlier one answers. Returning `to`
+        // instead would swap which of two same-stamp samples a lookup
+        // reports — the ratio is undefined either way, so nothing downstream
+        // would flag it.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let from = Transform::new(
+            "a",
+            "b",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
+        let to = Transform::new(
+            "a",
+            "b",
+            Vector3::new(2.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap();
+
+        let result = Transform::interpolate(&from, &to, t).unwrap();
+
+        assert_eq!(result, from);
+        assert_ne!(result, to);
     }
 
     #[test]

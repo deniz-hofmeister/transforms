@@ -242,6 +242,13 @@ this section is convention, enforced in review — follow it anyway.
   any fixture — `t = 0` is an ordinary dynamic instant; static transforms
   carry `Stamp::Static`. Invariants ideally get a property test in
   `tests/properties.rs` alongside the example-based ones.
+- `tests/golden_vectors.rs` is the one place whose expected values do *not*
+  come from this crate: they are literal digits computed with SciPy, and
+  they are what would catch a convention flipped consistently — a
+  transposed rotation, a swapped quaternion product, `(parent, child)` read
+  backwards — which every self-referential assertion passes. Never
+  regenerate those numbers from the crate's own arithmetic; re-derive them
+  from outside, deliberately, or the layer stops existing.
 - Strings into `String` fields: `"a".into()`. Format strings use inline
   captures: `{x}` / `{x:?}`.
 
@@ -253,8 +260,10 @@ toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
 options, and one pinned toolchain keeps the gate identical on every machine
 (rustup, Nix, or distro-packaged Rust). Stable and MSRV verification is
 CI's job, and nightly clippy diverges from CI's stable clippy only in the
-safe direction — it is a superset, so a green local gate implies green CI
-clippy:
+safe direction — over the same four feature combinations it is a superset,
+so a green local gate implies green CI clippy. Keep the two lists in step:
+the moment the script lints fewer combinations than CI does, that sentence
+is false and a lint lands in CI that nobody could have seen locally.
 
 ```bash
 cargo test
@@ -263,6 +272,8 @@ cargo test --features serde
 cargo test --no-default-features --features serde
 cargo clippy --all-targets -- -D warnings
 cargo clippy --all-targets --no-default-features -- -D warnings
+cargo clippy --all-targets --features serde -- -D warnings
+cargo clippy --all-targets --no-default-features --features serde -- -D warnings
 cargo fmt --check                                   # nightly rustfmt (see above)
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo run --example std_minimal                     # and the other std examples
@@ -277,6 +288,9 @@ cargo build --no-default-features --target thumbv8m.main-none-eabihf
 (On rustup machines: `rustup run nightly tests/test_all.sh`, and
 `rustup target add <target>` once per target, if missing. CI also builds
 `riscv32imc-unknown-none-elf`.)
+CI runs this same script verbatim in its `gate` job, so the script is the
+single source of truth for what the gate is — extend the script, not the
+workflow.
 CI additionally runs the test suite natively on ARM64 as well as x86_64
 (the Raspberry Pi / Jetson deployment class), checks the MSRV
 (`cargo check` on Rust 1.86), and runs `cargo audit` against the RustSec

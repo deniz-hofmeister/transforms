@@ -11,6 +11,22 @@ use transforms::{
 const BASE_NANOS: u64 = 1_000_000_000;
 /// Nanoseconds between consecutive samples in the prepared registries.
 const SAMPLE_INTERVAL_NANOS: u64 = 1_000_000;
+/// How fast the dynamic samples below rotate. Consecutive samples must
+/// differ in rotation, or every interpolated lookup takes slerp's
+/// normalized-lerp shortcut and the sin-weighted branch — the dominant
+/// float cost on a soft-float target — is never measured at all.
+const RADIANS_PER_SECOND: f64 = 1.0;
+/// The normalized (1, 1, 1) axis: aligned with no coordinate axis, so a
+/// rotation about it exercises every term of the quaternion product rather
+/// than leaving two thirds of them zero.
+const AXIS: f64 = 0.577_350_269_189_625_8;
+
+/// The rotation a sample stamped `nanos` carries.
+fn rotation_at(nanos: u64) -> Quaternion {
+    let half_angle = (nanos - BASE_NANOS) as f64 * 1e-9 * RADIANS_PER_SECOND / 2.0;
+    let (sin, cos) = (half_angle.sin(), half_angle.cos());
+    Quaternion::from_wxyz(cos, sin * AXIS, sin * AXIS, sin * AXIS)
+}
 
 fn transform_at(
     parent: &str,
@@ -21,7 +37,7 @@ fn transform_at(
         parent,
         child,
         Vector3::new(1.0, 0.0, 0.0),
-        Quaternion::identity(),
+        rotation_at(nanos),
         Stamp::At(Timestamp::from_nanos(nanos)),
     )
     .unwrap()
@@ -266,6 +282,59 @@ fn benchmark_dynamic_chain_interpolated(c: &mut Criterion) {
     group.finish();
 }
 
+/// A 4-hop dynamic chain, queried in both directions between samples so
+/// every hop interpolates.
+///
+/// A lookup toward an ancestor — `get_transform("a", "e", t)`, the
+/// documented direction — resolves entirely from the source half and
+/// inverts nothing; the reverse inverts once. Benchmarking one direction
+/// only is how a per-hop inversion stayed unmeasured through several
+/// releases while costing the documented direction 2x.
+fn benchmark_chain_both_directions(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    let mut registry = Registry::new();
+    let mut nanos = BASE_NANOS;
+    for _ in 0..1000 {
+        for (parent, child) in [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")] {
+            registry
+                .add_transform(transform_at(parent, child, nanos))
+                .unwrap();
+        }
+        nanos += SAMPLE_INTERVAL_NANOS;
+    }
+    let query =
+        Timestamp::from_nanos(BASE_NANOS + 500 * SAMPLE_INTERVAL_NANOS + SAMPLE_INTERVAL_NANOS / 2);
+
+    group.bench_function("dynamic_chain_4hop_toward_ancestor", |b| {
+        b.iter(|| black_box(registry.get_transform("a", "e", query)).unwrap());
+    });
+    group.bench_function("dynamic_chain_4hop_toward_descendant", |b| {
+        b.iter(|| black_box(registry.get_transform("e", "a", query)).unwrap());
+    });
+
+    group.finish();
+}
+
+/// The steady-state failure: a query one sample interval past the newest
+/// sample, which is what a consumer running slightly ahead of its publisher
+/// hits on every tick. Unlike the worst case below it touches one buffer,
+/// but it happens continuously rather than once.
+fn benchmark_not_found_past_newest(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    group.bench_function("not_found_past_newest_1k", |b| {
+        let (registry, next) = prewarmed_registry(1000);
+        let query = Timestamp::from_nanos(next + SAMPLE_INTERVAL_NANOS);
+
+        b.iter(|| black_box(registry.get_transform("a", "b", query)).unwrap_err());
+    });
+
+    group.finish();
+}
+
 /// The time-travel lookup: two legs resolved at different times through the
 /// fixed frame, composed via the time-agnostic private path.
 fn benchmark_get_transform_at(c: &mut Criterion) {
@@ -369,9 +438,11 @@ criterion_group!(
     benchmark_get_transform_interpolated,
     benchmark_robot_tree,
     benchmark_dynamic_chain_interpolated,
+    benchmark_chain_both_directions,
     benchmark_get_transform_at,
     benchmark_tree_climb,
     benchmark_tree_climb_common_parent_elim,
+    benchmark_not_found_past_newest,
     benchmark_not_found_worst_case
 );
 

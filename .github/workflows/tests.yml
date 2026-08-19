@@ -19,6 +19,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # The gate script contributors run locally (AGENTS.md, "Definition of
+  # done"), run verbatim, so the two cannot drift apart. It is nightly-only
+  # by design; the jobs below add what it deliberately leaves to CI — the
+  # stable and MSRV toolchains, the ARM64 runner, the RISC-V target, and the
+  # advisory-database audit.
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          components: clippy, rustfmt
+          toolchain: nightly
+      - name: Install bare-metal targets
+        run: rustup target add thumbv7em-none-eabihf thumbv6m-none-eabi thumbv8m.main-none-eabihf
+      - name: Run the verification gate
+        run: tests/test_all.sh
+
   formatting:
     name: formatting
     runs-on: ubuntu-latest

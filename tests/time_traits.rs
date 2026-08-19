@@ -61,6 +61,34 @@ impl TimePoint for TestTime {
     }
 }
 
+/// A clock whose instants cannot be expressed as seconds at all — an epoch
+/// or a range the conversion does not reach. It borrows `TestTime`'s
+/// arithmetic and fails only where the trait allows failure to be expressed:
+/// `as_seconds_lossy` is infallible by contract, so it reports `NaN` instead
+/// of a plausible-looking number an error message would then quote.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct UnconvertibleTime(TestTime);
+
+impl TimePoint for UnconvertibleTime {
+    fn duration_since(
+        self,
+        earlier: Self,
+    ) -> Result<Duration, TimeError> {
+        self.0.duration_since(earlier.0)
+    }
+
+    fn checked_sub(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimeError> {
+        self.0.checked_sub(rhs).map(Self)
+    }
+
+    fn as_seconds_lossy(self) -> f64 {
+        f64::NAN
+    }
+}
+
 #[test]
 fn default_timestamp_api_remains_usable() {
     let mut registry = Registry::new();
@@ -314,6 +342,55 @@ fn eviction_spares_the_static_leg() {
             .x,
         1.0
     );
+}
+
+#[test]
+fn a_clock_that_cannot_report_seconds_cannot_mask_the_error() {
+    // Error formatting goes through `as_seconds_lossy`, which cannot fail —
+    // a conversion error must never replace the error being reported. This
+    // clock makes every conversion produce nothing usable; the failure must
+    // still arrive intact, and the message must say `NaN` rather than a
+    // number a reader would act on.
+    let at = |nanos| UnconvertibleTime(TestTime(nanos));
+    let sample = |nanos, x| {
+        Transform::<UnconvertibleTime>::new(
+            "map",
+            "sensor",
+            Vector3::new(x, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(at(nanos)),
+        )
+        .unwrap()
+    };
+
+    let mut registry = Registry::<UnconvertibleTime>::new();
+    registry.add_transform(sample(10, 1.0)).unwrap();
+    registry.add_transform(sample(20, 2.0)).unwrap();
+
+    let error = registry
+        .get_transform("map", "sensor", at(30))
+        .expect_err("a query past the covered range must fail");
+
+    // The payload is carried in the caller's own time type, so it survives a
+    // conversion that produces no number at all: every instant is still
+    // comparable against the clock the caller asked with.
+    match &error {
+        RegistryError::NotFoundAt {
+            frame,
+            requested,
+            covered,
+            ..
+        } => {
+            assert_eq!(frame, "sensor");
+            assert_eq!(*requested, at(30));
+            assert_eq!(*covered, Some((at(10), at(20))));
+        }
+        other => panic!("expected NotFoundAt, got {other:?}"),
+    }
+
+    let message = format!("{error}");
+    assert!(message.contains("sensor"), "{message}");
+    assert!(message.contains("NaN"), "{message}");
 }
 
 #[test]

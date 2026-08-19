@@ -6,7 +6,9 @@
 # how Rust was installed (rustup, Nix, distro package). Stable and MSRV
 # coverage is CI's job (.github/workflows/tests.yml), as is the
 # riscv32imc-unknown-none-elf bare-metal build — that target is not part
-# of the pinned local toolchain.
+# of the pinned local toolchain. CI runs this script verbatim in its `gate`
+# job, so this file is the single source of truth for what the gate is:
+# extend it here, not in the workflow.
 set -e
 
 rustc --version | grep -q nightly || {
@@ -21,8 +23,13 @@ cargo test --no-default-features
 cargo test --features serde
 cargo test --no-default-features --features serde
 cargo test
+# All four feature combinations, the same set CI's clippy job runs: a lint
+# that only fires in the serde path has to fail here rather than there, or
+# "a green local gate implies green CI clippy" stops being true.
 cargo clippy --all-targets --no-default-features -- -D warnings
 cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --no-default-features --features serde -- -D warnings
+cargo clippy --all-targets --features serde -- -D warnings
 cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 # The docs.rs configuration (all features, docsrs cfg) must build too.

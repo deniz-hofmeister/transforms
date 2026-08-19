@@ -242,12 +242,37 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - Two of the six examples (`std_full`, `no_std_full`) now demonstrate a
   static sensor mount chained with dynamic edges — the feature was
   previously unexercised outside the test suite.
+- Tests closing the gaps a mutation run left open: `inverse` renormalizing
+  a rotation that drifted within tolerance (the sole renormalization point
+  on a lookup — removing it used to leave the suite green), the exact
+  acceptance boundary around `UNIT_NORM_TOLERANCE` together with the
+  constant's own value, slerp's lerp/slerp switchover, `interpolate`
+  returning the earlier endpoint when both endpoints share a stamp, the
+  post-truncation chain lengths of a deep common trunk, and error
+  formatting under a clock whose instants cannot be expressed as seconds.
+- Golden vectors computed outside the crate (`tests/golden_vectors.rs`):
+  five poses derived with SciPy and asserted against literal digits — a
+  quarter turn of yaw plus an offset applied to a known point, a two-hop
+  chain in both directions, a rotation about no coordinate axis, and an
+  interpolated lookup against a reference slerp. Every other test builds
+  its expectation with the same conventions as the code under test, so a
+  convention flipped consistently — a transposed rotation, a swapped
+  quaternion product — passed all of them.
 - Benchmarks for the shapes real users hit: a realistic 6-edge robot tree
   (mixed static/dynamic), a 3-hop interpolating dynamic chain,
-  `get_transform_at`, and a 100k-resident insert bench pinning the
-  eviction fix at depth.
+  `get_transform_at`, a 100k-resident insert bench pinning the eviction fix
+  at depth, a 4-hop chain measured in both lookup directions, and a
+  lookup past the newest sample — the failure a consumer running ahead of
+  its publisher hits every tick. Dynamic samples now rotate about a
+  non-axis-aligned axis, so interpolation runs slerp's sin-weighted branch:
+  with identity rotations everywhere it was never measured, and it is the
+  dominant float cost on a soft-float target.
 - CI: clippy and MSRV jobs now also cover the `serde` feature (std and
-  no_std), closing the thinnest spot in the matrix.
+  no_std), closing the thinnest spot in the matrix. `tests/test_all.sh`
+  lints all four feature combinations too — it linted two, so the claim
+  that a green local gate implies green CI clippy was false for the serde
+  path — and CI now runs that script verbatim in a `gate` job, making it
+  the single source of truth for what the gate is.
 
 ### Fixed
 

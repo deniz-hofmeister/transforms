@@ -430,6 +430,61 @@ mod registry_tests {
     }
 
     #[test]
+    fn a_deep_common_trunk_is_truncated_to_the_divergent_hops() {
+        // The same elimination as above, with a trunk deep enough for its
+        // removal to matter: both leaves sit four hops under the root and
+        // share three of them. Skipping the truncation still yields the
+        // right answer — it just composes the shared trunk up and back down
+        // again — so the chain lengths are the only place the work becomes
+        // visible, and on a deep tree that work is the whole lookup cost.
+        let mut registry = Registry::new();
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        let edges = [
+            ("a", "b", Vector3::new(1.0, 0.0, 0.0)),
+            ("b", "c", Vector3::new(0.0, 1.0, 0.0)),
+            ("c", "d", Vector3::new(0.0, 0.0, 1.0)),
+            ("d", "e", Vector3::new(1.0, 0.0, 0.0)),
+            ("d", "f", Vector3::new(0.0, 2.0, 0.0)),
+        ];
+        for (parent, child, translation) in edges {
+            registry
+                .add_transform(
+                    Transform::new(
+                        parent,
+                        child,
+                        translation,
+                        Quaternion::identity(),
+                        Stamp::At(t),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+
+        let mut walk_failure = None;
+        let mut target =
+            Registry::get_transform_chain("e", "a", t, &registry.data, &mut walk_failure).unwrap();
+        let mut source =
+            Registry::get_transform_chain("f", "a", t, &registry.data, &mut walk_failure).unwrap();
+        assert_eq!(target.len(), 4);
+        assert_eq!(source.len(), 4);
+
+        Registry::truncate_at_common_parent(&mut target, &mut source);
+        assert_eq!(target.len(), 1);
+        assert_eq!(source.len(), 1);
+
+        let result = Registry::combine_transforms(target, source)
+            .expect("chains are non-empty")
+            .expect("combining the truncated chains must succeed");
+
+        assert_eq!(result.parent(), "e");
+        assert_eq!(result.child(), "f");
+        // "e" sits at x=1 under "d", "f" at y=2: "f" expressed in "e".
+        assert_eq!(result.translation(), Vector3::new(-1.0, 2.0, 0.0));
+    }
+
+    #[test]
     fn time_travel_different_frames() {
         // All three frames (fixed, target, source) are different, so both
         // process_get_transform lookups are non-trivial (no identity shortcut).

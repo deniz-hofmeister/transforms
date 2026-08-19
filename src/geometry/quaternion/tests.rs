@@ -300,6 +300,32 @@ mod quaternion_tests {
     }
 
     #[test]
+    fn slerp_takes_the_trig_branch_right_up_to_the_switchover() {
+        // The normalized-lerp shortcut fires only above `1 - f64::EPSILON`,
+        // where two rotations are numerically indistinguishable. A 0.06
+        // radian arc has a dot of cos(0.03) ~ 0.9996 — close, but twelve
+        // orders of magnitude outside that — and must still run the
+        // sin-weighted branch, the one that advances the rotation angle
+        // linearly in `t`. Widening the switchover to a rotation-scale
+        // epsilon would swallow this case.
+        let q1 = Quaternion::identity();
+        let q2 = rotation_about_z(0.06);
+
+        let quarter = q1.slerp(q2, 0.25);
+        assert_abs_diff_eq!(quarter, rotation_about_z(0.015), epsilon = 1e-12);
+
+        // The shortcut would land 4e-7 off that geodesic here, five orders
+        // of magnitude outside the tolerance above — and invisible to a norm
+        // check, because the shortcut normalizes its result too.
+        let blended = (q1.scale(0.75) + q2.scale(0.25)).normalize().unwrap();
+        assert_abs_diff_eq!(blended.norm(), 1.0, epsilon = 1e-15);
+        assert!(
+            (blended.z - quarter.z).abs() > 1e-9,
+            "the two branches must be distinguishable here: {blended:?} vs {quarter:?}"
+        );
+    }
+
+    #[test]
     fn slerp_near_antipodal_pair_stays_unit_and_on_the_small_arc() {
         // dot = -cos(0.01) ~ -0.99995: the numerically riskiest region.
         // After the shortest-path flip the effective arc is 0.02 radians,
