@@ -309,11 +309,14 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   mixed-precision arithmetic are Non-Goals (README and crate root, one
   identical list), and the README publishes the envelope that commitment
   implies: measured per-operation cost and allocation counts on x86-64,
-  about 320 B of resident heap per stored sample, and a platform × rate ×
-  chain-depth table that says which workloads fit an MCU and which run out
-  of SRAM first. The crate root's "size the heap for `max_age` times the
-  insert rate" advice gains that coefficient, and the embedded positioning
-  now points at the table instead of promising a "minimal footprint".
+  about 320 B of resident heap per stored sample while both frame names are
+  32 characters or shorter (every sample owns a copy of both names, and each
+  adds another 32 B per sample for every further 32 characters), and a
+  platform × rate × chain-depth table that says which workloads fit an MCU
+  and which run out of SRAM first. The crate root's "size the heap for
+  `max_age` times the insert rate" advice gains that coefficient, and the
+  embedded positioning now points at the table instead of promising a
+  "minimal footprint".
 - Docs: `Quaternion::normalize` documents the threshold it actually applies
   — a norm below `f64::EPSILON` — instead of the `1e-8` figure copied from
   the `Div` impl, which was wrong by eight orders of magnitude in the

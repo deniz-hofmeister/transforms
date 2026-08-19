@@ -208,10 +208,15 @@
 //!   In `no_std` builds, allocation failure aborts via the global
 //!   allocation error handler, as with any `alloc`-based crate: size the
 //!   heap for `max_age` times the insert rate times about 320 B per stored
-//!   sample — measured on x86-64, and an upper bound for the 32-bit targets,
-//!   whose pointer-sized fields are half as wide — or bound growth with
-//!   `Registry::remove_transforms_before`. The README's supported-envelope
-//!   table turns that coefficient into rates and chain depths per platform.
+//!   sample, measured on x86-64, or bound growth with
+//!   `Registry::remove_transforms_before`. That coefficient holds while
+//!   both frame names are 32 characters or shorter: every sample owns a
+//!   copy of both names, and each adds another 32 B per sample for every
+//!   further 32 characters, so a ROS-style pair of 45-character names
+//!   costs about 385 B instead. 32-bit targets are smaller only at equal
+//!   name length — the names themselves cost the same. The README's
+//!   supported-envelope table turns that coefficient into rates and chain
+//!   depths per platform.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
 //! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`

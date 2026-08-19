@@ -61,8 +61,8 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 - **A stated envelope**: `f64` is a commitment — f32 and mixed precision are
   Non-Goals — and the [Performance](#performance) section publishes what
   that costs: measured per-operation timings and allocation counts, ~320 B
-  of resident heap per stored sample, and the rates and tree depths that do
-  and do not fit an MCU.
+  of resident heap per stored sample under short frame names, and the rates
+  and tree depths that do and do not fit an MCU.
 
 `add_transform` is now fallible — the headline migration for 1.x users:
 
@@ -582,11 +582,17 @@ against frames holding 1000 dynamic samples each:
 | `get_transform`, 4 hops toward an ancestor, interpolated | ~1.9 µs | 11 |
 | `get_transform` rejecting an unknown frame among 1000 frames | ~9 µs | 3 |
 
-Resident memory is about **320 B per stored sample** — a 120-byte
-`Transform`, its entry in the ordered map, and the two frame-name strings,
-including allocator block granularity. A dynamic edge published at 1 kHz
-under a one-second `max_age` therefore holds ~320 KB. 32-bit targets are
-smaller, so that figure is a safe upper bound for sizing an MCU heap.
+Resident memory is about **320 B per stored sample while both frame names
+are 32 characters or shorter** — a 120-byte `Transform`, its entry in the
+ordered map, and the two frame-name strings, including allocator block
+granularity. Every sample owns its own copy of both names, so the figure
+rises with them: each name adds another 32 B per sample for every further
+32 characters. A ROS-style pair of 45-character namespaced names therefore
+costs ~64 B more, about **385 B per sample**, and a dynamic edge published
+at 1 kHz under a one-second `max_age` holds ~320 KB under short names but
+~385 KB under that pair. At equal name length 32-bit targets are smaller
+(`Transform` is 96 B there), but the name strings are not — so size an MCU
+heap from the names you actually publish, not from the headline figure.
 
 ### Supported envelope
 
@@ -606,8 +612,9 @@ fitness:
 The estimated rows come from first principles — the soft-float symbols a
 bare-metal build links, scaled by the x86-64 measurements above — and
 nothing here was executed on target, so treat them as ±2×. The memory
-column is arithmetic on the per-sample figure above, so it is an upper
-bound on the 32-bit rows.
+column is arithmetic on the short-name per-sample figure above, so it
+bounds the 32-bit rows only for frame names that short — namespaced names
+push every row up.
 
 Static transforms cost one sample forever, so publishing fixed mounts with
 `Transform::static_between` is the cheapest way to keep an embedded tree
