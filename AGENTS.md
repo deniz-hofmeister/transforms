@@ -128,9 +128,12 @@ would produce) a silent wrong answer:
   The buffer's own error types (`InsertError`, `GetError<T>`) are internal
   and split by operation so that every conversion into `RegistryError` is
   total — one enum for both would force an unreachable arm on each.
-- Interpolation happens only between stored samples; a query outside the
-  covered time range fails with `TimestampOutOfRange`. There is no
-  extrapolation.
+- Interpolation happens only between stored samples; there is no
+  extrapolation. A `Registry` lookup that falls outside a frame's covered
+  range fails with `RegistryError::NotFoundAt` carrying
+  `covered: Some(range)` — no registry path produces
+  `TransformError::TimestampOutOfRange`; its only producer is
+  `Transform::interpolate`, which the buffer never calls out of range.
 - Error formatting goes through `TimePoint::as_seconds_lossy` and cannot fail;
   a conversion error must never mask the error being reported.
 - Buffer expiry is data-driven: entries older than

@@ -309,10 +309,18 @@ where
     /// inserted into it again.
     ///
     /// Composing, inverting or interpolating the transforms the walk
-    /// collected can itself fail — a chain of extreme magnitudes overflows a
-    /// translation to infinity, reported as `RegistryError::NonFiniteValues`;
-    /// anything else as `RegistryError::TransformError`. Those are the two
+    /// collected can itself fail: inverting a half-chain that composed to an
+    /// infinite translation reports `RegistryError::NonFiniteValues`,
+    /// anything else `RegistryError::TransformError`. Those are the two
     /// lookup failures that name no frame.
+    ///
+    /// A returned transform is *not* re-validated (see [`Transform`]), and
+    /// the check above is the inversion's, not the lookup's: a lookup toward
+    /// an ancestor — the documented direction — inverts nothing, so a chain
+    /// of extreme magnitudes composes to an infinite translation and comes
+    /// back as `Ok`. Whether an overflow is reported therefore depends on
+    /// the direction asked for. Call [`Transform::validate`] on a result
+    /// whose inputs can reach those magnitudes.
     ///
     /// # Examples
     ///

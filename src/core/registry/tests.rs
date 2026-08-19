@@ -2040,12 +2040,20 @@ mod registry_tests {
     }
 
     #[test]
-    fn a_lookup_that_overflows_reports_the_same_flat_variant_as_an_insert() {
-        // Two individually finite hops compose to an infinite translation,
-        // which the lookup notices when it inverts the chain. The condition
+    fn an_overflowing_lookup_reports_the_flat_variant_only_where_it_inverts() {
+        // Two individually finite hops compose to an infinite translation.
+        // Where the lookup inverts the chain it notices, and the condition
         // must arrive as the same flat `NonFiniteValues` an insert reports:
         // one spelling per condition, so a caller matching it cannot miss a
         // wrapped copy arriving from the other code path.
+        //
+        // The opposite direction pins the scope of that claim. A lookup
+        // toward an ancestor resolves entirely from the source half and
+        // inverts nothing, and a lookup result is deliberately never
+        // re-validated, so the overflow is returned as `Ok`. That is what
+        // the docs on `get_transform` and `RegistryError::NonFiniteValues`
+        // say; if this assertion ever starts failing, they must change with
+        // it rather than the other way around.
         let t = Timestamp::from_nanos(1_000_000_000);
         let mut registry = Registry::new();
         registry
@@ -2055,10 +2063,16 @@ mod registry_tests {
             .add_transform(translated("b", "c", Stamp::At(t), 1.0e308))
             .unwrap();
 
-        let result = registry.get_transform("c", "a", t);
+        let inverting = registry.get_transform("c", "a", t);
         assert!(
-            matches!(result, Err(RegistryError::NonFiniteValues)),
-            "expected a flat NonFiniteValues, got {result:?}"
+            matches!(inverting, Err(RegistryError::NonFiniteValues)),
+            "expected a flat NonFiniteValues, got {inverting:?}"
+        );
+
+        let ancestor_ward = registry.get_transform("a", "c", t).unwrap();
+        assert_eq!(
+            ancestor_ward.translation(),
+            Vector3::new(f64::INFINITY, 0.0, 0.0)
         );
     }
 

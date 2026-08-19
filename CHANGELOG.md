@@ -71,8 +71,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `NonFiniteValues`, `SelfReferentialFrame`,
   `ReparentingNotSupported { current_parent }`, `CycleDetected`,
   `StaticDynamicConflict` — and the two validation causes are flat on every
-  path, including a lookup that overflows a translation across a long chain,
-  so no condition has two spellings to match on. `RegistryError` is
+  path that reports them, including the half-chain inversion by which a
+  lookup rejects an overflowed translation, so no condition has two
+  spellings to match on. (A lookup still does not re-validate its result:
+  the ancestor-ward direction inverts nothing and returns such a
+  translation as `Ok`.) `RegistryError` is
   `#[non_exhaustive]`, like every error type here.
 - **Breaking:** every public type has a single canonical path
   (`geometry::Point`, `time::Timestamp`, ...): the leaf modules are private,
@@ -256,11 +259,11 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   `UnknownFrame`, and `Registry::remove_frame` is the only way to release
   a frame — long-running processes that mint transient frame names must
   call it. Three regression tests pin the pin, the kind, and the
-  diagnosis. `NotFoundAt`'s documentation now separates its two causes,
-  because a drained frame is the first one reachable from `Registry`:
-  `TimestampOutOfRange` carries the frame's covered range and is a timing
-  question, `NoTransformAvailable` carries no range and means the frame
-  holds nothing — retrying or widening the window will not make it answer.
+  diagnosis. `NotFoundAt` separates its two causes, because a drained frame
+  is the first one reachable from `Registry`: `covered: Some(range)` is a
+  timing question — the frame holds data the request falls outside of —
+  while `covered: None` means the frame holds nothing at all, so retrying or
+  widening the window will not make it answer.
 - Docs: `Registry::new` states what its lack of a `max_age` costs — not
   only unbounded retention, but an unbounded interpolation gap, since a
   lookup between samples recorded either side of a publisher stall

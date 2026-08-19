@@ -169,9 +169,14 @@ not in seconds: compare them against the timestamp you asked with. The
 `RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,
 `SelfReferentialFrame`, `ReparentingNotSupported { current_parent }`,
 `CycleDetected`, `StaticDynamicConflict`. The first two are flat rather than
-wrapped, and they are flat on every path — a lookup that overflows a
-translation across a long chain reports the same `NonFiniteValues`, so a
-condition never has two spellings to match on. The one wrapping variant,
+wrapped, and they are flat on every path that reports them — where a lookup
+rejects a chain that overflowed a translation, it reports the same
+`NonFiniteValues`, so a condition never has two spellings to match on. Note
+what that does *not* say: a lookup never re-validates its result, and only
+the half-chain it inverts is checked for finiteness, so a lookup toward an
+ancestor (the documented direction, which inverts nothing) returns an
+overflowed translation as `Ok`. Call `Transform::validate` yourself on a
+result whose inputs can reach those magnitudes. The one wrapping variant,
 `RegistryError::TransformError`, carries a geometry or time failure of an
 operation on the resolved chain.
 

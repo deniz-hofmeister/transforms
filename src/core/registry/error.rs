@@ -20,11 +20,14 @@ use crate::{
 ///
 /// The first six variants are reported by
 /// [`add_transform`](crate::Registry::add_transform) and the next three by
-/// the lookups, with one crossover: a chain that composes to an infinite
-/// translation reports the same flat [`NonFiniteValues`](Self::NonFiniteValues)
-/// an insert would. [`TransformError`](Self::TransformError) is the geometry
-/// or time failure of an operation on the resolved chain and is the one arm
-/// that wraps another error type. It never carries
+/// the lookups, with one crossover: where a lookup inverts a half-chain that
+/// composed to an infinite translation, it reports the same flat
+/// [`NonFiniteValues`](Self::NonFiniteValues) an insert would — one spelling
+/// per condition, on every path that reports it at all.
+///
+/// [`TransformError`](Self::TransformError) is the geometry or time failure
+/// of an operation on the resolved chain and is the one arm that wraps
+/// another error type. It never carries
 /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues` —
 /// those are canonically the flat [`NonUnitRotation`](Self::NonUnitRotation)
 /// and [`NonFiniteValues`](Self::NonFiniteValues) variants, so neither
@@ -46,8 +49,12 @@ where
 
     /// The transform contains non-finite (NaN or infinite) components,
     /// caught on the same boundary as [`NonUnitRotation`](Self::NonUnitRotation)
-    /// — and, unlike that one, also reachable from a lookup, whose chain can
-    /// compose finite hops into an infinite translation.
+    /// — and, unlike that one, also reachable from a lookup: finite hops can
+    /// compose to an infinite translation, which the inversion of the target
+    /// half rejects. A lookup that inverts nothing — the documented
+    /// ancestor-ward direction — does not check, and returns that
+    /// translation as `Ok`; see
+    /// [`Registry::get_transform`](crate::Registry::get_transform).
     #[error("transform contains non-finite values")]
     NonFiniteValues,
 
