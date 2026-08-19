@@ -43,19 +43,25 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   fixed by its first insert.
 - **Breaking:** serde: the stamp is tagged explicitly and the timestamp is
   transparent. `Stamp` derives its impls as an externally tagged enum —
-  `{"At": 1753142400000000000}` and `"Static"` in JSON, a 1-byte variant
-  index elsewhere — and `Timestamp` is `#[serde(transparent)]`, the bare
-  nanosecond integer rather than a one-field record. No magic value appears
-  on the wire, and staticness is now spelled rather than implied: an
-  optional encoding made `"timestamp": null` *and* a dropped `timestamp`
-  field both decode as `Stamp::Static`, so a producer that lost a stamp
-  minted a transform the registry then served at every instant for the rest
-  of the run. Both are decode errors now, the missing-field case without the
-  `deserialize_with` shim it used to need. Non-self-describing formats are
-  byte-identical to the optional encoding (variant index 0/1 where the
-  `Option` tag was, and a one-field struct was already just its field), so
-  postcard and bincode streams are unaffected; JSON, MessagePack and other
-  self-describing formats change shape.
+  `{"At": 1753142400000000000}` and `"Static"` in JSON, a variant index
+  ahead of the payload elsewhere — and `Timestamp` is
+  `#[serde(transparent)]`, the bare nanosecond integer rather than a
+  one-field record. No magic value appears on the wire, and staticness is
+  now spelled rather than implied: an optional encoding made
+  `"timestamp": null` *and* a dropped `timestamp` field both decode as
+  `Stamp::Static`, so a producer that lost a stamp minted a transform the
+  registry then served at every instant for the rest of the run. Both are
+  decode errors now, the missing-field case without the `deserialize_with`
+  shim it used to need. Every format changes shape here: the stamp is new on
+  the wire — the last released cut wrote a bare timestamp with no tag at
+  all — so re-encode or version-tag anything you persisted earlier. How wide
+  that tag is belongs to the codec rather than to this crate, and bincode's
+  two integer encodings differ: postcard and bincode 2's `config::standard()`
+  write the variant index as a single byte, while bincode 1.x and bincode 2's
+  `config::legacy()` write it as a fixed 4-byte `u32`. Measured against
+  beta.4, one dynamic transform goes 79 → 80 bytes in postcard and 100 → 96
+  in bincode 1.x, the wider index there more than offset by the timestamp
+  narrowing below.
 - **Breaking:** every error payload field is named: `TimestampMismatch
   { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
   `Disconnected { target_frame, source_frame }`, and `NotFoundAt
@@ -123,12 +129,14 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
   service life of anything this crate positions — while halving per-sample
   stamp storage and removing multi-word arithmetic from the 32-bit MCU
-  targets. The narrowing costs nothing on the wire: every representable
-  value encodes to the same bytes it did as a `u128`, golden vectors
-  included (the shape itself is the transparent bare integer described in
-  the serde entry above). MessagePack now emits a native integer instead of
-  the 16-byte blob a `u128` forced, so foreign-language consumers read it as
-  a number.
+  targets. In a variable-width encoding the narrowing costs nothing: a JSON
+  integer, a postcard LEB128 varint and a bincode 2 `config::standard()`
+  varint are the same bytes they were as a `u128`, golden vectors included
+  (the shape itself is the transparent bare integer described in the serde
+  entry above). Fixed-width encodings do shrink — bincode 1.x and bincode 2's
+  `config::legacy()` write eight bytes where a `u128` took sixteen — and
+  MessagePack now emits a native integer instead of the 16-byte blob a
+  `u128` forced, so foreign-language consumers read it as a number.
   `Timestamp::now()` gains a second (2554) way to panic, and `try_now`
   reports it as `TimeError::DurationOverflow`.
 - **Breaking:** `Timestamp::as_seconds_unchecked` is renamed

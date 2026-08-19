@@ -119,9 +119,15 @@ serialization against the 1.x layout, the shapes differ.
 and a static one carries `"timestamp": "Static"`. Staticness is spelled
 out, never implied by an absent value: a `timestamp` field that is
 *missing* or `null` is a decode error, so a producer that drops or nulls a
-stamp cannot mint an eternal static transform. In postcard/bincode the
-stamp is a 1-byte variant index (`0` static, `1` followed by the timestamp
-varint) and the timestamp is the bare LEB128 varint it always was.
+stamp cannot mint an eternal static transform. In a non-self-describing
+format the stamp is a variant index ahead of the payload (`0` static, `1`
+followed by the timestamp), but the width of that index — and of the
+timestamp — is the codec's choice, not this crate's: postcard and bincode
+2's `config::standard()` write a 1-byte index and a LEB128 varint
+timestamp, while bincode 1.x and bincode 2's `config::legacy()` write a
+fixed 4-byte little-endian `u32` index and a fixed 8-byte little-endian
+timestamp. If you hand-roll an encoder, emit the shape your codec's config
+specifies rather than the postcard one.
 
 Cross-version decoding is format-dependent, so version-tag your streams:
 
@@ -243,11 +249,13 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
   of `u128`: replace `ts.t` with `ts.as_nanos()` and `Timestamp { t }` with
   `Timestamp::from_nanos(t)`, narrowing wider integers at the call site
   (`u64::try_from(nanos)`). u64 nanoseconds cover ~584 years, running out
-  in 2554; a clock that must outlive that needs a custom `TimePoint`. The
-  narrower width costs nothing on the wire — `Timestamp` is
+  in 2554; a clock that must outlive that needs a custom `TimePoint`. In a
+  variable-width encoding the narrower width costs nothing — `Timestamp` is
   `#[serde(transparent)]`, a bare JSON integer and a postcard LEB128
-  varint, identical bytes for every value that still fits — so only a stamp
-  beyond 2554 stops decoding.
+  varint, identical bytes for every value that still fits — so there only a
+  stamp beyond 2554 stops decoding. A fixed-width codec does change the
+  field: bincode 1.x writes eight bytes where a `u128` took sixteen, so
+  re-encode such a stream rather than reinterpreting it.
 
 ### 6. Small signature changes
 
