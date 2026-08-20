@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-rc.1] - Unreleased
+## [2.0.0-rc.2] - Unreleased
 
 Release-candidate cut driven by a full release-readiness audit: the last
 pre-stable API corrections, a performance fix on the embedded hot path,
@@ -13,6 +13,9 @@ and the migration/documentation work for stable. A migration guide from
 1.x now lives in [MIGRATION.md](MIGRATION.md). This cut deliberately
 breaks the beta-series API freeze — with near-zero beta adoption, the
 cost of these one-way-door fixes is as close to zero as it will ever be.
+No rc.1 was released: that section was still unreleased when a second
+audit added the rest of the changes below, so it is re-cut here as rc.2
+and this section is the whole delta from beta.4.
 
 ### Changed
 
@@ -350,6 +353,20 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   import (`transforms::geometry::transform::Transform` and friends) fails
   with E0603, and rustc's suggestion there — unlike the one for
   `Registry::new(max_age)` — names the right path and should be taken.
+- Docs: MIGRATION.md is corrected where it described 1.4.1 as something it
+  was not, each point re-measured against a build of that tag.
+  `add_transform` returned `()` and validated nothing there — a NaN
+  translation and a norm-1.01 rotation were both stored and served — so
+  every rejection under fallible insertion is new to a 1.x user, not an
+  existing match arm to rename. `TransformError::TransformTreeEmpty` *was*
+  produced, by the same-frame lookup that now returns the identity.
+  Two kinds under one child frame was not "the pattern 1.1.0 enabled" —
+  1.1.0 made a static transform *compose* with dynamic ones, which still
+  works; what 1.x allowed here was a buffer whose latest insert decided how
+  every lookup read it, one query answering three ways. `TimestampMismatch`
+  joins the variants that became struct variants, and the three lookups are
+  listed as keeping their call shape rather than their signature, since
+  their error type changed.
 - Docs: the README concurrency snippet uses `RwLock`, matching the `&self`
   read design it exists to demonstrate, and points at `examples/std_full.rs`
   as the compiled version. That example no longer stamps its samples one
@@ -399,8 +416,8 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
   ConnectivityException. The catch-all `TransformError::NotFound` variant —
   the primary lookup-miss error since 1.0 — is removed in favor of the
   diagnosed variants. (This entry originally called it "never-produced",
-  which was wrong; corrected in 2.0.0-rc.1. There was no beta.5 release —
-  an earlier version of this note pointed at one.)
+  which was wrong; corrected in 2.0.0-rc.2. There was no beta.5 release and
+  no rc.1 release — earlier versions of this note pointed at the first.)
 - A miss on a non-empty buffer reports `TransformError::TimestampOutOfRange`
   with the requested time and the covered range (via
   `BufferError::TransformError`), distinguishing a lookup that is merely too
@@ -561,7 +578,7 @@ cost of these one-way-door fixes is as close to zero as it will ever be.
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
-[2.0.0-rc.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-rc.1
+[2.0.0-rc.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-rc.2
 [2.0.0-beta.4]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2

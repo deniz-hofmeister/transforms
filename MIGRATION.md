@@ -37,18 +37,20 @@ registry.add_transform(transform)?;
 
 `add_transform` returns `Result`, with `RegistryError<T>` as the error type
 (see break 3). An ignored `Err` means **nothing was stored** — later lookups
-will fail mysteriously. New rejections your 1.x data may already trigger:
-self-referential frames, re-parenting (`ReparentingNotSupported` — call
-`remove_frame` first), cycles (`CycleDetected`), and mixing static with
-dynamic transforms in one child frame (`StaticDynamicConflict`). The 1.x
-rejections stay: `add_transform` still reports non-finite values and
-non-unit rotations, now as the flat `RegistryError::NonFiniteValues` and
-`RegistryError::NonUnitRotation(norm)`. They are *also* rejected earlier
-now, by the constructor (see break 7), but that is an addition, not a move —
-a transform you compose with `*` or read back out of a lookup is
-deliberately not re-validated, so it is the insert that catches it. Existing
-handling of those two conditions around `add_transform` still covers you,
-once the match arms are renamed.
+will fail mysteriously. In 1.4.1 it returned `()` and refused nothing, so
+there is no existing error handling to rename: every rejection below is new
+to you, and each one catches something 1.x accepted.
+
+- Values: `NonUnitRotation(norm)` and `NonFiniteValues`. Nothing validated a
+  transform in 1.4.1 — a NaN translation and a norm-1.01 rotation both went
+  into the registry and came back out of a lookup. The constructors
+  reject them earlier now too (break 7), but the insert check is what
+  catches a transform you built by composing with `*` or by reading a chain
+  back out of a lookup: neither re-validates.
+- Topology: `SelfReferentialFrame`, `ReparentingNotSupported` (call
+  `remove_frame` first), and `CycleDetected`.
+- Kind: `StaticDynamicConflict`, for a static and a dynamic transform under
+  the same child frame (runtime change 1).
 
 ### Static transforms are a `Stamp` variant, not `t = 0`
 
@@ -207,11 +209,14 @@ operation on the resolved chain.
 5); 1.x code that handled it did so around a hand-held `Buffer`, which now
 has no replacement type — give the frame pair to a `Registry` and match
 `RegistryError`. All error enums are `#[non_exhaustive]`, so every match
-needs a `_` arm. Also removed: the `TimestampError` alias (use
-`TimeError`), `BufferError::MaxAgeInvalid`, and
-`TransformError::TransformTreeEmpty` (never produced).
-`IncompatibleFrames` and `SameFrameMultiplication` are now struct variants
-carrying the offending frame names.
+needs a `_` arm. Also removed: the `TimestampError` alias (use `TimeError`),
+the never-constructed `BufferError::MaxAgeInvalid`, and
+`TransformError::TransformTreeEmpty` — which 1.4.1 *did* produce, from a
+same-frame lookup on a frame that held data; that lookup now succeeds with
+the identity (runtime change 3). Three variants became struct variants, so
+their patterns need field names: `TimestampMismatch { lhs, rhs }` (still
+two `f64` seconds), `IncompatibleFrames { expected, found }` and
+`SameFrameMultiplication { frame }`.
 
 ### 4. Exact equality
 
@@ -324,12 +329,18 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
 
 ## Runtime behavior changes (compile clean, behave differently)
 
-1. **Static + dynamic mixing is rejected.** A static sample and dynamic
-   samples in the same child frame — the pattern 1.1.0 explicitly
-   enabled — now fails at insert with `StaticDynamicConflict`. Give
-   static mounts their own child frames. (A 1.x `t=0` sample no longer
-   triggers this: zero is ordinary dynamic data now — see the `Stamp`
-   section above.)
+1. **Two kinds under one child frame are rejected.** A static sample and
+   dynamic samples under the same child frame now fail at insert with
+   `StaticDynamicConflict`. In 1.x the most recent insert decided how the
+   whole buffer was read, measured on 1.4.1: a lookup interpolating between
+   two dynamic samples started returning the `t=0` sample at every instant
+   once one was inserted, then went back to interpolating after the next
+   dynamic insert — one query, three different `Ok` answers. Give static
+   mounts their own child frame. Chaining a static transform with dynamic
+   ones is unaffected — that is what 1.1.0 enabled, it is what the examples
+   demonstrate, and it is a property of the chain, not of one frame's
+   buffer. (A 1.x `t=0` sample no longer triggers this either: zero is
+   ordinary dynamic data now — see the `Stamp` section above.)
 2. **Re-parenting is rejected.** 1.x let a new parent silently win;
    2.0 returns `ReparentingNotSupported`. Escape hatch:
    `registry.remove_frame(child)` then re-add. Removing a mid-tree frame
@@ -386,9 +397,11 @@ Swapping the arguments silently yields the exact inverse.
 
 Struct literals and public fields of `Vector3` and `Quaternion`, and
 `Point`'s public fields (its literal becomes `Point::new` — see break 7);
-`Timestamp::zero()`/`now()` and timestamp arithmetic;
-`get_transform` / `get_transform_for` / `get_transform_at` signatures (all
-`&self`, all taking bare timestamps); the `Localized` and `Transformable`
+`Timestamp::zero()`/`now()` and timestamp arithmetic; the call shape of
+`get_transform` / `get_transform_for` / `get_transform_at` — same receiver,
+same arguments in the same order, timestamps still bare `T`, so call sites
+compile untouched even though all three now report `RegistryError<T>`
+instead of `TransformError` (break 3); the `Localized` and `Transformable`
 traits; the `no_std` `Registry::new()` path.
 
 ## After migrating, re-test — don't just re-compile

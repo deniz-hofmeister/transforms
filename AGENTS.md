@@ -346,7 +346,13 @@ Releases are cut by the maintainer. The checklist, in order:
   version pins in the README installation snippets.
 - Run the full verification gate (`tests/test_all.sh`).
 - Run `cargo semver-checks check-release --baseline-rev <previous tag>` and
-  confirm the diff is exactly the changelogged one.
+  confirm the diff is exactly the changelogged one. Against a baseline the
+  release already majors over it enumerates nothing — every breaking lint is
+  skipped as permitted, and the run proves only that the tooling works and
+  that the declared bump covers whatever changed. Measured for 2.0.0 against
+  `v1.4.1`: 254 checks, all skipped. To see the diff itself before such a
+  release, run it once with the version temporarily set to a patch bump on
+  the baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
 - Tag `vX.Y.Z` and push the tag.
