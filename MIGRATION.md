@@ -4,6 +4,78 @@ Every break below was reproduced by compiling the 1.4.1-documented usage
 against 2.0. Work through the compile errors first; then read the runtime
 changes — code that compiles cleanly can still behave differently.
 
+## Coming from a 2.0.0 beta
+
+2.0.0-beta.4 is the only published 2.x release, so if you are already on 2.x,
+you are on that one. rc.2 deliberately broke the beta-series API freeze to
+close the last one-way doors before stable, and the `2.0.0-rc.2` section of
+[CHANGELOG.md](CHANGELOG.md) is the whole delta from beta.4. Most of the 1.x
+breaks below apply to you unchanged — beta.4 still had 1.x's public
+`Transform` fields, public modules and `u128` stamp — so this section only
+lists what is beta.4-specific and points at the numbered break where the fix
+is written out.
+
+What stops compiling since beta.4:
+
+- `Transform.timestamp` is retyped to `Stamp<T>`, the fields are private, and
+  `Transform::new` / `Transform::static_between` return `Result` (the `Stamp`
+  section below, and break 7).
+- `Transform::identity()` is removed (break 7).
+- `Point` gains `Point::new` and `#[non_exhaustive]`, ending its struct
+  literal (break 7).
+- Deserializing a `Transform` now runs the same validation, so a denormalized
+  rotation on the wire is a decode error (break 7).
+- `Transform::UNIT_NORM_TOLERANCE` is a module-level const,
+  `geometry::UNIT_NORM_TOLERANCE` — no turbofish (break 5's import list names
+  it).
+- `Quaternion::new(w, x, y, z)` is renamed
+  `Quaternion::from_wxyz(w, x, y, z)` — same order and behavior, a name that
+  states that order at the call site.
+- `Buffer` and the `core` module are private, and so are the leaf modules
+  (`geometry::transform`, `time::timestamp`, ...) that beta.4 still exposed
+  (break 5).
+- `registry.delete_transforms_before(t)` → `remove_transforms_before(t)`
+  (break 6), and `Timestamp::as_seconds_unchecked()` →
+  `as_seconds_lossy()` (break 6).
+- Every `Registry` call reports `errors::RegistryError<T>`: the lookups
+  returned `TransformError` in beta.4 and `add_transform` returned
+  `BufferError`, and both of those are gone from the registry's signatures
+  (break 3).
+- `TimePoint` loses `static_timestamp`, `is_static`, `checked_add` and
+  `as_seconds`, requires `as_seconds_lossy`, and gains `Debug` as a
+  supertrait (the `Stamp` section below).
+- `Timestamp`'s `t` field is private and holds `u64` nanoseconds instead of
+  `u128`: `ts.as_nanos()` and `Timestamp::from_nanos(t)` (break 5).
+- The wire format changed on both axes: `Stamp` is an explicitly tagged enum
+  where beta.4 wrote a bare timestamp with no tag, and `Timestamp` is
+  `#[serde(transparent)]` where beta.4 wrote a one-field `{"t": ...}` record.
+  beta.4 payloads you persisted must be re-encoded, not reinterpreted — the
+  **Serde wire format** notes below give the shapes.
+
+Silent behavior changes since beta.4 — these compile:
+
+- **`Timestamp + Duration` rejects durations beyond the `u64` range.** The
+  arithmetic is `u64` nanoseconds now, so a `Duration` longer than
+  `u64::MAX` nanoseconds (~584 years) returns `TimeError::DurationOverflow`
+  where beta.4's `u128` arithmetic accepted it. `Timestamp - Duration` gained
+  the same guard, reporting `TimeError::DurationUnderflow` — for a stamp that
+  fits in `u64` at all, that subtraction already underflowed in beta.4, so
+  only the addition changes its answer.
+- **`Error::source()` on a failed lookup returns `None`.** beta.4's
+  `TransformError::NotFoundAt` carried `source: Box<BufferError>`, and the
+  covered range lived one link down that chain. `RegistryError::NotFoundAt`
+  carries `frame`, `requested` and `covered` as its own fields instead, and
+  chains to nothing; `RegistryError::TransformError` is the only variant with
+  a source. Code that walked the chain to diagnose a miss now finds an empty
+  one — read the payload (break 3).
+- **`RegistryError<T>` is generic, so `Send`/`Sync`/`'static` follow `T`.**
+  beta.4's `TransformError` and `BufferError` carried no time type and
+  satisfied all three unconditionally. `TimePoint` requires only
+  `Copy + Ord + Debug`, so a custom clock that is not `Send + Sync + 'static`
+  now keeps `RegistryError<YourClock>` out of a
+  `Box<dyn Error + Send + Sync + 'static>`. `Timestamp` and `SystemTime` are
+  unaffected.
+
 ## Compile-time breaks
 
 ### 1. Registry construction
@@ -236,7 +308,8 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
 
 ### 5. Private internals
 
-- **Every public type has exactly one path, and the leaf modules are not it.**
+- **Every public type has a canonical import path, and the leaf modules are
+  not it.**
   The modules the types live in — `geometry::transform`, `geometry::quaternion`,
   `geometry::vector3`, `geometry::point`, `time::timestamp`, `time::traits`,
   `core::registry`, `core::buffer` — are private in 2.0, so a 1.x deep import
@@ -245,11 +318,15 @@ traits (`AbsDiffEq`/`RelativeEq`), implemented for all geometry types.
   `transforms::{Registry, Transform, Transformable, Localized}`,
   `transforms::geometry::{Point, Quaternion, Vector3, UNIT_NORM_TOLERANCE}`,
   `transforms::time::{Stamp, TimePoint, Timestamp}`, and `transforms::errors::*`
-  for the error types. Unlike the suggestion in break 1, **rustc's suggestion
-  here is correct; take it**: every one of those imports gets a `help: consider
-  importing this struct instead` naming the canonical path (for example
-  `use transforms::time::Timestamp;`). It is marked `MaybeIncorrect`, so
-  `cargo fix` will not apply it for you.
+  for the error types. Those lists overlap in two places, deliberately: the
+  crate root re-exports `Transform`, `Transformable` and `Localized`, which
+  are also `transforms::geometry::*`, and `TimeError` answers to both
+  `time::TimeError` and `errors::TimeError`. Either path compiles; the ones
+  listed above are what the docs and examples use. Unlike the suggestion in
+  break 1, **rustc's suggestion here is correct; take it**: every one of those
+  imports gets a `help: consider importing this struct instead` naming a
+  working path (for example `use transforms::time::Timestamp;`). It is marked
+  `MaybeIncorrect`, so `cargo fix` will not apply it for you.
 - `registry.data` is private. There is no public iteration API — restructure
   around `get_transform`, `remove_frame`, and your own bookkeeping.
 - **`Buffer` and the `core` module are gone from the public API.** `Registry`

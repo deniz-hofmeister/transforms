@@ -60,7 +60,8 @@ no. Concretely:
   are the entire runtime dependency list. (The `[dev-dependencies]` —
   `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
   for benches, `proptest` for property tests, `serde_json` for serde
-  roundtrips — are expected and do not contradict this.)
+  roundtrips, `postcard` for the frozen serde wire-format bytes — are
+  expected and do not contradict this.)
 - `no_std` parity: every change must build and pass tests with
   `--no-default-features`, and build for real bare-metal targets: the gate
   builds `thumbv7em-none-eabihf` (Cortex-M4F/M7 — STM32 F4/F7/H7 flight
@@ -70,12 +71,12 @@ no. Concretely:
   `riscv32imc-unknown-none-elf` (ESP32-C3/C6). `no_std` requires a heap
   allocator (`alloc`).
   Features must be additive: the same API exists in both modes; the only
-  feature-gated items are `Timestamp::now()`, the `SystemTime` time type
-  (`std`), and the serde derives (`serde`, default-off). Additive also means
-  numerically identical: `sqrt`, `sin`, and `acos` go through `libm` in both
-  modes — never `f64`'s std methods — so enabling `std` changes which API
-  exists, never a computed value. Slerp is pinned bit for bit in the tests
-  to keep it that way.
+  feature-gated items are `Timestamp::now()`, `Timestamp::try_now()`, the
+  `SystemTime` time type (`std`), and the serde derives (`serde`,
+  default-off). Additive also means numerically identical: `sqrt`, `sin`, and
+  `acos` go through `libm` in both modes — never `f64`'s std methods — so
+  enabling `std` changes which API exists, never a computed value. Slerp is
+  pinned bit for bit in the tests to keep it that way.
 - The README **Non-Goals** section is load-bearing, and the crate root carries
   the same list verbatim — edit both or neither. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
@@ -206,9 +207,12 @@ this section is convention, enforced in review — follow it anyway.
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
   standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
   names are domain-correct), a handful of narrowly-scoped `clippy::cast_*`
-  allows on the numeric conversions in `src/time/timestamp/`, and the scoped
-  `clippy::expect_used` allow on `Timestamp::now`'s documented panic — do not
-  remove them, and do not treat them as precedent.
+  allows on the numeric conversions in `src/time/timestamp/`, the scoped
+  `clippy::expect_used` allow on `Timestamp::now`'s documented panic, and the
+  per-test `clippy::float_cmp` allows where exactness is the property under
+  test (a reported error payload, a last-write-wins upsert — the compared
+  values are exactly representable) — do not remove them, and do not treat
+  them as precedent.
 - Construction goes through constructors everywhere — tests, examples, docs:
   `Transform::new(parent, child, translation, rotation, stamp)` /
   `Transform::static_between(..)` (both fallible),
@@ -257,15 +261,18 @@ this section is convention, enforced in review — follow it anyway.
 All of the following must pass before a change is complete
 (`tests/test_all.sh` runs the whole gate). The gate requires a **nightly**
 toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
-options, and one pinned toolchain keeps the gate identical on every machine
-(rustup, Nix, or distro-packaged Rust). Stable and MSRV verification is
-CI's job, and nightly clippy diverges from CI's stable clippy only in the
-safe direction — over the same four feature combinations it is a superset,
+options. No particular nightly is pinned — any recent one will do, however
+Rust was installed (rustup, Nix, or a distro package), so two machines may
+well be running different nightlies. Stable and MSRV verification is CI's
+job, and nightly clippy diverges from CI's stable clippy only in the safe
+direction — over the same four feature combinations it is a superset,
 so a green local gate implies green CI clippy. Keep the two lists in step:
 the moment the script lints fewer combinations than CI does, that sentence
 is false and a lint lands in CI that nobody could have seen locally.
 
 ```bash
+cargo build                                         # both modes build first
+cargo build --no-default-features
 cargo test
 cargo test --no-default-features
 cargo test --features serde
@@ -276,6 +283,7 @@ cargo clippy --all-targets --features serde -- -D warnings
 cargo clippy --all-targets --no-default-features --features serde -- -D warnings
 cargo fmt --check                                   # nightly rustfmt (see above)
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features   # the docs.rs configuration
 cargo run --example std_minimal                     # and the other std examples
 cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
 cargo bench -- --test
@@ -283,6 +291,9 @@ cargo bench --no-default-features -- --test         # CI also builds no_std benc
 cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std proof
 cargo build --no-default-features --target thumbv6m-none-eabi      # Cortex-M0+: soft float, no CAS
 cargo build --no-default-features --target thumbv8m.main-none-eabihf
+cargo build --no-default-features --features serde --target thumbv7em-none-eabihf   # serde stays std-free
+cargo build --no-default-features --features serde --target thumbv6m-none-eabi
+cargo build --no-default-features --features serde --target thumbv8m.main-none-eabihf
 ```
 
 (On rustup machines: `rustup run nightly tests/test_all.sh`, and

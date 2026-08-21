@@ -171,7 +171,7 @@ mod transform_tests {
 
         assert_abs_diff_eq!(inverted.rotation().norm(), 1.0, epsilon = 1e-15);
         // The drift would otherwise have scaled the inverted translation by
-        // the squared norm — here by 1.8e-6, five metres per thousand
+        // the squared norm — here by 1.8e-6, 1.8 metres per thousand
         // kilometres.
         assert_abs_diff_eq!(
             inverted.translation(),

@@ -307,8 +307,8 @@ fn transform_postcard_bytes_are_frozen() {
 }
 
 /// The same field-order pin for `Point`: position, orientation, the bare
-/// timestamp varint (no `Option` tag — `Point.timestamp` is a plain
-/// `Timestamp`), then the frame name.
+/// timestamp varint (no variant tag — `Point.timestamp` is a plain
+/// `Timestamp`, not a `Stamp`), then the frame name.
 #[test]
 fn point_postcard_bytes_are_frozen() {
     let point: Point = Point::new(

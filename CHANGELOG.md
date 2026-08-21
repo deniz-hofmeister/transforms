@@ -118,10 +118,13 @@ and this section is the whole delta from beta.4.
   time-agnostic path instead of fabricating staticness on them to bypass
   `Mul`'s timestamp check.
 
-- **Breaking:** `TransformError::TransformTreeEmpty` is removed. It was
-  provably unconstructible from any public path; removing an enum variant
-  after stable would be a breaking change, so it goes now, following the
-  precedent of `NotFound` and `MaxAgeInvalid`.
+- **Breaking:** `TransformError::TransformTreeEmpty` is removed. It has been
+  unconstructible from any public path since 2.0.0-alpha.1, where the
+  same-frame lookup that produced it in 1.4.1 started returning the identity:
+  in the beta.4 baseline this removes it from, its only `return` sits behind
+  that short-circuit, on an empty chain no public call can reach. Removing an
+  enum variant after stable would be a breaking change, so it goes now,
+  following the precedent of `NotFound` and `MaxAgeInvalid`.
 - **Breaking:** `IncompatibleFrames` and `SameFrameMultiplication` are
   struct variants carrying frame context —
   `IncompatibleFrames { expected, found }` and
@@ -130,13 +133,17 @@ and this section is the whole delta from beta.4.
 - **Breaking:** `Timestamp`'s inner nanosecond field is private and narrows
   from `u128` to `u64`; `from_nanos(u64)` / `as_nanos() -> u64` are the API.
   u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
-  service life of anything this crate positions — while halving per-sample
+  service life of anything this crate positions — while shrinking per-sample
   stamp storage and removing multi-word arithmetic from the 32-bit MCU
-  targets. In a variable-width encoding the narrowing costs nothing: a JSON
-  integer, a postcard LEB128 varint and a bincode 2 `config::standard()`
-  varint are the same bytes they were as a `u128`, golden vectors included
-  (the shape itself is the transparent bare integer described in the serde
-  entry above). Fixed-width encodings do shrink — bincode 1.x and bincode 2's
+  targets. The stamp's integer narrows from 16 bytes to 8 and sheds the
+  16-byte alignment it imposed on everything stored beside it: measured on
+  x86-64, `Transform<Timestamp>` is 120 bytes where the `u128` made it 128,
+  and the buffer's `BTreeMap` key goes from 16 bytes to 8. In a variable-width
+  encoding the narrowing costs nothing: a JSON integer, a postcard LEB128
+  varint and a bincode 2 `config::standard()` varint are the same bytes they
+  were as a `u128`, golden vectors included (the shape itself is the
+  transparent bare integer described in the serde entry above).
+  Fixed-width encodings do shrink — bincode 1.x and bincode 2's
   `config::legacy()` write eight bytes where a `u128` took sixteen — and
   MessagePack now emits a native integer instead of the 16-byte blob a
   `u128` forced, so foreign-language consumers read it as a number.
@@ -276,6 +283,10 @@ and this section is the whole delta from beta.4.
   that a green local gate implies green CI clippy was false for the serde
   path — and CI now runs that script verbatim in a `gate` job, making it
   the single source of truth for what the gate is.
+- `Cargo.lock` is committed, so every checkout resolves the same dependency
+  versions. It also ships in the published tarball — `cargo package` includes
+  it — where it governs builds of this crate itself and never a downstream
+  crate's own resolution.
 
 ### Fixed
 

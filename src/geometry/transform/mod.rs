@@ -13,8 +13,13 @@ pub use traits::{Localized, Transformable};
 mod error;
 mod traits;
 
-/// The accepted deviation of a rotation's norm from 1 in
-/// [`Transform::new`].
+/// The accepted deviation of a rotation's norm from 1, applied by
+/// [`Transform::validate`].
+///
+/// That is the check behind [`Transform::new`],
+/// [`Transform::static_between`], the `Deserialize` impl, and every
+/// [`Registry::add_transform`](crate::Registry::add_transform), so the
+/// tolerance gates every rotation that reaches storage.
 ///
 /// Loose enough to accept unit quaternions that were stored or
 /// transmitted as `f32` and widened to `f64`, tight enough to reject
@@ -52,7 +57,11 @@ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 /// With the optional `serde` feature, this type implements `Serialize` and
 /// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 /// Deserialization runs the same validation as the constructors, so a
-/// transform read off the wire is valid too.
+/// transform read off the wire is valid too. Serialization does not: it writes
+/// the fields as they stand, so a *derived* transform that drifted past the
+/// tolerance encodes without complaint and fails on the consumer's decode.
+/// Call [`validate`](Self::validate) before persisting or publishing a derived
+/// transform.
 ///
 /// # Examples
 ///
@@ -425,10 +434,13 @@ where
     /// # Errors
     ///
     /// Returns `TransformError::QuaternionError` if the rotation cannot be
-    /// normalized, and `TransformError::NonFiniteValues` if the inverted
-    /// translation is not finite. Neither can happen for a transform that
-    /// came straight from a constructor; both are reachable for one composed
-    /// out of extreme-magnitude operands, which `*` does not re-check.
+    /// normalized, which a transform straight from a constructor cannot reach:
+    /// its norm was checked there. `TransformError::NonFiniteValues` is
+    /// returned if the inverted translation is not finite, and that one is
+    /// reachable from a constructor-built transform too — rotating a
+    /// translation whose components sit near `f64::MAX` overflows it — as well
+    /// as from one composed out of extreme-magnitude operands, which `*` does
+    /// not re-check.
     ///
     /// # Examples
     ///
@@ -592,13 +604,18 @@ where
     type Error = TransformError;
 
     fn try_from(repr: TransformRepr<T>) -> Result<Self, Self::Error> {
-        Self::new(
-            &repr.parent,
-            &repr.child,
+        // The body of `Transform::new`, moving the decoded frame names instead
+        // of re-allocating them: the assembled value is validated before it
+        // escapes, so `unvalidated` never hands out an unchecked transform.
+        let transform = Self::unvalidated(
+            repr.parent,
+            repr.child,
             repr.translation,
             repr.rotation,
             repr.timestamp,
-        )
+        );
+        transform.validate()?;
+        Ok(transform)
     }
 }
 

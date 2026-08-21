@@ -86,7 +86,7 @@ transforms = "2.0.0-rc.2"
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | Yes | Enables `Timestamp::now()` and the `SystemTime` time type |
+| `std` | Yes | Enables `Timestamp::now()`, its panic-free `Timestamp::try_now()`, and the `SystemTime` time type |
 | `serde` | No | `Serialize`/`Deserialize` for the geometry and time types |
 
 Minimum supported Rust version: 1.86 (checked in CI).
@@ -240,7 +240,7 @@ Time-indexed storage for transforms between a specific child-parent frame pair, 
 The core data structure representing a rigid body transformation:
 
 ```rust
-// Fields are private: a Transform is built validated and stays valid.
+// Fields are private: construction validates, and no field can be poked back out of it.
 impl<T: TimePoint> Transform<T> {
     pub fn new(parent: &str, child: &str, translation: Vector3, rotation: Quaternion, timestamp: Stamp<T>) -> Result<Self, TransformError>
     pub fn static_between(parent: &str, child: &str, translation: Vector3, rotation: Quaternion) -> Result<Self, TransformError>

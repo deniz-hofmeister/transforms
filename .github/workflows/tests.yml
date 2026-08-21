@@ -33,6 +33,9 @@ jobs:
         with:
           components: clippy, rustfmt
           toolchain: nightly
+          # The action sets RUSTFLAGS=-D warnings by default; empty keeps the
+          # gate run identical to a local tests/test_all.sh run.
+          rustflags: ""
       - name: Install bare-metal targets
         run: rustup target add thumbv7em-none-eabihf thumbv6m-none-eabi thumbv8m.main-none-eabihf
       - name: Run the verification gate
@@ -207,7 +210,5 @@ jobs:
           toolchain: stable
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-      - name: Generate lockfile
-        run: cargo generate-lockfile
       - name: Audit dependencies
         run: cargo audit

@@ -139,9 +139,14 @@ where
 {
     /// Applies a transformation to the `Point`, updating its position, orientation, and frame.
     ///
-    /// The transform's geometry is applied as given: a `Transform` is valid by
-    /// construction, so there is nothing left to check here beyond the frame
-    /// and the time.
+    /// The transform's geometry is applied as given: this method checks the
+    /// frame and the time, and re-validates no numbers. A [`Transform`] built
+    /// through its constructors or read through its `Deserialize` impl was
+    /// validated there; one *derived* from valid transforms — `*`,
+    /// [`Transform::inverse`], [`Transform::interpolate`], every registry
+    /// lookup — was not. For a transform of derived or otherwise uncontrolled
+    /// provenance, [`Transform::validate`] is the check; see the precondition
+    /// documented on [`Transformable`].
     ///
     /// # Errors
     ///
@@ -173,7 +178,10 @@ where
         }
         self.position = transform.rotation().rotate_vector(self.position) + transform.translation();
         self.orientation = transform.rotation() * self.orientation;
-        self.frame = transform.parent().into();
+        // Reuse the frame's existing allocation instead of minting a String
+        // for every transformed point.
+        self.frame.clear();
+        self.frame.push_str(transform.parent());
         Ok(())
     }
 }

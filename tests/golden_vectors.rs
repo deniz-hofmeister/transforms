@@ -133,7 +133,7 @@ fn a_two_hop_chain_matches_the_reference_composition() {
             "odom",
             "base",
             Vector3::new(0.5, -0.25, 3.0),
-            Quaternion::from_wxyz(0.923_879_532_511_286_8, 0.0, 0.382_683_432_365_089_8, 0.0),
+            Quaternion::from_wxyz(0.923_879_532_511_286_7, 0.0, 0.382_683_432_365_089_8, 0.0),
         ))
         .unwrap();
 

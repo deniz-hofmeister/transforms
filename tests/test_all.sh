@@ -1,14 +1,14 @@
 #!/bin/sh
 # The full verification gate for this repository; see AGENTS.md "Definition of done".
 #
-# The gate runs on nightly: rustfmt.toml uses nightly-only options, and one
-# pinned toolchain keeps the gate identical on every machine regardless of
-# how Rust was installed (rustup, Nix, distro package). Stable and MSRV
-# coverage is CI's job (.github/workflows/tests.yml), as is the
-# riscv32imc-unknown-none-elf bare-metal build — that target is not part
-# of the pinned local toolchain. CI runs this script verbatim in its `gate`
-# job, so this file is the single source of truth for what the gate is:
-# extend it here, not in the workflow.
+# The gate runs on nightly: rustfmt.toml uses nightly-only options, so this
+# script exits rather than run on anything else. No particular nightly is
+# pinned — any recent one will do, however Rust was installed (rustup, Nix,
+# distro package). Stable and MSRV coverage is CI's job
+# (.github/workflows/tests.yml), as is the riscv32imc-unknown-none-elf
+# bare-metal build — that target is not built here. CI runs this script
+# verbatim in its `gate` job, so this file is the single source of truth
+# for what the gate is: extend it here, not in the workflow.
 set -e
 
 rustc --version | grep -q nightly || {
