@@ -62,6 +62,26 @@ where
 /// a sensor frame), while the parent frame is typically the more general/global frame
 /// (e.g., map or world frame).
 ///
+/// # Contract
+///
+/// An implementation owes the rigid-body map, in this order: every bound
+/// position `p` becomes
+/// `transform.rotation().rotate_vector(p) + transform.translation()` —
+/// rotate first, then translate — and every orientation `q` becomes
+/// `transform.rotation() * q`, the transform's rotation on the left. A
+/// free vector — a velocity, a surface normal — takes the rotation only,
+/// and owes no translation. Where the object carries them, as
+/// [`Point`](crate::geometry::Point) does, its frame becomes the
+/// transform's parent frame; timestamps are checked, never rewritten.
+/// The reversed variants compile, and each has a blind spot that keeps
+/// weak tests green: translating before rotating agrees with the
+/// contract until a real rotation meets a non-zero translation, and
+/// `q * transform.rotation()` agrees until the object's own orientation
+/// is non-identity and does not commute with the transform's. Beyond the
+/// blind spot both produce a silent wrong answer, never a loud failure.
+/// `Point`'s implementation is the reference, and the suite pins both
+/// orders.
+///
 /// # Precondition
 ///
 /// An implementation applies the transform's geometry as given; it checks
@@ -118,6 +138,10 @@ where
     T: TimePoint,
 {
     /// Applies a transform to this object, modifying it in place.
+    ///
+    /// What "applies" must compute — rotate, then translate; the
+    /// transform's rotation on the left of the orientation composition —
+    /// is pinned by the trait-level Contract section.
     ///
     /// # Errors
     ///

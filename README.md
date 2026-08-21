@@ -285,7 +285,7 @@ where
 }
 ```
 
-The `Localized` trait provides frame and timestamp introspection, while `Transformable` handles applying transforms. They are separate so that pure geometry types can implement `Transformable` without needing frame/timestamp metadata. The library provides a `Point` type as a reference implementation of both traits.
+The `Localized` trait provides frame and timestamp introspection, while `Transformable` handles applying transforms. They are separate so that pure geometry types can implement `Transformable` without needing frame/timestamp metadata. The library provides a `Point` type as a reference implementation of both traits, and the `Transformable` docs state the exact map an implementation owes: rotate, then translate, with the transform's rotation on the left of the orientation composition.
 
 ## Usage Examples
 

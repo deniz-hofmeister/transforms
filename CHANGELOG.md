@@ -400,6 +400,14 @@ and this section is the whole delta from beta.4.
   consolidation that cuts 2.0.0 stable. Runtime changes 3 and 5 now cover
   `get_transform_at`'s coinciding-frame legs and the expiry-reference
   reset, and the beta.4 delta gains the frame-keeping wipe.
+- Docs: `Transformable` states the map an implementation owes — rotate,
+  then translate; orientation composed with the transform's rotation on
+  the left; a free vector takes the rotation only — previously readable
+  solely in `Point`'s source, and README's trait section points at it.
+  The flipped orientation order was invisible to the whole suite (every
+  stored fixture orientation was the identity); a `Point` test now starts
+  from a non-commuting orientation and pins the left composition against
+  hand-derived digits.
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected

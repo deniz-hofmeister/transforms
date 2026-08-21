@@ -23,13 +23,14 @@ mod point_tests {
     }
 
     #[test]
-    fn transform_rotates_orientation() {
+    fn transform_composes_orientation_on_the_left() {
         let theta = core::f64::consts::PI / 2.0;
         let rot_z_90 = Quaternion::from_wxyz((theta / 2.0).cos(), 0.0, 0.0, (theta / 2.0).sin());
+        let rot_x_90 = Quaternion::from_wxyz((theta / 2.0).cos(), (theta / 2.0).sin(), 0.0, 0.0);
 
         let mut point = Point::new(
             Vector3::new(1.0, 0.0, 0.0),
-            Quaternion::identity(),
+            rot_x_90,
             Timestamp::zero(),
             "b",
         );
@@ -45,11 +46,13 @@ mod point_tests {
 
         point.transform(&transform).unwrap();
 
-        // The orientation must be rotated (quaternion product), not merely
-        // combined component-wise.
+        // Hand-derived rot_z_90 * rot_x_90, written as digits so a flipped
+        // operand order cannot re-derive the expectation from itself: the
+        // starting orientation does not commute with the transform's
+        // rotation, and the flipped product is (0.5, 0.5, -0.5, 0.5).
         let expected = Point::new(
             Vector3::new(0.0, 1.0, 0.0),
-            rot_z_90,
+            Quaternion::from_wxyz(0.5, 0.5, 0.5, 0.5),
             Timestamp::zero(),
             "a",
         );
