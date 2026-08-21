@@ -2,7 +2,32 @@
 //!
 //! This module provides the `Buffer` struct, which is designed to store and manage
 //! a collection of transforms, each associated with a timestamp. The buffer uses
-//! a binary tree to efficiently store and retrieve transforms based on their timestamps.
+//! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
+//!
+//! `Buffer` is internal to the crate: [`Registry`](crate::Registry) owns one
+//! per child frame and is the only way to reach it. The invariants that make a
+//! frame tree well-formed are split between the two, and most of them live
+//! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
+//! pin, the child pin, the static-xor-dynamic kind, and the numeric validity
+//! of what is stored. `Registry` adds only the check that needs a view of the
+//! whole tree — the cycle check — and runs it solely for a child frame it has
+//! not seen before, precisely because this module's pin makes an existing
+//! buffer's parent immutable. Any rework of the storage below must keep those
+//! pins: without them a re-parenting insert reaches no check at all, and every
+//! later lookup through the frame returns a pose expressed relative to the
+//! wrong parent.
+//!
+//! The numeric check is deliberately *not* redundant with the one the
+//! constructors run. A [`Transform`] is validated where it is built, but `*`,
+//! [`Transform::interpolate`], [`Transform::inverse`] and every registry
+//! lookup derive transforms without re-validating them — by design, because
+//! rotation norms drift across a long chain. A caller who flattens a chain
+//! and re-publishes the result therefore hands storage a value nothing has
+//! checked, and a rotation that has left
+//! [`UNIT_NORM_TOLERANCE`](crate::geometry::UNIT_NORM_TOLERANCE) silently
+//! scales every vector every later lookup rotates. This is the last boundary
+//! before a transform starts answering lookups, and the check is O(1) per
+//! insert.
 //!
 //! # Features
 //!
@@ -14,76 +39,28 @@
 //!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
 //!   provide an estimated transform at the requested timestamp.
 //!
-//! - **Static Buffers**: A buffer is either static or dynamic, decided by the first transform
-//!   inserted: a transform carrying the static timestamp value (`t=0` by default) makes the buffer
-//!   static, and a static buffer returns its single transform for any requested timestamp.
-//!   In downstream crates, you can customize what counts as the static timestamp by implementing
-//!   `TimePoint::static_timestamp()` for your timestamp type, in case the `t=0` definition causes
-//!   conflicts. A sensible alternative is handling `t=u64::MAX` as a static timestamp.
+//! - **Static Buffers**: A buffer is either static or dynamic — a property declared at
+//!   construction ([`Buffer::static_edge`] vs. [`Buffer::dynamic`]) and fixed for the buffer's
+//!   lifetime. A static buffer holds one transform carrying `Stamp::Static` and returns it for
+//!   any requested timestamp; a dynamic buffer holds a time series of `Stamp::At` samples.
+//!   Inserting the opposite kind is rejected with `InsertError::StaticDynamicConflict`.
 //!
 //! - **Automatic Expiration of Transforms**:
-//!   - Buffers created with `Buffer::with_max_age` remove entries older than `max_age`
-//!     relative to the latest inserted timestamp on every insert of a dynamic transform.
+//!   - Buffers created with `Buffer::dynamic_with_max_age` remove entries older than `max_age`
+//!     relative to the latest inserted timestamp on every insert.
 //!   - This ensures that the buffer does not grow indefinitely and only retains relevant
 //!     transforms within the specified duration.
-//!   - Buffers created with `Buffer::new` never expire entries; use the `delete_before`
+//!   - Buffers created with `Buffer::dynamic` never expire entries; use the `remove_before`
 //!     method for manual cleanup. Static transforms never expire and survive manual
 //!     cleanup.
-//!
-//! # Examples
-//!
-//! ```
-//! # #[cfg(feature = "std")]
-//! use core::time::Duration;
-//! use transforms::{
-//!     core::Buffer,
-//!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
-//! };
-//!
-//! # #[cfg(not(feature = "std"))]
-//! # let mut buffer = Buffer::new();
-//!
-//! # #[cfg(feature = "std")]
-//! let max_age = Duration::from_secs(10);
-//! # #[cfg(feature = "std")]
-//! let mut buffer = Buffer::with_max_age(max_age);
-//!
-//! let translation = Vector3::new(1.0, 2.0, 3.0);
-//! let rotation = Quaternion::identity();
-//!
-//! # #[cfg(not(feature = "std"))]
-//! # let timestamp = Timestamp::zero();
-//! # #[cfg(feature = "std")]
-//! let timestamp = Timestamp::now();
-//! let parent = "a".into();
-//! let child = "b".into();
-//!
-//! let transform = Transform {
-//!     translation,
-//!     rotation,
-//!     timestamp,
-//!     parent,
-//!     child,
-//! };
-//!
-//! buffer.insert(transform).unwrap();
-//!
-//! let result = buffer.get(&timestamp);
-//! match result {
-//!     Ok(transform) => println!("Transform found: {transform:?}"),
-//!     Err(_) => println!("No transform available"),
-//! }
-//! ```
 
 use crate::{
-    errors::TransformError,
     geometry::Transform,
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
 use core::time::Duration;
-pub use error::BufferError;
+pub(crate) use error::{GetError, InsertError};
 mod error;
 
 type NearestTransforms<'a, T> = (
@@ -94,88 +71,105 @@ type NearestTransforms<'a, T> = (
 /// A buffer that stores transforms ordered by timestamps.
 ///
 /// The `Buffer` struct is designed to manage a collection of transforms,
-/// each associated with a timestamp. It uses a binary tree to efficiently
+/// each associated with a timestamp. It uses an ordered map (B-tree) to efficiently
 /// store and retrieve transforms based on their timestamps.
 ///
-/// A buffer is either static or dynamic, determined by the first transform
-/// inserted into an empty buffer: a transform carrying the static timestamp
-/// value (`t=0` by default) makes the buffer static. Later inserts of the
-/// opposite kind are rejected with `BufferError::StaticDynamicConflict`.
+/// A buffer is either static or dynamic, declared at construction and fixed
+/// for the buffer's lifetime: [`Buffer::static_edge`] builds a buffer that
+/// holds one transform carrying `Stamp::Static` and serves it for any
+/// requested time; [`Buffer::dynamic`] and [`Buffer::dynamic_with_max_age`]
+/// build buffers that hold a time series of `Stamp::At` samples. Inserts of
+/// the opposite kind are rejected with `InsertError::StaticDynamicConflict`.
 ///
-/// The first insert also pins the buffer's parent and child frames: every
-/// later insert must carry the same pair, so a buffer stores the history of
+/// The first insert pins the buffer's parent and child frames: every later
+/// insert must carry the same pair, so a buffer stores the history of
 /// exactly one parent-child relationship. Re-parenting is rejected with
-/// `BufferError::ReparentingNotSupported`, and a transform for a different
-/// child frame with `BufferError::ChildFrameMismatch`.
+/// `InsertError::ReparentingNotSupported`, and a transform for a different
+/// child frame with `InsertError::ChildFrameMismatch`.
 ///
-/// When constructed with [`Buffer::with_max_age`], entries older than
-/// `max_age` relative to the latest inserted timestamp are removed
-/// automatically on insert. A buffer created with [`Buffer::new`] never
-/// expires entries; use [`Buffer::delete_before`] for manual cleanup.
+/// When constructed with [`Buffer::dynamic_with_max_age`], entries older
+/// than `max_age` relative to the latest inserted timestamp are removed
+/// automatically on insert. A buffer created with [`Buffer::dynamic`] never
+/// expires entries; use [`Buffer::remove_before`] for manual cleanup.
 #[derive(Debug)]
-pub struct Buffer<T = Timestamp>
+pub(crate) struct Buffer<T = Timestamp>
 where
     T: TimePoint,
 {
-    data: BTreeMap<T, Transform<T>>,
-    max_age: Option<Duration>,
-    latest_timestamp: Option<T>,
-    is_static: bool,
     parent: Option<String>,
     child: Option<String>,
+    kind: Kind<T>,
+}
+
+/// The buffer's storage, decided at construction: one static transform, or
+/// a time series of dynamic samples. Keeping the kind structural — instead
+/// of a flag re-derived from the stored data — makes it impossible for a
+/// buffer to change kind when it is emptied and refilled.
+#[derive(Debug)]
+enum Kind<T>
+where
+    T: TimePoint,
+{
+    /// One transform valid for all time; `None` until the first insert.
+    Static(Option<Transform<T>>),
+    /// A time series of samples, keyed by their instant.
+    Dynamic {
+        data: BTreeMap<T, Transform<T>>,
+        latest_timestamp: Option<T>,
+        max_age: Option<Duration>,
+    },
 }
 
 impl<T> Buffer<T>
 where
     T: TimePoint,
 {
-    /// Creates a new `Buffer` without automatic expiry.
+    /// Creates a new dynamic `Buffer` without automatic expiry.
     ///
     /// Entries are kept until removed manually with
-    /// [`Buffer::delete_before`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::core::Buffer;
-    /// let buffer: Buffer = Buffer::new();
-    /// ```
+    /// [`Buffer::remove_before`].
     #[must_use]
-    pub fn new() -> Self {
+    pub fn dynamic() -> Self {
         Self {
-            data: BTreeMap::new(),
-            max_age: None,
-            latest_timestamp: None,
-            is_static: false,
             parent: None,
             child: None,
+            kind: Kind::Dynamic {
+                data: BTreeMap::new(),
+                latest_timestamp: None,
+                max_age: None,
+            },
         }
     }
 
-    /// Creates a new `Buffer` with automatic expiry after `max_age`.
+    /// Creates a new dynamic `Buffer` with automatic expiry after `max_age`.
     ///
     /// Entries older than `max_age` relative to the latest inserted timestamp
-    /// are removed automatically whenever a dynamic transform is inserted.
+    /// are removed automatically whenever a transform is inserted.
     /// `Duration::ZERO` therefore retains only the newest sample.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use core::time::Duration;
-    /// use transforms::core::Buffer;
-    ///
-    /// let max_age = Duration::from_secs(10);
-    /// let buffer: Buffer = Buffer::with_max_age(max_age);
-    /// ```
     #[must_use]
-    pub fn with_max_age(max_age: Duration) -> Self {
+    pub fn dynamic_with_max_age(max_age: Duration) -> Self {
         Self {
-            data: BTreeMap::new(),
-            max_age: Some(max_age),
-            latest_timestamp: None,
-            is_static: false,
             parent: None,
             child: None,
+            kind: Kind::Dynamic {
+                data: BTreeMap::new(),
+                latest_timestamp: None,
+                max_age: Some(max_age),
+            },
+        }
+    }
+
+    /// Creates a new static `Buffer`: one transform, valid for all time.
+    ///
+    /// The buffer accepts only transforms carrying `Stamp::Static`; a later
+    /// static insert replaces the stored transform. Static buffers never
+    /// expire and survive [`Buffer::remove_before`].
+    #[must_use]
+    pub fn static_edge() -> Self {
+        Self {
+            parent: None,
+            child: None,
+            kind: Kind::Static(None),
         }
     }
 
@@ -189,128 +183,97 @@ where
         self.parent.as_deref()
     }
 
-    /// Returns the buffer's child frame, pinned by the first insert.
-    ///
-    /// `None` for a buffer that has never held a transform. The child stays
-    /// pinned even if all entries are removed; drop the whole buffer
-    /// (`Registry::remove_frame`) to release it.
-    #[must_use]
-    pub fn child(&self) -> Option<&str> {
-        self.child.as_deref()
-    }
-
-    /// Returns `true` if the buffer holds no transforms.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
     /// Adds a transform to the buffer.
     ///
-    /// The transform is validated first: it must have finite components and
-    /// a unit rotation (see [`Transform::validate`]). The first transform
-    /// inserted into an empty buffer determines whether the buffer is static
-    /// (timestamp equal to `T::static_timestamp()`) or dynamic. Subsequent
-    /// inserts must be of the same kind.
+    /// The transform is validated first: it must have finite components and a
+    /// unit rotation (see [`Transform::validate`]). The constructors ran that
+    /// check already, but a transform derived from valid ones — composed,
+    /// interpolated, inverted, or read back out of a lookup — was not
+    /// re-checked on the way here, so this is where such a value is caught.
+    /// Its stamp must match the buffer's kind, declared at construction: a
+    /// static buffer accepts only `Stamp::Static`, a dynamic buffer only
+    /// `Stamp::At`.
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::TransformError` wrapping
+    /// Returns `InsertError::Invalid` wrapping
     /// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues`
     /// if the transform fails validation — storing such a transform would
     /// make later lookups return silently wrong results.
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the transform's kind
-    /// (static or dynamic) does not match the transforms already stored in
-    /// this buffer. Mixing the two would silently corrupt interpolation, as
-    /// the static timestamp would be treated as a regular data point.
+    /// Returns `InsertError::StaticDynamicConflict` if the transform's kind
+    /// (static or dynamic) does not match the buffer's declared kind. Mixing
+    /// the two would silently corrupt interpolation.
     ///
-    /// Returns `BufferError::SelfReferentialFrame` if the transform's parent
+    /// Returns `InsertError::SelfReferentialFrame` if the transform's parent
     /// and child are the same frame,
-    /// `BufferError::ReparentingNotSupported` if the buffer's parent frame
+    /// `InsertError::ReparentingNotSupported` if the buffer's parent frame
     /// (pinned by the first insert) differs from the transform's parent, and
-    /// `BufferError::ChildFrameMismatch` if the buffer's child frame (pinned
+    /// `InsertError::ChildFrameMismatch` if the buffer's child frame (pinned
     /// the same way) differs from the transform's child — accepting a second
     /// child frame would silently overwrite a static transform or corrupt
     /// interpolation between dynamic ones.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     core::Buffer,
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
-    /// };
-    /// # #[cfg(feature = "std")]
-    /// use core::time::Duration;
-    ///
-    /// # #[cfg(feature = "std")]
-    /// let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-    /// # #[cfg(feature = "std")]
-    /// let timestamp = Timestamp::now();
-    ///
-    /// # #[cfg(not(feature = "std"))]
-    /// # let mut buffer = Buffer::new();
-    /// # #[cfg(not(feature = "std"))]
-    /// # let timestamp = Timestamp::zero();
-    ///
-    /// let translation = Vector3::new(1.0, 2.0, 3.0);
-    /// let rotation = Quaternion::identity();
-    /// let parent = "a".into();
-    /// let child = "b".into();
-    ///
-    /// let transform = Transform {
-    ///     translation,
-    ///     rotation,
-    ///     timestamp,
-    ///     parent,
-    ///     child,
-    /// };
-    ///
-    /// buffer.insert(transform).unwrap();
-    /// ```
+    /// Inserting at a timestamp that is already stored replaces the stored
+    /// transform, as does inserting into a static buffer that already holds
+    /// one: last write wins. Re-publishing a sample is an upsert, not an
+    /// error.
     pub fn insert(
         &mut self,
         transform: Transform<T>,
-    ) -> Result<(), BufferError> {
-        transform.validate()?;
+    ) -> Result<(), InsertError> {
+        transform.validate().map_err(InsertError::Invalid)?;
 
-        if transform.parent == transform.child {
-            return Err(BufferError::SelfReferentialFrame);
+        if transform.parent() == transform.child() {
+            return Err(InsertError::SelfReferentialFrame);
         }
         if let Some(parent) = &self.parent {
-            if *parent != transform.parent {
-                return Err(BufferError::ReparentingNotSupported(parent.clone()));
+            if parent != transform.parent() {
+                return Err(InsertError::ReparentingNotSupported(parent.clone()));
             }
-        } else {
-            self.parent = Some(transform.parent.clone());
         }
         if let Some(child) = &self.child {
-            if *child != transform.child {
-                return Err(BufferError::ChildFrameMismatch(child.clone()));
+            if child != transform.child() {
+                return Err(InsertError::ChildFrameMismatch {
+                    pinned: child.clone(),
+                    found: transform.child().into(),
+                });
             }
-        } else {
-            self.child = Some(transform.child.clone());
         }
 
-        let timestamp = transform.timestamp;
-        let is_static = timestamp.is_static();
+        // Captured before the transform is moved into storage; applied only
+        // after the insert is accepted, so a rejected transform cannot pin
+        // frames for a buffer that never stored it.
+        let pin = self
+            .parent
+            .is_none()
+            .then(|| (transform.parent().into(), transform.child().into()));
 
-        if self.data.is_empty() {
-            self.is_static = is_static;
-        } else if self.is_static != is_static {
-            return Err(BufferError::StaticDynamicConflict);
+        match (&mut self.kind, transform.timestamp()) {
+            (Kind::Static(slot), Stamp::Static) => {
+                *slot = Some(transform);
+            }
+            (
+                Kind::Dynamic {
+                    data,
+                    latest_timestamp,
+                    max_age,
+                },
+                Stamp::At(timestamp),
+            ) => {
+                *latest_timestamp = Some(match *latest_timestamp {
+                    Some(current_latest) if current_latest > timestamp => current_latest,
+                    _ => timestamp,
+                });
+                data.insert(timestamp, transform);
+                remove_expired(data, *latest_timestamp, *max_age);
+            }
+            _ => return Err(InsertError::StaticDynamicConflict),
         }
 
-        self.data.insert(timestamp, transform);
-
-        if !self.is_static {
-            self.latest_timestamp = Some(match self.latest_timestamp {
-                Some(current_latest) if current_latest > timestamp => current_latest,
-                _ => timestamp,
-            });
-            self.delete_expired();
+        if let Some((parent, child)) = pin {
+            self.parent = Some(parent);
+            self.child = Some(child);
         }
 
         Ok(())
@@ -320,121 +283,65 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::NoTransformAvailable` if the buffer holds no
+    /// Returns `GetError::NoTransformAvailable` if the buffer holds no
     /// transforms at all.
     ///
-    /// Returns `BufferError::TransformError` carrying
-    /// `TransformError::TimestampOutOfRange` — with the requested time and
-    /// both endpoints of the covered range, in seconds — if the buffer holds
+    /// Returns `GetError::OutOfRange`, carrying both endpoints of the
+    /// covered range in the buffer's own timestamp type, if the buffer holds
     /// transforms but the requested timestamp lies outside their range.
     /// There is no extrapolation; a timestamp between two stored samples
     /// always has neighbors to interpolate between, so an out-of-range
     /// request is the only way a lookup on a non-empty dynamic buffer can
     /// fail to find data. Static buffers serve any requested timestamp.
     ///
-    /// Returns `BufferError::TransformError` if interpolating between the two
-    /// neighboring samples fails. With both frames pinned at insertion, this
-    /// is only reachable through timestamp arithmetic: a span between the
+    /// Returns `GetError::Interpolation` if interpolating between the two
+    /// neighboring samples fails. With both frames pinned at insertion and
+    /// every stored sample keyed by its own `Stamp::At` instant, this is
+    /// only reachable through timestamp arithmetic: a span between the
     /// neighboring samples too large to represent as a `Duration`
     /// (`TimeError::DurationOverflow`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     core::Buffer,
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
-    /// };
-    /// # #[cfg(feature = "std")]
-    /// use core::time::Duration;
-    ///
-    /// # #[cfg(feature = "std")]
-    /// # let mut buffer = Buffer::with_max_age(Duration::from_secs(10));
-    /// # #[cfg(feature = "std")]
-    /// # let timestamp = Timestamp::now();
-    /// # #[cfg(not(feature = "std"))]
-    /// # let mut buffer = Buffer::new();
-    /// # #[cfg(not(feature = "std"))]
-    /// # let timestamp = Timestamp::zero();
-    /// #
-    /// # let translation = Vector3::new(1.0, 2.0, 3.0);
-    /// # let rotation = Quaternion::identity();
-    /// # let parent = "a".into();
-    /// # let child = "b".into();
-    /// #
-    /// let transform = Transform {
-    ///     translation,
-    ///     rotation,
-    ///     timestamp,
-    ///     parent,
-    ///     child,
-    /// };
-    ///
-    /// buffer.insert(transform).unwrap();
-    ///
-    /// let result = buffer.get(&timestamp);
-    /// match result {
-    ///     Ok(transform) => println!("Transform found: {transform:?}"),
-    ///     Err(_) => println!("No transform available"),
-    /// }
-    /// ```
     pub fn get(
         &self,
-        timestamp: &T,
-    ) -> Result<Transform<T>, BufferError> {
-        if self.is_static {
-            match self.data.get(&T::static_timestamp()) {
-                Some(tf) => return Ok(tf.clone()),
-                None => return Err(BufferError::NoTransformAvailable),
-            }
-        }
+        timestamp: T,
+    ) -> Result<Transform<T>, GetError<T>> {
+        let data = match &self.kind {
+            // A static transform is valid for all time: the requested
+            // timestamp is deliberately ignored.
+            Kind::Static(Some(transform)) => return Ok(transform.clone()),
+            Kind::Static(None) => return Err(GetError::NoTransformAvailable),
+            Kind::Dynamic { data, .. } => data,
+        };
 
-        let (before, after) = self.get_nearest(timestamp);
+        let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
-            (Some(before), Some(after)) => {
-                Ok(Transform::interpolate(before.1, after.1, *timestamp)?)
-            }
-            _ => match (self.data.first_key_value(), self.data.last_key_value()) {
-                (Some((first, _)), Some((last, _))) => Err(BufferError::TransformError(
-                    TransformError::TimestampOutOfRange(
-                        timestamp.as_seconds_lossy(),
-                        first.as_seconds_lossy(),
-                        last.as_seconds_lossy(),
-                    ),
-                )),
-                _ => Err(BufferError::NoTransformAvailable),
+            (Some(before), Some(after)) => Transform::interpolate(before.1, after.1, timestamp)
+                .map_err(GetError::Interpolation),
+            _ => match (data.first_key_value(), data.last_key_value()) {
+                (Some((first, _)), Some((last, _))) => Err(GetError::OutOfRange {
+                    start: *first,
+                    end: *last,
+                }),
+                _ => Err(GetError::NoTransformAvailable),
             },
         }
     }
 
-    /// Removes dynamic transforms older than the given timestamp.
-    ///
-    /// This function deletes all transforms from the buffer that have a
-    /// timestamp lower than the given timestamp. Static buffers are left
-    /// untouched: a static transform is valid for all time, so cleaning it up
-    /// by timestamp would silently destroy it.
-    pub fn delete_before(
-        &mut self,
-        timestamp: T,
-    ) {
-        if self.is_static {
-            return;
-        }
-        self.data.retain(|&k, _| k >= timestamp);
-    }
-
     /// Retrieves the nearest transforms before and after the given timestamp.
     ///
-    /// This function returns a tuple containing the nearest transform before
-    /// and the nearest transform after the specified timestamp. If the exact
-    /// timestamp exists, both elements of the tuple will be the same.
+    /// Returns a tuple containing the nearest transform before and the
+    /// nearest transform after the specified timestamp. If the exact
+    /// timestamp exists, both elements of the tuple will be the same. A
+    /// static buffer stores no time series, so both elements are `None`.
     fn get_nearest(
         &self,
         timestamp: &T,
     ) -> NearestTransforms<'_, T> {
-        let before = self.data.range(..=timestamp).next_back();
+        let Kind::Dynamic { data, .. } = &self.kind else {
+            return (None, None);
+        };
+
+        let before = data.range(..=timestamp).next_back();
 
         if let Some((t, _)) = before {
             if t == timestamp {
@@ -442,30 +349,65 @@ where
             }
         }
 
-        let after = self.data.range(timestamp..).next();
+        let after = data.range(timestamp..).next();
         (before, after)
     }
 
-    /// Removes expired transforms from the buffer based on the `max_age`.
+    /// Removes dynamic transforms older than the given timestamp.
     ///
-    /// This function deletes all transforms from the buffer that have a
-    /// timestamp older than `(latest inserted timestamp - max_age)`. Buffers
-    /// without a configured `max_age` never expire entries.
-    fn delete_expired(&mut self) {
-        if let (Some(max_age), Some(latest_timestamp)) = (self.max_age, self.latest_timestamp) {
-            if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
-                self.data.retain(|&k, _| k >= threshold);
-            }
+    /// This function removes all transforms from the buffer that have a
+    /// timestamp lower than the given timestamp. Static buffers are left
+    /// untouched: a static transform is valid for all time, so cleaning it up
+    /// by timestamp would silently destroy it.
+    pub fn remove_before(
+        &mut self,
+        timestamp: T,
+    ) {
+        if let Kind::Dynamic {
+            data,
+            latest_timestamp,
+            ..
+        } = &mut self.kind
+        {
+            // Everything at or after the cutoff survives; split_off keeps the
+            // removal O(log n) regardless of how many entries fall away.
+            let kept = data.split_off(&timestamp);
+            *data = kept;
+            // The expiry reference must not outlive the samples it was
+            // derived from: a stale value would make `max_age` eviction
+            // measure a restarted stream against the wiped one, silently
+            // evicting every new sample on the insert that added it.
+            *latest_timestamp = data.last_key_value().map(|(&k, _)| k);
         }
     }
 }
 
-impl<T> Default for Buffer<T>
-where
+/// Removes expired transforms based on `max_age`: everything older than
+/// `(latest inserted timestamp - max_age)`. Buffers without a configured
+/// `max_age` never expire entries.
+///
+/// Runs on every dynamic insert, so it evicts in order from the front of
+/// the map — O(log n + evicted) — instead of scanning the whole buffer.
+///
+/// When `latest - max_age` underflows the timestamp type, no sample can be
+/// older than the threshold, so skipping the sweep entirely is the correct
+/// behavior — the `checked_sub` failure is deliberately not an error.
+fn remove_expired<T>(
+    data: &mut BTreeMap<T, Transform<T>>,
+    latest_timestamp: Option<T>,
+    max_age: Option<Duration>,
+) where
     T: TimePoint,
 {
-    fn default() -> Self {
-        Self::new()
+    if let (Some(max_age), Some(latest_timestamp)) = (max_age, latest_timestamp) {
+        if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
+            while let Some((&oldest, _)) = data.first_key_value() {
+                if oldest >= threshold {
+                    break;
+                }
+                data.pop_first();
+            }
+        }
     }
 }
 

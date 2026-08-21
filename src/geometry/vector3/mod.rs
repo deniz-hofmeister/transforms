@@ -19,6 +19,9 @@ use approx::{AbsDiffEq, RelativeEq};
 /// assert_eq!(vector.y, 2.0);
 /// assert_eq!(vector.z, 3.0);
 /// ```
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vector3 {

@@ -5,20 +5,25 @@
 //!
 //! # Architecture
 //!
-//! The library is organized around three main components:
+//! The library is organized around two public components:
 //!
 //! - **Registry**: The main interface for managing transforms
-//! - **Buffer**: Internal storage for transforms between specific frames
 //! - **Transform**: The core data structure representing spatial transformations
+//!
+//! Internally the registry keeps one time-indexed buffer per child frame;
+//! that storage is a private implementation detail.
 //!
 //! # Features
 //!
 //! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
 //! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Transforms with the static timestamp value are treated as static (`t=0` by default).
-//! - **Custom Timestamp Types**: You can use your own `Copy` timestamp type by implementing `time::TimePoint`.
+//! - **Static Transforms**: Transforms carrying `Stamp::Static` are valid for
+//!   all time; build them with `Transform::static_between`. No timestamp value
+//!   is reserved — every instant, including `t = 0`, is ordinary dynamic data.
+//! - **Custom Timestamp Types**: You can use your own `Copy + Ord + Debug` timestamp type by
+//!   implementing `time::TimePoint`'s three methods.
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
-//!   automatically on insert; `Registry::new` keeps them until `delete_transforms_before`
+//!   automatically on insert; `Registry::new` keeps them until `remove_transforms_before`
 //!   is called. Both work with and without `std`.
 //! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
 //!
@@ -36,6 +41,7 @@
 //! - API parity with ROS2 tf2
 //! - Non-linear interpolation
 //! - Extrapolation
+//! - f32 or mixed-precision arithmetic (every coordinate and rotation is f64)
 //!
 //! This decision helps maintain the library's focus on its core purpose: providing fast and efficient
 //! rigid body transformations for robotics applications. For more general transformation needs,
@@ -47,7 +53,7 @@
 //! use transforms::{
 //!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -63,13 +69,14 @@
 //! # let timestamp = Timestamp::zero();
 //!
 //! // Create a transform from frame "base" to frame "sensor"
-//! let transform = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp,
-//!     parent: "base".into(),
-//!     child: "sensor".into(),
-//! };
+//! let transform = Transform::new(
+//!     "base",
+//!     "sensor",
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(timestamp),
+//! )
+//! .unwrap();
 //!
 //! // Add the transform to the registry
 //! registry.add_transform(transform).unwrap();
@@ -78,9 +85,9 @@
 //! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
 //!
 //! # #[cfg(not(feature = "std"))]
-//! # // Delete old transforms
+//! # // Remove old transforms
 //! # #[cfg(not(feature = "std"))]
-//! # registry.delete_transforms_before(timestamp);
+//! # registry.remove_transforms_before(timestamp);
 //! ```
 //!
 //! # Transform and Data Transformation
@@ -96,28 +103,31 @@
 //! use transforms::{
 //!     Transformable,
 //!     geometry::{Point, Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
+//!
+//! # #[cfg(not(feature = "std"))]
+//! # let now = Timestamp::zero();
+//! # #[cfg(feature = "std")]
+//! let now = Timestamp::now();
 //!
 //! // Create a point in the camera frame
-//! let mut point = Point {
-//!     position: Vector3::new(1.0, 0.0, 0.0),
-//!     orientation: Quaternion::identity(),
-//! # #[cfg(not(feature = "std"))]
-//! # timestamp: Timestamp::zero(),
-//! # #[cfg(feature = "std")]
-//!     timestamp: Timestamp::now(),
-//!     frame: "camera".into(),
-//! };
+//! let mut point = Point::new(
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     now,
+//!     "camera",
+//! );
 //!
 //! // Define transform from camera to base frame
-//! let transform = Transform {
-//!     translation: Vector3::new(0.0, 1.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp: point.timestamp,
-//!     parent: "base".into(),
-//!     child: "camera".into(),
-//! };
+//! let transform = Transform::new(
+//!     "base",
+//!     "camera",
+//!     Vector3::new(0.0, 1.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(point.timestamp),
+//! )
+//! .unwrap();
 //!
 //! // Transform the point from camera frame to base frame
 //! point.transform(&transform).unwrap();
@@ -158,18 +168,26 @@
 //! # `TimePoint` vs `Timestamp`
 //!
 //! `time::TimePoint` defines the required behavior for timestamp types.
-//! `time::Timestamp` is the default implementation.
-//! `Registry::new(...)` therefore uses `Timestamp` by default.
+//! `time::Timestamp` is the default implementation, so `Registry` in type
+//! position — `let registry: Registry = Registry::new();` — is
+//! `Registry<Timestamp>`. A default type parameter does not apply in
+//! expression position, where the type is inferred from usage: annotate if
+//! the surrounding code does not pin it down.
 //! If you need a custom clock, implement `TimePoint` and use
-//! `Registry::<CustomTimestamp>::new(...)`.
+//! `Registry::<CustomTimestamp>::new()`.
 //! With `std`, `std::time::SystemTime` is already supported via an existing
 //! `TimePoint` implementation.
 //! See `time` module docs for custom time-type guidance.
 //!
 //! # Performance Considerations
 //!
-//! - Transform lookups are optimized for O(log n) time complexity
+//! - Transform lookups are O(log n) in the stored samples per frame;
+//!   multi-hop lookups additionally scale linearly with chain depth, and a
+//!   failed lookup runs an O(frames) diagnosis scan to name the cause
 //! - Automatic cleanup of old transforms prevents unbounded memory growth
+//!   (eviction on insert is O(log n + evicted)); the number of *frames* is
+//!   unbounded — long-running processes that mint transient frame names
+//!   should call `Registry::remove_frame` when a frame retires
 //!
 //! # External Crates
 //!
@@ -182,15 +200,55 @@
 //! - **Memory safety**: `#![forbid(unsafe_code)]` — pure Rust throughout.
 //! - **Panic policy**: library code does not panic on reachable paths; the
 //!   single documented exception is `Timestamp::now()` on a system clock
-//!   before the Unix epoch. This is enforced with clippy's `unwrap_used`,
-//!   `expect_used`, `panic`, and `indexing_slicing` restriction lints.
+//!   outside the representable range — before the Unix epoch, or more than
+//!   `u64::MAX` nanoseconds after it (mid-2554) — for which
+//!   `Timestamp::try_now` is the panic-free variant. This is enforced with
+//!   clippy's `unwrap_used`, `expect_used`, `panic`, and `indexing_slicing`
+//!   restriction lints.
+//!   In `no_std` builds, allocation failure aborts via the global
+//!   allocation error handler, as with any `alloc`-based crate: size the
+//!   heap for `max_age` times the insert rate times about 320 B per stored
+//!   sample, measured on x86-64, or bound growth with
+//!   `Registry::remove_transforms_before`. That coefficient holds while
+//!   both frame names are 32 characters or shorter: every sample owns a
+//!   copy of both names, and each adds another 32 B per sample for every
+//!   further 32 characters, so a ROS-style pair of 45-character names
+//!   costs about 385 B instead. 32-bit targets are smaller only at equal
+//!   name length — the names themselves cost the same. The README's
+//!   supported-envelope table turns that coefficient into rates and chain
+//!   depths per platform.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
-//! - **Validated inputs**: transforms are validated at the registry boundary
-//!   (finite values, unit rotations, an acyclic single-parent frame tree);
-//!   invalid data is rejected with an error rather than corrupting lookups.
+//! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`
+//!   whether or not `std` is enabled, never from the platform's math
+//!   library, so the same inputs give bit-identical results on a host and on
+//!   the target it replays.
+//! - **Validated inputs**: a `Transform` is validated where it is built —
+//!   the constructors and the `serde` `Deserialize` impl reject non-finite
+//!   values and non-unit rotations, and the private fields keep a built one
+//!   valid. Composition, interpolation, inversion and lookups deliberately do
+//!   not re-validate what they derive (norms drift a few ulps per hop, and
+//!   rejecting that would fail legitimate long chains), so
+//!   `Registry::add_transform` re-runs the check on the way into storage —
+//!   a derived transform re-published into a registry is caught there rather
+//!   than answering every later lookup with plausible nonsense. The registry
+//!   additionally enforces what only it can see: an acyclic, single-parent
+//!   frame tree. Invalid data is rejected with an error rather than
+//!   corrupting lookups.
 //! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
 //!   your preferred lock for concurrent use (see the README for an example).
+//! - **Deterministic hashing**: the frame map uses hashbrown's default
+//!   hasher with a fixed seed on targets without entropy sources, giving
+//!   deterministic behavior on MCUs. `HashDoS` resistance is deliberately
+//!   not a goal — frame names come from the application, not the network.
+//!
+//! # Stability Commitments
+//!
+//! The `approx` traits (`AbsDiffEq`/`RelativeEq`) implemented on the
+//! geometry types make `approx` 0.5 part of this crate's public API: a
+//! future `approx` 0.6 requires a semver-major release of this crate. This
+//! is deliberate — tolerant comparison is the documented alternative to the
+//! exact `==`.
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -209,9 +267,10 @@
 #![cfg_attr(test, allow(clippy::similar_names))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 
 extern crate alloc;
-pub mod core;
+mod core;
 pub mod errors;
 pub mod geometry;
 pub mod time;

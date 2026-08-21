@@ -5,6 +5,404 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc.2] - Unreleased
+
+Release-candidate cut driven by a full release-readiness audit: the last
+pre-stable API corrections, a performance fix on the embedded hot path,
+and the migration/documentation work for stable. A migration guide from
+1.x now lives in [MIGRATION.md](MIGRATION.md). This cut deliberately
+breaks the beta-series API freeze — with near-zero beta adoption, the
+cost of these one-way-door fixes is as close to zero as it will ever be.
+No rc.1 was released: that section was still unreleased when a second
+audit added the rest of the changes below, so it is re-cut here as rc.2
+and this section is the whole delta from beta.4.
+
+### Changed
+
+- **Breaking:** the static-transform sentinel is eliminated, not moved:
+  `Transform.timestamp` is retyped from `T` to `Stamp<T> { Static, At(T) }`.
+  Staticness is a variant of the type, so **no timestamp value is
+  reserved** — every instant a clock can produce, including `t=0` on the
+  boot-relative clocks the embedded story courts and `UNIX_EPOCH` for
+  `SystemTime`, is ordinary dynamic data. In the new wire format a
+  zero-stamped message is an ordinary dynamic sample, and a message
+  *missing* its timestamp field is rejected rather than silently becoming
+  an eternal static transform.
+  `Transform::static_between` builds static transforms; every other
+  transform passes its stamp to `Transform::new` as `Stamp::At(...)`.
+- **Breaking:** `TimePoint` loses `static_timestamp()` and `is_static()`
+  and becomes pure time arithmetic. This closes a soundness hole — the
+  trait is unsealed and `is_static` was overridable independently of
+  `static_timestamp`, silently breaking kind detection — and custom clock
+  impls no longer invent sentinel values.
+- **Breaking:** `Buffer` and the `core` module are private. `Registry` — at
+  the crate root, where it was already re-exported — is the entire public
+  entry point. The standalone-buffer API is gone with it: a single buffer
+  enforces only its own parent and child pins, while the cycle check needs a
+  view of the whole tree and lives in `Registry`, so hand-held buffers were a
+  second, weaker way to store transforms for a use case nobody had — one that
+  could close a cycle nothing would reject. Its storage is now free to
+  change without a major release. A child frame is still static xor dynamic,
+  fixed by its first insert.
+- **Breaking:** serde: the stamp is tagged explicitly and the timestamp is
+  transparent. `Stamp` derives its impls as an externally tagged enum —
+  `{"At": 1753142400000000000}` and `"Static"` in JSON, a variant index
+  ahead of the payload elsewhere — and `Timestamp` is
+  `#[serde(transparent)]`, the bare nanosecond integer rather than a
+  one-field record. No magic value appears on the wire, and staticness is
+  now spelled rather than implied: an optional encoding made
+  `"timestamp": null` *and* a dropped `timestamp` field both decode as
+  `Stamp::Static`, so a producer that lost a stamp minted a transform the
+  registry then served at every instant for the rest of the run. Both are
+  decode errors now, the missing-field case without the `deserialize_with`
+  shim it used to need. Every format changes shape here: the stamp is new on
+  the wire — the last released cut wrote a bare timestamp with no tag at
+  all — so re-encode or version-tag anything you persisted earlier. How wide
+  that tag is belongs to the codec rather than to this crate, and bincode's
+  two integer encodings differ: postcard and bincode 2's `config::standard()`
+  write the variant index as a single byte, while bincode 1.x and bincode 2's
+  `config::legacy()` write it as a fixed 4-byte `u32`. Measured against
+  beta.4, one dynamic transform goes 79 → 80 bytes in postcard and 100 → 96
+  in bincode 1.x, the wider index there more than offset by the timestamp
+  narrowing below.
+- **Breaking:** every error payload field is named: `TimestampMismatch
+  { lhs, rhs }`, `TimestampOutOfRange { requested, start, end }`,
+  `Disconnected { target_frame, source_frame }`, and `NotFoundAt
+  { target_frame, source_frame, frame, requested, covered }` — the
+  lookup-argument fields carry the `_frame` suffix because a field literally
+  named `source` belongs to the error trait's source-chaining convention.
+- **Breaking:** one flat error type for the registry. `Registry::add_transform`
+  and all three lookups return `errors::RegistryError<T>`; `BufferError` is
+  gone from the public API together with the `Buffer` it belonged to, and
+  `TransformError` shrinks to what its name says — the geometry and time
+  failures of the `Transform` constructors, `inverse`, `interpolate`, `*`
+  and `Transformable::transform` — losing `UnknownFrame`, `Disconnected` and
+  `NotFoundAt`. Diagnosing a failed lookup took three nested matches
+  (`TransformError::NotFoundAt` → `Box<BufferError>` →
+  `TransformError::TimestampOutOfRange`) for one question: can this frame
+  answer at this time? It is now one: `RegistryError::NotFoundAt` carries
+  `frame`, `requested: T` and `covered: Option<(T, T)>` directly — `Some` a
+  gap in data the frame holds, `None` a frame holding nothing at all — and
+  the two mutually recursive error types are no longer mutually recursive.
+  The lookup payloads are typed in the registry's own time type instead of
+  pre-formatted seconds, so they compare against the clock the caller asked
+  with; `Display` still renders seconds through `TimePoint::as_seconds_lossy`.
+  Insert rejections are flat variants of the same enum — `NonUnitRotation`,
+  `NonFiniteValues`, `SelfReferentialFrame`,
+  `ReparentingNotSupported { current_parent }`, `CycleDetected`,
+  `StaticDynamicConflict` — and the two validation causes are flat on every
+  path that reports them, including the half-chain inversion by which a
+  lookup rejects an overflowed translation, so no condition has two
+  spellings to match on. (A lookup still does not re-validate its result:
+  the ancestor-ward direction inverts nothing and returns such a
+  translation as `Ok`.) `RegistryError` is
+  `#[non_exhaustive]`, like every error type here.
+- **Breaking:** every public type has a single canonical path
+  (`geometry::Point`, `time::Timestamp`, ...): the leaf modules are private,
+  matching the error-module pattern. Error types live at `errors::*`.
+- **Breaking:** `Quaternion::new(w, x, y, z)` is renamed
+  `Quaternion::from_wxyz(w, x, y, z)`. `new` said nothing about component
+  order while the other common convention puts the scalar part last, so a
+  caller passing `(x, y, z, w)` built a perfectly valid unit quaternion
+  describing the wrong rotation — an error no validation can catch, because
+  nothing about the result is invalid. The name now states the order at every
+  call site. `Quaternion` literals are unaffected.
+- **Breaking:** `Registry::delete_transforms_before` is renamed
+  `Registry::remove_transforms_before`. The crate spelled one operation two
+  ways — `remove_frame` next to `delete_transforms_before` — inviting readers
+  to look for a distinction that never existed.
+- **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
+  (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
+  associated const on `Transform<T>` that demanded a turbofish.
+- `get_transform_at` composes its two legs through a private
+  time-agnostic path instead of fabricating staticness on them to bypass
+  `Mul`'s timestamp check.
+
+- **Breaking:** `TransformError::TransformTreeEmpty` is removed. It has been
+  unconstructible from any public path since 2.0.0-alpha.1, where the
+  same-frame lookup that produced it in 1.4.1 started returning the identity:
+  in the beta.4 baseline this removes it from, its only `return` sits behind
+  that short-circuit, on an empty chain no public call can reach. Removing an
+  enum variant after stable would be a breaking change, so it goes now,
+  following the precedent of `NotFound` and `MaxAgeInvalid`.
+- **Breaking:** `IncompatibleFrames` and `SameFrameMultiplication` are
+  struct variants carrying frame context —
+  `IncompatibleFrames { expected, found }` and
+  `SameFrameMultiplication { frame }` — completing the diagnosis model
+  introduced in beta.3, where every frame-related error names its frames.
+- **Breaking:** `Timestamp`'s inner nanosecond field is private and narrows
+  from `u128` to `u64`; `from_nanos(u64)` / `as_nanos() -> u64` are the API.
+  u64 nanoseconds span ~584 years (mid-2554 from the Unix epoch) — past the
+  service life of anything this crate positions — while shrinking per-sample
+  stamp storage and removing multi-word arithmetic from the 32-bit MCU
+  targets. The stamp's integer narrows from 16 bytes to 8 and sheds the
+  16-byte alignment it imposed on everything stored beside it: measured on
+  x86-64, `Transform<Timestamp>` is 120 bytes where the `u128` made it 128,
+  and the buffer's `BTreeMap` key goes from 16 bytes to 8. In a variable-width
+  encoding the narrowing costs nothing: a JSON integer, a postcard LEB128
+  varint and a bincode 2 `config::standard()` varint are the same bytes they
+  were as a `u128`, golden vectors included (the shape itself is the
+  transparent bare integer described in the serde entry above).
+  Fixed-width encodings do shrink — bincode 1.x and bincode 2's
+  `config::legacy()` write eight bytes where a `u128` took sixteen — and
+  MessagePack now emits a native integer instead of the 16-byte blob a
+  `u128` forced, so foreign-language consumers read it as a number.
+  `Timestamp::now()` gains a second (2554) way to panic, and `try_now`
+  reports it as `TimeError::DurationOverflow`.
+- **Breaking:** `Timestamp::as_seconds_unchecked` is renamed
+  `as_seconds_lossy`, matching the `TimePoint` vocabulary — the operation
+  is lossy, not unsafe.
+- `get_transform`'s parameters are renamed `target`/`source` (previously
+  `from`/`to`; positional call sites are unaffected), aligning with
+  `get_transform_at` and tf2's `lookupTransform`, and its docs gain an
+  explicit direction-convention section — the old names read backwards and
+  silently produced the inverse for plain-English callers.
+- `with_max_age` eviction pops expired entries from the front of the
+  ordered map — O(log n + evicted) per insert instead of a full-buffer
+  scan (previously ~144 µs per insert at 60k live entries, the README
+  Quick Start configuration at 1 kHz). A 60k-entry steady-state benchmark
+  guards the regression.
+- **Breaking:** `TimePoint` is slimmed to the three methods the core
+  actually calls — `duration_since`, `checked_sub`, and `as_seconds_lossy`
+  — and gains `Debug` as a supertrait next to `Copy + Ord`. `checked_add`
+  had no call site in the crate, and `as_seconds` existed only to feed the
+  default `as_seconds_lossy`, whose own docs told implementors to override
+  it; on a soft-float MCU target that unused checked conversion is a
+  double-precision divide nobody asked for. `as_seconds_lossy` is now
+  required rather than defaulted, which also states its contract in the
+  type system: error formatting cannot fail. The `Debug` bound stops a
+  clock type without its own derive from making `Transform<YourClock>`
+  silently unprintable in the diagnostics that report a bad lookup.
+- **Behavior change:** float math is `libm`'s in every feature mode.
+  `Quaternion::norm`, `normalize`, and `slerp` called `f64`'s own
+  `sqrt`/`sin`/`acos` under `std` and `libm`'s without it, so an
+  interpolated rotation depended on the host's math library: a desktop
+  replay of a flight log could differ from the flight controller that
+  produced it, in a domain where the two are compared to decide which one
+  was right. The `std` feature now changes which API exists, never a
+  computed value. Under `std` on glibc this moves interpolated rotations by
+  up to four ulps per component (measured over a sweep of arcs and
+  interpolation factors; the pinned interior case moves two in `w`); `sqrt`
+  is unaffected, being correctly rounded everywhere. Three slerp cases —
+  interior, near-antipodal, and near-identity — are pinned bit for bit and
+  run in both feature modes.
+- **Breaking:** `Transform`'s fields are private and its constructors
+  validate. `Transform::new(parent, child, translation, rotation, stamp)` and
+  `Transform::static_between(parent, child, translation, rotation)` return
+  `Result<Self, TransformError>`, rejecting non-finite components and
+  rotations whose norm leaves `UNIT_NORM_TOLERANCE`; `translation()`,
+  `rotation()`, `timestamp()`, `parent()` and `child()` read the components
+  back, and the struct is `#[non_exhaustive]`. Validation previously sat at
+  the registry boundary, which left the public `Mul` and
+  `Transformable::transform` applying geometric garbage silently — a
+  norm-1.01 rotation scaled everything it touched by 2% and returned `Ok`,
+  and `static_between`, the README's recommended mount-builder, accepted a
+  norm-2 quaternion without complaint. Validation is now *added* at
+  construction, not moved there: `add_transform` still reports
+  `NonUnitRotation` and `NonFiniteValues`, because results of `*`, `inverse`,
+  `interpolate` and registry lookups are deliberately not re-validated —
+  rotation norms drift a few ulps per composition and re-checking a long
+  chain would reject legitimate results — so a caller who flattens a chain
+  and re-publishes it still hands the registry a value only the insert path
+  checks. `Transform::validate` stays public for transforms of uncontrolled
+  provenance.
+- **Breaking:** deserializing a `Transform` runs that validation. The
+  `Deserialize` impl reads a shadow record and converts through `TryFrom`, so
+  a denormalized rotation or a non-finite component is a deserialization
+  error. This closes the documented "deserialization does not validate" gap
+  without touching the wire format, golden bytes included.
+- **Breaking:** `Transform::identity()` is removed. It returned empty parent
+  and child frames — self-referential, so it could be neither inserted nor
+  composed — and existed only as a base for field-poking, which private
+  fields end. The registry synthesizes its own identity for same-frame
+  lookups.
+- **Breaking:** `Point` gains `Point::new(position, orientation, timestamp,
+  frame)` and `#[non_exhaustive]`, which ends its struct literal. Its fields
+  stay public: a point is a data record, not an invariant carrier — the
+  invariants live on the `Transform` applied to it.
+- **Behavior change:** a lookup inverts at most once. Both halves of a
+  resolved chain are now composed in their natural direction, deleting a
+  reverse-and-invert pass that cost one inversion per hop plus one at the end
+  — in the crate's own documented direction
+  (`get_transform("map", "lidar", t)`), the one the README teaches. Measured
+  on x86-64: a single hop drops from 11 heap allocations (1456 B) to 5
+  (488 B), four hops from 23 to 11, and 64 hops from 271 to 135. That
+  direction is no longer renormalized on the way out, which is what makes a
+  single-hop lookup at a stored timestamp return the stored transform bit for
+  bit; previously it came back through two inversions, up to ten ulps off in
+  the translation.
+
+### Added
+
+- `Timestamp::try_now()`: panic-free counterpart of `now()`, returning
+  `TimeError::DurationUnderflow` on a pre-epoch system clock and
+  `TimeError::DurationOverflow` on one set past the u64 nanosecond range.
+- Behavioral pin tests for commitments that freeze at stable: duplicate-
+  timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
+  semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
+  static transforms over custom clocks including range extremes,
+  interior-point and near-antipodal slerp, `Point` error paths, mid-tree
+  `remove_frame`, exact `NotFoundAt` payloads, and postcard golden-bytes
+  tests for both `Stamp` arms freezing the serde wire format for
+  non-self-describing formats (struct field order and `Stamp`'s variant
+  order are part of the wire contract).
+- `TransformError::StaticInterpolation`: a static transform used as an
+  interpolation endpoint is rejected explicitly instead of falling
+  through to an incidental error.
+- Two of the six examples (`std_full`, `no_std_full`) now demonstrate a
+  static sensor mount chained with dynamic edges — the feature was
+  previously unexercised outside the test suite.
+- Tests closing the gaps a mutation run left open: `inverse` renormalizing
+  a rotation that drifted within tolerance (the sole renormalization point
+  on a lookup — removing it used to leave the suite green), the exact
+  acceptance boundary around `UNIT_NORM_TOLERANCE` together with the
+  constant's own value, slerp's lerp/slerp switchover, `interpolate`
+  returning the earlier endpoint when both endpoints share a stamp, the
+  post-truncation chain lengths of a deep common trunk, and error
+  formatting under a clock whose instants cannot be expressed as seconds.
+- Golden vectors computed outside the crate (`tests/golden_vectors.rs`):
+  five poses derived with SciPy and asserted against literal digits — a
+  quarter turn of yaw plus an offset applied to a known point, a two-hop
+  chain in both directions, a rotation about no coordinate axis, and an
+  interpolated lookup against a reference slerp. Every other test builds
+  its expectation with the same conventions as the code under test, so a
+  convention flipped consistently — a transposed rotation, a swapped
+  quaternion product — passed all of them.
+- Benchmarks for the shapes real users hit: a realistic 6-edge robot tree
+  (mixed static/dynamic), a 3-hop interpolating dynamic chain,
+  `get_transform_at`, a 100k-resident insert bench pinning the eviction fix
+  at depth, a 4-hop chain measured in both lookup directions, and a
+  lookup past the newest sample — the failure a consumer running ahead of
+  its publisher hits every tick. Dynamic samples now rotate about a
+  non-axis-aligned axis, so interpolation runs slerp's sin-weighted branch:
+  with identity rotations everywhere it was never measured, and it is the
+  dominant float cost on a soft-float target.
+- CI: clippy and MSRV jobs now also cover the `serde` feature (std and
+  no_std), closing the thinnest spot in the matrix. `tests/test_all.sh`
+  lints all four feature combinations too — it linted two, so the claim
+  that a green local gate implies green CI clippy was false for the serde
+  path — and CI now runs that script verbatim in a `gate` job, making it
+  the single source of truth for what the gate is.
+- `Cargo.lock` is committed, so every checkout resolves the same dependency
+  versions. It also ships in the published tarball — `cargo package` includes
+  it — where it governs builds of this crate itself and never a downstream
+  crate's own resolution.
+
+### Fixed
+
+- `Registry::remove_transforms_before` resets each frame's `max_age` expiry
+  reference along with its samples: previously a wiped buffer kept its
+  pre-wipe latest timestamp, so a restarted stream at earlier times was
+  evicted by the very insert that added it — `Ok(())` returned, the frame
+  stayed empty.
+- The `std` feature forwards `serde?/std`, so `Transform<SystemTime>`
+  implements `Serialize`/`Deserialize` for downstream users who enable
+  `std` + `serde` without depending on serde's `std` feature themselves.
+- `t = 0` is usable as an ordinary dynamic timestamp: the most natural
+  insert loop there is (`for i in 0.. { insert(tf(i * step)) }`) no
+  longer silently creates a static buffer at `i = 0` and fails with
+  `StaticDynamicConflict` at `i = 1`. Pinned by a regression test and the
+  property-test timestamp strategy now includes zero.
+- A dynamic child frame drained by `remove_transforms_before` could silently
+  flip to static on the next insert (the kind was a flag re-decided on
+  emptiness) and then reject dynamic samples. The kind is now declared when
+  the frame is created and structural — the flip is unrepresentable, pinned
+  by a regression test.
+- **Behavior change:** `Registry::remove_transforms_before` no longer drops
+  frames it leaves empty. Dropping them un-pinned the frame's parent and
+  its static/dynamic kind, so routine cleanup silently re-opened decisions
+  the registry had already refused: a rejected re-parenting became an
+  accepted one and changed the topology behind the caller's back, and a
+  moving frame could become an eternal static one that answered
+  confidently at times its data never covered. A drained frame now keeps
+  its pins, lookups on it report `NotFoundAt` naming that frame instead of
+  `UnknownFrame`, and `Registry::remove_frame` is the only way to release
+  a frame — long-running processes that mint transient frame names must
+  call it. Three regression tests pin the pin, the kind, and the
+  diagnosis. `NotFoundAt` separates its two causes, because a drained frame
+  is the first one reachable from `Registry`: `covered: Some(range)` is a
+  timing question — the frame holds data the request falls outside of —
+  while `covered: None` means the frame holds nothing at all, so retrying or
+  widening the window will not make it answer.
+- Docs: `Registry::new` states what its lack of a `max_age` costs — not
+  only unbounded retention, but an unbounded interpolation gap, since a
+  lookup between samples recorded either side of a publisher stall
+  interpolates straight across it. `Registry::with_max_age` bounds both,
+  and the `Default` impl points at the same explanation.
+- Docs: duplicate-timestamp inserts are documented as last-write-wins
+  upserts; `remove_frame` documents that it strands descendants of a
+  mid-tree frame; interpolation is documented to span interior gaps of any
+  size (bounding freshness is the caller's job); error `Display` strings
+  are documented as not a stability surface; the O(log n) lookup claim is
+  qualified (per-frame; linear in chain depth; O(frames) failure
+  diagnosis); the `approx` 0.5 public-API
+  commitment is recorded; allocation-failure behavior and the
+  deterministic-hasher trade-off are stated for `no_std`.
+- Docs: neither the README nor the rustdoc claims `Registry::new()` is
+  shorthand for `Registry::<Timestamp>::new()` — default type parameters do
+  not apply in expression position, and inference can land on any
+  `TimePoint`. The crate root and the registry module also stop teaching the
+  1.x constructor, `Registry::new(...)` with an argument list: the README had
+  been corrected, docs.rs — what a new user actually reads — had not.
+- Docs: the scalar type is a commitment, not an accident. f32 and
+  mixed-precision arithmetic are Non-Goals (README and crate root, one
+  identical list), and the README publishes the envelope that commitment
+  implies: measured per-operation cost and allocation counts on x86-64,
+  about 320 B of resident heap per stored sample while both frame names are
+  32 characters or shorter (every sample owns a copy of both names, and each
+  adds another 32 B per sample for every further 32 characters), and a
+  platform × rate × chain-depth table that says which workloads fit an MCU
+  and which run out of SRAM first. The crate root's "size the heap for
+  `max_age` times the insert rate" advice gains that coefficient, and the
+  embedded positioning now points at the table instead of promising a
+  "minimal footprint".
+- Docs: `Quaternion::normalize` documents the threshold it actually applies
+  — a norm below `f64::EPSILON` — instead of the `1e-8` figure copied from
+  the `Div` impl, which was wrong by eight orders of magnitude in the
+  permissive direction; a doctest pins both sides of the boundary.
+- Docs: MIGRATION.md states the module-privatization rule. Every 1.x deep
+  import (`transforms::geometry::transform::Transform` and friends) fails
+  with E0603, and rustc's suggestion there — unlike the one for
+  `Registry::new(max_age)` — names the right path and should be taken.
+- Docs: MIGRATION.md is corrected where it described 1.4.1 as something it
+  was not, each point re-measured against a build of that tag.
+  `add_transform` returned `()` and validated nothing there — a NaN
+  translation and a norm-1.01 rotation were both stored and served — so
+  every rejection under fallible insertion is new to a 1.x user, not an
+  existing match arm to rename. `TransformError::TransformTreeEmpty` *was*
+  produced, by the same-frame lookup that now returns the identity.
+  Two kinds under one child frame was not "the pattern 1.1.0 enabled" —
+  1.1.0 made a static transform *compose* with dynamic ones, which still
+  works; what 1.x allowed here was a buffer whose latest insert decided how
+  every lookup read it, one query answering three ways. `TimestampMismatch`
+  joins the variants that became struct variants, and the three lookups are
+  listed as keeping their call shape rather than their signature, since
+  their error type changed.
+- Docs: the README concurrency snippet uses `RwLock`, matching the `&self`
+  read design it exists to demonstrate, and points at `examples/std_full.rs`
+  as the compiled version. That example no longer stamps its samples one
+  second into the future so its own `now()` lookups resolve — a pattern that
+  mis-stamps real sensor data. It publishes each sample at the instant the
+  sample describes and reads at a stamp its publisher already covers, which
+  is what no extrapolation requires of a reader.
+- Docs: the vague serde `u128` caveat is replaced with the format-support
+  statement the narrowed `u64` stamp makes simple — every serde format
+  encodes it as a native integer.
+- Docs: the serde feature-gating is now stated on every serde-capable
+  type (rustdoc cannot banner derive-generated impls — verified against
+  the docs.rs configuration, which the gate now builds; the crate also
+  opts into `doc(auto_cfg)` for future rustdoc support); the
+  `no_std_full` example imports `core::time::Duration` in its `no_std`
+  branch; the buffer docs say B-tree instead of "binary tree".
+- CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
+  "never-produced". That was wrong — it was the primary 1.x lookup-miss
+  error and beta.1/beta.2 still produced it; the entry below is corrected
+  accordingly.
+- AGENTS.md: the normative lookup invariant referenced the removed
+  `NotFound` variant; it now names `UnknownFrame` / `Disconnected` /
+  `NotFoundAt`. The release checklist loses a garbled fragment and gains
+  the consolidation, semver-check, README-pin, and GitHub-release steps.
+
 ## [2.0.0-beta.4] - 2026-07-18
 
 ### Fixed
@@ -26,8 +424,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that frame and carrying the `BufferError` as the error source), and
   `TransformError::Disconnected` when both frames exist but no chain
   connects them — mirroring tf2's LookupException / ExtrapolationException /
-  ConnectivityException. The never-produced `TransformError::NotFound`
-  variant is removed.
+  ConnectivityException. The catch-all `TransformError::NotFound` variant —
+  the primary lookup-miss error since 1.0 — is removed in favor of the
+  diagnosed variants. (This entry originally called it "never-produced",
+  which was wrong; corrected in 2.0.0-rc.2. There was no beta.5 release and
+  no rc.1 release — earlier versions of this note pointed at the first.)
 - A miss on a non-empty buffer reports `TransformError::TimestampOutOfRange`
   with the requested time and the covered range (via
   `BufferError::TransformError`), distinguishing a lookup that is merely too
@@ -160,6 +561,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `get_transform_at` ("time travel"): query source and target frames at
   different times through a fixed frame.
 
+## [1.1.1] - 2026-01-22
+
+- Republish of 1.1.0 with no code changes. Exists on crates.io only; there
+  is no corresponding git tag.
+
 ## [1.1.0] - 2026-01-22
 
 - Fixed static (`t=0`) and dynamic transforms not coexisting in the same
@@ -172,7 +578,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.2] - 2025-12-02
 
-- Dependency updates.
+- Dependency updates. Tagged in git but never published to crates.io.
 
 ## [1.0.1] - 2025-07-28
 
@@ -183,6 +589,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.0.0-rc.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.4...v2.0.0-rc.2
 [2.0.0-beta.4]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0-beta.1...v2.0.0-beta.2
@@ -192,6 +599,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.1.0...v1.2.0
+[1.1.1]: https://crates.io/crates/transforms/1.1.1
 [1.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/deniz-hofmeister/transforms/compare/v1.0.1...v1.0.2

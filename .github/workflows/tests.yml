@@ -19,6 +19,28 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # The gate script contributors run locally (AGENTS.md, "Definition of
+  # done"), run verbatim, so the two cannot drift apart. It is nightly-only
+  # by design; the jobs below add what it deliberately leaves to CI — the
+  # stable and MSRV toolchains, the ARM64 runner, the RISC-V target, and the
+  # advisory-database audit.
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          components: clippy, rustfmt
+          toolchain: nightly
+          # The action sets RUSTFLAGS=-D warnings by default; empty keeps the
+          # gate run identical to a local tests/test_all.sh run.
+          rustflags: ""
+      - name: Install bare-metal targets
+        run: rustup target add thumbv7em-none-eabihf thumbv6m-none-eabi thumbv8m.main-none-eabihf
+      - name: Run the verification gate
+        run: tests/test_all.sh
+
   formatting:
     name: formatting
     runs-on: ubuntu-latest
@@ -44,6 +66,10 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Clippy (no_std)
         run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - name: Clippy (std + serde)
+        run: cargo clippy --all-targets --features serde -- -D warnings
+      - name: Clippy (no_std + serde)
+        run: cargo clippy --all-targets --no-default-features --features serde -- -D warnings
 
   tests:
     name: tests (${{ matrix.runner }})
@@ -107,6 +133,10 @@ jobs:
         run: cargo check --all-targets
       - name: Check (no_std)
         run: cargo check --all-targets --no-default-features
+      - name: Check (std + serde)
+        run: cargo check --all-targets --features serde
+      - name: Check (no_std + serde)
+        run: cargo check --all-targets --no-default-features --features serde
 
   examples:
     name: examples
@@ -180,7 +210,5 @@ jobs:
           toolchain: stable
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-      - name: Generate lockfile
-        run: cargo generate-lockfile
       - name: Audit dependencies
         run: cargo audit

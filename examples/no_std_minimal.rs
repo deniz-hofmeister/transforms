@@ -7,22 +7,23 @@ fn main() {
     use transforms::{
         Registry,
         geometry::{Quaternion, Transform, Vector3},
-        time::Timestamp,
+        time::{Stamp, Timestamp},
     };
 
     // Dummy transform generator
     fn generate_transform(t: Timestamp) -> Transform {
-        let x = t.as_seconds_unchecked().sin();
-        let y = t.as_seconds_unchecked().cos();
+        let x = t.as_seconds_lossy().sin();
+        let y = t.as_seconds_lossy().cos();
         let z = 0.0;
 
-        Transform {
-            translation: Vector3::new(x, y, z),
-            rotation: Quaternion::identity(),
-            parent: "a".into(),
-            child: "b".into(),
-            timestamp: t,
-        }
+        Transform::new(
+            "a",
+            "b",
+            Vector3::new(x, y, z),
+            Quaternion::identity(),
+            Stamp::At(t),
+        )
+        .unwrap()
     }
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
@@ -51,8 +52,8 @@ fn main() {
         Err(e) => error!("Transform not found: {e:?}"),
     }
 
-    // Delete all transforms before a certain time
-    registry.delete_transforms_before(time);
+    // Remove all transforms before a certain time
+    registry.remove_transforms_before(time);
 }
 
 #[cfg(feature = "std")]

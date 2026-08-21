@@ -1,7 +1,6 @@
 //! The default nanosecond-resolution timestamp type.
 
 use core::{
-    cmp::Ordering,
     ops::{Add, Sub},
     time::Duration,
 };
@@ -13,15 +12,31 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Default concrete time type used by this crate.
 ///
-/// `Timestamp` stores a time value in `u128` nanoseconds.
+/// `Timestamp` stores a time value in `u64` nanoseconds, which spans about
+/// 584 years from the epoch of the chosen clock — mid-2554 for a Unix-epoch
+/// clock. A clock that outlives that range needs a custom
+/// [`TimePoint`] type.
+///
+/// No value is reserved: staticness is expressed by
+/// [`Stamp::Static`](crate::time::Stamp), not by a sentinel instant, so
+/// every value including `t = 0` is an ordinary dynamic timestamp. This
+/// makes `Timestamp` safe for boot-relative clocks whose first reading is
+/// zero.
 ///
 /// For custom clocks, implement `crate::time::TimePoint` on your own type and
 /// use it with `Registry<T>`.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+/// It is `#[serde(transparent)]`: the wire carries the bare nanosecond
+/// integer, not a one-field record, so every format encodes it natively and
+/// a foreign-language consumer reads a plain number.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Timestamp {
     /// Nanoseconds since the epoch of the chosen clock.
-    pub t: u128,
+    t: u64,
 }
 
 impl Timestamp {
@@ -31,7 +46,10 @@ impl Timestamp {
     ///
     /// # Panics
     ///
-    /// Panics if the system time is earlier than `UNIX_EPOCH` (January 1, 1970).
+    /// Panics if the system clock reads outside the range `Timestamp` can
+    /// represent: before `UNIX_EPOCH` (January 1, 1970), or more than
+    /// `u64::MAX` nanoseconds after it (mid-2554). Use
+    /// [`Timestamp::try_now`] for the panic-free variant.
     ///
     /// # Examples
     ///
@@ -39,28 +57,56 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let now = Timestamp::now();
-    /// assert!(now.t > 0);
+    /// assert!(now.as_nanos() > 0);
     /// ```
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     #[must_use]
     #[allow(
         clippy::expect_used,
-        reason = "the pre-epoch panic is documented above; no meaningful recovery exists"
+        reason = "the out-of-range panic is documented above; no meaningful recovery exists"
     )]
     pub fn now() -> Self {
-        let duration_since_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time went backwards");
+        Self::try_now().expect("system clock outside the representable timestamp range")
+    }
 
-        Timestamp {
-            t: duration_since_epoch.as_nanos(),
-        }
+    /// Returns a `Timestamp` initialized to the current time, or an error
+    /// if the system clock reads outside the representable range.
+    ///
+    /// The panic-free counterpart of [`Timestamp::now`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `TimeError::DurationUnderflow` if the system clock is set
+    /// before the Unix epoch, and `TimeError::DurationOverflow` if it is set
+    /// more than `u64::MAX` nanoseconds after it (mid-2554).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// let now = Timestamp::try_now().unwrap();
+    /// assert!(now.as_nanos() > 0);
+    /// ```
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn try_now() -> Result<Self, TimeError> {
+        let since_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| TimeError::DurationUnderflow)?;
+
+        u64::try_from(since_epoch.as_nanos())
+            .map(|nanos| Timestamp { t: nanos })
+            .map_err(|_| TimeError::DurationOverflow)
     }
 
     /// Returns a `Timestamp` initialized at zero.
     ///
-    /// This functionality is especially useful for static transforms.
+    /// Zero is an ordinary dynamic instant — the epoch of the chosen
+    /// clock. Staticness is expressed by
+    /// [`Stamp::Static`](crate::time::Stamp), not by any timestamp value,
+    /// so a boot-relative clock's first reading needs no special handling.
     ///
     /// # Examples
     ///
@@ -68,7 +114,7 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let zero = Timestamp::zero();
-    /// assert_eq!(zero.t, 0);
+    /// assert_eq!(zero.as_nanos(), 0);
     /// ```
     #[must_use]
     pub const fn zero() -> Self {
@@ -86,7 +132,7 @@ impl Timestamp {
     /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
     /// ```
     #[must_use]
-    pub const fn from_nanos(nanos: u128) -> Self {
+    pub const fn from_nanos(nanos: u64) -> Self {
         Timestamp { t: nanos }
     }
 
@@ -101,7 +147,7 @@ impl Timestamp {
     /// assert_eq!(timestamp.as_nanos(), 1_000_000_000);
     /// ```
     #[must_use]
-    pub const fn as_nanos(&self) -> u128 {
+    pub const fn as_nanos(&self) -> u64 {
         self.t
     }
 
@@ -110,7 +156,7 @@ impl Timestamp {
     /// `f64` has a 53-bit mantissa, so timestamps up to 2^53 nanoseconds
     /// (about 104 days) convert with sub-nanosecond accuracy; beyond that the
     /// conversion silently loses precision, which this method refuses to do.
-    /// Use [`Timestamp::as_seconds_unchecked`] (or
+    /// Use [`Timestamp::as_seconds_lossy`] (or
     /// [`TimePoint::as_seconds_lossy`]) for a best-effort conversion of
     /// larger values, such as wall-clock times.
     ///
@@ -135,7 +181,7 @@ impl Timestamp {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         /// 2^53: the largest range in which `f64` represents every integer
         /// nanosecond count exactly.
-        const MAX_ACCURATE_NANOS: u128 = 1 << 53;
+        const MAX_ACCURATE_NANOS: u64 = 1 << 53;
 
         if self.t > MAX_ACCURATE_NANOS {
             return Err(TimeError::AccuracyLoss);
@@ -144,7 +190,11 @@ impl Timestamp {
         Ok(self.t as f64 / NANOSECONDS_PER_SECOND)
     }
 
-    /// Converts the `Timestamp` to seconds as a floating-point number without checking for accuracy.
+    /// Converts the `Timestamp` to seconds as a floating-point number,
+    /// accepting precision loss beyond 2^53 nanoseconds.
+    ///
+    /// Inherent counterpart of [`TimePoint::as_seconds_lossy`], callable
+    /// without importing the trait.
     ///
     /// # Examples
     ///
@@ -152,12 +202,12 @@ impl Timestamp {
     /// use transforms::time::Timestamp;
     ///
     /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
-    /// let seconds = timestamp.as_seconds_unchecked();
+    /// let seconds = timestamp.as_seconds_lossy();
     /// assert_eq!(seconds, 1_000_000_000.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[allow(clippy::cast_precision_loss)]
-    pub fn as_seconds_unchecked(&self) -> f64 {
+    pub fn as_seconds_lossy(&self) -> f64 {
         const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
         self.t as f64 / NANOSECONDS_PER_SECOND
     }
@@ -170,22 +220,10 @@ impl Sub<Timestamp> for Timestamp {
         self,
         other: Timestamp,
     ) -> Self::Output {
-        match self.t.cmp(&other.t) {
-            Ordering::Less => Err(TimeError::DurationUnderflow),
-            Ordering::Equal => Ok(Duration::from_secs(0)),
-            Ordering::Greater => {
-                let diff = self.t - other.t;
-                let seconds = diff / 1_000_000_000;
-                let nanos = (diff % 1_000_000_000) as u32;
-
-                if seconds > u128::from(u64::MAX) {
-                    return Err(TimeError::DurationOverflow);
-                }
-
-                #[allow(clippy::cast_possible_truncation)]
-                Ok(Duration::new(seconds as u64, nanos))
-            }
-        }
+        self.t
+            .checked_sub(other.t)
+            .map(Duration::from_nanos)
+            .ok_or(TimeError::DurationUnderflow)
     }
 }
 
@@ -196,10 +234,9 @@ impl Add<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        (u128::from(rhs.as_secs()))
-            .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
-            .and_then(|total_duration_nanos| self.t.checked_add(total_duration_nanos))
+        u64::try_from(rhs.as_nanos())
+            .ok()
+            .and_then(|duration_nanos| self.t.checked_add(duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimeError::DurationOverflow)
     }
@@ -212,32 +249,20 @@ impl Sub<Duration> for Timestamp {
         self,
         rhs: Duration,
     ) -> Self::Output {
-        u128::from(rhs.as_secs())
-            .checked_mul(1_000_000_000)
-            .and_then(|seconds| seconds.checked_add(u128::from(rhs.subsec_nanos())))
-            .and_then(|total_duration_nanos| self.t.checked_sub(total_duration_nanos))
+        u64::try_from(rhs.as_nanos())
+            .ok()
+            .and_then(|duration_nanos| self.t.checked_sub(duration_nanos))
             .map(|final_nanos| Timestamp { t: final_nanos })
             .ok_or(TimeError::DurationUnderflow)
     }
 }
 
 impl TimePoint for Timestamp {
-    fn static_timestamp() -> Self {
-        Timestamp::zero()
-    }
-
     fn duration_since(
         self,
         earlier: Self,
     ) -> Result<Duration, TimeError> {
         self - earlier
-    }
-
-    fn checked_add(
-        self,
-        rhs: Duration,
-    ) -> Result<Self, TimeError> {
-        self + rhs
     }
 
     fn checked_sub(
@@ -247,12 +272,8 @@ impl TimePoint for Timestamp {
         self - rhs
     }
 
-    fn as_seconds(self) -> Result<f64, TimeError> {
-        Timestamp::as_seconds(&self)
-    }
-
     fn as_seconds_lossy(self) -> f64 {
-        self.as_seconds_unchecked()
+        Timestamp::as_seconds_lossy(&self)
     }
 }
 

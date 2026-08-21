@@ -9,14 +9,16 @@ use transforms::{
     Registry, Transformable,
     errors::TransformError,
     geometry::{Point, Quaternion, Transform, Vector3},
-    time::Timestamp,
+    time::{Stamp, Timestamp},
 };
 
 /// Tolerance for comparing computed against expected geometry.
 const EPSILON: f64 = 1e-9;
 
-/// Upper bound (exclusive) of the generated timestamp range, in nanoseconds.
-const MAX_NANOS: u128 = 1_000_000_000_000_000;
+/// 2^53 nanoseconds: the boundary beyond which `f64` can no longer represent
+/// every nanosecond count exactly, and where `Timestamp::as_seconds` starts
+/// refusing to convert.
+const ACCURACY_CLIFF_NANOS: u64 = 1 << 53;
 
 /// Finite translations, bounded so accumulated floating-point rounding stays
 /// well below `EPSILON`.
@@ -41,16 +43,31 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
             }
             let half = angle / 2.0;
             let s = half.sin() / norm;
-            Quaternion::new(half.cos(), s * x, s * y, s * z)
+            Quaternion::from_wxyz(half.cos(), s * x, s * y, s * z)
                 .normalize()
                 .ok()
         })
 }
 
-/// Dynamic nanosecond timestamps; `t = 0` is the static sentinel and is
-/// deliberately excluded.
+/// Nanosecond magnitudes spanning the regimes that behave differently:
+/// small counts, both sides of the 2^53 `f64` accuracy cliff, 2020s
+/// wall-clock nanoseconds (where an `f64` ulp is already ~256 ns), and the
+/// top of the `u64` range. `headroom` keeps the highest band that far below
+/// `u64::MAX`, for callers that add a span to the drawn value.
+fn timestamp_nanos(headroom: u64) -> impl Strategy<Value = u64> {
+    let top = u64::MAX - headroom;
+    prop_oneof![
+        0..1_000_000_000_000_000_u64,
+        ACCURACY_CLIFF_NANOS - 1_000_000_000..ACCURACY_CLIFF_NANOS + 1_000_000_000,
+        1_700_000_000_000_000_000_u64..1_800_000_000_000_000_000,
+        top - 1_000_000_000..=top,
+    ]
+}
+
+/// Dynamic nanosecond timestamps. `t = 0` is included: no value is
+/// reserved — staticness is `Stamp::Static`, not a sentinel instant.
 fn timestamps() -> impl Strategy<Value = Timestamp> {
-    (1..MAX_NANOS).prop_map(Timestamp::from_nanos)
+    timestamp_nanos(0).prop_map(Timestamp::from_nanos)
 }
 
 /// The quaternion dot product; `|dot| ≈ 1` for unit quaternions means both
@@ -78,30 +95,24 @@ proptest! {
         rotation in unit_quaternions(),
         timestamp in timestamps(),
     ) {
-        let original = Transform {
-            translation,
-            rotation,
-            timestamp,
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let original = Transform::new("a", "b", translation, rotation, Stamp::At(timestamp)).unwrap();
 
         let roundtrip = original.inverse().unwrap().inverse().unwrap();
 
-        prop_assert_eq!(roundtrip.parent.as_str(), "a");
-        prop_assert_eq!(roundtrip.child.as_str(), "b");
-        prop_assert_eq!(roundtrip.timestamp, timestamp);
+        prop_assert_eq!(roundtrip.parent(), "a");
+        prop_assert_eq!(roundtrip.child(), "b");
+        prop_assert_eq!(roundtrip.timestamp(), Stamp::At(timestamp));
         prop_assert!(
-            abs_diff_eq!(roundtrip.translation, original.translation, epsilon = EPSILON),
+            abs_diff_eq!(roundtrip.translation(), original.translation(), epsilon = EPSILON),
             "translation drifted: {:?} vs {:?}",
-            roundtrip.translation,
-            original.translation,
+            roundtrip.translation(),
+            original.translation(),
         );
         prop_assert!(
-            abs_diff_eq!(roundtrip.rotation, original.rotation, epsilon = EPSILON),
+            abs_diff_eq!(roundtrip.rotation(), original.rotation(), epsilon = EPSILON),
             "rotation drifted: {:?} vs {:?}",
-            roundtrip.rotation,
-            original.rotation,
+            roundtrip.rotation(),
+            original.rotation(),
         );
     }
 
@@ -112,19 +123,8 @@ proptest! {
         position in translations(),
         timestamp in timestamps(),
     ) {
-        let transform = Transform {
-            translation,
-            rotation,
-            timestamp,
-            parent: "a".into(),
-            child: "b".into(),
-        };
-        let mut point = Point {
-            position,
-            orientation: Quaternion::identity(),
-            timestamp,
-            frame: "b".into(),
-        };
+        let transform = Transform::new("a", "b", translation, rotation, Stamp::At(timestamp)).unwrap();
+        let mut point = Point::new(position, Quaternion::identity(), timestamp, "b");
 
         point.transform(&transform).unwrap();
         prop_assert_eq!(point.frame.as_str(), "a");
@@ -158,49 +158,56 @@ proptest! {
     }
 
     #[test]
+    fn slerp_output_is_unit_norm_at_interior_points(
+        q1 in unit_quaternions(),
+        q2 in unit_quaternions(),
+        t in 0.0f64..=1.0,
+    ) {
+        // Covers the shortest-path flip and both interpolation branches:
+        // the output of slerp must always be a valid rotation.
+        let interpolated = q1.slerp(q2, t);
+        prop_assert!(
+            (interpolated.norm() - 1.0).abs() < 1e-9,
+            "slerp output is not unit at t={t}: norm {}",
+            interpolated.norm(),
+        );
+    }
+
+    #[test]
     fn interpolate_is_exact_at_endpoints_and_rejects_outside(
         translation_from in translations(),
         translation_to in translations(),
         rotation_from in unit_quaternions(),
         rotation_to in unit_quaternions(),
-        start in 1..MAX_NANOS,
-        span in 1..1_000_000_000_u128,
-        outside in 1..1_000_000_000_u128,
+        // `span` and `outside` are each below a second, so two seconds of
+        // headroom keeps `start + span + outside` inside the range. A start
+        // of at least 1 keeps the "strictly before" probe below it.
+        start in timestamp_nanos(2_000_000_000).prop_map(|nanos| nanos.max(1)),
+        span in 1..1_000_000_000_u64,
+        outside in 1..1_000_000_000_u64,
     ) {
-        let from = Transform {
-            translation: translation_from,
-            rotation: rotation_from,
-            timestamp: Timestamp::from_nanos(start),
-            parent: "a".into(),
-            child: "b".into(),
-        };
-        let to = Transform {
-            translation: translation_to,
-            rotation: rotation_to,
-            timestamp: Timestamp::from_nanos(start + span),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let from = Transform::new("a", "b", translation_from, rotation_from, Stamp::At(Timestamp::from_nanos(start))).unwrap();
+        let to = Transform::new("a", "b", translation_to, rotation_to, Stamp::At(Timestamp::from_nanos(start + span))).unwrap();
 
-        let at_from = Transform::interpolate(&from, &to, from.timestamp).unwrap();
-        prop_assert_eq!(at_from.timestamp, from.timestamp);
-        prop_assert_eq!(at_from.parent.as_str(), "a");
-        prop_assert_eq!(at_from.child.as_str(), "b");
-        prop_assert!(abs_diff_eq!(at_from.translation, from.translation, epsilon = EPSILON));
-        prop_assert!(same_rotation(at_from.rotation, from.rotation));
+        let at_from = Transform::interpolate(&from, &to, from.timestamp().at().unwrap()).unwrap();
+        prop_assert_eq!(at_from.timestamp(), from.timestamp());
+        prop_assert_eq!(at_from.parent(), "a");
+        prop_assert_eq!(at_from.child(), "b");
+        prop_assert!(abs_diff_eq!(at_from.translation(), from.translation(), epsilon = EPSILON));
+        prop_assert!(same_rotation(at_from.rotation(), from.rotation()));
 
-        let at_to = Transform::interpolate(&from, &to, to.timestamp).unwrap();
-        prop_assert_eq!(at_to.timestamp, to.timestamp);
-        prop_assert_eq!(at_to.parent.as_str(), "a");
-        prop_assert_eq!(at_to.child.as_str(), "b");
-        prop_assert!(abs_diff_eq!(at_to.translation, to.translation, epsilon = EPSILON));
-        prop_assert!(same_rotation(at_to.rotation, to.rotation));
+        let at_to = Transform::interpolate(&from, &to, to.timestamp().at().unwrap()).unwrap();
+        prop_assert_eq!(at_to.timestamp(), to.timestamp());
+        prop_assert_eq!(at_to.parent(), "a");
+        prop_assert_eq!(at_to.child(), "b");
+        prop_assert!(abs_diff_eq!(at_to.translation(), to.translation(), epsilon = EPSILON));
+        prop_assert!(same_rotation(at_to.rotation(), to.rotation()));
 
         // Strictly before the covered range (saturates to 0, still < start).
         let before = Timestamp::from_nanos(start.saturating_sub(outside));
         let result = Transform::interpolate(&from, &to, before);
         prop_assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange before the range, got {result:?}",
         );
 
@@ -208,7 +215,7 @@ proptest! {
         let after = Timestamp::from_nanos(start + span + outside);
         let result = Transform::interpolate(&from, &to, after);
         prop_assert!(
-            matches!(result, Err(TransformError::TimestampOutOfRange(_, _, _))),
+            matches!(result, Err(TransformError::TimestampOutOfRange { .. })),
             "expected TimestampOutOfRange after the range, got {result:?}",
         );
     }
@@ -220,59 +227,51 @@ proptest! {
     ) {
         let mut registry = Registry::new();
         for (i, (translation, rotation)) in links.iter().enumerate() {
-            let transform = Transform {
-                translation: *translation,
-                rotation: *rotation,
-                timestamp,
-                parent: format!("f{i}"),
-                child: format!("f{}", i + 1),
-            };
-            transform.validate().unwrap();
+            let transform = Transform::new(&format!("f{i}"), &format!("f{}", i + 1), *translation, *rotation, Stamp::At(timestamp)).unwrap();
             registry.add_transform(transform).unwrap();
         }
 
         let leaf = format!("f{}", links.len());
         let forward = registry.get_transform("f0", &leaf, timestamp).unwrap();
-        prop_assert_eq!(forward.parent.as_str(), "f0");
-        prop_assert_eq!(forward.child.as_str(), leaf.as_str());
-        prop_assert_eq!(forward.timestamp, timestamp);
+        prop_assert_eq!(forward.parent(), "f0");
+        prop_assert_eq!(forward.child(), leaf.as_str());
+        prop_assert_eq!(forward.timestamp(), Stamp::At(timestamp));
 
         let backward = registry.get_transform(&leaf, "f0", timestamp).unwrap();
-        prop_assert_eq!(backward.parent.as_str(), leaf.as_str());
-        prop_assert_eq!(backward.child.as_str(), "f0");
-        prop_assert_eq!(backward.timestamp, timestamp);
+        prop_assert_eq!(backward.parent(), leaf.as_str());
+        prop_assert_eq!(backward.child(), "f0");
+        prop_assert_eq!(backward.timestamp(), Stamp::At(timestamp));
 
         // The reverse lookup is the inverse: composing the two yields the
         // identity transform of the root frame.
         let composed = (forward * backward).unwrap();
         prop_assert!(
-            abs_diff_eq!(composed.translation, Vector3::zero(), epsilon = EPSILON),
+            abs_diff_eq!(composed.translation(), Vector3::zero(), epsilon = EPSILON),
             "composed translation is not zero: {:?}",
-            composed.translation,
+            composed.translation(),
         );
         prop_assert!(
-            same_rotation(composed.rotation, Quaternion::identity()),
+            same_rotation(composed.rotation(), Quaternion::identity()),
             "composed rotation is not the identity: {:?}",
-            composed.rotation,
+            composed.rotation(),
         );
     }
 
     #[test]
-    fn validate_rejects_norms_beyond_tolerance(
+    fn new_rejects_norms_beyond_tolerance(
         rotation in unit_quaternions(),
         deviation in 2e-6..1e-3_f64,
         above in any::<bool>(),
     ) {
         let factor = if above { 1.0 + deviation } else { 1.0 - deviation };
-        let transform = Transform {
-            translation: Vector3::zero(),
-            rotation: rotation.scale(factor),
-            timestamp: Timestamp::from_nanos(1),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let result = Transform::new(
+            "a",
+            "b",
+            Vector3::zero(),
+            rotation.scale(factor),
+            Stamp::At(Timestamp::from_nanos(1)),
+        );
 
-        let result = transform.validate();
         prop_assert!(
             matches!(result, Err(TransformError::NonUnitRotation(_))),
             "norm deviation {deviation} must be rejected, got {result:?}",
@@ -280,19 +279,18 @@ proptest! {
     }
 
     #[test]
-    fn validate_accepts_norms_within_tolerance(
+    fn new_accepts_norms_within_tolerance(
         rotation in unit_quaternions(),
         deviation in -5e-7..5e-7_f64,
     ) {
-        let transform = Transform {
-            translation: Vector3::zero(),
-            rotation: rotation.scale(1.0 + deviation),
-            timestamp: Timestamp::from_nanos(1),
-            parent: "a".into(),
-            child: "b".into(),
-        };
+        let result = Transform::new(
+            "a",
+            "b",
+            Vector3::zero(),
+            rotation.scale(1.0 + deviation),
+            Stamp::At(Timestamp::from_nanos(1)),
+        );
 
-        let result = transform.validate();
         prop_assert!(
             result.is_ok(),
             "norm deviation {deviation} must be accepted, got {result:?}",

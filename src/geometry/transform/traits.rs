@@ -8,7 +8,7 @@ use crate::{
 /// A trait for types that are localized in a specific coordinate frame at a specific time.
 ///
 /// This trait provides frame and timestamp introspection, enabling automatic transform
-/// lookup via [`Registry::get_transform_for`](crate::core::Registry::get_transform_for).
+/// lookup via [`Registry::get_transform_for`](crate::Registry::get_transform_for).
 ///
 /// Separate from [`Transformable`] so that types without frame/timestamp metadata
 /// can still implement `Transformable` independently.
@@ -22,12 +22,12 @@ use crate::{
 ///     time::Timestamp,
 /// };
 ///
-/// let point = Point {
-///     position: Vector3::new(1.0, 0.0, 0.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "camera".into(),
-/// };
+/// let point: Point = Point::new(
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "camera",
+/// );
 ///
 /// assert_eq!(point.frame(), "camera");
 /// ```
@@ -62,12 +62,26 @@ where
 /// a sensor frame), while the parent frame is typically the more general/global frame
 /// (e.g., map or world frame).
 ///
+/// # Precondition
+///
+/// An implementation applies the transform's geometry as given; it checks
+/// frames and time, not numbers. A [`Transform`] built through its
+/// constructors or read through its `Deserialize` impl was checked there —
+/// both reject non-finite components and non-unit rotations. One *derived*
+/// from valid transforms was not: `*`, [`Transform::inverse`],
+/// [`Transform::interpolate`] and registry lookups deliberately skip the
+/// re-check, and composing operands at the edge of the tolerance walks past
+/// it. Applying such a transform deserves a [`Transform::validate`] call
+/// first: a rotation whose norm is 1.01 scales everything it touches by 2%
+/// and reports success.
+///
 /// # Errors
 ///
 /// Returns `TransformError` if:
 /// - The frames are incompatible (transform's child frame doesn't match the object's frame)
-/// - The timestamps don't match — except for static transforms (carrying the
-///   static timestamp value), which are valid for all time
+/// - The timestamps don't match — except for static transforms (carrying
+///   `Stamp::Static`, e.g. built with `Transform::static_between`), which
+///   are valid for all time
 /// - Other transform-specific errors occur
 ///
 /// # Examples
@@ -75,23 +89,24 @@ where
 /// ```
 /// use transforms::{
 ///     geometry::{Point, Quaternion, Transform, Transformable, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
-/// let mut point = Point {
-///     position: Vector3::new(1.0, 0.0, 0.0),
-///     orientation: Quaternion::identity(),
-///     timestamp: Timestamp::zero(),
-///     frame: "camera".into(),
-/// };
+/// let mut point: Point = Point::new(
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Timestamp::zero(),
+///     "camera",
+/// );
 ///
-/// let transform = Transform {
-///     translation: Vector3::new(0.0, 1.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: point.timestamp,
-///     parent: "base".into(),
-///     child: "camera".into(),
-/// };
+/// let transform: Transform = Transform::new(
+///     "base",
+///     "camera",
+///     Vector3::new(0.0, 1.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(point.timestamp),
+/// )
+/// .unwrap();
 ///
 /// // Transform the point from camera frame to base frame
 /// point
@@ -109,7 +124,7 @@ where
     /// This method returns a `TransformError` if:
     /// - The frames of the object and the transform are incompatible.
     /// - The timestamps of the object and the transform do not match; static
-    ///   transforms are exempt, being valid for all time.
+    ///   transforms (`Stamp::Static`) are exempt, being valid for all time.
     fn transform(
         &mut self,
         transform: &Transform<T>,

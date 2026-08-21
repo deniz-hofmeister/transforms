@@ -35,7 +35,7 @@ mod timestamp_tests {
 
     #[test]
     fn as_seconds_accuracy_loss() {
-        let timestamp = Timestamp::from_nanos(u128::MAX - 1);
+        let timestamp = Timestamp::from_nanos(u64::MAX - 1);
         assert!(matches!(
             timestamp.as_seconds(),
             Err(TimeError::AccuracyLoss)
@@ -44,12 +44,78 @@ mod timestamp_tests {
 
     #[test]
     #[cfg(feature = "std")]
-    fn now_returns_a_dynamic_wall_clock_time() {
-        use crate::time::TimePoint;
-
+    fn now_returns_a_positive_wall_clock_time() {
         let now = Timestamp::now();
         assert!(now.t > 0);
-        assert!(!now.is_static());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn try_now_returns_the_current_time_without_panicking() {
+        let now = Timestamp::try_now().unwrap();
+        assert!(now.t > 0);
+    }
+
+    #[test]
+    fn checked_sub_below_zero_underflows() {
+        use crate::time::TimePoint;
+        use core::time::Duration;
+
+        let t = Timestamp::from_nanos(1);
+        assert!(matches!(
+            t.checked_sub(Duration::from_nanos(2)),
+            Err(TimeError::DurationUnderflow)
+        ));
+    }
+
+    #[test]
+    fn adding_beyond_the_representable_range_overflows() {
+        use core::time::Duration;
+
+        let t = Timestamp::from_nanos(u64::MAX);
+        assert!(matches!(
+            t + Duration::from_nanos(1),
+            Err(TimeError::DurationOverflow)
+        ));
+    }
+
+    #[test]
+    fn a_duration_wider_than_the_timestamp_range_is_rejected_both_ways() {
+        use core::time::Duration;
+
+        // `Duration` counts seconds in a u64, so it can express spans no
+        // `Timestamp` can hold. Both directions must report the range
+        // failure instead of truncating the nanosecond count.
+        let wide = Duration::from_secs(u64::MAX);
+        let t = Timestamp::from_nanos(1_000_000_000);
+
+        assert!(matches!(t + wide, Err(TimeError::DurationOverflow)));
+        assert!(matches!(t - wide, Err(TimeError::DurationUnderflow)));
+    }
+
+    #[test]
+    fn the_top_of_the_range_is_an_ordinary_timestamp() {
+        // u64 nanoseconds span ~584 years; the last one is ordinary data,
+        // not a sentinel.
+        let top = Timestamp::from_nanos(u64::MAX);
+        assert_eq!(top.as_nanos(), u64::MAX);
+        assert!(top > Timestamp::zero());
+    }
+
+    #[test]
+    fn subtraction_spans_the_whole_range() {
+        use core::time::Duration;
+
+        // The widest possible span is a valid `Duration` (~584 years), so
+        // the subtraction has no overflow arm to take.
+        let span = Timestamp::from_nanos(u64::MAX) - Timestamp::zero();
+        assert_eq!(span.unwrap(), Duration::from_nanos(u64::MAX));
+
+        let zero = Timestamp::from_nanos(7) - Timestamp::from_nanos(7);
+        assert_eq!(zero.unwrap(), Duration::ZERO);
+
+        let backwards = Timestamp::zero() - Timestamp::from_nanos(1);
+        assert!(matches!(backwards, Err(TimeError::DurationUnderflow)));
     }
 
     #[test]
@@ -59,6 +125,6 @@ mod timestamp_tests {
 
         // Best-effort conversions keep working beyond the boundary.
         let big = Timestamp::from_nanos((1 << 53) + 1);
-        assert!(big.as_seconds_unchecked().is_finite());
+        assert!(big.as_seconds_lossy().is_finite());
     }
 }

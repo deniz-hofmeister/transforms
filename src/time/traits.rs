@@ -5,10 +5,26 @@ use crate::time::TimeError;
 /// Trait describing time-point behavior required by the transform core.
 ///
 /// Implementing this trait allows using custom time types with
-/// `Transform`, `Buffer`, and `Registry`.
+/// `Transform` and `Registry`.
 ///
 /// The trait requires `Copy` because transform lookups and composition are hot
-/// paths where timestamps are passed around frequently.
+/// paths where timestamps are passed around frequently, and `Debug` because
+/// every type that carries a timestamp derives `Debug`: without the bound a
+/// clock type without its own derive would make `Transform<YourClock>`
+/// silently unprintable, exactly where a diagnosis is needed.
+///
+/// The three methods are the whole time algebra the crate uses; nothing is
+/// required that the core does not call.
+///
+/// Implementations must keep `Ord` total and consistent with
+/// [`TimePoint::duration_since`] and [`TimePoint::checked_sub`]: if `a < b`,
+/// then `b.duration_since(a)` is the `Ok` span between them. Sample
+/// ordering, interpolation, and eviction all rest on that consistency.
+///
+/// No timestamp value is reserved: staticness is expressed by
+/// [`Stamp::Static`](crate::time::Stamp), not by a sentinel instant, so
+/// every value the clock can produce — including `t = 0` on boot-relative
+/// clocks — is ordinary dynamic data.
 ///
 /// # Adapter example
 ///
@@ -42,10 +58,6 @@ use crate::time::TimeError;
 /// }
 ///
 /// impl TimePoint for CoreTime {
-///     fn static_timestamp() -> Self {
-///         Self(0)
-///     }
-///
 ///     fn duration_since(
 ///         self,
 ///         earlier: Self,
@@ -54,21 +66,6 @@ use crate::time::TimeError;
 ///             .checked_sub(earlier.0)
 ///             .map(Duration::from_nanos)
 ///             .ok_or(TimeError::DurationUnderflow)
-///     }
-///
-///     fn checked_add(
-///         self,
-///         rhs: Duration,
-///     ) -> Result<Self, TimeError> {
-///         let rhs_ns: u64 = rhs
-///             .as_nanos()
-///             .try_into()
-///             .map_err(|_| TimeError::DurationOverflow)?;
-///
-///         self.0
-///             .checked_add(rhs_ns)
-///             .map(Self)
-///             .ok_or(TimeError::DurationOverflow)
 ///     }
 ///
 ///     fn checked_sub(
@@ -86,22 +83,12 @@ use crate::time::TimeError;
 ///             .ok_or(TimeError::DurationUnderflow)
 ///     }
 ///
-///     fn as_seconds(self) -> Result<f64, TimeError> {
-///         Ok(self.0 as f64 / 1_000_000_000.0)
+///     fn as_seconds_lossy(self) -> f64 {
+///         self.0 as f64 / 1_000_000_000.0
 ///     }
 /// }
 /// ```
-pub trait TimePoint: Copy + Ord {
-    /// Returns the static timestamp value.
-    ///
-    /// By default this is usually `t=0`.
-    fn static_timestamp() -> Self;
-
-    /// Returns `true` if this timestamp is the static value.
-    fn is_static(self) -> bool {
-        self == Self::static_timestamp()
-    }
-
+pub trait TimePoint: Copy + Ord + core::fmt::Debug {
     /// Returns elapsed time between two timestamps.
     ///
     /// # Errors
@@ -114,17 +101,6 @@ pub trait TimePoint: Copy + Ord {
         earlier: Self,
     ) -> Result<Duration, TimeError>;
 
-    /// Adds duration to timestamp using checked arithmetic.
-    ///
-    /// # Errors
-    ///
-    /// Returns `TimeError::DurationOverflow` if the addition exceeds the
-    /// representable range of the timestamp type.
-    fn checked_add(
-        self,
-        rhs: Duration,
-    ) -> Result<Self, TimeError>;
-
     /// Subtracts duration from timestamp using checked arithmetic.
     ///
     /// # Errors
@@ -136,23 +112,13 @@ pub trait TimePoint: Copy + Ord {
         rhs: Duration,
     ) -> Result<Self, TimeError>;
 
-    /// Returns timestamp represented in seconds.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `TimeError` if the conversion cannot be represented according
-    /// to the implementation's precision and range guarantees.
-    fn as_seconds(self) -> Result<f64, TimeError>;
-
     /// Returns the timestamp in seconds for diagnostics, accepting precision
     /// loss.
     ///
-    /// Error messages are formatted with this method: unlike
-    /// [`TimePoint::as_seconds`] it cannot fail, so a conversion error can
-    /// never mask the error actually being reported. The default
-    /// implementation falls back to NaN when `as_seconds` fails; implementors
-    /// should override it with a lossy conversion.
-    fn as_seconds_lossy(self) -> f64 {
-        self.as_seconds().unwrap_or(f64::NAN)
-    }
+    /// Error messages are formatted with this method, and it is infallible by
+    /// contract: a conversion error can never mask the error actually being
+    /// reported. Implement it as a best-effort conversion — for a clock whose
+    /// range or epoch makes some values unconvertible, return `f64::NAN` for
+    /// those rather than a plausible-looking wrong number.
+    fn as_seconds_lossy(self) -> f64;
 }

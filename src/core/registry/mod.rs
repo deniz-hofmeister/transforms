@@ -4,12 +4,14 @@
 //!
 //! ## Features
 //!
-//! - **Static Transforms**: The registry can handle static transforms by using the static timestamp value (`t=0` by default).
+//! - **Static Transforms**: The registry can handle static transforms —
+//!   transforms carrying `Stamp::Static`, valid for all time; build them
+//!   with `Transform::static_between`.
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
 //!   automatically cleans up old dynamic transforms on insert; one built with
-//!   `Registry::new` keeps them until `delete_transforms_before` is called.
+//!   `Registry::new` keeps them until `remove_transforms_before` is called.
 //!
 //! ## Usage
 //!
@@ -17,11 +19,14 @@
 //!
 //! ## Time type selection
 //!
-//! `Registry` defaults to `Timestamp`, so `Registry::new()` is equivalent to
-//! `Registry::<Timestamp>::new()`.
+//! `Registry` defaults to `Timestamp` in type position, so
+//! `let registry: Registry = Registry::new();` is a `Registry<Timestamp>`.
+//! The default does not apply in expression position — there the time type
+//! is inferred from usage, so annotate it where the surrounding code does
+//! not pin it down.
 //!
 //! You can use custom timestamps by implementing `time::TimePoint` and then
-//! constructing `Registry::<CustomTimestamp>::new(...)`.
+//! constructing `Registry::<CustomTimestamp>::new()`.
 //!
 //! With the `std` feature enabled, `std::time::SystemTime` already implements
 //! `TimePoint`, so `Registry::<SystemTime>::with_max_age(Duration::from_secs(...))`
@@ -34,7 +39,7 @@
 //! use transforms::{
 //!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
+//!     time::{Stamp, Timestamp},
 //! };
 //!
 //! # #[cfg(feature = "std")]
@@ -52,13 +57,14 @@
 //! let t2 = t1;
 //!
 //! // Define a transform from frame "a" to frame "b"
-//! let t_a_b_1 = Transform {
-//!     translation: Vector3::new(1.0, 0.0, 0.0),
-//!     rotation: Quaternion::identity(),
-//!     timestamp: t1,
-//!     parent: "a".into(),
-//!     child: "b".into(),
-//! };
+//! let t_a_b_1 = Transform::new(
+//!     "a",
+//!     "b",
+//!     Vector3::new(1.0, 0.0, 0.0),
+//!     Quaternion::identity(),
+//!     Stamp::At(t1),
+//! )
+//! .unwrap();
 //!
 //! // For validation
 //! let t_a_b_2 = t_a_b_1.clone();
@@ -74,19 +80,17 @@
 //! ```
 
 use crate::{
-    core::Buffer,
-    errors::{BufferError, TransformError},
+    core::{Buffer, buffer::GetError},
     geometry::{Localized, Quaternion, Transform, Vector3},
-    time::{TimePoint, Timestamp},
+    time::{Stamp, TimePoint, Timestamp},
 };
-use alloc::{
-    boxed::Box,
-    collections::{BTreeSet, VecDeque},
-    string::String,
-};
+use alloc::{collections::VecDeque, string::String};
+pub use error::RegistryError;
 use hashbrown::HashMap;
 
 use core::time::Duration;
+
+mod error;
 
 /// A registry for managing transforms between different frames. It can
 /// traverse the parent-child tree and calculate the final transform.
@@ -102,7 +106,7 @@ use core::time::Duration;
 /// use transforms::{
 ///     Registry,
 ///     geometry::{Quaternion, Transform, Vector3},
-///     time::Timestamp,
+///     time::{Stamp, Timestamp},
 /// };
 ///
 /// # #[cfg(feature = "std")]
@@ -120,13 +124,14 @@ use core::time::Duration;
 /// let t2 = t1;
 ///
 /// // Define a transform from frame "a" to frame "b"
-/// let t_a_b_1 = Transform {
-///     translation: Vector3::new(1.0, 0.0, 0.0),
-///     rotation: Quaternion::identity(),
-///     timestamp: t1,
-///     parent: "a".into(),
-///     child: "b".into(),
-/// };
+/// let t_a_b_1 = Transform::new(
+///     "a",
+///     "b",
+///     Vector3::new(1.0, 0.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(t1),
+/// )
+/// .unwrap();
 ///
 /// // For validation
 /// let t_a_b_2 = t_a_b_1.clone();
@@ -155,9 +160,22 @@ where
 {
     /// Creates a new `Registry` without automatic cleanup.
     ///
-    /// Transforms are kept until removed manually with
-    /// [`Registry::delete_transforms_before`]. Use
-    /// [`Registry::with_max_age`] for automatic cleanup.
+    /// **Nothing bounds this registry.** Two consequences follow, and both
+    /// are the caller's to manage:
+    ///
+    /// - *Memory* grows with the insert rate. Transforms are kept until
+    ///   removed manually with [`Registry::remove_transforms_before`], and
+    ///   frames until [`Registry::remove_frame`].
+    /// - *Interpolation* spans any gap between two retained samples, however
+    ///   large. A lookup between samples recorded before and after a pause —
+    ///   a stalled publisher, a rebooting robot — interpolates straight
+    ///   across it and answers confidently, because both neighbors are still
+    ///   stored.
+    ///
+    /// [`Registry::with_max_age`] bounds both at once: evicting on insert
+    /// caps the retained window, and no gap between two retained samples can
+    /// then exceed `max_age`. Prefer it unless the retention policy is
+    /// genuinely the caller's.
     ///
     /// # Examples
     ///
@@ -201,18 +219,30 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the transform's child
-    /// frame already holds transforms of the opposite kind: a child frame is
-    /// either static (timestamp equal to the static timestamp value, `t=0` by
-    /// default) or dynamic, never both.
+    /// Returns `RegistryError::NonUnitRotation` or
+    /// `RegistryError::NonFiniteValues` if the transform's numbers are
+    /// unusable. A transform straight from a constructor cannot fail this —
+    /// but one composed with `*`, interpolated, inverted, or read back out of
+    /// a lookup was deliberately never re-validated, so re-publishing such a
+    /// value is checked here rather than silently corrupting every lookup
+    /// that later crosses the frame.
     ///
-    /// Returns `BufferError::TransformError` if the transform fails
-    /// validation (non-finite values or a non-unit rotation),
-    /// `BufferError::SelfReferentialFrame` if its parent and child are the
-    /// same frame, `BufferError::ReparentingNotSupported` if the child frame
+    /// Returns `RegistryError::StaticDynamicConflict` if the transform's
+    /// child frame already holds transforms of the opposite kind: a child
+    /// frame is either static (`Stamp::Static`) or dynamic (`Stamp::At`),
+    /// never both. The kind is decided by the first transform inserted for
+    /// the frame.
+    ///
+    /// Returns `RegistryError::SelfReferentialFrame` if the transform's
+    /// parent and child are the same frame,
+    /// `RegistryError::ReparentingNotSupported` if the child frame
     /// already has a different parent (remove the frame first with
-    /// [`Registry::remove_frame`]), and `BufferError::CycleDetected` if the
+    /// [`Registry::remove_frame`]), and `RegistryError::CycleDetected` if the
     /// new relationship would create a cycle in the frame tree.
+    ///
+    /// Inserting at a timestamp the child frame already stores replaces the
+    /// stored transform: last write wins. Re-publishing a sample at the
+    /// same stamp is an upsert, not an error.
     ///
     /// # Examples
     ///
@@ -220,43 +250,80 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     ///
     /// let mut registry = Registry::<Timestamp>::new();
-    /// let transform = Transform {
-    ///     translation: Vector3::new(1.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: Timestamp::zero(),
-    ///     parent: "base".into(),
-    ///     child: "sensor".into(),
-    /// };
+    /// let transform = Transform::new(
+    ///     "base",
+    ///     "sensor",
+    ///     Vector3::new(1.0, 0.0, 0.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(Timestamp::zero()),
+    /// )
+    /// .unwrap();
     ///
     /// registry.add_transform(transform).unwrap();
     /// ```
     pub fn add_transform(
         &mut self,
         t: Transform<T>,
-    ) -> Result<(), BufferError> {
+    ) -> Result<(), RegistryError<T>> {
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
-    /// Retrieves the transform from the `from` frame to the `to` frame at
-    /// the requested timestamp.
+    /// Retrieves the transform that maps `source`-frame coordinates into
+    /// the `target` frame at the requested timestamp.
+    ///
+    /// # Direction convention
+    ///
+    /// The returned transform has `parent == target` and `child == source`:
+    /// applying it to data expressed in the `source` frame yields that data
+    /// expressed in the `target` frame, matching tf2's
+    /// `lookupTransform(target_frame, source_frame, time)` and this
+    /// registry's own [`Registry::get_transform_at`]. Mind the order — to
+    /// bring lidar points into the map frame, ask for
+    /// `get_transform("map", "lidar", t)`; swapping the arguments silently
+    /// yields the exact inverse.
     ///
     /// The returned transform always carries the requested timestamp, also
     /// when the chain consists of static transforms. Requesting a frame
     /// relative to itself returns the identity transform.
     ///
+    /// Interpolation spans any gap between two stored samples, however
+    /// large — a lookup between samples recorded before and after a pause
+    /// (say, a robot rebooting) interpolates straight across it. Bounding
+    /// data freshness is the caller's responsibility, via `max_age` and
+    /// insert cadence.
+    ///
     /// # Errors
     ///
-    /// Returns `TransformError::UnknownFrame` if a requested frame exists
-    /// nowhere in the tree, `TransformError::NotFoundAt` if the lookup
-    /// failed at a frame that holds data but could not serve the requested
-    /// time — the variant names that frame and carries the underlying
-    /// `BufferError`, including the frame's covered time range — and
-    /// `TransformError::Disconnected` if both frames exist but live in
+    /// Returns `RegistryError::UnknownFrame` if a requested frame exists
+    /// nowhere in the tree, `RegistryError::NotFoundAt` if the lookup
+    /// failed at a frame that exists but could not serve the requested time,
+    /// and `RegistryError::Disconnected` if both frames exist but live in
     /// trees that no transform chain connects.
+    ///
+    /// `NotFoundAt` names the frame the walk stopped at, the timestamp asked
+    /// for, and `covered`: that frame's covered time range when it holds
+    /// data the request falls outside of, or `None` — no range to carry —
+    /// when it holds no data at all, the state a frame drained by
+    /// [`Registry::remove_transforms_before`] stays in until something is
+    /// inserted into it again.
+    ///
+    /// Composing, inverting or interpolating the transforms the walk
+    /// collected can itself fail: inverting a half-chain that composed to an
+    /// infinite translation reports `RegistryError::NonFiniteValues`,
+    /// anything else `RegistryError::TransformError`. Those are the two
+    /// lookup failures that name no frame.
+    ///
+    /// A returned transform is *not* re-validated (see [`Transform`]), and
+    /// the check above is the inversion's, not the lookup's: a lookup toward
+    /// an ancestor — the documented direction — inverts nothing, so a chain
+    /// of extreme magnitudes composes to an infinite translation and comes
+    /// back as `Ok`. Whether an overflow is reported therefore depends on
+    /// the direction asked for. Call [`Transform::validate`] on a result
+    /// whose inputs can reach those magnitudes.
     ///
     /// # Examples
     ///
@@ -264,7 +331,7 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -282,29 +349,31 @@ where
     /// let t2 = t1;
     ///
     /// // Define a transform from frame "a" to frame "b"
-    /// let t_a_b_1 = Transform {
-    ///     translation: Vector3::new(1.0, 0.0, 0.0),
-    ///     rotation: Quaternion::identity(),
-    ///     timestamp: t1,
-    ///     parent: "a".into(),
-    ///     child: "b".into(),
-    /// };
+    /// let t_a_b_1 = Transform::new(
+    ///     "a",
+    ///     "b",
+    ///     Vector3::new(1.0, 0.0, 0.0),
+    ///     Quaternion::identity(),
+    ///     Stamp::At(t1),
+    /// )
+    /// .unwrap();
     /// // For validation
     /// let t_a_b_2 = t_a_b_1.clone();
     ///
     /// registry.add_transform(t_a_b_1).unwrap();
     ///
+    /// // "b"-frame data expressed in "a": target "a", source "b"
     /// let result = registry.get_transform("a", "b", t2);
     /// assert!(result.is_ok());
     /// assert_eq!(result.unwrap(), t_a_b_2);
     /// ```
     pub fn get_transform(
         &self,
-        from: &str,
-        to: &str,
+        target: &str,
+        source: &str,
         timestamp: T,
-    ) -> Result<Transform<T>, TransformError> {
-        Self::process_get_transform(from, to, timestamp, &self.data)
+    ) -> Result<Transform<T>, RegistryError<T>> {
+        Self::process_get_transform(target, source, timestamp, &self.data)
     }
 
     /// Retrieves a transform for a specific value into `target_frame`.
@@ -317,12 +386,13 @@ where
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if a transform cannot be resolved.
+    /// Returns a `RegistryError` if a transform cannot be resolved; the
+    /// variants are [`Registry::get_transform`]'s.
     pub fn get_transform_for<U>(
         &self,
         value: &U,
         target_frame: &str,
-    ) -> Result<Transform<T>, TransformError>
+    ) -> Result<Transform<T>, RegistryError<T>>
     where
         U: Localized<T>,
     {
@@ -358,8 +428,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns a `TransformError` if any of the required transforms cannot be found
-    /// at the specified times.
+    /// Returns a `RegistryError` if any of the required transforms cannot be
+    /// found at the specified times; the variants are
+    /// [`Registry::get_transform`]'s, reported per leg.
     ///
     /// # Examples
     ///
@@ -367,7 +438,7 @@ where
     /// use transforms::{
     ///     Registry,
     ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::Timestamp,
+    ///     time::{Stamp, Timestamp},
     /// };
     /// # #[cfg(feature = "std")]
     /// use core::time::Duration;
@@ -390,35 +461,44 @@ where
     ///
     /// // fixed -> a at t1: a is at x=1
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(1.0, 0.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: t1,
-    ///         parent: "fixed".into(),
-    ///         child: "a".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "fixed",
+    ///             "a",
+    ///             Vector3::new(1.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t1),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // fixed -> a at t2: a has moved to x=2
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(2.0, 0.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: t2,
-    ///         parent: "fixed".into(),
-    ///         child: "a".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "fixed",
+    ///             "a",
+    ///             Vector3::new(2.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t2),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // a -> b at t1: b is at y=1 relative to a
     /// registry
-    ///     .add_transform(Transform {
-    ///         translation: Vector3::new(0.0, 1.0, 0.0),
-    ///         rotation: Quaternion::identity(),
-    ///         timestamp: t1,
-    ///         parent: "a".into(),
-    ///         child: "b".into(),
-    ///     })
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "a",
+    ///             "b",
+    ///             Vector3::new(0.0, 1.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t1),
+    ///         )
+    ///         .unwrap(),
+    ///     )
     ///     .unwrap();
     ///
     /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
@@ -439,7 +519,7 @@ where
         source_frame: &str,
         source_time: T,
         fixed_frame: &str,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         Self::process_get_transform_at(
             target_frame,
             target_time,
@@ -452,21 +532,26 @@ where
 
     /// Removes dynamic transforms older than the given threshold.
     ///
-    /// Iterates over all buffers and deletes their dynamic entries with a
+    /// Iterates over all buffers and removes their dynamic entries with a
     /// timestamp lower than the input argument. Static transforms are
     /// preserved: they are valid for all time, so cleaning them up by
     /// timestamp would silently destroy them.
     ///
-    /// Frames left without any transforms are removed entirely, so the
-    /// registry does not grow without bound as frames come and go.
-    pub fn delete_transforms_before(
+    /// A frame drained of every transform keeps its entry, and with it the
+    /// parent frame and the static-or-dynamic kind pinned by its first
+    /// insert. Routine cleanup therefore never re-opens a frame for
+    /// re-parenting or for a change of kind, and a lookup on a drained frame
+    /// fails with `RegistryError::NotFoundAt` naming that frame rather than
+    /// reporting it as unknown. Frame entries are released only by
+    /// [`Registry::remove_frame`] — a process that mints transient frame
+    /// names must call it when a frame retires.
+    pub fn remove_transforms_before(
         &mut self,
         timestamp: T,
     ) {
         for buffer in self.data.values_mut() {
-            buffer.delete_before(timestamp);
+            buffer.remove_before(timestamp);
         }
-        self.data.retain(|_, buffer| !buffer.is_empty());
     }
 
     /// Removes a child frame and all of its transforms from the registry.
@@ -474,6 +559,12 @@ where
     /// Returns `true` if the frame existed. This is also the escape hatch
     /// for re-parenting, which `add_transform` rejects: remove the frame,
     /// then re-add it under its new parent.
+    ///
+    /// Removing a frame that parents other frames strands those
+    /// descendants: they keep their pin to the removed parent, so lookups
+    /// that crossed the removed frame fail, diagnosed relative to the
+    /// remaining tree — which can name a frame other than the one removed.
+    /// To move a whole subtree, remove and re-add each descendant.
     pub fn remove_frame(
         &mut self,
         child: &str,
@@ -485,33 +576,36 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `BufferError::StaticDynamicConflict` if the child frame's buffer
-    /// already holds transforms of the opposite kind (static vs. dynamic).
+    /// Returns `RegistryError::CycleDetected` if the new relationship would
+    /// close a cycle, and the buffer's own rejection — mapped onto the
+    /// matching `RegistryError` variant — for everything the child frame's
+    /// buffer refuses.
     fn process_add_transform(
         t: Transform<T>,
         data: &mut HashMap<String, Buffer<T>>,
         max_age: Option<Duration>,
-    ) -> Result<(), BufferError> {
+    ) -> Result<(), RegistryError<T>> {
         // A new child->parent relationship changes the tree topology; reject
         // it if it would close a cycle. (Existing buffers have their parent
         // pinned, so occupied inserts cannot.)
-        if !data.contains_key(&t.child) && Self::creates_cycle(&t.child, &t.parent, data) {
-            return Err(BufferError::CycleDetected);
+        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
+            return Err(RegistryError::CycleDetected);
         }
 
-        if let Some(buffer) = data.get_mut(&t.child) {
-            return buffer.insert(t);
+        if let Some(buffer) = data.get_mut(t.child()) {
+            return buffer.insert(t).map_err(Into::into);
         }
 
         // New frame: fill the buffer BEFORE registering it in the map, so a
         // failed insert cannot leave an empty, parentless frame behind —
         // which would bypass the cycle check on a later insert of the same
-        // child frame.
-        let mut buffer = match max_age {
-            Some(max_age) => Buffer::with_max_age(max_age),
-            None => Buffer::new(),
+        // child frame. The transform's stamp declares the buffer's kind.
+        let mut buffer = match (t.timestamp(), max_age) {
+            (Stamp::Static, _) => Buffer::static_edge(),
+            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+            (Stamp::At(_), None) => Buffer::dynamic(),
         };
-        let child = t.child.clone();
+        let child: String = t.child().into();
         buffer.insert(t)?;
         data.insert(child, buffer);
         Ok(())
@@ -520,20 +614,17 @@ where
     /// Returns `true` if adding the relationship `child -> parent` would
     /// create a cycle in the frame tree.
     ///
-    /// Walks upward from `parent` through the pinned buffer parents. The
-    /// existing tree is acyclic (every insert passes this check), so the walk
-    /// terminates at a root; the visited set is a defensive bound only.
+    /// Walks upward from `parent` through the pinned buffer parents. The walk
+    /// terminates because the existing tree is acyclic: every edge was added
+    /// through this check, an existing buffer's parent is pinned and cannot
+    /// change, and `remove_frame` only deletes edges.
     fn creates_cycle(
         child: &str,
         parent: &str,
         data: &HashMap<String, Buffer<T>>,
     ) -> bool {
-        let mut visited = BTreeSet::new();
         let mut current = parent;
         while let Some(buffer) = data.get(current) {
-            if !visited.insert(current) {
-                return true;
-            }
             match buffer.parent() {
                 Some(next) => {
                     if next == child {
@@ -559,28 +650,43 @@ where
 
     /// Diagnoses a failed lookup, in order of certainty: a requested frame
     /// that exists nowhere in the tree, then a recorded chain-walk failure
-    /// (a frame with data that could not serve the requested time), and
-    /// otherwise — both frames known and both walks clean — the frames live
-    /// in disconnected trees. The scans run only on the failure path.
+    /// (a known frame that could not serve the requested time, whether it
+    /// holds data outside that time or no data at all), and otherwise —
+    /// both frames known and both walks clean — the frames live in
+    /// disconnected trees. The scans run only on the failure path.
+    ///
+    /// A walk that stopped on a failed *interpolation* is reported as that
+    /// failure rather than as a `NotFoundAt`: the frame does cover the
+    /// requested time, so neither `covered` shape would describe it.
     fn diagnose_not_found(
         from: &str,
         to: &str,
+        timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-        walk_failure: &mut Option<(String, BufferError)>,
-    ) -> TransformError {
+        walk_failure: &mut Option<(String, GetError<T>)>,
+    ) -> RegistryError<T> {
         for frame in [from, to] {
             if !Self::frame_exists(frame, data) {
-                return TransformError::UnknownFrame(frame.into());
+                return RegistryError::UnknownFrame(frame.into());
             }
         }
-        match walk_failure.take() {
-            Some((frame, source)) => TransformError::NotFoundAt {
-                from: from.into(),
-                to: to.into(),
-                frame,
-                source: Box::new(source),
-            },
-            None => TransformError::Disconnected(from.into(), to.into()),
+        let (frame, covered) = match walk_failure.take() {
+            Some((frame, GetError::NoTransformAvailable)) => (frame, None),
+            Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
+            Some((_, GetError::Interpolation(cause))) => return cause.into(),
+            None => {
+                return RegistryError::Disconnected {
+                    target_frame: from.into(),
+                    source_frame: to.into(),
+                };
+            }
+        };
+        RegistryError::NotFoundAt {
+            target_frame: from.into(),
+            source_frame: to.into(),
+            frame,
+            requested: timestamp,
+            covered,
         }
     }
 
@@ -588,98 +694,130 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If the lookup failed at a frame whose buffer holds data
-    ///   but could not serve the requested time
-    /// * `TransformError::Disconnected` - If both frames exist but no chain connects them
-    /// * Other variants of `TransformError` resulting from transform operations
+    /// * `RegistryError::UnknownFrame` - If a requested frame exists nowhere in the tree
+    /// * `RegistryError::NotFoundAt` - If the lookup failed at a frame that exists but could not
+    ///   serve the requested time, either because the request falls outside the data it holds or
+    ///   because it holds none
+    /// * `RegistryError::Disconnected` - If both frames exist but no chain connects them
+    /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If an operation on
+    ///   the resolved chain failed
     fn process_get_transform(
-        from: &str,
-        to: &str,
+        target: &str,
+        source: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         // A frame relative to itself is the identity, regardless of whether
         // the frame is known: the answer holds either way, and it keeps
         // same-frame queries consistent with `get_transform_for`.
-        if from == to {
-            return Ok(Transform {
-                translation: Vector3::zero(),
-                rotation: Quaternion::identity(),
-                timestamp,
-                parent: from.into(),
-                child: to.into(),
-            });
+        if target == source {
+            return Ok(Transform::unvalidated(
+                target.into(),
+                source.into(),
+                Vector3::zero(),
+                Quaternion::identity(),
+                Stamp::At(timestamp),
+            ));
         }
 
-        let reached = |chain: &VecDeque<Transform<T>>, target: &str| {
-            chain.back().is_some_and(|tf| tf.parent == target)
+        let reached = |chain: &VecDeque<Transform<T>>, goal: &str| {
+            chain.back().is_some_and(|tf| tf.parent() == goal)
         };
 
         let mut walk_failure = None;
-        let from_chain = Self::get_transform_chain(from, to, timestamp, data, &mut walk_failure);
+        let target_chain =
+            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
 
-        let result = match from_chain {
-            // `to` is an ancestor of `from`: the from-side chain spans the
-            // whole path, no to-side walk is needed.
-            Some(from_chain) if reached(&from_chain, to) => {
-                Self::combine_transforms(from_chain, VecDeque::new())
+        let result = match target_chain {
+            // `source` is an ancestor of `target`: the target-side chain
+            // spans the whole path, no source-side walk is needed.
+            Some(target_chain) if reached(&target_chain, source) => {
+                Self::combine_transforms(target_chain, VecDeque::new())
             }
-            from_chain => match (
-                from_chain,
-                Self::get_transform_chain(to, from, timestamp, data, &mut walk_failure),
+            target_chain => match (
+                target_chain,
+                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure),
             ) {
-                // `from` is an ancestor of `to`: the to-side chain spans the
-                // whole path by itself.
-                (_, Some(mut to_chain)) if reached(&to_chain, from) => {
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(VecDeque::new(), to_chain)
+                // `target` is an ancestor of `source`: the source-side chain
+                // spans the whole path by itself.
+                (_, Some(source_chain)) if reached(&source_chain, target) => {
+                    Self::combine_transforms(VecDeque::new(), source_chain)
                 }
                 // Both chains ran to the root: drop the shared suffix above
                 // the common parent and combine the remainders.
-                (Some(mut from_chain), Some(mut to_chain)) => {
-                    Self::truncate_at_common_parent(&mut from_chain, &mut to_chain);
+                (Some(mut target_chain), Some(mut source_chain)) => {
+                    Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
                     // The two walks must meet at a common parent; otherwise
                     // they stopped in different subtrees — an unknown frame,
                     // a mid-chain timestamp gap, or disconnected trees — and
                     // no transform exists at this time. Diagnose the failure
                     // instead of letting the junction fail composition with
                     // a misleading IncompatibleFrames.
-                    let connected = match (from_chain.back(), to_chain.back()) {
-                        (Some(from_top), Some(to_top)) => from_top.parent == to_top.parent,
+                    let connected = match (target_chain.back(), source_chain.back()) {
+                        (Some(target_top), Some(source_top)) => {
+                            target_top.parent() == source_top.parent()
+                        }
                         _ => false,
                     };
                     if connected {
-                        Self::reverse_and_invert_transforms(&mut to_chain)?;
-                        Self::combine_transforms(from_chain, to_chain)
+                        Self::combine_transforms(target_chain, source_chain)
                     } else {
-                        Err(Self::diagnose_not_found(from, to, data, &mut walk_failure))
+                        Some(Err(Self::diagnose_not_found(
+                            target,
+                            source,
+                            timestamp,
+                            data,
+                            &mut walk_failure,
+                        )))
                     }
                 }
-                (Some(from_chain), None) => Self::combine_transforms(from_chain, VecDeque::new()),
-                (None, Some(mut to_chain)) => {
-                    Self::reverse_and_invert_transforms(&mut to_chain)?;
-                    Self::combine_transforms(VecDeque::new(), to_chain)
+                (Some(target_chain), None) => {
+                    Self::combine_transforms(target_chain, VecDeque::new())
                 }
-                (None, None) => Err(Self::diagnose_not_found(from, to, data, &mut walk_failure)),
+                (None, Some(source_chain)) => {
+                    Self::combine_transforms(VecDeque::new(), source_chain)
+                }
+                (None, None) => Some(Err(Self::diagnose_not_found(
+                    target,
+                    source,
+                    timestamp,
+                    data,
+                    &mut walk_failure,
+                ))),
             },
-        }?;
+        }
+        // Both walks empty without a recorded failure cannot happen today
+        // (every call site passes at least one non-empty chain), but if it
+        // ever does, it is a failed lookup and diagnosed as such.
+        .unwrap_or_else(|| {
+            Err(Self::diagnose_not_found(
+                target,
+                source,
+                timestamp,
+                data,
+                &mut walk_failure,
+            ))
+        })?;
 
         // A chain can resolve without ever reaching the requested frame, for
-        // example when `to` does not exist in the tree and the walk stopped at
-        // the root instead. Verify the combined transform answers the exact
-        // question asked; otherwise report it as not found.
-        if result.parent != from || result.child != to {
-            return Err(Self::diagnose_not_found(from, to, data, &mut walk_failure));
+        // example when `source` does not exist in the tree and the walk
+        // stopped at the root instead. Verify the combined transform answers
+        // the exact question asked; otherwise report it as not found.
+        if result.parent() != target || result.child() != source {
+            return Err(Self::diagnose_not_found(
+                target,
+                source,
+                timestamp,
+                data,
+                &mut walk_failure,
+            ));
         }
 
-        // The result answers "where is `to` relative to `from` at the
+        // The result answers "where is `source` relative to `target` at the
         // requested time", so it carries the requested timestamp — also for
-        // chains of static transforms, whose own timestamps are the static
-        // sentinel.
-        let mut result = result;
-        result.timestamp = timestamp;
-        Ok(result)
+        // chains of static transforms, which are themselves stamped
+        // `Stamp::Static`.
+        Ok(result.restamped(Stamp::At(timestamp)))
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
@@ -693,11 +831,13 @@ where
     ///
     /// # Errors
     ///
-    /// * `TransformError::UnknownFrame` - If a requested frame exists nowhere in the tree
-    /// * `TransformError::NotFoundAt` - If a leg failed at a frame whose buffer holds data
-    ///   but could not serve the requested time
-    /// * `TransformError::Disconnected` - If a leg's frames exist but no chain connects them
-    /// * Other variants of `TransformError` resulting from transform operations
+    /// * `RegistryError::UnknownFrame` - If a requested frame exists nowhere in the tree
+    /// * `RegistryError::NotFoundAt` - If a leg failed at a frame that exists but could not
+    ///   serve the requested time, either because the request falls outside the data it holds or
+    ///   because it holds none
+    /// * `RegistryError::Disconnected` - If a leg's frames exist but no chain connects them
+    /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If composing the
+    ///   two legs failed
     fn process_get_transform_at(
         target_frame: &str,
         target_time: T,
@@ -705,7 +845,7 @@ where
         source_time: T,
         fixed_frame: &str,
         data: &HashMap<String, Buffer<T>>,
-    ) -> Result<Transform<T>, TransformError> {
+    ) -> Result<Transform<T>, RegistryError<T>> {
         // Following tf2's algorithm:
         // 1. Get transform expressing source_frame in fixed_frame at source_time
         // 2. Get transform expressing target_frame in fixed_frame at target_time
@@ -721,48 +861,44 @@ where
         // fixed_frame is not an option: `Mul` rejects self-referential
         // operands as `SameFrameMultiplication`.
         if source_frame == fixed_frame && target_frame == fixed_frame {
-            return Ok(Transform {
-                translation: Vector3::zero(),
-                rotation: Quaternion::identity(),
-                timestamp: target_time,
-                parent: target_frame.into(),
-                child: source_frame.into(),
-            });
+            return Ok(Transform::unvalidated(
+                target_frame.into(),
+                source_frame.into(),
+                Vector3::zero(),
+                Quaternion::identity(),
+                Stamp::At(target_time),
+            ));
         }
         if source_frame == fixed_frame {
             // The answer is the target leg alone, inverted.
-            let mut result =
-                Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
-                    .inverse()?;
-            result.timestamp = target_time;
-            return Ok(result);
+            let result = Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
+                .inverse()?;
+            return Ok(result.restamped(Stamp::At(target_time)));
         }
         if target_frame == fixed_frame {
             // The answer is the source leg alone.
-            let mut result =
-                Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
-            result.timestamp = target_time;
-            return Ok(result);
+            let result = Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
+            return Ok(result.restamped(Stamp::At(target_time)));
         }
 
         // Step 1: Get transform expressing source_frame in fixed_frame at source_time
-        let mut source_to_fixed =
+        let source_to_fixed =
             Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
 
         // Step 2: Get transform expressing target_frame in fixed_frame at target_time
-        let mut target_to_fixed =
+        let target_to_fixed =
             Self::process_get_transform(fixed_frame, target_frame, target_time, data)?;
 
-        // Since both transforms are expressed relative to a fixed frame, we can simply multiply them
-        // with their timestamps set to the static value.
-        source_to_fixed.timestamp = T::static_timestamp();
-        target_to_fixed.timestamp = T::static_timestamp();
+        // The two legs are deliberately resolved at different times — that
+        // is the point of the time-travel lookup — so they compose through
+        // the private time-agnostic path rather than `Mul`, whose timestamp
+        // check exists to catch *accidental* cross-time composition.
+        let result = target_to_fixed
+            .inverse()?
+            .compose_ignoring_time(source_to_fixed)?;
 
-        let mut result = (target_to_fixed.inverse()? * source_to_fixed)?;
-        // We set the final timestamp to the target_time as per the API contract.
-        result.timestamp = target_time;
-
-        Ok(result)
+        // The result carries the target time as per the API contract.
+        Ok(result.restamped(Stamp::At(target_time)))
     }
 
     /// Constructs a chain of transforms from a starting frame to a target
@@ -778,24 +914,19 @@ where
         to: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-        walk_failure: &mut Option<(String, BufferError)>,
+        walk_failure: &mut Option<(String, GetError<T>)>,
     ) -> Option<VecDeque<Transform<T>>> {
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
 
         // The frame tree is acyclic by construction (cycles are rejected at
-        // insertion), so the walk terminates at a root; the depth bound is a
-        // defensive backstop only.
-        let mut remaining = data.len();
+        // insertion), so the walk visits every frame at most once and
+        // terminates at a root.
         while let Some(frame_buffer) = data.get(&current_frame) {
-            if remaining == 0 {
-                return None;
-            }
-            remaining -= 1;
-
-            match frame_buffer.get(&timestamp) {
+            match frame_buffer.get(timestamp) {
                 Ok(tf) => {
-                    current_frame.clone_from(&tf.parent);
+                    current_frame.clear();
+                    current_frame.push_str(tf.parent());
                     transforms.push_back(tf);
                 }
                 Err(source) => {
@@ -839,51 +970,78 @@ where
         to_chain.truncate(to_chain.len() - start_idx);
     }
 
-    /// Combines two transform chains into a single transform representing the transformation from the source frame to the target frame.
+    /// Combines the two half-chains of a lookup into the transform that
+    /// expresses `source` in `target`.
     ///
-    /// `from_chain` runs from the source frame toward the common ancestor;
-    /// `to_chain` must already be reversed and inverted (from the target frame
-    /// toward the common ancestor).
+    /// Both arguments are walks *upward* from a frame toward the common
+    /// ancestor, so each composes in its natural order into "that frame
+    /// expressed in the ancestor" without a single inversion. Only the target
+    /// half is then inverted, giving
+    /// `t_target_common * t_common_source = t_target_source`: at most one
+    /// inversion per lookup, against one per hop plus one at the end for the
+    /// pass this replaced, which reversed and inverted the source half
+    /// element by element and inverted the combined result again. A lookup
+    /// toward an ancestor (the documented direction,
+    /// `get_transform("map", "lidar", t)`) resolves entirely from the source
+    /// half and inverts nothing, so a single-hop lookup at a stored timestamp
+    /// returns that stored transform bit for bit.
+    ///
+    /// Returns `None` when both chains are empty — there is nothing to
+    /// combine, and the caller reports the lookup failure through
+    /// `diagnose_not_found`.
     ///
     /// # Errors
     ///
-    /// * `TransformError::TransformTreeEmpty` - If the combined transform chain is empty
-    /// * Other variants of `TransformError` resulting from invalid transform operations
+    /// * The `RegistryError` a failed transform operation converts into
     fn combine_transforms(
-        mut from_chain: VecDeque<Transform<T>>,
-        mut to_chain: VecDeque<Transform<T>>,
-    ) -> Result<Transform<T>, TransformError> {
-        from_chain.append(&mut to_chain);
+        target_chain: VecDeque<Transform<T>>,
+        source_chain: VecDeque<Transform<T>>,
+    ) -> Option<Result<Transform<T>, RegistryError<T>>> {
+        let target = match Self::compose_chain(target_chain) {
+            Ok(composed) => composed,
+            Err(e) => return Some(Err(e)),
+        };
+        let source = match Self::compose_chain(source_chain) {
+            Ok(composed) => composed,
+            Err(e) => return Some(Err(e)),
+        };
 
-        let mut iter = from_chain.into_iter();
+        match (target, source) {
+            (None, None) => None,
+            (Some(target), None) => Some(target.inverse().map_err(Into::into)),
+            (None, Some(source)) => Some(Ok(source)),
+            (Some(target), Some(source)) => Some(
+                target
+                    .inverse()
+                    .and_then(|inverted| inverted * source)
+                    .map_err(Into::into),
+            ),
+        }
+    }
 
-        let Some(mut final_transform) = iter.next() else {
-            return Err(TransformError::TransformTreeEmpty);
+    /// Composes a chain walked upward from a frame into the single transform
+    /// expressing that frame in the chain's topmost parent, or `None` for an
+    /// empty chain.
+    ///
+    /// Each element's child is the previous element's parent, so folding from
+    /// the front composes them in the order the walk produced them.
+    ///
+    /// # Errors
+    ///
+    /// * The `RegistryError` a failed composition converts into
+    fn compose_chain(
+        chain: VecDeque<Transform<T>>
+    ) -> Result<Option<Transform<T>>, RegistryError<T>> {
+        let mut iter = chain.into_iter();
+        let Some(mut composed) = iter.next() else {
+            return Ok(None);
         };
 
         for transform in iter {
-            final_transform = (transform * final_transform)?;
+            composed = (transform * composed)?;
         }
 
-        final_transform.inverse()
-    }
-
-    /// Reverses a transform chain and inverts each transform within it.
-    ///
-    /// # Errors
-    ///
-    /// Returns `TransformError` if any transform in the chain cannot be inverted
-    fn reverse_and_invert_transforms(
-        chain: &mut VecDeque<Transform<T>>
-    ) -> Result<(), TransformError> {
-        let reversed_and_inverted = chain
-            .iter()
-            .rev()
-            .map(Transform::inverse)
-            .collect::<Result<VecDeque<Transform<T>>, TransformError>>()?;
-
-        *chain = reversed_and_inverted;
-        Ok(())
+        Ok(Some(composed))
     }
 }
 
@@ -891,6 +1049,9 @@ impl<T> Default for Registry<T>
 where
     T: TimePoint,
 {
+    /// Equivalent to [`Registry::new`], including its unbounded retention and
+    /// unbounded interpolation gap — read that constructor's documentation
+    /// before taking the default over [`Registry::with_max_age`].
     fn default() -> Self {
         Self::new()
     }

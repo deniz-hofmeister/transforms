@@ -7,49 +7,14 @@ pub use error::QuaternionError;
 
 mod error;
 
-/// Float math that works with and without `std`.
-///
-/// `f64::sqrt`, `sin`, and `acos` are `std` methods rather than `core`
-/// intrinsics; without `std` the equivalent `libm` implementations are used.
-mod math {
-    #[inline]
-    pub fn sqrt(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.sqrt()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::sqrt(x)
-        }
-    }
-
-    #[inline]
-    pub fn sin(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.sin()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::sin(x)
-        }
-    }
-
-    #[inline]
-    pub fn acos(x: f64) -> f64 {
-        #[cfg(feature = "std")]
-        {
-            x.acos()
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            libm::acos(x)
-        }
-    }
-}
+// The `sqrt`, `sin`, and `acos` below are `libm`'s in every feature mode,
+// never `std`'s: a desktop replay and the MCU it replays must agree bit for
+// bit, and `std`'s implementations are the platform's, which do not.
 
 /// A quaternion representing a rotation in 3D space.
+///
+/// With the optional `serde` feature, this type implements `Serialize` and
+/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion {
@@ -71,9 +36,11 @@ impl Default for Quaternion {
 }
 
 impl Quaternion {
-    /// Creates a new quaternion from its `w`, `x`, `y`, and `z` components.
+    /// Creates a quaternion from its `w`, `x`, `y`, and `z` components.
     ///
-    /// The scalar part `w` comes first, matching the field order of this type.
+    /// The scalar part `w` comes first — the name spells the order out,
+    /// because the other common convention puts it last and a silently
+    /// swapped `w` is a valid quaternion describing a different rotation.
     /// No normalization is performed; rotations are expected to be unit
     /// quaternions, so call [`Quaternion::normalize`] if the components do not
     /// already form one.
@@ -83,11 +50,11 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 0.0, 0.0, 0.0);
+    /// let q = Quaternion::from_wxyz(1.0, 0.0, 0.0, 0.0);
     /// assert_eq!(q, Quaternion::identity());
     /// ```
     #[must_use]
-    pub const fn new(
+    pub const fn from_wxyz(
         w: f64,
         x: f64,
         y: f64,
@@ -129,8 +96,8 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-    /// assert_eq!(q.conjugate(), Quaternion::new(1.0, -2.0, -3.0, -4.0));
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.conjugate(), Quaternion::from_wxyz(1.0, -2.0, -3.0, -4.0));
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
@@ -145,22 +112,41 @@ impl Quaternion {
 
     /// Normalizes the quaternion to unit length.
     ///
+    /// The intermediate norm — the square root of the sum of squares — sets
+    /// both limits. A component beyond roughly `1.3e154`, the square root of
+    /// `f64::MAX`, squares to infinity (reported as `NonFinite`), and a norm
+    /// below `f64::EPSILON` (about `2.2e-16`) counts as zero (reported as
+    /// `ZeroLengthNormalization`). That threshold is exclusive: a norm of
+    /// exactly `f64::EPSILON` still normalizes.
+    ///
     /// # Errors
     ///
-    /// Returns `QuaternionError::ZeroLengthNormalization` if the quaternion is
-    /// zero-length, and `QuaternionError::NonFinite` if any component is NaN
-    /// or infinite.
+    /// Returns `QuaternionError::ZeroLengthNormalization` if the norm is
+    /// below `f64::EPSILON`, and `QuaternionError::NonFinite` if any
+    /// component is NaN or the sum of squares overflows.
     ///
     /// # Examples
     ///
     /// ```
     /// use transforms::{errors::QuaternionError, geometry::Quaternion};
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
     /// let normalized = q.normalize().unwrap();
     /// assert!((normalized.norm() - 1.0).abs() < f64::EPSILON);
     ///
-    /// let zero_q = Quaternion::new(0.0, 0.0, 0.0, 0.0);
+    /// // The zero threshold is `f64::EPSILON` on the norm, not a
+    /// // rotation-scale epsilon: this one is far below rotation scale and
+    /// // still normalizes.
+    /// let at_threshold = Quaternion::from_wxyz(f64::EPSILON, 0.0, 0.0, 0.0);
+    /// assert_eq!(at_threshold.normalize().unwrap(), Quaternion::identity());
+    ///
+    /// let below_threshold = Quaternion::from_wxyz(f64::EPSILON / 2.0, 0.0, 0.0, 0.0);
+    /// assert!(matches!(
+    ///     below_threshold.normalize(),
+    ///     Err(QuaternionError::ZeroLengthNormalization)
+    /// ));
+    ///
+    /// let zero_q = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
     /// assert!(matches!(
     ///     zero_q.normalize(),
     ///     Err(QuaternionError::ZeroLengthNormalization)
@@ -185,13 +171,13 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 1.0, 1.0, 1.0);
+    /// let q = Quaternion::from_wxyz(1.0, 1.0, 1.0, 1.0);
     /// assert_eq!(q.norm(), 2.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
     pub fn norm(self) -> f64 {
-        math::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
+        libm::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
     /// Computes the squared norm of the quaternion.
@@ -203,7 +189,7 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 2.0, 2.0);
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 2.0, 2.0);
     /// assert_eq!(q.norm_squared(), 13.0);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -221,8 +207,8 @@ impl Quaternion {
     /// ```
     /// use transforms::geometry::Quaternion;
     ///
-    /// let q = Quaternion::new(1.0, 2.0, 3.0, 4.0);
-    /// assert_eq!(q.scale(2.0), Quaternion::new(2.0, 4.0, 6.0, 8.0));
+    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
+    /// assert_eq!(q.scale(2.0), Quaternion::from_wxyz(2.0, 4.0, 6.0, 8.0));
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
@@ -248,7 +234,7 @@ impl Quaternion {
     /// use transforms::geometry::{Quaternion, Vector3};
     /// # use approx::assert_relative_eq;
     ///
-    /// let q = Quaternion::new(
+    /// let q = Quaternion::from_wxyz(
     ///     (core::f64::consts::PI / 4.0).cos(),
     ///     0.0,
     ///     0.0,
@@ -284,6 +270,10 @@ impl Quaternion {
     /// crate-wide policy. Infinite factors saturate to the corresponding
     /// endpoint; a NaN factor yields a NaN result.
     ///
+    /// The trigonometry runs through `libm` whether or not `std` is enabled,
+    /// so the same operands yield bit-identical results in both feature
+    /// modes.
+    ///
     /// # Examples
     ///
     /// ```
@@ -291,9 +281,9 @@ impl Quaternion {
     /// # use approx::assert_relative_eq;
     ///
     /// let q1 = Quaternion::identity();
-    /// let q2 = Quaternion::new(0.0, 1.0, 0.0, 0.0);
+    /// let q2 = Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0);
     /// let result = q1.slerp(q2, 0.5);
-    /// let expected = Quaternion::new((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
+    /// let expected = Quaternion::from_wxyz((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
     /// assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);
@@ -328,11 +318,11 @@ impl Quaternion {
             };
         }
 
-        let theta = math::acos(dot);
+        let theta = libm::acos(dot);
 
-        let sin_theta = math::sin(theta);
-        let scale_self = math::sin((1.0 - t) * theta) / sin_theta;
-        let scale_other = math::sin(t * theta) / sin_theta;
+        let sin_theta = libm::sin(theta);
+        let scale_self = libm::sin((1.0 - t) * theta) / sin_theta;
+        let scale_other = libm::sin(t * theta) / sin_theta;
 
         self.scale(scale_self) + other.scale(scale_other)
     }
@@ -392,6 +382,13 @@ impl Mul for Quaternion {
 impl Div for Quaternion {
     type Output = Result<Quaternion, QuaternionError>;
 
+    /// Divides by `other` via multiplication with its inverse.
+    ///
+    /// Returns `QuaternionError::DivisionByZero` if `other`'s squared norm
+    /// is below `f64::EPSILON`: divisors with a norm under roughly `1.5e-8`
+    /// are rejected as numerically zero — a deliberately stricter threshold
+    /// than [`Quaternion::normalize`]'s, since dividing by a near-zero
+    /// quaternion amplifies error quadratically.
     #[inline]
     fn div(
         self,

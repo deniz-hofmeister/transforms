@@ -1,10 +1,16 @@
-use alloc::{boxed::Box, string::String};
+use alloc::string::String;
 
 use thiserror::Error;
 
-use crate::errors::{BufferError, QuaternionError, TimeError};
+use crate::errors::{QuaternionError, TimeError};
 
-/// Error type for transform lookup, composition, and application.
+/// Error type for building, composing, interpolating, and applying
+/// transforms.
+///
+/// Pure geometry and time: a failure of a [`Registry`](crate::Registry) call
+/// is a [`RegistryError`](crate::errors::RegistryError) instead, which flattens
+/// the two validation causes below into variants of its own and wraps the
+/// rest.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum TransformError {
@@ -19,56 +25,51 @@ pub enum TransformError {
     /// Two timestamps that must agree do not (given in seconds): composed
     /// transforms with differing timestamps, swapped interpolation endpoints,
     /// or applying a transform to a value from another time.
-    #[error("transform timestamps do not match (lhs: {0}, rhs: {1})")]
-    TimestampMismatch(f64, f64),
-
-    /// The requested timestamp lies outside the covered time range (all
-    /// values in seconds: requested, range start, range end). There is no
-    /// extrapolation.
-    #[error("requested timestamp {0} is outside the covered range [{1}, {2}]")]
-    TimestampOutOfRange(f64, f64, f64),
-
-    /// Both transforms describe the same child frame.
-    #[error("cannot multiply transforms with the same frame")]
-    SameFrameMultiplication,
-
-    /// The frames do not form a valid parent-child composition.
-    #[error("frames do not have a parent-child relationship")]
-    IncompatibleFrames,
-
-    /// The requested frame exists nowhere in the transform tree, neither
-    /// as a child nor as a parent frame. Usually a typo or a frame that
-    /// has not been published yet.
-    #[error("frame {0} does not exist in the transform tree")]
-    UnknownFrame(String),
-
-    /// Both frames exist, but no chain of transforms connects them: they
-    /// live in different trees. This reflects the tree topology at the
-    /// time of the lookup, not a transient data gap — gaps are reported as
-    /// [`NotFoundAt`](Self::NotFoundAt).
-    #[error("no transform chain connects {0} and {1}")]
-    Disconnected(String, String),
-
-    /// The lookup stopped at a frame whose buffer holds data but could not
-    /// serve the requested time — typically a transient gap: the request
-    /// is outside the frame's covered time range. `frame` names where the
-    /// chain walk stopped and `source` carries the buffer's error,
-    /// including the covered range.
-    #[error("transform not found from {from} to {to} (frame {frame}: {source})")]
-    NotFoundAt {
-        /// The requested source frame.
-        from: String,
-        /// The requested target frame.
-        to: String,
-        /// The frame whose buffer could not serve the requested time.
-        frame: String,
-        /// The buffer error that stopped the chain walk.
-        source: Box<BufferError>,
+    #[error("transform timestamps do not match (lhs: {lhs}, rhs: {rhs})")]
+    TimestampMismatch {
+        /// The left-hand timestamp, in seconds.
+        lhs: f64,
+        /// The right-hand timestamp, in seconds.
+        rhs: f64,
     },
 
-    /// The transform chain was empty after processing.
-    #[error("transform tree is empty")]
-    TransformTreeEmpty,
+    /// A static transform was used as an interpolation endpoint. A static
+    /// transform is valid for all time — there is nothing to interpolate.
+    #[error("static transforms cannot be interpolation endpoints")]
+    StaticInterpolation,
+
+    /// The requested timestamp lies outside the covered time range (all
+    /// values in seconds). There is no extrapolation. `requested > end`
+    /// means the request is merely too new (latency); `requested < start`
+    /// means the data is stale or missing.
+    #[error("requested timestamp {requested} is outside the covered range [{start}, {end}]")]
+    TimestampOutOfRange {
+        /// The requested timestamp, in seconds.
+        requested: f64,
+        /// The start of the covered range, in seconds.
+        start: f64,
+        /// The end of the covered range, in seconds.
+        end: f64,
+    },
+
+    /// Both transforms describe the same child frame.
+    #[error("cannot multiply transforms that both describe child frame {frame}")]
+    SameFrameMultiplication {
+        /// The child frame described by both operands.
+        frame: String,
+    },
+
+    /// The frames do not match the pairing the operation requires: a
+    /// composition whose left-hand child is not the right-hand parent,
+    /// interpolation endpoints describing different frame pairs, or a value
+    /// whose frame is not the transform's child.
+    #[error("frames do not have a parent-child relationship (expected {expected}, found {found})")]
+    IncompatibleFrames {
+        /// The frame (or frame pair) the operation required.
+        expected: String,
+        /// The frame (or frame pair) actually found.
+        found: String,
+    },
 
     /// A timestamp operation failed.
     #[error("timestamp error: {0}")]
