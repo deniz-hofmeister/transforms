@@ -407,7 +407,10 @@ and this section is the whole delta from beta.4.
 - AGENTS.md: the normative lookup invariant referenced the removed
   `NotFound` variant; it now names `UnknownFrame` / `Disconnected` /
   `NotFoundAt`. The release checklist loses a garbled fragment and gains
-  the consolidation, semver-check, README-pin, and GitHub-release steps.
+  the consolidation — in the finalize step, ahead of the immutable tag
+  and publish, resolving the cross-references the fold orphans — plus the
+  semver-check, README-pin, GitHub-release, lockfile-regeneration, and
+  merge-before-tag steps.
 
 ## [2.0.0-beta.4] - 2026-07-18
 
