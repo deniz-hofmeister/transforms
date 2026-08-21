@@ -4,16 +4,27 @@ Every break below was reproduced by compiling the 1.4.1-documented usage
 against 2.0. Work through the compile errors first; then read the runtime
 changes — code that compiles cleanly can still behave differently.
 
-## Coming from a 2.0.0 beta
+## Coming from a 2.0.0 pre-release
 
-2.0.0-beta.4 is the only published 2.x release, so if you are already on 2.x,
-you are on that one. rc.2 deliberately broke the beta-series API freeze to
-close the last one-way doors before stable, and the `2.0.0-rc.2` section of
-[CHANGELOG.md](CHANGELOG.md) is the whole delta from beta.4. Most of the 1.x
+Five 2.x pre-releases were published — 2.0.0-alpha.1 and beta.1 through
+beta.4 — and no release candidate was: on crates.io, 2.0.0 follows beta.4
+directly. 2.0.0 deliberately broke the beta-series API freeze to close the
+last one-way doors before stable; this section lists what that changed,
+from the beta.4 baseline, and the `[2.0.0]` section of
+[CHANGELOG.md](CHANGELOG.md) carries the full record. This guide's section
+carries the earlier pre-releases too: what changed between them sits
+inside API this migration rewrites anyway — the lookup-error variants
+beta.3 reworked (break 3), the `Buffer` type the betas extended, private
+now (break 5) — except one behavior fix, `get_transform_at`'s
+coinciding-frame legs, covered in runtime change 3. The per-pre-release
+history stays readable in the [changelog as published with
+beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGELOG.md)
+(one beta.3 entry there mislabels the removed `NotFound` variant
+"never-produced"; it was 1.x's primary lookup-miss error). Most of the 1.x
 breaks below apply to you unchanged — beta.4 still had 1.x's public
 `Transform` fields, public modules and `u128` stamp — so this section only
-lists what is beta.4-specific and points at the numbered break where the fix
-is written out.
+lists what is beta.4-specific and points at the numbered break where the
+fix is written out.
 
 What stops compiling since beta.4:
 
@@ -75,6 +86,13 @@ Silent behavior changes since beta.4 — these compile:
   now keeps `RegistryError<YourClock>` out of a
   `Box<dyn Error + Send + Sync + 'static>`. `Timestamp` and `SystemTime` are
   unaffected.
+- **A frame drained by the wipe stays registered.** beta.4's
+  `delete_transforms_before` dropped a frame left without transforms —
+  the next insert under that child frame could re-parent it or change
+  its kind, and a dropped leaf vanished from the tree entirely
+  (`UnknownFrame`). 2.0's `remove_transforms_before` keeps it, parent
+  and static-or-dynamic kind still pinned by its first insert, and
+  lookups report `NotFoundAt` with `covered: None` (runtime change 5).
 
 ## Compile-time breaks
 
@@ -423,7 +441,11 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
    `registry.remove_frame(child)` then re-add. Removing a mid-tree frame
    strands its descendants — re-add each one.
 3. **Same-frame lookup returns the identity.** `get_transform(x, x, t)`
-   errored in 1.x; it now returns `Ok(identity)`.
+   errored in 1.x; it now returns `Ok(identity)`. The same goes for
+   `get_transform_at`'s coinciding-frame legs — `source` equal to the
+   fixed frame, or all three frames equal — which failed with
+   `SameFrameMultiplication` in 1.x (and still in 2.0.0-alpha.1; resolved
+   since beta.1).
 4. **Results always carry the requested timestamp**, including over
    all-static chains.
 5. **Cleanup preserves static transforms — and frame pins.**
@@ -435,7 +457,10 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
    `NotFoundAt` — with `covered: None`, not a covered range — rather than
    `UnknownFrame`. `remove_frame` is the only
    release — call it when a frame retires, or the frame map grows without
-   bound.
+   bound. The wipe also resets each frame's `max_age` expiry reference,
+   so a stream restarted at earlier times — a replay, a clock reset —
+   stores again; in 1.x the wiped buffer kept its pre-wipe latest
+   timestamp and silently evicted the restarted stream's first insert.
 6. **No extrapolation anywhere.** An out-of-range lookup fails with
    `RegistryError::NotFoundAt` carrying the frame's covered range, and
    `Transform::interpolate` with `TransformError::TimestampOutOfRange`;

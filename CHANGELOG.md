@@ -394,6 +394,12 @@ and this section is the whole delta from beta.4.
   opts into `doc(auto_cfg)` for future rustdoc support); the
   `no_std_full` example imports `core::time::Duration` in its `no_std`
   branch; the buffer docs say B-tree instead of "binary tree".
+- Docs: MIGRATION.md names all five published 2.x pre-releases — alpha.1
+  and beta.1 through beta.4; it previously claimed beta.4 was the only
+  one — and stands alone: its changelog pointers survive the
+  consolidation that cuts 2.0.0 stable. Runtime changes 3 and 5 now cover
+  `get_transform_at`'s coinciding-frame legs and the expiry-reference
+  reset, and the beta.4 delta gains the frame-keeping wipe.
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected
