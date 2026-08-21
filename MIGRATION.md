@@ -278,7 +278,9 @@ stale — while `None` means `frame` holds no data at all, so retrying
 achieves nothing until someone inserts into it (see runtime behavior change
 5). Both `requested` and `covered` are in the registry's own time type `T`,
 not in seconds: compare them against the timestamp you asked with. The
-`Display` text still renders seconds.
+`Display` text still renders seconds. The terminating "latest available"
+retry loop — lower the request onto `covered`'s end, never raise it — is
+documented on `RegistryError::NotFoundAt` in the crate docs.
 
 `add_transform`'s rejections are variants of the same enum:
 `RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,

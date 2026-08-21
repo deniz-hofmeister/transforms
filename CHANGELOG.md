@@ -408,6 +408,14 @@ and this section is the whole delta from beta.4.
   stored fixture orientation was the identity); a `Point` test now starts
   from a non-commuting orientation and pins the left composition against
   hand-derived digits.
+- Docs: `RegistryError::NotFoundAt` documents the terminating
+  latest-available retry idiom — re-ask at the covered range's end only
+  while that end is older than the request — with a runnable example, and
+  `get_transform` and MIGRATION.md point at it. The unguarded version
+  oscillates forever between two hops with disjoint coverage. The guard
+  is exact for a root target; for a mid-tree target the walks can report
+  edges above the frames' common ancestor, making the loop conservative.
+  A property test pins the root-target exactness.
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected

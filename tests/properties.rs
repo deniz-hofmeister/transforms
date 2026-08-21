@@ -7,7 +7,7 @@ use approx::abs_diff_eq;
 use proptest::prelude::*;
 use transforms::{
     Registry, Transformable,
-    errors::TransformError,
+    errors::{RegistryError, TransformError},
     geometry::{Point, Quaternion, Transform, Vector3},
     time::{Stamp, Timestamp},
 };
@@ -255,6 +255,66 @@ proptest! {
             "composed rotation is not the identity: {:?}",
             composed.rotation(),
         );
+    }
+
+    #[test]
+    fn latest_available_retry_is_exact_for_a_root_target(
+        ranges in proptest::collection::vec((0_u64..1_000_000, 1_u64..1_000_000), 2..=4),
+    ) {
+        // Hop i covers [start, start + span]; the target f0 is the root, so
+        // every frame a failed lookup reports is on the resolved chain and
+        // the retry guard documented on `RegistryError::NotFoundAt` is
+        // exact.
+        let mut registry = Registry::new();
+        for (i, (start, span)) in ranges.iter().enumerate() {
+            for nanos in [*start, start + span] {
+                let transform = Transform::new(
+                    &format!("f{i}"),
+                    &format!("f{}", i + 1),
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                )
+                .unwrap();
+                registry.add_transform(transform).unwrap();
+            }
+        }
+        let leaf = format!("f{}", ranges.len());
+        let newest_common_end = ranges.iter().map(|(start, span)| start + span).min().unwrap();
+        let latest_common_start = ranges.iter().map(|(start, _)| *start).max().unwrap();
+
+        // Ask beyond every range, then lower the request onto each failing
+        // frame's covered end — never raise it.
+        let mut requested = Timestamp::from_nanos(2_000_001);
+        let mut retries = 0_usize;
+        let outcome = loop {
+            match registry.get_transform("f0", &leaf, requested) {
+                Ok(transform) => break Ok(transform),
+                Err(RegistryError::NotFoundAt {
+                    covered: Some((_, end)),
+                    ..
+                }) if end < requested => {
+                    requested = end;
+                    retries += 1;
+                    prop_assert!(retries <= ranges.len(), "one retry per hop exceeded");
+                }
+                Err(error) => break Err(error),
+            }
+        };
+
+        if latest_common_start <= newest_common_end {
+            // The ranges share instants: the loop must land exactly on the
+            // newest commonly covered one.
+            let transform = outcome.unwrap();
+            prop_assert_eq!(
+                transform.timestamp(),
+                Stamp::At(Timestamp::from_nanos(newest_common_end))
+            );
+        } else {
+            // No instant is covered by every hop: the loop must error, not
+            // fabricate a pose.
+            prop_assert!(outcome.is_err());
+        }
     }
 
     #[test]
