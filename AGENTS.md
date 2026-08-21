@@ -264,11 +264,15 @@ toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
 options. No particular nightly is pinned — any recent one will do, however
 Rust was installed (rustup, Nix, or a distro package), so two machines may
 well be running different nightlies. Stable and MSRV verification is CI's
-job, and nightly clippy diverges from CI's stable clippy only in the safe
-direction — over the same four feature combinations it is a superset,
-so a green local gate implies green CI clippy. Keep the two lists in step:
-the moment the script lints fewer combinations than CI does, that sentence
-is false and a lint lands in CI that nobody could have seen locally.
+job. Nightly clippy usually anticipates stable's lints, but a lint can also
+relax on nightly before stable follows — `float_cmp` stopped firing on
+comparisons against `f64::INFINITY` there while stable 1.98 still flags them
+— so a green local gate makes green CI clippy likely, not guaranteed; when
+the two disagree, CI's stable clippy is the arbiter, and
+`rustup run stable cargo clippy` reproduces it locally. Keep the script's
+lint list and CI's in step regardless: the moment the script lints fewer
+feature combinations than CI does, a lint can land in CI that nobody could
+have seen locally.
 
 ```bash
 cargo build                                         # both modes build first

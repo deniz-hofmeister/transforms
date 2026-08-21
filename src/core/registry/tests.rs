@@ -1778,6 +1778,9 @@ mod registry_tests {
     }
 
     #[test]
+    // The overflow assertion compares against f64::INFINITY, which is exact;
+    // stable clippy flags it where nightly no longer does.
+    #[allow(clippy::float_cmp)]
     fn add_transform_rejects_a_republished_chain_that_left_validity() {
         let mut registry = Registry::new();
         let t = Timestamp::from_nanos(1_000_000_000);
