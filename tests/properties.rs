@@ -7,7 +7,7 @@ use approx::abs_diff_eq;
 use proptest::prelude::*;
 use transforms::{
     Registry, Transformable,
-    errors::TransformError,
+    errors::{RegistryError, TransformError},
     geometry::{Point, Quaternion, Transform, Vector3},
     time::{Stamp, Timestamp},
 };
@@ -47,6 +47,16 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
                 .normalize()
                 .ok()
         })
+}
+
+/// Denormalizes a rotation by scaling every component: the tolerance tests
+/// need norms deliberately off 1, and the public surface offers no
+/// quaternion scaling — a rotation is not a vector here.
+fn scaled(
+    q: Quaternion,
+    factor: f64,
+) -> Quaternion {
+    Quaternion::from_wxyz(q.w * factor, q.x * factor, q.y * factor, q.z * factor)
 }
 
 /// Nanosecond magnitudes spanning the regimes that behave differently:
@@ -258,6 +268,66 @@ proptest! {
     }
 
     #[test]
+    fn latest_available_retry_is_exact_for_a_root_target(
+        ranges in proptest::collection::vec((0_u64..1_000_000, 1_u64..1_000_000), 2..=4),
+    ) {
+        // Hop i covers [start, start + span]; the target f0 is the root, so
+        // every frame a failed lookup reports is on the resolved chain and
+        // the retry guard documented on `RegistryError::NotFoundAt` is
+        // exact.
+        let mut registry = Registry::new();
+        for (i, (start, span)) in ranges.iter().enumerate() {
+            for nanos in [*start, start + span] {
+                let transform = Transform::new(
+                    &format!("f{i}"),
+                    &format!("f{}", i + 1),
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                )
+                .unwrap();
+                registry.add_transform(transform).unwrap();
+            }
+        }
+        let leaf = format!("f{}", ranges.len());
+        let newest_common_end = ranges.iter().map(|(start, span)| start + span).min().unwrap();
+        let latest_common_start = ranges.iter().map(|(start, _)| *start).max().unwrap();
+
+        // Ask beyond every range, then lower the request onto each failing
+        // frame's covered end — never raise it.
+        let mut requested = Timestamp::from_nanos(2_000_001);
+        let mut retries = 0_usize;
+        let outcome = loop {
+            match registry.get_transform("f0", &leaf, requested) {
+                Ok(transform) => break Ok(transform),
+                Err(RegistryError::NotFoundAt {
+                    covered: Some((_, end)),
+                    ..
+                }) if end < requested => {
+                    requested = end;
+                    retries += 1;
+                    prop_assert!(retries <= ranges.len(), "one retry per hop exceeded");
+                }
+                Err(error) => break Err(error),
+            }
+        };
+
+        if latest_common_start <= newest_common_end {
+            // The ranges share instants: the loop must land exactly on the
+            // newest commonly covered one.
+            let transform = outcome.unwrap();
+            prop_assert_eq!(
+                transform.timestamp(),
+                Stamp::At(Timestamp::from_nanos(newest_common_end))
+            );
+        } else {
+            // No instant is covered by every hop: the loop must error, not
+            // fabricate a pose.
+            prop_assert!(outcome.is_err());
+        }
+    }
+
+    #[test]
     fn new_rejects_norms_beyond_tolerance(
         rotation in unit_quaternions(),
         deviation in 2e-6..1e-3_f64,
@@ -268,7 +338,7 @@ proptest! {
             "a",
             "b",
             Vector3::zero(),
-            rotation.scale(factor),
+            scaled(rotation, factor),
             Stamp::At(Timestamp::from_nanos(1)),
         );
 
@@ -287,7 +357,7 @@ proptest! {
             "a",
             "b",
             Vector3::zero(),
-            rotation.scale(1.0 + deviation),
+            scaled(rotation, 1.0 + deviation),
             Stamp::At(Timestamp::from_nanos(1)),
         );
 

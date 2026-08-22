@@ -4,16 +4,27 @@ Every break below was reproduced by compiling the 1.4.1-documented usage
 against 2.0. Work through the compile errors first; then read the runtime
 changes — code that compiles cleanly can still behave differently.
 
-## Coming from a 2.0.0 beta
+## Coming from a 2.0.0 pre-release
 
-2.0.0-beta.4 is the only published 2.x release, so if you are already on 2.x,
-you are on that one. rc.2 deliberately broke the beta-series API freeze to
-close the last one-way doors before stable, and the `2.0.0-rc.2` section of
-[CHANGELOG.md](CHANGELOG.md) is the whole delta from beta.4. Most of the 1.x
+Five 2.x pre-releases were published — 2.0.0-alpha.1 and beta.1 through
+beta.4 — and no release candidate was: on crates.io, 2.0.0 follows beta.4
+directly. 2.0.0 deliberately broke the beta-series API freeze to close the
+last one-way doors before stable; this section lists what that changed,
+from the beta.4 baseline, and the `[2.0.0]` section of
+[CHANGELOG.md](CHANGELOG.md) carries the full record. This guide's section
+carries the earlier pre-releases too: what changed between them sits
+inside API this migration rewrites anyway — the lookup-error variants
+beta.3 reworked (break 3), the `Buffer` type the betas extended, private
+now (break 5) — except one behavior fix, `get_transform_at`'s
+coinciding-frame legs, covered in runtime change 3. The per-pre-release
+history stays readable in the [changelog as published with
+beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGELOG.md)
+(one beta.3 entry there mislabels the removed `NotFound` variant
+"never-produced"; it was 1.x's primary lookup-miss error). Most of the 1.x
 breaks below apply to you unchanged — beta.4 still had 1.x's public
 `Transform` fields, public modules and `u128` stamp — so this section only
-lists what is beta.4-specific and points at the numbered break where the fix
-is written out.
+lists what is beta.4-specific and points at the numbered break where the
+fix is written out.
 
 What stops compiling since beta.4:
 
@@ -31,6 +42,11 @@ What stops compiling since beta.4:
 - `Quaternion::new(w, x, y, z)` is renamed
   `Quaternion::from_wxyz(w, x, y, z)` — same order and behavior, a name that
   states that order at the call site.
+- `Quaternion` keeps only its rotation algebra: `+`, `-`, `/` (with
+  `QuaternionError::DivisionByZero`), `scale`, `norm_squared` and the
+  `Default` impl are removed (break 8).
+- `Vector3` loses `dot`, `cross` and `unit_x`/`unit_y`/`unit_z`
+  (break 9).
 - `Buffer` and the `core` module are private, and so are the leaf modules
   (`geometry::transform`, `time::timestamp`, ...) that beta.4 still exposed
   (break 5).
@@ -75,6 +91,13 @@ Silent behavior changes since beta.4 — these compile:
   now keeps `RegistryError<YourClock>` out of a
   `Box<dyn Error + Send + Sync + 'static>`. `Timestamp` and `SystemTime` are
   unaffected.
+- **A frame drained by the wipe stays registered.** beta.4's
+  `delete_transforms_before` dropped a frame left without transforms —
+  the next insert under that child frame could re-parent it or change
+  its kind, and a dropped leaf vanished from the tree entirely
+  (`UnknownFrame`). 2.0's `remove_transforms_before` keeps it, parent
+  and static-or-dynamic kind still pinned by its first insert, and
+  lookups report `NotFoundAt` with `covered: None` (runtime change 5).
 
 ## Compile-time breaks
 
@@ -260,7 +283,9 @@ stale — while `None` means `frame` holds no data at all, so retrying
 achieves nothing until someone inserts into it (see runtime behavior change
 5). Both `requested` and `covered` are in the registry's own time type `T`,
 not in seconds: compare them against the timestamp you asked with. The
-`Display` text still renders seconds.
+`Display` text still renders seconds. The terminating "latest available"
+retry loop — lower the request onto `covered`'s end, never raise it — is
+documented on `RegistryError::NotFoundAt` in the crate docs.
 
 `add_transform`'s rejections are variants of the same enum:
 `RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,
@@ -404,6 +429,65 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
 `Point::new(position, orientation, timestamp, frame)`. `Vector3` and
 `Quaternion` literals are untouched.
 
+### 8. `Quaternion` is a rotation, not a vector
+
+```rust
+// 1.x
+let blend = (q1.scale(0.75) + q2.scale(0.25)).normalize()?;
+let step = (q2 / q1)?;
+let n2 = q.norm_squared();
+let q0 = Quaternion::default();
+
+// 2.0
+let blend = q1.slerp(q2, 0.25); // blending is slerp's job now
+let step = q2 * q1.conjugate(); // a unit quaternion's inverse is its conjugate
+let n2 = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+let q0 = Quaternion::identity();
+```
+
+The public surface is the rotation algebra — `*` composes, `conjugate`
+inverts a unit quaternion, `normalize`/`norm` police the unit invariant,
+`rotate_vector` applies, `slerp` interpolates — and nothing else. The
+vector-space operators `+`, `-` and `/`, `scale`, `norm_squared` and the
+`Default` impl leave the public surface: `+`, `-`, `/` and `Default` had
+no caller outside their own unit tests, `norm_squared` served only the
+removed `/`, and `scale` survives privately inside `normalize` and
+`slerp`. Summing rotations and renormalizing is the classic silent wrong
+answer, and `/` compounded it: a NaN divisor returned `Ok` with all-NaN
+components, and an overflowing one returned `Ok` with an all-zero — and
+finite — quaternion, plausible enough to pass an `is_finite` check.
+`QuaternionError::DivisionByZero` is gone with it. For a unit divisor,
+`q2 / q1` computed `q2 * q1.conjugate()` scaled by `1/norm²` — a factor
+that is 1 mathematically but drifts in floating point with the divisor's
+norm, by ulps for a freshly normalized rotation and by up to about
+`2e-6` for one at the edge of `UNIT_NORM_TOLERANCE` — so the conjugate
+spelling is the more accurate of the two, not merely the surviving one.
+The components stay public, so anything else is a one-liner.
+
+### 9. `Vector3` sheds `dot`, `cross` and the unit constructors
+
+```rust
+// 1.x
+let d = a.dot(b);
+let c = a.cross(b);
+let x = Vector3::unit_x();
+
+// 2.0
+let d = a.x * b.x + a.y * b.y + a.z * b.z;
+let c = Vector3::new(
+    a.y * b.z - a.z * b.y,
+    a.z * b.x - a.x * b.z,
+    a.x * b.y - a.y * b.x,
+);
+let x = Vector3::new(1.0, 0.0, 0.0);
+```
+
+`dot` and `cross` had no caller outside their own unit tests, the unit
+constructors none at all, and the crate already points more general
+needs at a linear-algebra library. The operator set stays complete —
+`+`, `-`, both scalar multiplications and `/` — and the components stay
+public, so the formulas above are the whole migration.
+
 ## Runtime behavior changes (compile clean, behave differently)
 
 1. **Two kinds under one child frame are rejected.** A static sample and
@@ -423,7 +507,11 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
    `registry.remove_frame(child)` then re-add. Removing a mid-tree frame
    strands its descendants — re-add each one.
 3. **Same-frame lookup returns the identity.** `get_transform(x, x, t)`
-   errored in 1.x; it now returns `Ok(identity)`.
+   errored in 1.x; it now returns `Ok(identity)`. The same goes for
+   `get_transform_at`'s coinciding-frame legs — `source` equal to the
+   fixed frame, or all three frames equal — which failed with
+   `SameFrameMultiplication` in 1.x (and still in 2.0.0-alpha.1; resolved
+   since beta.1).
 4. **Results always carry the requested timestamp**, including over
    all-static chains.
 5. **Cleanup preserves static transforms — and frame pins.**
@@ -435,7 +523,10 @@ carrier — but gains `#[non_exhaustive]`, so its literal becomes
    `NotFoundAt` — with `covered: None`, not a covered range — rather than
    `UnknownFrame`. `remove_frame` is the only
    release — call it when a frame retires, or the frame map grows without
-   bound.
+   bound. The wipe also resets each frame's `max_age` expiry reference,
+   so a stream restarted at earlier times — a replay, a clock reset —
+   stores again; in 1.x the wiped buffer kept its pre-wipe latest
+   timestamp and silently evicted the restarted stream's first insert.
 6. **No extrapolation anywhere.** An out-of-range lookup fails with
    `RegistryError::NotFoundAt` carrying the frame's covered range, and
    `Transform::interpolate` with `TransformError::TimestampOutOfRange`;

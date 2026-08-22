@@ -217,7 +217,7 @@ this section is convention, enforced in review — follow it anyway.
   `Transform::new(parent, child, translation, rotation, stamp)` /
   `Transform::static_between(..)` (both fallible),
   `Point::new(position, orientation, timestamp, frame)`,
-  `Vector3::new/zero/unit_*`, `Quaternion::from_wxyz(w, x, y, z)` /
+  `Vector3::new/zero`, `Quaternion::from_wxyz(w, x, y, z)` /
   `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()`.
   `Transform` and `Point` are `#[non_exhaustive]`; `Transform`'s fields are
   private, and a test that needs a deliberately invalid transform uses the
@@ -353,12 +353,27 @@ describe. Documentation drift is treated as a bug.
 
 ## Releasing
 
-Releases are cut by the maintainer. The checklist, in order:
+Releases are cut by the maintainer. Release prep is ordinary branch work:
+it lands on master through the usual branch-and-merge flow before anything
+is tagged, and the tag goes on master — `cargo publish` then runs from the
+tagged tree. The checklist, in order:
 
 - Finalize `CHANGELOG.md`: replace the version's `Unreleased` marker with the
-  release date and repoint its compare link to the tag.
-- Confirm the `version` in `Cargo.toml` matches the release, and bump the
-  version pins in the README installation snippets.
+  release date and repoint its compare link to the tag. For 2.0.0 stable
+  specifically, this step is also the consolidation, and it must happen
+  here — before the tag and the publish, never after: `CHANGELOG.md` and
+  `MIGRATION.md` ship inside the `.crate`, and a published crate is
+  immutable. Fold the five published pre-release sections (alpha.1,
+  beta.1–beta.4) and the never-published rc.2 section into a single
+  `[2.0.0]` section organized by Keep-a-Changelog categories, give it the
+  one compare link `v1.4.1...v2.0.0`, resolve the cross-references the
+  fold orphans — entries pointing at per-pre-release sections, or at the
+  never-published rc.2 — and verify `MIGRATION.md` against the result.
+- Confirm the `version` in `Cargo.toml` matches the release, regenerate
+  `Cargo.lock` so it records that version (any `cargo build` after the
+  bump does), and bump the version pins in the README installation
+  snippets — all committed together: `cargo publish` refuses a dirty
+  tree.
 - Run the full verification gate (`tests/test_all.sh`).
 - Run `cargo semver-checks check-release --baseline-rev <previous tag>` and
   confirm the diff is exactly the changelogged one. Against a baseline the
@@ -370,13 +385,13 @@ Releases are cut by the maintainer. The checklist, in order:
   the baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
-- Tag `vX.Y.Z` and push the tag.
+- Merge the release-prep branch to master. If the merge is not a
+  fast-forward, re-run the gate on it — the tag must point at a tree the
+  gate has seen.
+- Tag `vX.Y.Z` on the merge and push the tag.
 - `cargo publish`.
-- Create a GitHub release for the tag (pre-releases marked as such).
-- For 2.0.0 stable specifically: consolidate the alpha/beta pre-release
-  entries into a single `[2.0.0]` changelog section organized by
-  Keep-a-Changelog categories, verify `MIGRATION.md` against it, and mark
-  the GitHub release as latest.
+- Create a GitHub release for the tag (pre-releases marked as such). For
+  2.0.0 stable specifically: mark it as latest.
 - After 2.0.0 is published: add a `cargo-semver-checks` CI job so accidental
   breaking changes are caught against the published baseline. This is
   deliberately not added pre-release — everything is breaking against 1.4.1.

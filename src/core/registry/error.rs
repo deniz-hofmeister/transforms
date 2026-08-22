@@ -125,6 +125,77 @@ where
     /// when a data gap and a topological disconnection coexist, the recorded
     /// walk failure takes precedence over the [`Disconnected`](Self::Disconnected)
     /// diagnosis.
+    ///
+    /// The `Some` case supports a terminating "latest available" idiom:
+    /// when `covered`'s end is older than the request, re-ask at that
+    /// end; otherwise stop. Each retry strictly lowers the request onto
+    /// a boundary some frame actually holds, so the loop always ends —
+    /// chasing `covered` without the guard does not: two hops with
+    /// disjoint ranges bounce the request between them forever. When the
+    /// frames this variant reports lie on the target ← source chain —
+    /// always the case when the target is the tree's root, the
+    /// documented map-ward direction, where a source in a different tree
+    /// can only error, never answer — the loop lands on the newest
+    /// instant at or before the initial request that the whole chain
+    /// serves, or errors when there is none. With a mid-tree target the
+    /// walks also visit — and can report — edges above the two frames'
+    /// common ancestor, edges the answer does not use, and the loop
+    /// turns conservative: any transform it returns is genuinely served
+    /// data, but it can land earlier than the newest servable instant,
+    /// and its error is not proof that none exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     errors::RegistryError,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// let mut registry = Registry::new();
+    /// for (parent, child, nanos) in [
+    ///     ("map", "odom", 4_000),
+    ///     ("map", "odom", 9_000),
+    ///     ("odom", "base", 3_000),
+    ///     ("odom", "base", 7_000), // this hop lags: nothing newer yet
+    /// ] {
+    ///     registry
+    ///         .add_transform(
+    ///             Transform::new(
+    ///                 parent,
+    ///                 child,
+    ///                 Vector3::new(1.0, 0.0, 0.0),
+    ///                 Quaternion::identity(),
+    ///                 Stamp::At(Timestamp::from_nanos(nanos)),
+    ///             )
+    ///             .unwrap(),
+    ///         )
+    ///         .unwrap();
+    /// }
+    ///
+    /// // The newest instant the whole map ← base chain can serve; the
+    /// // target is the tree's root, so the loop is exact here.
+    /// let mut requested = Timestamp::from_nanos(10_000); // "now"
+    /// let latest = loop {
+    ///     match registry.get_transform("map", "base", requested) {
+    ///         Ok(transform) => break Ok(transform),
+    ///         Err(RegistryError::NotFoundAt {
+    ///             covered: Some((_, end)),
+    ///             ..
+    ///         }) if end < requested => requested = end,
+    ///         // Nothing at or before the request — or a different fault
+    ///         // entirely (unknown frame, disconnected trees): match on it.
+    ///         Err(error) => break Err(error),
+    ///     }
+    /// };
+    ///
+    /// assert_eq!(
+    ///     latest.unwrap().timestamp(),
+    ///     Stamp::At(Timestamp::from_nanos(7_000))
+    /// );
+    /// ```
     #[error(
         "transform from {source_frame} into {target_frame} at {} not found ({frame} {})",
         .requested.as_seconds_lossy(),

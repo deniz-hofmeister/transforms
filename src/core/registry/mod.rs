@@ -309,7 +309,13 @@ where
     /// data the request falls outside of, or `None` — no range to carry —
     /// when it holds no data at all, the state a frame drained by
     /// [`Registry::remove_transforms_before`] stays in until something is
-    /// inserted into it again.
+    /// inserted into it again. "The newest instant this chain can serve
+    /// at or before this request" is answered by retrying off `covered`
+    /// with the guard documented on
+    /// [`RegistryError::NotFoundAt`](crate::errors::RegistryError::NotFoundAt):
+    /// lower the request onto the covered end, never raise it — exact
+    /// when the target is the tree's root, conservative for a mid-tree
+    /// target.
     ///
     /// Composing, inverting or interpolating the transforms the walk
     /// collected can itself fail: inverting a half-chain that composed to an

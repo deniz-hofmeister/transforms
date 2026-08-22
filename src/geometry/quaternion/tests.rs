@@ -68,13 +68,6 @@ mod quaternion_tests {
     }
 
     #[test]
-    fn norm_squared() {
-        let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
-        let expected = 1.0_f64 + 4.0 + 9.0 + 16.0;
-        assert_relative_eq!(q.norm_squared(), expected, epsilon = f64::EPSILON);
-    }
-
-    #[test]
     fn scale() {
         let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let factor = 2.0;
@@ -140,19 +133,13 @@ mod quaternion_tests {
     }
 
     #[test]
-    fn add() {
+    fn weighted_sum_pairs_each_weight_with_its_operand() {
         let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
         let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
-        let expected = Quaternion::from_wxyz(6.0, 8.0, 10.0, 12.0);
-        assert_eq!(q1 + q2, expected);
-    }
-
-    #[test]
-    fn sub() {
-        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
-        let expected = Quaternion::from_wxyz(-4.0, -4.0, -4.0, -4.0);
-        assert_eq!(q1 - q2, expected);
+        // Asymmetric weights: a swapped weight/operand pairing yields
+        // (4.0, 5.0, 6.0, 7.0) and fails, where 0.5/0.5 could not tell.
+        let expected = Quaternion::from_wxyz(2.0, 3.0, 4.0, 5.0);
+        assert_eq!(Quaternion::weighted_sum(q1, 0.75, q2, 0.25), expected);
     }
 
     #[test]
@@ -161,28 +148,6 @@ mod quaternion_tests {
         let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
         let expected = Quaternion::from_wxyz(-60.0, 12.0, 30.0, 24.0);
         assert_eq!(q1 * q2, expected);
-    }
-
-    #[test]
-    fn div() {
-        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::from_wxyz(5.0, 6.0, 7.0, 8.0);
-        let result = q1 / q2;
-        assert!(
-            result.is_ok(),
-            "Division of {q1:?} by {q2:?} failed with error {result:?}"
-        );
-    }
-
-    #[test]
-    fn div_by_zero() {
-        let q1 = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
-        let q2 = Quaternion::from_wxyz(0.0, 0.0, 0.0, 0.0);
-        let result = q1 / q2;
-        assert!(
-            matches!(result, Err(QuaternionError::DivisionByZero)),
-            "Expected DivisionByZero error for {q1:?} / {q2:?}"
-        );
     }
 
     #[test]
@@ -317,7 +282,9 @@ mod quaternion_tests {
         // The shortcut would land 4e-7 off that geodesic here, five orders
         // of magnitude outside the tolerance above — and invisible to a norm
         // check, because the shortcut normalizes its result too.
-        let blended = (q1.scale(0.75) + q2.scale(0.25)).normalize().unwrap();
+        let blended = Quaternion::weighted_sum(q1, 0.75, q2, 0.25)
+            .normalize()
+            .unwrap();
         assert_abs_diff_eq!(blended.norm(), 1.0, epsilon = 1e-15);
         assert!(
             (blended.z - quarter.z).abs() > 1e-9,

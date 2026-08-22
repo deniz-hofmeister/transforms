@@ -114,6 +114,25 @@ and this section is the whole delta from beta.4.
 - **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
   (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
   associated const on `Transform<T>` that demanded a turbofish.
+- **Breaking:** `Quaternion` keeps only its rotation algebra — `*`,
+  `conjugate`, `normalize`, `norm`, `rotate_vector`, `slerp` and the
+  constructors. The vector-space surface leaves the public API: `+`, `-`,
+  `/` (with its `QuaternionError::DivisionByZero`) and the `Default` impl
+  had no caller outside their own unit tests, `norm_squared` served only
+  the removed `/`, and `scale` survives privately inside `normalize` and
+  `slerp`. Summing rotations and renormalizing is the classic silent
+  wrong answer, and `/` returned `Ok` with all-NaN components for a NaN
+  divisor and an all-zero, finite quaternion for an overflowing one.
+  `q2 / q1` on unit quaternions is `q2 * q1.conjugate()` up to the
+  divisor's norm drift — the conjugate spelling is the more accurate.
+  Slerp's blend moved to a private helper, unchanged bit for bit under
+  the existing pins.
+- **Breaking:** `Vector3` loses `dot`, `cross` and
+  `unit_x`/`unit_y`/`unit_z` — `dot` and `cross` were exercised only by
+  their own unit tests, the unit constructors by nothing at all, the
+  crate already points more general needs at a linear-algebra library,
+  and the public components make each a one-liner. The operator set
+  stays complete: `+`, `-`, both scalar multiplications and `/` remain.
 - `get_transform_at` composes its two legs through a private
   time-agnostic path instead of fabricating staticness on them to bypass
   `Mul`'s timestamp check.
@@ -394,6 +413,28 @@ and this section is the whole delta from beta.4.
   opts into `doc(auto_cfg)` for future rustdoc support); the
   `no_std_full` example imports `core::time::Duration` in its `no_std`
   branch; the buffer docs say B-tree instead of "binary tree".
+- Docs: MIGRATION.md names all five published 2.x pre-releases — alpha.1
+  and beta.1 through beta.4; it previously claimed beta.4 was the only
+  one — and stands alone: its changelog pointers survive the
+  consolidation that cuts 2.0.0 stable. Runtime changes 3 and 5 now cover
+  `get_transform_at`'s coinciding-frame legs and the expiry-reference
+  reset, and the beta.4 delta gains the frame-keeping wipe.
+- Docs: `Transformable` states the map an implementation owes — rotate,
+  then translate; orientation composed with the transform's rotation on
+  the left; a free vector takes the rotation only — previously readable
+  solely in `Point`'s source, and README's trait section points at it.
+  The flipped orientation order was invisible to the whole suite (every
+  stored fixture orientation was the identity); a `Point` test now starts
+  from a non-commuting orientation and pins the left composition against
+  hand-derived digits.
+- Docs: `RegistryError::NotFoundAt` documents the terminating
+  latest-available retry idiom — re-ask at the covered range's end only
+  while that end is older than the request — with a runnable example, and
+  `get_transform` and MIGRATION.md point at it. The unguarded version
+  oscillates forever between two hops with disjoint coverage. The guard
+  is exact for a root target; for a mid-tree target the walks can report
+  edges above the frames' common ancestor, making the loop conservative.
+  A property test pins the root-target exactness.
 - CHANGELOG: the beta.3 entry called the removed `TransformError::NotFound`
   "never-produced". That was wrong — it was the primary 1.x lookup-miss
   error and beta.1/beta.2 still produced it; the entry below is corrected
@@ -401,7 +442,10 @@ and this section is the whole delta from beta.4.
 - AGENTS.md: the normative lookup invariant referenced the removed
   `NotFound` variant; it now names `UnknownFrame` / `Disconnected` /
   `NotFoundAt`. The release checklist loses a garbled fragment and gains
-  the consolidation, semver-check, README-pin, and GitHub-release steps.
+  the consolidation — in the finalize step, ahead of the immutable tag
+  and publish, resolving the cross-references the fold orphans — plus the
+  semver-check, README-pin, GitHub-release, lockfile-regeneration, and
+  merge-before-tag steps.
 
 ## [2.0.0-beta.4] - 2026-07-18
 
