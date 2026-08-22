@@ -2,7 +2,7 @@
 
 use crate::geometry::Vector3;
 use approx::{AbsDiffEq, RelativeEq};
-use core::ops::{Add, Div, Mul, Sub};
+use core::ops::Mul;
 pub use error::QuaternionError;
 
 mod error;
@@ -26,13 +26,6 @@ pub struct Quaternion {
     pub y: f64,
     /// The `z` component of the vector part.
     pub z: f64,
-}
-
-impl Default for Quaternion {
-    /// Returns the identity quaternion.
-    fn default() -> Self {
-        Self::identity()
-    }
 }
 
 impl Quaternion {
@@ -180,39 +173,13 @@ impl Quaternion {
         libm::sqrt(self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
-    /// Computes the squared norm of the quaternion.
+    /// Scales every component by `factor`.
     ///
-    /// This is the sum of the squares of the components.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::Quaternion;
-    ///
-    /// let q = Quaternion::from_wxyz(1.0, 2.0, 2.0, 2.0);
-    /// assert_eq!(q.norm_squared(), 13.0);
-    /// ```
+    /// Private: scaling a rotation denormalizes it, so the public surface
+    /// does not offer it. `normalize` and `slerp` use it internally.
     #[must_use = "this returns the result of the operation, without modifying the original"]
     #[inline]
-    pub fn norm_squared(self) -> f64 {
-        self.w * self.w + self.x * self.x + self.y * self.y + self.z * self.z
-    }
-
-    /// Scales the quaternion by a given factor.
-    ///
-    /// Multiplies each component of the quaternion by the factor.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::Quaternion;
-    ///
-    /// let q = Quaternion::from_wxyz(1.0, 2.0, 3.0, 4.0);
-    /// assert_eq!(q.scale(2.0), Quaternion::from_wxyz(2.0, 4.0, 6.0, 8.0));
-    /// ```
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    #[inline]
-    pub fn scale(
+    fn scale(
         self,
         factor: f64,
     ) -> Quaternion {
@@ -221,6 +188,27 @@ impl Quaternion {
             x: self.x * factor,
             y: self.y * factor,
             z: self.z * factor,
+        }
+    }
+
+    /// The blend `a * wa + b * wb`, computed component-wise.
+    ///
+    /// Both slerp branches build their result from this sum. Private for
+    /// the same reason `+` is not on the public surface: quaternion
+    /// addition composes no rotation.
+    #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
+    fn weighted_sum(
+        a: Quaternion,
+        wa: f64,
+        b: Quaternion,
+        wb: f64,
+    ) -> Quaternion {
+        Quaternion {
+            w: a.w * wa + b.w * wb,
+            x: a.x * wa + b.x * wb,
+            y: a.y * wa + b.y * wb,
+            z: a.z * wa + b.z * wb,
         }
     }
 
@@ -309,7 +297,7 @@ impl Quaternion {
         let dot = dot.clamp(-1.0, 1.0);
 
         if dot > 1.0 - f64::EPSILON {
-            let blended = self.scale(1.0 - t) + other.scale(t);
+            let blended = Self::weighted_sum(self, 1.0 - t, other, t);
             let norm = blended.norm();
             return if norm < f64::EPSILON {
                 blended
@@ -324,41 +312,7 @@ impl Quaternion {
         let scale_self = libm::sin((1.0 - t) * theta) / sin_theta;
         let scale_other = libm::sin(t * theta) / sin_theta;
 
-        self.scale(scale_self) + other.scale(scale_other)
-    }
-}
-
-impl Add for Quaternion {
-    type Output = Quaternion;
-
-    #[inline]
-    fn add(
-        self,
-        other: Quaternion,
-    ) -> Quaternion {
-        Quaternion {
-            w: self.w + other.w,
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
-    }
-}
-
-impl Sub for Quaternion {
-    type Output = Quaternion;
-
-    #[inline]
-    fn sub(
-        self,
-        other: Quaternion,
-    ) -> Quaternion {
-        Quaternion {
-            w: self.w - other.w,
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-        }
+        Self::weighted_sum(self, scale_self, other, scale_other)
     }
 }
 
@@ -376,29 +330,6 @@ impl Mul for Quaternion {
             y: self.w * other.y - self.x * other.z + self.y * other.w + self.z * other.x,
             z: self.w * other.z + self.x * other.y - self.y * other.x + self.z * other.w,
         }
-    }
-}
-
-impl Div for Quaternion {
-    type Output = Result<Quaternion, QuaternionError>;
-
-    /// Divides by `other` via multiplication with its inverse.
-    ///
-    /// Returns `QuaternionError::DivisionByZero` if `other`'s squared norm
-    /// is below `f64::EPSILON`: divisors with a norm under roughly `1.5e-8`
-    /// are rejected as numerically zero — a deliberately stricter threshold
-    /// than [`Quaternion::normalize`]'s, since dividing by a near-zero
-    /// quaternion amplifies error quadratically.
-    #[inline]
-    fn div(
-        self,
-        other: Quaternion,
-    ) -> Result<Quaternion, QuaternionError> {
-        let norm_sq = other.norm_squared();
-        if norm_sq < f64::EPSILON {
-            return Err(QuaternionError::DivisionByZero);
-        }
-        Ok(self.mul(other.conjugate()).scale(1.0 / norm_sq))
     }
 }
 

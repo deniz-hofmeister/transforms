@@ -4,9 +4,6 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum QuaternionError {
-    /// The divisor quaternion has (near-)zero norm.
-    #[error("division by zero quaternion")]
-    DivisionByZero,
     /// The quaternion has (near-)zero norm and cannot be normalized.
     #[error("cannot normalize a zero-length quaternion")]
     ZeroLengthNormalization,

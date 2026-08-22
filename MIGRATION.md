@@ -42,6 +42,9 @@ What stops compiling since beta.4:
 - `Quaternion::new(w, x, y, z)` is renamed
   `Quaternion::from_wxyz(w, x, y, z)` — same order and behavior, a name that
   states that order at the call site.
+- `Quaternion` keeps only its rotation algebra: `+`, `-`, `/` (with
+  `QuaternionError::DivisionByZero`), `scale`, `norm_squared` and the
+  `Default` impl are removed (break 8).
 - `Buffer` and the `core` module are private, and so are the leaf modules
   (`geometry::transform`, `time::timestamp`, ...) that beta.4 still exposed
   (break 5).
@@ -423,6 +426,41 @@ a base for the field assignment that no longer compiles.
 carrier — but gains `#[non_exhaustive]`, so its literal becomes
 `Point::new(position, orientation, timestamp, frame)`. `Vector3` and
 `Quaternion` literals are untouched.
+
+### 8. `Quaternion` is a rotation, not a vector
+
+```rust
+// 1.x
+let blend = (q1.scale(0.75) + q2.scale(0.25)).normalize()?;
+let step = (q2 / q1)?;
+let n2 = q.norm_squared();
+let q0 = Quaternion::default();
+
+// 2.0
+let blend = q1.slerp(q2, 0.25); // blending is slerp's job now
+let step = q2 * q1.conjugate(); // a unit quaternion's inverse is its conjugate
+let n2 = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+let q0 = Quaternion::identity();
+```
+
+The public surface is the rotation algebra — `*` composes, `conjugate`
+inverts a unit quaternion, `normalize`/`norm` police the unit invariant,
+`rotate_vector` applies, `slerp` interpolates — and nothing else. The
+vector-space operators `+`, `-` and `/`, `scale`, `norm_squared` and the
+`Default` impl leave the public surface: `+`, `-`, `/` and `Default` had
+no caller outside their own unit tests, `norm_squared` served only the
+removed `/`, and `scale` survives privately inside `normalize` and
+`slerp`. Summing rotations and renormalizing is the classic silent wrong
+answer, and `/` compounded it: a NaN divisor returned `Ok` with all-NaN
+components, and an overflowing one returned `Ok` with an all-zero — and
+finite — quaternion, plausible enough to pass an `is_finite` check.
+`QuaternionError::DivisionByZero` is gone with it. For a unit divisor,
+`q2 / q1` computed `q2 * q1.conjugate()` scaled by `1/norm²` — a factor
+that is 1 mathematically but drifts in floating point with the divisor's
+norm, by ulps for a freshly normalized rotation and by up to about
+`2e-6` for one at the edge of `UNIT_NORM_TOLERANCE` — so the conjugate
+spelling is the more accurate of the two, not merely the surviving one.
+The components stay public, so anything else is a one-liner.
 
 ## Runtime behavior changes (compile clean, behave differently)
 

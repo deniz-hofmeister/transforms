@@ -49,6 +49,16 @@ fn unit_quaternions() -> impl Strategy<Value = Quaternion> {
         })
 }
 
+/// Denormalizes a rotation by scaling every component: the tolerance tests
+/// need norms deliberately off 1, and the public surface offers no
+/// quaternion scaling — a rotation is not a vector here.
+fn scaled(
+    q: Quaternion,
+    factor: f64,
+) -> Quaternion {
+    Quaternion::from_wxyz(q.w * factor, q.x * factor, q.y * factor, q.z * factor)
+}
+
 /// Nanosecond magnitudes spanning the regimes that behave differently:
 /// small counts, both sides of the 2^53 `f64` accuracy cliff, 2020s
 /// wall-clock nanoseconds (where an `f64` ulp is already ~256 ns), and the
@@ -328,7 +338,7 @@ proptest! {
             "a",
             "b",
             Vector3::zero(),
-            rotation.scale(factor),
+            scaled(rotation, factor),
             Stamp::At(Timestamp::from_nanos(1)),
         );
 
@@ -347,7 +357,7 @@ proptest! {
             "a",
             "b",
             Vector3::zero(),
-            rotation.scale(1.0 + deviation),
+            scaled(rotation, 1.0 + deviation),
             Stamp::At(Timestamp::from_nanos(1)),
         );
 

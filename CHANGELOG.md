@@ -114,6 +114,19 @@ and this section is the whole delta from beta.4.
 - **Breaking:** `UNIT_NORM_TOLERANCE` is a module-level const
   (re-exported at `geometry::UNIT_NORM_TOLERANCE`) instead of an
   associated const on `Transform<T>` that demanded a turbofish.
+- **Breaking:** `Quaternion` keeps only its rotation algebra — `*`,
+  `conjugate`, `normalize`, `norm`, `rotate_vector`, `slerp` and the
+  constructors. The vector-space surface leaves the public API: `+`, `-`,
+  `/` (with its `QuaternionError::DivisionByZero`) and the `Default` impl
+  had no caller outside their own unit tests, `norm_squared` served only
+  the removed `/`, and `scale` survives privately inside `normalize` and
+  `slerp`. Summing rotations and renormalizing is the classic silent
+  wrong answer, and `/` returned `Ok` with all-NaN components for a NaN
+  divisor and an all-zero, finite quaternion for an overflowing one.
+  `q2 / q1` on unit quaternions is `q2 * q1.conjugate()` up to the
+  divisor's norm drift — the conjugate spelling is the more accurate.
+  Slerp's blend moved to a private helper, unchanged bit for bit under
+  the existing pins.
 - `get_transform_at` composes its two legs through a private
   time-agnostic path instead of fabricating staticness on them to bypass
   `Mul`'s timestamp check.
