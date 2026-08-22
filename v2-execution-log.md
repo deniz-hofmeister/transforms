@@ -99,6 +99,13 @@ a pre-release. The local half of the checklist is done and recorded in the
 Final row: full gate, semver-checks, version and README pins, and a
 `cargo publish --dry-run` whose file list was inspected.
 
+*Superseded 2026-08-22: rc.2 is not being published. The final release
+review cleared master for 2.0.0 stable directly — with near-zero beta
+adoption there is no rc audience to serve — and the maintainer confirmed
+the skip by cutting `release/v2.0.0`. The rc.2 changelog section was
+consolidated into `[2.0.0]` per the release checklist in AGENTS.md, which
+now carries the authoritative cut procedure.*
+
 ## Interruption record — 2026-08-15, after Stage 2
 
 Deliberate clean termination by the maintainer. Working tree clean at `f49c6f0`; Stages 1–2 are
