@@ -40,7 +40,13 @@ proptest = "1.7.0"
 serde_json = "1.0.140"
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 log = "0.4.27"
-criterion = "0.8.0"
+# Console output only: `plotters` (the HTML report charts) is deliberately
+# off — nobody reads the reports — and `cargo_bench_support` must be named
+# explicitly or `cargo bench` stops working.
+criterion = { version = "0.8.0", default-features = false, features = [
+    "cargo_bench_support",
+    "rayon",
+] }
 tokio = { version = "1.46.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
 [[example]]
