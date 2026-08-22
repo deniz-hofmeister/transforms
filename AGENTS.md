@@ -217,7 +217,7 @@ this section is convention, enforced in review — follow it anyway.
   `Transform::new(parent, child, translation, rotation, stamp)` /
   `Transform::static_between(..)` (both fallible),
   `Point::new(position, orientation, timestamp, frame)`,
-  `Vector3::new/zero/unit_*`, `Quaternion::from_wxyz(w, x, y, z)` /
+  `Vector3::new/zero`, `Quaternion::from_wxyz(w, x, y, z)` /
   `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()`.
   `Transform` and `Point` are `#[non_exhaustive]`; `Transform`'s fields are
   private, and a test that needs a deliberately invalid transform uses the

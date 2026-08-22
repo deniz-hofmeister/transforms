@@ -45,6 +45,8 @@ What stops compiling since beta.4:
 - `Quaternion` keeps only its rotation algebra: `+`, `-`, `/` (with
   `QuaternionError::DivisionByZero`), `scale`, `norm_squared` and the
   `Default` impl are removed (break 8).
+- `Vector3` loses `dot`, `cross` and `unit_x`/`unit_y`/`unit_z`
+  (break 9).
 - `Buffer` and the `core` module are private, and so are the leaf modules
   (`geometry::transform`, `time::timestamp`, ...) that beta.4 still exposed
   (break 5).
@@ -461,6 +463,30 @@ norm, by ulps for a freshly normalized rotation and by up to about
 `2e-6` for one at the edge of `UNIT_NORM_TOLERANCE` — so the conjugate
 spelling is the more accurate of the two, not merely the surviving one.
 The components stay public, so anything else is a one-liner.
+
+### 9. `Vector3` sheds `dot`, `cross` and the unit constructors
+
+```rust
+// 1.x
+let d = a.dot(b);
+let c = a.cross(b);
+let x = Vector3::unit_x();
+
+// 2.0
+let d = a.x * b.x + a.y * b.y + a.z * b.z;
+let c = Vector3::new(
+    a.y * b.z - a.z * b.y,
+    a.z * b.x - a.x * b.z,
+    a.x * b.y - a.y * b.x,
+);
+let x = Vector3::new(1.0, 0.0, 0.0);
+```
+
+`dot` and `cross` had no caller outside their own unit tests, the unit
+constructors none at all, and the crate already points more general
+needs at a linear-algebra library. The operator set stays complete —
+`+`, `-`, both scalar multiplications and `/` — and the components stay
+public, so the formulas above are the whole migration.
 
 ## Runtime behavior changes (compile clean, behave differently)
 

@@ -127,6 +127,12 @@ and this section is the whole delta from beta.4.
   divisor's norm drift — the conjugate spelling is the more accurate.
   Slerp's blend moved to a private helper, unchanged bit for bit under
   the existing pins.
+- **Breaking:** `Vector3` loses `dot`, `cross` and
+  `unit_x`/`unit_y`/`unit_z` — `dot` and `cross` were exercised only by
+  their own unit tests, the unit constructors by nothing at all, the
+  crate already points more general needs at a linear-algebra library,
+  and the public components make each a one-liner. The operator set
+  stays complete: `+`, `-`, both scalar multiplications and `/` remain.
 - `get_transform_at` composes its two legs through a private
   time-agnostic path instead of fabricating staticness on them to bypass
   `Mul`'s timestamp check.

@@ -1,4 +1,4 @@
-//! A 3D vector type with basic arithmetic, dot, and cross products.
+//! A 3D vector type with basic arithmetic.
 
 use core::ops::{Add, Div, Mul, Sub};
 
@@ -58,68 +58,6 @@ impl Vector3 {
     #[must_use]
     pub const fn zero() -> Self {
         Self::new(0.0, 0.0, 0.0)
-    }
-
-    /// Returns the unit vector along the x-axis `(1.0, 0.0, 0.0)`.
-    #[must_use]
-    pub const fn unit_x() -> Self {
-        Self::new(1.0, 0.0, 0.0)
-    }
-
-    /// Returns the unit vector along the y-axis `(0.0, 1.0, 0.0)`.
-    #[must_use]
-    pub const fn unit_y() -> Self {
-        Self::new(0.0, 1.0, 0.0)
-    }
-
-    /// Returns the unit vector along the z-axis `(0.0, 0.0, 1.0)`.
-    #[must_use]
-    pub const fn unit_z() -> Self {
-        Self::new(0.0, 0.0, 1.0)
-    }
-
-    /// Computes the dot product of two vectors, the sum of the products of their components.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::Vector3;
-    ///
-    /// let a = Vector3::new(1.0, 2.0, 3.0);
-    /// let b = Vector3::new(4.0, 5.0, 6.0);
-    /// assert_eq!(a.dot(b), 32.0);
-    /// ```
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    #[inline]
-    pub fn dot(
-        self,
-        other: Self,
-    ) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-
-    /// Computes the cross product of two vectors, a vector perpendicular to both operands.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::Vector3;
-    ///
-    /// let a = Vector3::new(1.0, 0.0, 0.0);
-    /// let b = Vector3::new(0.0, 1.0, 0.0);
-    /// assert_eq!(a.cross(b), Vector3::new(0.0, 0.0, 1.0));
-    /// ```
-    #[must_use = "this returns the result of the operation, without modifying the original"]
-    #[inline]
-    pub fn cross(
-        self,
-        other: Self,
-    ) -> Self {
-        Self {
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x,
-        }
     }
 }
 
