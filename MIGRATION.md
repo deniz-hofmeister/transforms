@@ -187,8 +187,9 @@ Two related breaks ride along:
 
 - **`TimePoint` is pure time arithmetic now, in three methods.** Custom
   clock impls delete `static_timestamp()` and `is_static()` — no sentinel
-  value to invent — and also `checked_add()` and `as_seconds()`, neither
-  of which the crate ever called. What remains is `duration_since`,
+  value to invent — and also `checked_add()` and `as_seconds()`, which
+  by 2.0 have no caller left: `Stamp` took over the timestamp
+  arithmetic, `as_seconds_lossy` the error formatting. What remains is `duration_since`,
   `checked_sub`, and `as_seconds_lossy`, the last no longer defaulted:
   implement it as a best-effort conversion that yields `f64::NAN` where
   your clock cannot convert, never a plausible-looking number, because it
