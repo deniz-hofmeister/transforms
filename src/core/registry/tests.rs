@@ -2250,6 +2250,330 @@ mod registry_tests {
     }
 
     #[test]
+    fn latest_common_time_is_bounded_by_the_laggiest_hop() {
+        // map -> odom covers [4us, 9us], odom -> base covers [3us, 7us]:
+        // the newest instant the whole chain serves is the laggiest hop's
+        // newest sample.
+        let mut registry = Registry::new();
+        for (parent, child, nanos) in [
+            ("map", "odom", 4_000),
+            ("map", "odom", 9_000),
+            ("odom", "base", 3_000),
+            ("odom", "base", 7_000),
+        ] {
+            registry
+                .add_transform(translated(
+                    parent,
+                    child,
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        let stamp = registry.latest_common_time("map", "base").unwrap();
+        assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(7_000)));
+
+        // Symmetric: both lookup directions serve the same instants.
+        let mirrored = registry.latest_common_time("base", "map").unwrap();
+        assert_eq!(mirrored, stamp);
+
+        // The answer is servable and maximal: one nanosecond later, the
+        // laggy hop has nothing.
+        assert!(
+            registry
+                .get_transform("map", "base", Timestamp::from_nanos(7_000))
+                .is_ok()
+        );
+        assert!(
+            registry
+                .get_transform("map", "base", Timestamp::from_nanos(7_001))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn latest_common_time_ignores_edges_above_the_common_ancestor() {
+        // world -> map went stale long ago; map -> a and map -> b are fresh.
+        // The a <-> b chain crosses only the two fresh edges, so the stale
+        // edge above their common ancestor must not bound the answer —
+        // this is where the retired retry-off-`covered` idiom was merely
+        // conservative.
+        let mut registry = Registry::new();
+        for (parent, child, nanos) in [
+            ("world", "map", 1_000),
+            ("world", "map", 2_000),
+            ("map", "a", 10_000),
+            ("map", "a", 20_000),
+            ("map", "b", 15_000),
+            ("map", "b", 25_000),
+        ] {
+            registry
+                .add_transform(translated(
+                    parent,
+                    child,
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        let stamp = registry.latest_common_time("a", "b").unwrap();
+        assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(20_000)));
+        assert!(
+            registry
+                .get_transform("a", "b", Timestamp::from_nanos(20_000))
+                .is_ok()
+        );
+
+        // A chain that does cross the stale edge has no common instant:
+        // world -> map ends at 2us, map -> b starts at 15us.
+        let result = registry.latest_common_time("world", "b");
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NoCommonTime { frame, covered, .. })
+                    if frame == "b"
+                        && *covered
+                            == Some((
+                                Timestamp::from_nanos(15_000),
+                                Timestamp::from_nanos(25_000)
+                            ))
+            ),
+            "expected NoCommonTime naming the late-starting hop, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn latest_common_time_reports_disjoint_ranges_as_no_common_time() {
+        // a -> b covers [0, 5us], b -> c covers [10us, 20us]: no instant is
+        // covered by both. The naive "minimum of the hops' newest samples"
+        // would land on 5us — an instant hop c cannot serve — so the
+        // refusal, not a plausible-looking instant, is the contract.
+        let mut registry = Registry::new();
+        for (parent, child, nanos) in [
+            ("a", "b", 0),
+            ("a", "b", 5_000),
+            ("b", "c", 10_000),
+            ("b", "c", 20_000),
+        ] {
+            registry
+                .add_transform(translated(
+                    parent,
+                    child,
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        let result = registry.latest_common_time("a", "c");
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NoCommonTime { target_frame, source_frame, frame, covered })
+                    if target_frame == "a"
+                        && source_frame == "c"
+                        && frame == "c"
+                        && *covered
+                            == Some((
+                                Timestamp::from_nanos(10_000),
+                                Timestamp::from_nanos(20_000)
+                            ))
+            ),
+            "expected NoCommonTime carrying the disjoint range, got {result:?}"
+        );
+
+        // And indeed no instant serves: each candidate fails on some hop.
+        assert!(
+            registry
+                .get_transform("a", "c", Timestamp::from_nanos(5_000))
+                .is_err()
+        );
+        assert!(
+            registry
+                .get_transform("a", "c", Timestamp::from_nanos(10_000))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn latest_common_time_returns_static_for_all_static_chains() {
+        // A chain of static hops puts no bound on time: the caller picks
+        // the instant, exactly as a lookup would accept any.
+        let mut registry: Registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::Static, 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("b", "c", Stamp::Static, 1.0))
+            .unwrap();
+
+        assert_eq!(
+            registry.latest_common_time("a", "c").unwrap(),
+            Stamp::Static
+        );
+
+        // A frame relative to itself serves any instant too — also for a
+        // frame the registry has never seen, matching `get_transform`'s
+        // identity behavior.
+        assert_eq!(
+            registry.latest_common_time("nowhere", "nowhere").unwrap(),
+            Stamp::Static
+        );
+    }
+
+    #[test]
+    fn latest_common_time_skips_static_hops_in_mixed_chains() {
+        // The static mount serves every instant, so only the dynamic hop
+        // bounds the answer.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::Static, 1.0))
+            .unwrap();
+        for nanos in [3_000, 8_000] {
+            registry
+                .add_transform(translated(
+                    "b",
+                    "c",
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        assert_eq!(
+            registry.latest_common_time("a", "c").unwrap(),
+            Stamp::At(Timestamp::from_nanos(8_000))
+        );
+    }
+
+    #[test]
+    fn latest_common_time_reports_drained_frames_as_no_common_time() {
+        // A drained frame serves nothing, so the chain has no common
+        // instant — reported with `covered: None`, mirroring `NotFoundAt`'s
+        // two-case payload.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("world", "object", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry.remove_transforms_before(t2);
+
+        let result = registry.latest_common_time("world", "object");
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NoCommonTime { frame, covered, .. })
+                    if frame == "object" && covered.is_none()
+            ),
+            "expected NoCommonTime naming the drained frame, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn latest_common_time_ignores_a_drained_edge_above_the_common_ancestor() {
+        // The drained world -> map edge sits above the a/b junction, so the
+        // a <-> b chain never crosses it. This pins the emptiness check to
+        // the truncated chain: hoisting it in front of the shared-suffix
+        // drop would refuse a pair `get_transform` happily serves.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated(
+                "world",
+                "map",
+                Stamp::At(Timestamp::from_nanos(1_000)),
+                1.0,
+            ))
+            .unwrap();
+        for (parent, child, nanos) in [
+            ("map", "a", 10_000),
+            ("map", "a", 20_000),
+            ("map", "b", 15_000),
+            ("map", "b", 25_000),
+        ] {
+            registry
+                .add_transform(translated(
+                    parent,
+                    child,
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+        registry.remove_transforms_before(Timestamp::from_nanos(5_000));
+
+        let stamp = registry.latest_common_time("a", "b").unwrap();
+        assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(20_000)));
+        assert!(
+            registry
+                .get_transform("a", "b", Timestamp::from_nanos(20_000))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn latest_common_time_answers_at_the_single_shared_instant_of_touching_ranges() {
+        // a -> b covers [0, 5us], b -> c covers [5us, 20us]: exactly one
+        // instant is covered by both, and it is the answer — the boundary
+        // where an off-by-one in the disjointness guard would refuse.
+        let mut registry = Registry::new();
+        for (parent, child, nanos) in [
+            ("a", "b", 0),
+            ("a", "b", 5_000),
+            ("b", "c", 5_000),
+            ("b", "c", 20_000),
+        ] {
+            registry
+                .add_transform(translated(
+                    parent,
+                    child,
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        let stamp = registry.latest_common_time("a", "c").unwrap();
+        assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(5_000)));
+        assert!(
+            registry
+                .get_transform("a", "c", Timestamp::from_nanos(5_000))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn latest_common_time_diagnoses_unknown_and_disconnected_like_a_lookup() {
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("x", "y", Stamp::At(t), 1.0))
+            .unwrap();
+
+        // Same diagnosis, same match arms as a failed `get_transform`.
+        let result = registry.latest_common_time("a", "does_not_exist");
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "does_not_exist"),
+            "expected UnknownFrame, got {result:?}"
+        );
+
+        let result = registry.latest_common_time("b", "y");
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::Disconnected { target_frame, source_frame })
+                    if target_frame == "b" && source_frame == "y"
+            ),
+            "expected Disconnected, got {result:?}"
+        );
+    }
+
+    #[test]
     fn remove_frame_mid_tree_strands_descendants() {
         // map -> odom -> base_link; removing odom strands base_link, whose
         // buffer keeps its pin to the removed parent. The subsequent lookup

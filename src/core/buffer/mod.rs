@@ -142,6 +142,25 @@ where
     }
 }
 
+/// The span of instants a buffer can serve, for chain-level reasoning such
+/// as [`Registry::latest_common_time`](crate::Registry::latest_common_time).
+pub(crate) enum Coverage<T>
+where
+    T: TimePoint,
+{
+    /// A static buffer holding its transform: every instant.
+    AllTime,
+    /// A dynamic buffer's stored span, both endpoints inclusive.
+    Range {
+        /// The oldest stored instant.
+        start: T,
+        /// The newest stored instant.
+        end: T,
+    },
+    /// No stored transforms: no instant can be served.
+    Empty,
+}
+
 /// The buffer's storage, decided at construction: one static transform, or
 /// a time series of dynamic samples. Keeping the kind structural — instead
 /// of a flag re-derived from the stored data — makes it impossible for a
@@ -221,6 +240,24 @@ where
     #[must_use]
     pub fn parent(&self) -> Option<&str> {
         self.parent.as_deref()
+    }
+
+    /// The span of instants this buffer can serve: every instant for a
+    /// static buffer holding its transform, the stored range (inclusive)
+    /// for a dynamic buffer, and [`Coverage::Empty`] for a buffer holding
+    /// nothing — a drained dynamic frame, or a static buffer before its
+    /// first insert (unreachable through `Registry`, which registers a
+    /// buffer only after its first insert succeeds).
+    #[must_use]
+    pub fn coverage(&self) -> Coverage<T> {
+        match &self.kind {
+            Kind::Static(Some(_)) => Coverage::AllTime,
+            Kind::Static(None) => Coverage::Empty,
+            Kind::Dynamic { data, .. } => match (data.first_key_value(), data.last_key_value()) {
+                (Some((&start, _)), Some((&end, _))) => Coverage::Range { start, end },
+                _ => Coverage::Empty,
+            },
+        }
     }
 
     /// Adds a transform to the buffer.

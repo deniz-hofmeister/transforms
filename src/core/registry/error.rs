@@ -9,7 +9,9 @@ use crate::{
     time::{TimePoint, Timestamp},
 };
 
-/// Error type for [`Registry`](crate::Registry) insertion and lookup.
+/// Error type for every [`Registry`](crate::Registry) call: insertion,
+/// lookup, and the [`latest_common_time`](crate::Registry::latest_common_time)
+/// coverage query.
 ///
 /// One flat enum for both: every cause a registry call can report is a
 /// variant of this type, so a caller diagnoses a failure with a single
@@ -19,8 +21,12 @@ use crate::{
 /// asked with.
 ///
 /// The first six variants are reported by
-/// [`add_transform`](crate::Registry::add_transform) and the next three by
-/// the lookups, with one crossover: where a lookup inverts a half-chain that
+/// [`add_transform`](crate::Registry::add_transform), the next three by
+/// the lookups, and [`NoCommonTime`](Self::NoCommonTime) by
+/// [`latest_common_time`](crate::Registry::latest_common_time) — which
+/// shares [`UnknownFrame`](Self::UnknownFrame) and
+/// [`Disconnected`](Self::Disconnected) with the lookups, so the same
+/// match arms diagnose both. One crossover: where a lookup inverts a half-chain that
 /// composed to an infinite translation, it reports the same flat
 /// [`NonFiniteValues`](Self::NonFiniteValues) an insert would — one spelling
 /// per condition, on every path that reports it at all.
@@ -126,76 +132,12 @@ where
     /// walk failure takes precedence over the [`Disconnected`](Self::Disconnected)
     /// diagnosis.
     ///
-    /// The `Some` case supports a terminating "latest available" idiom:
-    /// when `covered`'s end is older than the request, re-ask at that
-    /// end; otherwise stop. Each retry strictly lowers the request onto
-    /// a boundary some frame actually holds, so the loop always ends —
-    /// chasing `covered` without the guard does not: two hops with
-    /// disjoint ranges bounce the request between them forever. When the
-    /// frames this variant reports lie on the target ← source chain —
-    /// always the case when the target is the tree's root, the
-    /// documented map-ward direction, where a source in a different tree
-    /// can only error, never answer — the loop lands on the newest
-    /// instant at or before the initial request that the whole chain
-    /// serves, or errors when there is none. With a mid-tree target the
-    /// walks also visit — and can report — edges above the two frames'
-    /// common ancestor, edges the answer does not use, and the loop
-    /// turns conservative: any transform it returns is genuinely served
-    /// data, but it can land earlier than the newest servable instant,
-    /// and its error is not proof that none exists.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     Registry,
-    ///     errors::RegistryError,
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
-    ///
-    /// let mut registry = Registry::new();
-    /// for (parent, child, nanos) in [
-    ///     ("map", "odom", 4_000),
-    ///     ("map", "odom", 9_000),
-    ///     ("odom", "base", 3_000),
-    ///     ("odom", "base", 7_000), // this hop lags: nothing newer yet
-    /// ] {
-    ///     registry
-    ///         .add_transform(
-    ///             Transform::new(
-    ///                 parent,
-    ///                 child,
-    ///                 Vector3::new(1.0, 0.0, 0.0),
-    ///                 Quaternion::identity(),
-    ///                 Stamp::At(Timestamp::from_nanos(nanos)),
-    ///             )
-    ///             .unwrap(),
-    ///         )
-    ///         .unwrap();
-    /// }
-    ///
-    /// // The newest instant the whole map ← base chain can serve; the
-    /// // target is the tree's root, so the loop is exact here.
-    /// let mut requested = Timestamp::from_nanos(10_000); // "now"
-    /// let latest = loop {
-    ///     match registry.get_transform("map", "base", requested) {
-    ///         Ok(transform) => break Ok(transform),
-    ///         Err(RegistryError::NotFoundAt {
-    ///             covered: Some((_, end)),
-    ///             ..
-    ///         }) if end < requested => requested = end,
-    ///         // Nothing at or before the request — or a different fault
-    ///         // entirely (unknown frame, disconnected trees): match on it.
-    ///         Err(error) => break Err(error),
-    ///     }
-    /// };
-    ///
-    /// assert_eq!(
-    ///     latest.unwrap().timestamp(),
-    ///     Stamp::At(Timestamp::from_nanos(7_000))
-    /// );
-    /// ```
+    /// The `Some` case's `requested > end` reading — merely too new —
+    /// raises the question "what is the newest instant this chain *can*
+    /// serve?". That is a first-class query:
+    /// [`Registry::latest_common_time`](crate::Registry::latest_common_time)
+    /// answers it exactly, also for mid-tree targets, without retrying
+    /// lookups against this variant's payloads.
     #[error(
         "transform from {source_frame} into {target_frame} at {} not found ({frame} {})",
         .requested.as_seconds_lossy(),
@@ -214,6 +156,34 @@ where
         /// The timestamp the lookup asked for.
         requested: T,
         /// The time range `frame` covers, or `None` when it holds nothing.
+        covered: Option<(T, T)>,
+    },
+
+    /// [`Registry::latest_common_time`](crate::Registry::latest_common_time)
+    /// found no instant that every hop of the resolved chain can serve —
+    /// so a lookup between these frames would fail at *any* requested
+    /// time. `frame` names the hop that rules it out and `covered` says
+    /// how: `Some(range)` when that frame's stored range begins after the
+    /// newest instant the rest of the chain still covers — the chain's
+    /// covered ranges are disjoint, typically one hop lagging far behind
+    /// another under `max_age` eviction — or `None` when the frame holds
+    /// no data at all, the state
+    /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
+    /// leaves a drained frame in. Either way, only new samples make the
+    /// chain answer again: on the named frame for the `None` case, on the
+    /// hop bounding the rest of the chain for the `Some` case.
+    #[error(
+        "no instant is covered by every hop between {target_frame} and {source_frame} ({frame} {})",
+        Coverage(.covered)
+    )]
+    NoCommonTime {
+        /// The `target` argument of the failed query.
+        target_frame: String,
+        /// The `source` argument of the failed query.
+        source_frame: String,
+        /// The frame whose coverage rules out a common instant.
+        frame: String,
+        /// That frame's covered range, or `None` when it holds nothing.
         covered: Option<(T, T)>,
     },
 
@@ -270,8 +240,10 @@ where
     }
 }
 
-/// Renders [`RegistryError::NotFoundAt`]'s two cases: a frame holding data
-/// the request falls outside of, and a frame holding nothing at all.
+/// Renders a frame's coverage for [`RegistryError::NotFoundAt`] and
+/// [`RegistryError::NoCommonTime`]: the range the frame holds — each
+/// variant's own doc says what lying outside it means there — or that it
+/// holds nothing at all.
 ///
 /// A separate `Display` rather than a formatted `String` because an error
 /// message that can fail to be built — here, on a failing allocation — is

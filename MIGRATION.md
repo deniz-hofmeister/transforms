@@ -245,8 +245,9 @@ Cross-version decoding is format-dependent, so version-tag your streams:
 
 ### 3. Error enum overhaul
 
-Every `Registry` call — `add_transform` and all three lookups — now reports
-one type, `errors::RegistryError<T>`. `TransformError` stays, but only for
+Every `Registry` call — `add_transform`, the lookups, and the
+`latest_common_time` coverage query (added after 2.0.0; see
+CHANGELOG.md) — now reports one type, `errors::RegistryError<T>`. `TransformError` stays, but only for
 what it describes: geometry and time, i.e. the `Transform` constructors,
 `inverse`, `interpolate`, `*`, and `Transformable::transform`.
 
@@ -267,7 +268,8 @@ match err {
     }
     // `frame` could not answer at `requested`; `covered` says why (see below)
     RegistryError::NotFoundAt { frame, requested, covered: Some((_, end)), .. } => {
-        if requested > end { retry() } else { data_is_stale(frame) }
+        // too new: ask latest_common_time for the newest servable instant
+        if requested > end { query_latest() } else { data_is_stale(frame) }
     }
     RegistryError::NotFoundAt { frame, covered: None, .. } => nobody_is_publishing(frame),
     _ => other(),                                             // mandatory: #[non_exhaustive]
@@ -277,16 +279,18 @@ match err {
 The 1.x catch-all `TransformError::NotFound` is gone, replaced by the three
 diagnosed variants above (mirroring tf2's LookupException /
 ConnectivityException / ExtrapolationException). `NotFoundAt`'s `covered`
-must be inspected before retrying, because it distinguishes two situations:
+must be inspected before reacting, because it distinguishes two situations:
 `Some((start, end))` means `frame` holds data the request falls outside of —
-`requested > end` is merely too new (latency: retry), otherwise the data is
-stale — while `None` means `frame` holds no data at all, so retrying
+`requested > end` is merely too new (latency), otherwise the data is
+stale — while `None` means `frame` holds no data at all, so asking again
 achieves nothing until someone inserts into it (see runtime behavior change
 5). Both `requested` and `covered` are in the registry's own time type `T`,
 not in seconds: compare them against the timestamp you asked with. The
-`Display` text still renders seconds. The terminating "latest available"
-retry loop — lower the request onto `covered`'s end, never raise it — is
-documented on `RegistryError::NotFoundAt` in the crate docs.
+`Display` text still renders seconds. And "the latest available transform"
+— the 1.x-era reason to retry blindly — is a first-class query now:
+`Registry::latest_common_time` (added after 2.0.0; see CHANGELOG.md)
+returns the newest instant the whole chain can serve, exactly, so a
+`get_transform` at its answer replaces any retry loop.
 
 `add_transform`'s rejections are variants of the same enum:
 `RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,

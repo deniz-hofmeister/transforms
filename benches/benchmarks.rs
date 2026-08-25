@@ -317,10 +317,36 @@ fn benchmark_chain_both_directions(c: &mut Criterion) {
     group.finish();
 }
 
-/// The steady-state failure: a query one sample interval past the newest
-/// sample, which is what a consumer running slightly ahead of its publisher
-/// hits on every tick. Unlike the worst case below it touches one buffer,
-/// but it happens continuously rather than once.
+/// The coverage query on a 4-hop chain: two ancestry walks and one range
+/// read per hop, no composition. As the first call of the two-call
+/// freshest-pose idiom its cost rides on every reader tick, so it is
+/// measured alongside the lookups it precedes.
+fn benchmark_latest_common_time(c: &mut Criterion) {
+    let mut group = c.benchmark_group("benchmark");
+    group.sample_size(1000);
+
+    let mut registry = Registry::new();
+    let mut nanos = BASE_NANOS;
+    for _ in 0..1000 {
+        for (parent, child) in [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")] {
+            registry
+                .add_transform(transform_at(parent, child, nanos))
+                .unwrap();
+        }
+        nanos += SAMPLE_INTERVAL_NANOS;
+    }
+
+    group.bench_function("latest_common_time_4hop", |b| {
+        b.iter(|| black_box(registry.latest_common_time("a", "e")).unwrap());
+    });
+
+    group.finish();
+}
+
+/// The failure path: a query one sample interval past the newest sample —
+/// what a consumer that assumes its publisher's timing hits, and hits on
+/// every tick, which is why `latest_common_time` exists. Unlike the worst
+/// case below it touches one buffer.
 fn benchmark_not_found_past_newest(c: &mut Criterion) {
     let mut group = c.benchmark_group("benchmark");
     group.sample_size(1000);
@@ -439,6 +465,7 @@ criterion_group!(
     benchmark_robot_tree,
     benchmark_dynamic_chain_interpolated,
     benchmark_chain_both_directions,
+    benchmark_latest_common_time,
     benchmark_get_transform_at,
     benchmark_tree_climb,
     benchmark_tree_climb_common_parent_elim,

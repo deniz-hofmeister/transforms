@@ -9,6 +9,8 @@
 //!   with `Transform::static_between`.
 //! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
+//! - **Coverage Query**: `Registry::latest_common_time` reports the newest
+//!   instant a chain can serve, or that no instant is commonly covered.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
 //!   automatically cleans up old dynamic transforms on insert; one built with
 //!   `Registry::new` keeps them until `remove_transforms_before` is called.
@@ -80,17 +82,24 @@
 //! ```
 
 use crate::{
-    core::{Buffer, buffer::GetError},
+    core::{
+        Buffer,
+        buffer::{Coverage, GetError},
+    },
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
-use alloc::{collections::VecDeque, string::String};
+use alloc::{collections::VecDeque, string::String, vec::Vec};
 pub use error::RegistryError;
 use hashbrown::HashMap;
 
 use core::time::Duration;
 
 mod error;
+
+/// One frame's walk to its tree's root: the edges crossed — each keyed by
+/// its child frame, in walk order — and the root frame the walk ends on.
+type Ancestry<'a, T> = (Vec<(&'a str, &'a Buffer<T>)>, &'a str);
 
 /// A registry for managing transforms between different frames. It can
 /// traverse the parent-child tree and calculate the final transform.
@@ -309,13 +318,10 @@ where
     /// data the request falls outside of, or `None` — no range to carry —
     /// when it holds no data at all, the state a frame drained by
     /// [`Registry::remove_transforms_before`] stays in until something is
-    /// inserted into it again. "The newest instant this chain can serve
-    /// at or before this request" is answered by retrying off `covered`
-    /// with the guard documented on
-    /// [`RegistryError::NotFoundAt`](crate::errors::RegistryError::NotFoundAt):
-    /// lower the request onto the covered end, never raise it — exact
-    /// when the target is the tree's root, conservative for a mid-tree
-    /// target.
+    /// inserted into it again. "What is the newest instant this chain
+    /// *can* serve" is a first-class query: ask
+    /// [`Registry::latest_common_time`] and re-request at its answer —
+    /// exact for mid-tree targets too, with no retrying.
     ///
     /// Composing, inverting or interpolating the transforms the walk
     /// collected can itself fail: inverting a half-chain that composed to an
@@ -536,6 +542,172 @@ where
         )
     }
 
+    /// Returns the newest instant [`Registry::get_transform`] can serve for
+    /// this pair of frames, without resolving the transform.
+    ///
+    /// `Stamp::At(t)` reports the newest instant every hop of the
+    /// connecting chain covers: the oldest of the dynamic hops' newest
+    /// samples. The answer consults only the hops the chain actually
+    /// crosses — edges above the two frames' common ancestor do not
+    /// constrain it — so it is exact for mid-tree pairs too. It is also
+    /// symmetric in its arguments: both lookup directions serve the same
+    /// instants. `Stamp::Static` means the chain puts no bound on time at
+    /// all — every hop is static, or `target == source` (the identity,
+    /// which serves any instant, matching `get_transform`) — so the caller
+    /// picks the instant.
+    ///
+    /// The intended idiom is this call followed by
+    /// [`Registry::get_transform`] at the returned instant. The instant
+    /// stays within every hop's covered range only while the registry is
+    /// unmodified — with the registry behind a lock, make both calls under
+    /// the same read guard. Across separate guards, an interleaved write
+    /// that only adds samples leaves the follow-up lookup succeeding,
+    /// merely no longer at the newest instant; one that evicts — a
+    /// [`Registry::with_max_age`] expiry riding on an insert,
+    /// [`Registry::remove_transforms_before`], [`Registry::remove_frame`] —
+    /// can remove the instant, and the lookup fails loudly
+    /// (`RegistryError::NotFoundAt`, or `UnknownFrame`/`Disconnected` once
+    /// a frame is gone). Either way the failure is loud: no interleaving
+    /// produces a wrong pose.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RegistryError::UnknownFrame` if a requested frame exists
+    /// nowhere in the tree and `RegistryError::Disconnected` if both exist
+    /// but no chain connects them — the same variants, matched by the same
+    /// arms, as a failed [`Registry::get_transform`]. (When several faults
+    /// coexist the two calls may prioritize differently: a lookup reports
+    /// its recorded walk failure over `Disconnected`, this query decides
+    /// topology first.)
+    ///
+    /// Returns `RegistryError::NoCommonTime` when no instant is servable
+    /// by every hop of the chain, naming the hop that rules it out: either
+    /// the dynamic hops' covered ranges are disjoint (`covered` carries
+    /// the named frame's range), or a hop holds no data at all
+    /// (`covered: None`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// let mut registry = Registry::new();
+    /// for (parent, child, nanos) in [
+    ///     ("map", "odom", 4_000),
+    ///     ("map", "odom", 9_000),
+    ///     ("odom", "base", 3_000),
+    ///     ("odom", "base", 7_000), // this hop lags: nothing newer yet
+    /// ] {
+    ///     registry
+    ///         .add_transform(
+    ///             Transform::new(
+    ///                 parent,
+    ///                 child,
+    ///                 Vector3::new(1.0, 0.0, 0.0),
+    ///                 Quaternion::identity(),
+    ///                 Stamp::At(Timestamp::from_nanos(nanos)),
+    ///             )
+    ///             .unwrap(),
+    ///         )
+    ///         .unwrap();
+    /// }
+    ///
+    /// // The map ← base chain is bounded by its laggiest hop.
+    /// let stamp = registry.latest_common_time("map", "base").unwrap();
+    /// assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(7_000)));
+    ///
+    /// // The returned instant is servable: the two-call idiom.
+    /// let latest = registry
+    ///     .get_transform("map", "base", stamp.at().unwrap())
+    ///     .unwrap();
+    /// assert_eq!(latest.timestamp(), stamp);
+    /// ```
+    pub fn latest_common_time(
+        &self,
+        target: &str,
+        source: &str,
+    ) -> Result<Stamp<T>, RegistryError<T>> {
+        if target == source {
+            return Ok(Stamp::Static);
+        }
+
+        let (target_edges, target_root) = Self::ancestry(target, &self.data);
+        let (source_edges, source_root) = Self::ancestry(source, &self.data);
+        if target_root != source_root {
+            // The walks ended in different trees: an unknown frame, or two
+            // known but disconnected ones — the same diagnosis order as a
+            // failed lookup.
+            for frame in [target, source] {
+                if !Self::frame_exists(frame, &self.data) {
+                    return Err(RegistryError::UnknownFrame(frame.into()));
+                }
+            }
+            return Err(RegistryError::Disconnected {
+                target_frame: target.into(),
+                source_frame: source.into(),
+            });
+        }
+
+        // Drop the shared tail above the common ancestor: the connecting
+        // chain does not cross those edges, so their coverage must not
+        // constrain the answer.
+        let shared = target_edges
+            .iter()
+            .rev()
+            .zip(source_edges.iter().rev())
+            .take_while(|((target_frame, _), (source_frame, _))| target_frame == source_frame)
+            .count();
+        let chain = target_edges
+            .iter()
+            .take(target_edges.len() - shared)
+            .chain(source_edges.iter().take(source_edges.len() - shared));
+
+        // The newest instant every hop serves is the *minimum* of the
+        // dynamic hops' newest samples — provided every hop's range reaches
+        // back to it, which the latest-starting range decides.
+        let mut common_end: Option<T> = None;
+        let mut latest_start: Option<((T, T), &str)> = None;
+        for &(frame, buffer) in chain {
+            match buffer.coverage() {
+                Coverage::AllTime => {}
+                Coverage::Empty => {
+                    return Err(RegistryError::NoCommonTime {
+                        target_frame: target.into(),
+                        source_frame: source.into(),
+                        frame: frame.into(),
+                        covered: None,
+                    });
+                }
+                Coverage::Range { start, end } => {
+                    if common_end.is_none_or(|current| end < current) {
+                        common_end = Some(end);
+                    }
+                    if latest_start.is_none_or(|(covered, _)| start > covered.0) {
+                        latest_start = Some(((start, end), frame));
+                    }
+                }
+            }
+        }
+
+        match (common_end, latest_start) {
+            (Some(end), Some((covered, frame))) if covered.0 > end => {
+                Err(RegistryError::NoCommonTime {
+                    target_frame: target.into(),
+                    source_frame: source.into(),
+                    frame: frame.into(),
+                    covered: Some(covered),
+                })
+            }
+            (Some(end), _) => Ok(Stamp::At(end)),
+            // Every hop is static: the chain puts no bound on time.
+            (None, _) => Ok(Stamp::Static),
+        }
+    }
+
     /// Removes dynamic transforms older than the given threshold.
     ///
     /// Iterates over all buffers and removes their dynamic entries with a
@@ -642,6 +814,27 @@ where
             }
         }
         false
+    }
+
+    /// Walks from `frame` to its tree's root through the pinned buffer
+    /// parents, collecting the edges crossed. A frame with no buffer is its
+    /// own root: the edge list is empty. The walk terminates because the
+    /// existing tree is acyclic — every edge in it passed the cycle check
+    /// at insertion.
+    fn ancestry<'a>(
+        frame: &'a str,
+        data: &'a HashMap<String, Buffer<T>>,
+    ) -> Ancestry<'a, T> {
+        let mut edges = Vec::new();
+        let mut current = frame;
+        while let Some((buffer, parent)) = data
+            .get(current)
+            .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
+        {
+            edges.push((current, buffer));
+            current = parent;
+        }
+        (edges, current)
     }
 
     /// Returns `true` if the frame appears anywhere in the tree, as a child

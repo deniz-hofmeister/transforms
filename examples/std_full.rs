@@ -4,10 +4,11 @@
 //! each other.
 //!
 //! The writer stamps every sample with the instant it describes, as a real
-//! publisher must. There is no extrapolation, so the reader queries a fixed
-//! lag behind `now()` instead of at `now()` — the newest sample is always
-//! older than the clock, and asking for a time nobody has published yet is a
-//! `NotFoundAt` error, not a pose.
+//! publisher must. There is no extrapolation, so the newest sample is
+//! always older than the clock and asking at `now()` would fail — instead
+//! the reader asks the registry which instant the whole chain can serve
+//! (`latest_common_time`) and queries exactly there, both calls under one
+//! read guard. The reader needs no knowledge of the writer's rate.
 
 #[tokio::main]
 #[cfg(feature = "std")]
@@ -37,12 +38,10 @@ async fn main() {
         .unwrap()
     }
 
-    /// How often the writer publishes a new sample.
+    /// How often the writer publishes a new sample. The reader polls at the
+    /// same period for the demo's sake, but nothing couples the two: the
+    /// reader asks the registry what is servable instead of assuming a lag.
     const PUBLISH_PERIOD: Duration = Duration::from_millis(500);
-    /// How far behind `now()` the reader queries. Two publishing periods
-    /// keep the query inside the covered range even when the writer's next
-    /// sample has not landed yet.
-    const LOOKUP_LAG: Duration = Duration::from_millis(1000);
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("DEBUG")).init();
 
@@ -78,23 +77,32 @@ async fn main() {
 
     // Reader task - queries transforms (shared access, does not block other
     // readers). The lookup crosses the dynamic a -> b edge and the static
-    // b -> lidar mount in one chain, at a stamp the writer has already
-    // covered: the first sleep is what makes that true from the first query
-    // on.
+    // b -> lidar mount in one chain. The sleep at the top of the loop lets
+    // the writer's first sample land before the first query; a query racing
+    // ahead of it would fail loudly with UnknownFrame, never guess.
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
-        tokio::time::sleep(PUBLISH_PERIOD + LOOKUP_LAG).await;
         loop {
-            let query = (Timestamp::now() - LOOKUP_LAG).unwrap();
-            let result = registry_reader
-                .read()
-                .await
-                .get_transform("a", "lidar", query);
+            tokio::time::sleep(PUBLISH_PERIOD).await;
+
+            // Both calls under the same read guard: no writer can advance
+            // or evict coverage between "which instant?" and the lookup.
+            let guard = registry_reader.read().await;
+            let result = guard
+                .latest_common_time("a", "lidar")
+                .and_then(|stamp| match stamp {
+                    Stamp::At(t) => guard.get_transform("a", "lidar", t),
+                    // An all-static chain serves any instant the caller
+                    // picks; this chain has a dynamic hop, so this arm is
+                    // only a matter of completeness.
+                    Stamp::Static => guard.get_transform("a", "lidar", Timestamp::now()),
+                });
+            drop(guard);
+
             match result {
                 Ok(tf) => info!("Found transform: {tf:?}"),
                 Err(e) => error!("Transform not found: {e:?}"),
             }
-            tokio::time::sleep(PUBLISH_PERIOD).await;
         }
     });
 
