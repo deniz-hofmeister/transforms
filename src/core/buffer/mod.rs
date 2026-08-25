@@ -59,7 +59,7 @@ use crate::{
     time::{Stamp, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
-use core::time::Duration;
+use core::{fmt, time::Duration};
 pub(crate) use error::{GetError, InsertError};
 mod error;
 
@@ -91,7 +91,6 @@ type NearestTransforms<'a, T> = (
 /// than `max_age` relative to the latest inserted timestamp are removed
 /// automatically on insert. A buffer created with [`Buffer::dynamic`] never
 /// expires entries; use [`Buffer::remove_before`] for manual cleanup.
-#[derive(Debug)]
 pub(crate) struct Buffer<T = Timestamp>
 where
     T: TimePoint,
@@ -101,11 +100,52 @@ where
     kind: Kind<T>,
 }
 
+/// Summarizes the buffer instead of dumping it: frames, kind, sample count
+/// and covered range. A dynamic frame can hold thousands of samples, and a
+/// derived `Debug` — reachable through `Registry`'s — printed every one of
+/// them, which made the output useless at exactly the buffer sizes worth
+/// debugging.
+impl<T> fmt::Debug for Buffer<T>
+where
+    T: TimePoint,
+{
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let mut summary = f.debug_struct("Buffer");
+        summary
+            .field("parent", &self.parent)
+            .field("child", &self.child);
+        match &self.kind {
+            // A static buffer holds at most one transform, and that
+            // transform — a mount's pose — is what gets debugged: print it.
+            Kind::Static(slot) => summary.field("kind", &"static").field("transform", slot),
+            Kind::Dynamic {
+                data,
+                latest_timestamp,
+                max_age,
+            } => summary
+                .field("kind", &"dynamic")
+                .field("samples", &data.len())
+                .field(
+                    "covered",
+                    &data
+                        .first_key_value()
+                        .zip(data.last_key_value())
+                        .map(|((start, _), (end, _))| (start, end)),
+                )
+                .field("latest", latest_timestamp)
+                .field("max_age", max_age),
+        };
+        summary.finish()
+    }
+}
+
 /// The buffer's storage, decided at construction: one static transform, or
 /// a time series of dynamic samples. Keeping the kind structural — instead
 /// of a flag re-derived from the stored data — makes it impossible for a
 /// buffer to change kind when it is emptied and refilled.
-#[derive(Debug)]
 enum Kind<T>
 where
     T: TimePoint,
@@ -369,8 +409,10 @@ where
             ..
         } = &mut self.kind
         {
-            // Everything at or after the cutoff survives; split_off keeps the
-            // removal O(log n) regardless of how many entries fall away.
+            // Everything at or after the cutoff survives. split_off finds
+            // the boundary in O(log n); freeing the evicted prefix is
+            // O(evicted) on top — the same O(log n + evicted) as expiry,
+            // each entry freed exactly once.
             let kept = data.split_off(&timestamp);
             *data = kept;
             // The expiry reference must not outlive the samples it was
