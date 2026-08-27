@@ -3,13 +3,47 @@ mod buffer_tests {
     use crate::{
         core::{
             Buffer,
-            buffer::{GetError, InsertError},
+            buffer::{Coverage, GetError, InsertError},
         },
         errors::TransformError,
         geometry::{Quaternion, Transform, Vector3},
         time::{Stamp, Timestamp},
     };
     use core::time::Duration;
+
+    #[test]
+    fn coverage_reports_all_time_for_a_filled_static_buffer() {
+        let mut buffer = Buffer::static_edge();
+        buffer.insert(create_static_transform()).unwrap();
+        assert!(matches!(buffer.coverage(), Coverage::AllTime));
+    }
+
+    #[test]
+    fn coverage_reports_the_stored_range_of_a_dynamic_buffer() {
+        let mut buffer = Buffer::dynamic();
+        for nanos in [3_000, 1_000, 7_000] {
+            buffer
+                .insert(create_transform(Timestamp::from_nanos(nanos)))
+                .unwrap();
+        }
+        assert!(matches!(
+            buffer.coverage(),
+            Coverage::Range { start, end }
+                if start == Timestamp::from_nanos(1_000) && end == Timestamp::from_nanos(7_000)
+        ));
+    }
+
+    #[test]
+    fn coverage_reports_empty_for_new_and_drained_buffers() {
+        let mut buffer: Buffer = Buffer::dynamic();
+        assert!(matches!(buffer.coverage(), Coverage::Empty));
+
+        buffer
+            .insert(create_transform(Timestamp::from_nanos(1_000)))
+            .unwrap();
+        buffer.remove_before(Timestamp::from_nanos(2_000));
+        assert!(matches!(buffer.coverage(), Coverage::Empty));
+    }
 
     fn create_transform(t: Timestamp) -> Transform {
         stamped_transform(Stamp::At(t))

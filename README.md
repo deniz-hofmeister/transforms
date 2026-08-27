@@ -30,10 +30,21 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **O(log n) Lookups**: Efficient transform retrieval using `BTreeMap` storage — O(log n) in stored samples per frame, linear in chain depth for indirect frames.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
+- **Latest Common Time**: `latest_common_time` reports the newest instant a chain can serve — freshness is a first-class answer, not a retry loop or an assumed publisher rate.
 
 ## What's New
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
+
+### Unreleased
+
+- **`Registry::latest_common_time`**: "what is the newest instant this
+  chain can serve?" is now a first-class query — exact also for mid-tree
+  pairs, `Stamp::Static` for all-static chains, and a diagnosed
+  `NoCommonTime` error when no instant is servable at all. It replaces
+  the retry-off-`covered` idiom the `NotFoundAt` docs used to describe,
+  and `examples/std_full.rs` now reads at the servable instant instead
+  of a hardcoded lag.
 
 ### v2.0.0 highlights
 
@@ -166,19 +177,33 @@ pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), RegistryE
 pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, RegistryError<T>>
 pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, RegistryError<T>>
 pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, RegistryError<T>>
+pub fn latest_common_time(&self, target: &str, source: &str) -> Result<Stamp<T>, RegistryError<T>>
 pub fn remove_transforms_before(&mut self, timestamp: T)
 pub fn remove_frame(&mut self, child: &str) -> bool
 ```
+
+`latest_common_time` answers "what is the newest instant `get_transform`
+can serve for this pair?" — the oldest of the chain's dynamic hops' newest
+samples, exact also for mid-tree pairs, `Stamp::Static` when every hop is
+static (the caller picks the instant). The intended idiom is that call
+followed by `get_transform` at the returned instant, both under the same
+lock guard when the registry is shared.
 
 Every registry call reports `errors::RegistryError<T>`, one flat
 `#[non_exhaustive]` enum: `NonUnitRotation`, `NonFiniteValues`,
 `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected` and
 `StaticDynamicConflict` from insertion; `UnknownFrame`, `Disconnected` and
-`NotFoundAt` from lookups. One `match` reaches every cause and every
+`NotFoundAt` from lookups; `NoCommonTime` from `latest_common_time`, which
+shares `UnknownFrame` and `Disconnected` with the lookups so the same
+match arms diagnose both. One `match` reaches every cause and every
 payload — `NotFoundAt` carries the frame the walk stopped at, the
 `requested: T` timestamp, and `covered: Option<(T, T)>`: `Some(range)` is a
 gap in data the frame holds (a timing question), `None` is a frame holding
-nothing at all (waiting will not help). The timestamps stay in your own
+nothing at all (waiting will not help). `NoCommonTime` reuses the
+`covered` shape with its own meaning: `Some(range)` names a hop whose
+range starts after the newest instant the rest of the chain serves —
+disjoint coverage, not a timing question — and `None` a hop holding
+nothing. The timestamps stay in your own
 time type, so they compare directly against the clock you asked with. The
 one wrapping variant, `RegistryError::TransformError`, reports a geometry
 or time failure of an operation on the resolved chain; it never carries
@@ -472,16 +497,26 @@ tokio::spawn(async move {
     registry_writer.write().await.add_transform(transform).unwrap();
 });
 
-// Reader task - shared access, does not block other readers
+// Reader task - shared access, does not block other readers. Both calls
+// under one guard: ask which instant the chain serves, then look it up.
 let registry_reader = registry.clone();
 tokio::spawn(async move {
-    let result = registry_reader.read().await.get_transform("a", "b", timestamp);
+    let guard = registry_reader.read().await;
+    let result = guard
+        .latest_common_time("a", "b")
+        .and_then(|stamp| match stamp {
+            Stamp::At(t) => guard.get_transform("a", "b", t),
+            // An all-static chain serves any instant the caller picks.
+            Stamp::Static => guard.get_transform("a", "b", Timestamp::now()),
+        });
 });
 ```
 
 `examples/std_full.rs` is this pattern as a program that compiles and runs
-(`cargo run --example std_full`), including how a reader picks a timestamp
-its publishers already cover.
+(`cargo run --example std_full`), including the freshest-pose idiom: ask
+`latest_common_time` which instant the chain serves and `get_transform` at
+exactly that instant, both under the same read guard so no writer can
+advance or evict coverage between the two calls.
 
 ## Comparison with ROS2 tf2
 
@@ -505,7 +540,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 | **Middleware** | Tightly coupled to ROS2/DDS | None - completely standalone |
 | **Language** | C++ with Python/other bindings | Pure Rust |
 | **`no_std`** | Not supported | Fully supported |
-| **Async Pattern** | `waitForTransform()` with callbacks | Synchronous (user manages async) |
+| **Async Pattern** | `waitForTransform()` with callbacks | Synchronous — `latest_common_time` answers readiness; waiting is the caller's |
 | **Error Handling** | C++ exceptions | Rust `Result` types |
 | **Buffer Default** | 10 seconds | User-configured |
 | **Cleanup** | Automatic background process | Automatic (`with_max_age`) or manual (`Registry::new`), both modes |
@@ -649,7 +684,7 @@ The `examples/` directory contains complete working examples:
 | Example | Description |
 |---------|-------------|
 | `std_minimal.rs` | Registry basics: transform a point between frames, with interpolation |
-| `std_full.rs` | Concurrent async usage with Tokio (parallel readers and a writer) |
+| `std_full.rs` | Concurrent async usage with Tokio: readers query at `latest_common_time` under one read guard |
 | `std_advanced.rs` | Time travel between frames with `get_transform_at` |
 | `no_std_minimal.rs` | Minimal `no_std` usage: add and retrieve a transform |
 | `no_std_full.rs` | Point transform and interpolation with manual cleanup |

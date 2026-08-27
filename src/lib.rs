@@ -25,6 +25,9 @@
 //! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
 //!   automatically on insert; `Registry::new` keeps them until `remove_transforms_before`
 //!   is called. Both work with and without `std`.
+//! - **Latest Common Time**: `Registry::latest_common_time` reports the newest
+//!   instant a chain can serve — freshness is a first-class answer, not a
+//!   retry loop or an assumed publisher rate.
 //! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
 //!
 //! # Non-Goals

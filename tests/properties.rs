@@ -268,13 +268,15 @@ proptest! {
     }
 
     #[test]
-    fn latest_available_retry_is_exact_for_a_root_target(
+    fn latest_common_time_is_exact_for_any_frame_pair_on_a_chain(
         ranges in proptest::collection::vec((0_u64..1_000_000, 1_u64..1_000_000), 2..=4),
+        picks in (0_usize..100, 0_usize..100),
     ) {
-        // Hop i covers [start, start + span]; the target f0 is the root, so
-        // every frame a failed lookup reports is on the resolved chain and
-        // the retry guard documented on `RegistryError::NotFoundAt` is
-        // exact.
+        // Hop i covers [start, start + span]. Any two frames of the chain
+        // f0 -> f1 -> ... are a valid pair: the connecting chain is
+        // exactly ranges[lo..hi], so the hops outside it — including
+        // those above the pair's common ancestor — must not constrain
+        // the answer.
         let mut registry = Registry::new();
         for (i, (start, span)) in ranges.iter().enumerate() {
             for nanos in [*start, start + span] {
@@ -289,41 +291,59 @@ proptest! {
                 registry.add_transform(transform).unwrap();
             }
         }
-        let leaf = format!("f{}", ranges.len());
-        let newest_common_end = ranges.iter().map(|(start, span)| start + span).min().unwrap();
-        let latest_common_start = ranges.iter().map(|(start, _)| *start).max().unwrap();
+        let (a, b) = (picks.0 % (ranges.len() + 1), picks.1 % (ranges.len() + 1));
+        prop_assume!(a != b);
+        let (lo, hi) = (a.min(b), a.max(b));
+        let target = format!("f{a}");
+        let source = format!("f{b}");
 
-        // Ask beyond every range, then lower the request onto each failing
-        // frame's covered end — never raise it.
-        let mut requested = Timestamp::from_nanos(2_000_001);
-        let mut retries = 0_usize;
-        let outcome = loop {
-            match registry.get_transform("f0", &leaf, requested) {
-                Ok(transform) => break Ok(transform),
-                Err(RegistryError::NotFoundAt {
-                    covered: Some((_, end)),
-                    ..
-                }) if end < requested => {
-                    requested = end;
-                    retries += 1;
-                    prop_assert!(retries <= ranges.len(), "one retry per hop exceeded");
-                }
-                Err(error) => break Err(error),
-            }
-        };
+        // The oracle, computed directly from the generated ranges.
+        let newest_common_end = ranges[lo..hi]
+            .iter()
+            .map(|(start, span)| start + span)
+            .min()
+            .unwrap();
+        let latest_common_start = ranges[lo..hi].iter().map(|(start, _)| *start).max().unwrap();
+
+        let outcome = registry.latest_common_time(&target, &source);
+        // Both lookup directions serve the same instants.
+        let mirrored = registry.latest_common_time(&source, &target);
 
         if latest_common_start <= newest_common_end {
-            // The ranges share instants: the loop must land exactly on the
-            // newest commonly covered one.
-            let transform = outcome.unwrap();
-            prop_assert_eq!(
-                transform.timestamp(),
-                Stamp::At(Timestamp::from_nanos(newest_common_end))
+            // The chain's ranges share instants: the answer is exactly the
+            // newest commonly covered one, servable, and maximal.
+            let expected = Stamp::At(Timestamp::from_nanos(newest_common_end));
+            prop_assert_eq!(outcome.unwrap(), expected);
+            prop_assert_eq!(mirrored.unwrap(), expected);
+            prop_assert!(
+                registry
+                    .get_transform(&target, &source, Timestamp::from_nanos(newest_common_end))
+                    .is_ok()
+            );
+            prop_assert!(
+                registry
+                    .get_transform(&target, &source, Timestamp::from_nanos(newest_common_end + 1))
+                    .is_err()
             );
         } else {
-            // No instant is covered by every hop: the loop must error, not
-            // fabricate a pose.
-            prop_assert!(outcome.is_err());
+            // No instant is covered by every hop: a first-class refusal
+            // naming a hop whose range starts past the rest of the chain,
+            // never a plausible-looking instant some hop cannot serve.
+            for result in [outcome, mirrored] {
+                let refused = matches!(
+                    &result,
+                    Err(RegistryError::NoCommonTime {
+                        covered: Some((start, _)),
+                        ..
+                    }) if *start == Timestamp::from_nanos(latest_common_start)
+                );
+                prop_assert!(
+                    refused,
+                    "expected NoCommonTime starting at {}, got {:?}",
+                    latest_common_start,
+                    result
+                );
+            }
         }
     }
 

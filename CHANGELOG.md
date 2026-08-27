@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Registry::latest_common_time(target, source)`: returns the newest
+  instant `get_transform` can serve for the pair — the oldest of the
+  connecting chain's dynamic hops' newest samples, consulting only the
+  hops the chain actually crosses, so the answer is exact for mid-tree
+  pairs too. All-static chains (and `target == source`) return
+  `Stamp::Static`: the chain puts no bound on time and the caller picks
+  the instant. The intended idiom is this call followed by
+  `get_transform` at the returned instant, under one lock guard when the
+  registry is shared.
+- `RegistryError::NoCommonTime`: `latest_common_time`'s refusal when no
+  instant is servable by every hop, naming the hop that rules it out —
+  `covered: Some(range)` when the chain's covered ranges are disjoint,
+  `covered: None` when the hop holds no data at all. Unknown and
+  disconnected frames report the same `UnknownFrame` and `Disconnected`
+  variants as a failed lookup.
+
+### Changed
+
+- The retry-off-`covered` "latest available" idiom is retired from the
+  `NotFoundAt` documentation in favor of `latest_common_time`, which is
+  exact where the loop was conservative (mid-tree targets) and does not
+  spend a failed chain walk per attempt. `examples/std_full.rs` now
+  demonstrates the new idiom instead of hardcoding a lookup lag coupled
+  to the writer's publish rate.
+- `Registry`'s `Debug` output summarizes each frame's buffer — frames,
+  kind, sample count, covered range — instead of dumping every stored
+  sample. `Debug` output is not a stability surface; match on error
+  variants and read accessors, never on formatted text.
+
 ## [2.0.0] - 2026-08-22
 
 The 1.x line's silent-wrong-answer surfaces are closed: 2.0.0 validates
@@ -471,6 +504,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...HEAD
 [2.0.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.3.0...v1.4.0

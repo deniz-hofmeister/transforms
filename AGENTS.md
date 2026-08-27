@@ -127,6 +127,14 @@ would produce) a silent wrong answer:
   frame holding nothing at all (`None`); a caller must not read the second
   as a timing problem. Results always carry the requested timestamp (also
   over static chains), and a frame relative to itself is the identity.
+  `latest_common_time` diagnoses with the same `UnknownFrame` and
+  `Disconnected`, and refuses with `NoCommonTime` — the same
+  `frame` + `covered: Option<(T, T)>` payload shape, its own meaning:
+  `Some` names a hop whose range starts past the newest instant the rest
+  of the chain serves (disjoint coverage), `None` a hop holding nothing.
+  It must never return an instant some hop cannot serve — min of the
+  dynamic hops' newest samples, guarded by max of their starts, over
+  only the hops the connecting chain crosses.
 - Every `Registry` call reports `RegistryError<T>` and it stays **flat**:
   one `match` reaches every cause and every payload. `TransformError` is
   pure geometry and time, and the single `RegistryError::TransformError` arm
