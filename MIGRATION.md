@@ -1,8 +1,61 @@
-# Migrating from 1.x to 2.0
+# Migrating to 2.1
 
-Every break below was reproduced by compiling the 1.4.1-documented usage
-against 2.0. Work through the compile errors first; then read the runtime
-changes — code that compiles cleanly can still behave differently.
+Start at the section matching where you come from:
+
+- **From 2.0.0** — nothing breaks: 2.1.0 is additive, and the next
+  section is the whole migration.
+- **From a 2.0.0 pre-release** — start at [Coming from a 2.0.0
+  pre-release](#coming-from-a-200-pre-release), then take the additions
+  from the next section.
+- **From 1.x** — every compile break in this guide landed in 2.0.0 and
+  is unchanged in 2.1, so the `// 2.0` code in the examples is the
+  current API. Each break was reproduced by compiling the
+  1.4.1-documented usage against 2.0. Work through the compile errors
+  first; then read the runtime changes — code that compiles cleanly can
+  still behave differently. Finish with the next section: one of its
+  additions, `latest_common_time`, replaces the 1.x-era retry loop
+  outright.
+
+## Coming from 2.0.0
+
+2.1.0 is additive: nothing that compiled against 2.0.0 stops compiling,
+and no existing call changes its answer. What it adds:
+
+- **`Registry::latest_common_time(target, source)`** answers "what is
+  the newest instant `get_transform` can serve for this pair?" — the
+  oldest of the connecting chain's dynamic hops' newest samples,
+  consulting only the hops the chain actually crosses, so the answer is
+  exact for mid-tree pairs too. An all-static chain (or
+  `target == source`) returns `Stamp::Static`: the chain puts no bound
+  on time, and the caller picks the instant. The intended idiom is this
+  call followed by `get_transform` at the returned instant, both under
+  one lock guard when the registry is shared — `examples/std_full.rs`
+  runs it. If you built a retry loop off `NotFoundAt`'s `covered` range
+  — the idiom the 2.0.0 docs described — replace it with this query: it
+  is exact where the loop was conservative, and spends no failed chain
+  walk per attempt.
+- **`RegistryError::NoCommonTime`** is `latest_common_time`'s refusal
+  when no instant is servable by every hop. `RegistryError` is
+  `#[non_exhaustive]`, so existing matches route it through their `_`
+  arm — nothing breaks, but a match that diagnoses failures may want an
+  arm for it. It carries the queried pair (`target_frame`,
+  `source_frame`), the `frame` whose coverage rules a common instant
+  out, and `covered: Option<(T, T)>` with its own meaning:
+  `Some(range)` names a hop whose range starts past the newest instant
+  the rest of the chain serves — the chain's covered ranges are
+  disjoint — and `None` a hop holding nothing at all. What makes the
+  query answer again: for `None`, data on the named frame; for `Some`,
+  ranges coming to overlap — the named frame's range reaching back via
+  a backfill at a past instant, or every other hop catching up to it.
+  Unknown and disconnected frames report the same `UnknownFrame` and
+  `Disconnected` variants as a failed lookup, so one set of arms
+  diagnoses both entry points.
+- **`Registry`'s `Debug` output is a summary.** Each frame prints its
+  parent, kind, and — for a dynamic buffer — the sample count and
+  covered range instead of every stored sample (a static buffer still
+  prints its one transform). `Debug` text is not a stability surface:
+  if anything parsed or snapshot-tested it, match on error variants and
+  read the accessors instead.
 
 ## Coming from a 2.0.0 pre-release
 
@@ -246,8 +299,9 @@ Cross-version decoding is format-dependent, so version-tag your streams:
 ### 3. Error enum overhaul
 
 Every `Registry` call — `add_transform`, the lookups, and the
-`latest_common_time` coverage query (added after 2.0.0; see
-CHANGELOG.md) — now reports one type, `errors::RegistryError<T>`. `TransformError` stays, but only for
+`latest_common_time` coverage query (added in 2.1.0; see the
+[Coming from 2.0.0](#coming-from-200) section) — now reports one type,
+`errors::RegistryError<T>`. `TransformError` stays, but only for
 what it describes: geometry and time, i.e. the `Transform` constructors,
 `inverse`, `interpolate`, `*`, and `Transformable::transform`.
 
@@ -288,9 +342,10 @@ achieves nothing until someone inserts into it (see runtime behavior change
 not in seconds: compare them against the timestamp you asked with. The
 `Display` text still renders seconds. And "the latest available transform"
 — the 1.x-era reason to retry blindly — is a first-class query now:
-`Registry::latest_common_time` (added after 2.0.0; see CHANGELOG.md)
-returns the newest instant the whole chain can serve, exactly, so a
-`get_transform` at its answer replaces any retry loop.
+`Registry::latest_common_time` (added in 2.1.0; see the
+[Coming from 2.0.0](#coming-from-200) section) returns the newest
+instant the whole chain can serve, exactly, so a `get_transform` at its
+answer replaces any retry loop.
 
 `add_transform`'s rejections are variants of the same enum:
 `RegistryError::NonUnitRotation(norm)`, `NonFiniteValues`,
