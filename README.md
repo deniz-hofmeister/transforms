@@ -36,7 +36,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
-### Unreleased
+### v2.1.0
 
 - **`Registry::latest_common_time`**: "what is the newest instant this
   chain can serve?" is now a first-class query — exact also for mid-tree
@@ -90,7 +90,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.0.0"
+transforms = "2.1.0"
 ```
 
 ### Feature Flags
@@ -125,7 +125,7 @@ For `no_std` environments (requires a heap allocator):
 
 ```toml
 [dependencies]
-transforms = { version = "2.0.0", default-features = false }
+transforms = { version = "2.1.0", default-features = false }
 ```
 
 ## Quick Start
