@@ -169,9 +169,11 @@ where
     /// another under `max_age` eviction — or `None` when the frame holds
     /// no data at all, the state
     /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
-    /// leaves a drained frame in. Either way, only new samples make the
-    /// chain answer again: on the named frame for the `None` case, on the
-    /// hop bounding the rest of the chain for the `Some` case.
+    /// leaves a drained frame in. Either way, only inserts make the
+    /// chain answer again: data on the named frame for the `None` case;
+    /// for the `Some` case, ranges that come to overlap — the named
+    /// frame's range reaching back via a backfill at a past instant, or
+    /// every hop still ending before that range catching up to it.
     #[error(
         "no instant is covered by every hop between {target_frame} and {source_frame} ({frame} {})",
         Coverage(.covered)
