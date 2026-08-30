@@ -36,6 +36,33 @@ no. Concretely:
 - Question single-use generality: a helper with one caller, a type parameter
   with one instantiation, a config knob with one setting.
 
+## Scope: what belongs in the core
+
+The crate owns exactly the computations its invariants make dangerous to
+perform anywhere else, and its interface exposes validated answers about its
+state — never the raw state. Non-Goals bounds the domain; this bounds the
+altitude. To place a proposed capability:
+
+- If it can be built correctly and exactly on the public API, it belongs
+  outside — the caller's code or a companion crate, never here. (An async
+  wait-for-transform layer composes on the public API; out.)
+- If the correct version needs sealed internals, the choice is core or
+  nowhere. Never resolve it by exposing the internals instead: primitives are
+  a larger commitment than the narrow query they would enable, and they hand
+  every downstream the composition mistakes the query exists to prevent.
+  Minimalism is measured in exported commitments, not exported functions.
+- Between core and nowhere: if the substitute users would build outside is
+  merely verbose, wait for demonstrated need. If it is a wrong-answer
+  generator, ship the correct version — this crate cannot assume a
+  well-maintained utility layer will materialize around it, and pushed-out
+  invariant logic becomes hand-rolled wrong copies. (`latest_common_time` is
+  core because its max-of-starts guard is precisely what external
+  implementations omit.)
+- No addition is precedent for its neighbors. Each point of a query family
+  is argued from an invariant and its own demonstrated need —
+  `latest_common_time` does not license `earliest_common_time` or coverage
+  introspection.
+
 ## Architecture in five lines
 
 - `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
