@@ -5,6 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - Unreleased
+
+### Added
+
+- `Registry::reparent_frame(transform)`: atomic native re-parenting.
+  The transform's child is the frame to move, its parent the new
+  parent, and the transform itself seeds the frame's history under the
+  new pin. Every check — root/unknown diagnosis, unchanged parent,
+  cycle detection, and the ordinary insert checks on the seed — runs
+  before any mutation, so a rejection leaves the registry untouched;
+  the previously documented `remove_frame`-then-re-add route could
+  destroy the frame first and only then discover the cycle. The price
+  is the frame's stored history, dropped loudly (coverage collapses to
+  the seed's instant); the frame's static-or-dynamic kind and its
+  `max_age` expiry policy are deliberately preserved — a seed of the
+  opposite kind is rejected with `StaticDynamicConflict` rather than
+  quietly rewriting a time series as one eternal pose. Descendants
+  ride along with their history intact.
+- `RegistryError::NoParentToReplace(frame)`: `reparent_frame`'s
+  refusal for a known root — a root gains a parent through an ordinary
+  `add_transform` insert, not a re-parent.
+- `RegistryError::ParentUnchanged(frame)`: `reparent_frame`'s refusal
+  when the "new" parent is the current one. An error, not an upsert:
+  resolving every failed insert into a re-parent would wipe the
+  frame's history once and look correct forever after.
+
+### Fixed
+
+- The README, MIGRATION.md and the `Registry::remove_frame` docs
+  taught that moving a subtree requires removing and re-adding each
+  descendant. False and destructive: descendants keep their pin to the
+  removed frame, so re-adding only the subtree's root reconnects the
+  whole subtree with every descendant's history intact. The corrected
+  recipe is now documented and pinned by a test.
+
+### Changed
+
+- `RegistryError::ReparentingNotSupported`'s message and documentation
+  now point to `reparent_frame` as the deliberate re-parenting path
+  (the variant name predates the feature; a rename is logged for 3.0).
+
 ## [2.1.0] - 2026-08-27
 
 ### Added
@@ -504,6 +545,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...master
 [2.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1

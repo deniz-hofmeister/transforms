@@ -113,10 +113,19 @@ would produce) a silent wrong answer:
   minted a transform the registry then served at every instant. Both are
   decode errors; do not trade the derive back for an optional encoding.
 - The frame tree is strict: the first insert also pins a child frame's parent
-  (re-parenting fails with `ReparentingNotSupported`; `Registry::remove_frame`
-  is the escape hatch), a frame cannot be its own parent, and inserts that
-  would close a cycle fail with `CycleDetected`. Chain resolution relies on
-  this — the topology is time-invariant and acyclic.
+  (`add_transform` never changes it — that fails with
+  `ReparentingNotSupported`), a frame cannot be its own parent, and every
+  edge entering the tree is cycle-checked before it commits, failing with
+  `CycleDetected`. Re-parenting is a deliberate act with its own call:
+  `Registry::reparent_frame` validates everything — root/unknown split,
+  unchanged parent, cycle, then the seed through the ordinary insert checks
+  — before mutating anything, preserves the frame's static-xor-dynamic kind
+  and `max_age` (via the crate-private `Buffer::empty_like`; a cross-kind
+  seed fails with `StaticDynamicConflict`), and drops the frame's stored
+  history loudly. `Registry::remove_frame` plus re-adding remains the route
+  for kind changes and keep-the-history moves. Chain resolution relies on
+  the result — the topology is acyclic at every instant and time-invariant
+  for the duration of any query.
 - A lookup must return a transform whose `parent`/`child` match the requested
   frames exactly; a chain that resolves only partway must return an error,
   never a partial result — `UnknownFrame` for a frame that exists nowhere,

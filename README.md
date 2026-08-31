@@ -31,10 +31,26 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 - **Latest Common Time**: `latest_common_time` reports the newest instant a chain can serve — freshness is a first-class answer, not a retry loop or an assumed publisher rate.
+- **Re-parenting**: `Registry::reparent_frame` atomically moves a child frame under a new parent — validated first, committed in one step, at the loud, documented price of the frame's stored history.
 
 ## What's New
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
+
+### v2.2.0 (unreleased)
+
+- **`Registry::reparent_frame`**: native re-parenting. One call moves a
+  child frame under a new parent — every check (including the cycle
+  check, which the caller cannot run from outside) happens before any
+  mutation, so a rejection leaves the registry untouched. The price is
+  the frame's stored history, dropped loudly: coverage collapses to the
+  seed transform's instant, and lookups at other instants fail with
+  `NotFoundAt` rather than answering from stale geometry. The frame's
+  static-or-dynamic kind and `max_age` expiry policy are preserved;
+  descendants ride along with their history intact. Two new error
+  variants: `NoParentToReplace` (roots gain parents via
+  `add_transform`) and `ParentUnchanged` (re-parenting to the current
+  parent is an error, not an upsert — it would silently wipe history).
 
 ### v2.1.0
 
@@ -174,6 +190,7 @@ pub fn new() -> Self
 pub fn with_max_age(max_age: Duration) -> Self
 
 pub fn add_transform(&mut self, transform: Transform<T>) -> Result<(), RegistryError<T>>
+pub fn reparent_frame(&mut self, transform: Transform<T>) -> Result<(), RegistryError<T>>
 pub fn get_transform(&self, target: &str, source: &str, timestamp: T) -> Result<Transform<T>, RegistryError<T>>
 pub fn get_transform_for<U: Localized<T>>(&self, value: &U, target_frame: &str) -> Result<Transform<T>, RegistryError<T>>
 pub fn get_transform_at(&self, target_frame: &str, target_time: T, source_frame: &str, source_time: T, fixed_frame: &str) -> Result<Transform<T>, RegistryError<T>>
@@ -189,10 +206,19 @@ static (the caller picks the instant). The intended idiom is that call
 followed by `get_transform` at the returned instant, both under the same
 lock guard when the registry is shared.
 
+`reparent_frame` moves a child frame under the transform's parent frame,
+with the transform doubling as the frame's first sample under the new
+pin. Everything is validated before anything is mutated; what the move
+costs — the frame's stored history — and what it preserves — the
+static-or-dynamic kind, the `max_age` policy, the descendants' pins and
+history — is documented on the method.
+
 Every registry call reports `errors::RegistryError<T>`, one flat
 `#[non_exhaustive]` enum: `NonUnitRotation`, `NonFiniteValues`,
 `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected` and
-`StaticDynamicConflict` from insertion; `UnknownFrame`, `Disconnected` and
+`StaticDynamicConflict` from insertion; `NoParentToReplace` and
+`ParentUnchanged` from `reparent_frame`, whose seed also crosses the
+insertion checks; `UnknownFrame`, `Disconnected` and
 `NotFoundAt` from lookups; `NoCommonTime` from `latest_common_time`, which
 shares `UnknownFrame` and `Disconnected` with the lookups so the same
 match arms diagnose both. One `match` reaches every cause and every
@@ -322,16 +348,19 @@ A given child frame is either static or dynamic: mixing the two kinds for the sa
 child frame is rejected by `add_transform` with a `StaticDynamicConflict` error.
 
 The frame tree is strict: a child frame's parent is pinned by its first
-transform (re-parenting is rejected — remove the frame with
-`Registry::remove_frame` and re-add it to change its parent), a frame cannot
-be its own parent, and cycles are rejected at insertion. Removing a
-mid-tree frame strands its descendants (they keep their pin to the removed
-parent) until it is re-added, so re-parent a whole subtree by removing its
-root frame and re-adding only that frame under the new parent — the
+transform, a frame cannot be its own parent, and cycles are rejected
+whenever an edge enters the tree. `add_transform` never changes an
+existing pin (it fails with `ReparentingNotSupported`); moving a frame is
+a deliberate act with a deliberate API — `Registry::reparent_frame`
+re-pins the frame atomically at the price of its stored history, and
+`Registry::remove_frame` followed by re-adding covers what that call
+refuses: changing a frame's kind, moving it *with* its history, or
+re-rooting. Removing a mid-tree frame strands its descendants (they keep
+their pin to the removed parent) only until it is re-added, so either
+route moves a whole subtree by touching just the subtree's root — the
 descendants reconnect through their kept pins, history intact.
 Re-publishing a transform at an already-stored timestamp replaces that
-sample: last write wins. Native re-parenting support may become a feature
-in a later release.
+sample: last write wins.
 
 ```rust
 // Static transform: camera mount position (never changes)
@@ -519,6 +548,15 @@ tokio::spawn(async move {
 `latest_common_time` which instant the chain serves and `get_transform` at
 exactly that instant, both under the same read guard so no writer can
 advance or evict coverage between the two calls.
+
+The same one-guard rule applies to write pairs. Deciding to re-parent and
+calling `reparent_frame` — or retrying a failed `add_transform` as one —
+is a two-call write sequence: make both calls under a single write guard.
+Across separate guards an interleaved writer can steal the move (the
+retry then fails with `ParentUnchanged`) or re-parent the frame elsewhere
+first, in which case this writer's stale decision destroys the other's
+freshly seeded history. Every interleaving fails loudly or loses an
+update — never a wrong pose — but the single-guard form has neither.
 
 ## Comparison with ROS2 tf2
 

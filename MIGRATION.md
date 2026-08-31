@@ -142,8 +142,9 @@ to you, and each one catches something 1.x accepted.
   reject them earlier now too (break 7), but the insert check is what
   catches a transform you built by composing with `*` or by reading a chain
   back out of a lookup: neither re-validates.
-- Topology: `SelfReferentialFrame`, `ReparentingNotSupported` (call
-  `remove_frame` first), and `CycleDetected`.
+- Topology: `SelfReferentialFrame`, `ReparentingNotSupported` (re-parent
+  deliberately with `reparent_frame` — available since 2.2.0 — or
+  `remove_frame` and re-add), and `CycleDetected`.
 - Kind: `StaticDynamicConflict`, for a static and a dynamic transform under
   the same child frame (runtime change 1).
 
@@ -507,12 +508,16 @@ public, so the formulas above are the whole migration.
    demonstrate, and it is a property of the chain, not of one frame's
    buffer. (A 1.x `t=0` sample no longer triggers this either: zero is
    ordinary dynamic data now — see the `Stamp` section above.)
-2. **Re-parenting is rejected.** 1.x let a new parent silently win;
-   2.0 returns `ReparentingNotSupported`. Escape hatch:
-   `registry.remove_frame(child)` then re-add. Removing a mid-tree frame
-   strands its descendants only until it is re-added: they keep their pin
-   to it, so re-adding the removed frame alone reconnects the whole
-   subtree, history intact.
+2. **Re-parenting is rejected on the insert path.** 1.x let a new parent
+   silently win; 2.0 returns `ReparentingNotSupported` from
+   `add_transform`. Since 2.2.0 the deliberate act has its own call —
+   `registry.reparent_frame(transform)` re-pins the frame atomically at
+   the price of its stored history — and the escape hatch
+   `registry.remove_frame(child)` then re-add still covers kind changes
+   and keep-the-history moves. Removing a mid-tree frame strands its
+   descendants only until it is re-added: they keep their pin to it, so
+   re-adding the removed frame alone reconnects the whole subtree,
+   history intact.
 3. **Same-frame lookup returns the identity.** `get_transform(x, x, t)`
    errored in 1.x; it now returns `Ok(identity)`. The same goes for
    `get_transform_at`'s coinciding-frame legs — `source` equal to the
