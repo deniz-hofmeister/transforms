@@ -2979,6 +2979,59 @@ mod registry_tests {
     }
 
     #[test]
+    fn reparent_frame_moves_a_static_frame_and_keeps_it_static() {
+        // The supported static success path: a sensor mount moving to a new
+        // parent. The moved frame serves any requested instant (static
+        // buffers ignore the timestamp), latest_common_time still reports
+        // an unbounded chain, and the frame's kind survives the move — a
+        // later dynamic insert is still refused.
+        let mut registry = Registry::<Timestamp>::new();
+        registry
+            .add_transform(
+                Transform::static_between(
+                    "base_a",
+                    "camera",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        registry
+            .reparent_frame(
+                Transform::static_between(
+                    "base_b",
+                    "camera",
+                    Vector3::new(2.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let moved = registry
+            .get_transform("base_b", "camera", Timestamp::from_nanos(123))
+            .unwrap();
+        assert_abs_diff_eq!(moved.translation(), Vector3::new(2.0, 0.0, 0.0));
+        assert_eq!(
+            registry.latest_common_time("base_b", "camera").unwrap(),
+            Stamp::Static
+        );
+
+        let result = registry.add_transform(translated(
+            "base_b",
+            "camera",
+            Stamp::At(Timestamp::zero()),
+            3.0,
+        ));
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "expected the moved frame to still be static, got {result:?}"
+        );
+    }
+
+    #[test]
     fn reparent_frame_checks_the_topology_before_the_seed() {
         // The documented check order is itself the contract: the questions
         // about the frame are answered before the seed is looked at. Both

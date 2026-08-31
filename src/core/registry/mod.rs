@@ -780,7 +780,8 @@ where
     /// [`Registry::remove_frame`] remains the only way to change a frame's
     /// kind. Descendants ride along: their pins are untouched, so the whole
     /// subtree answers under the new parent with every descendant's history
-    /// intact.
+    /// intact — at the instants the moved hop still serves, which for a
+    /// dynamic frame is the seed's instant until new samples arrive.
     ///
     /// A new parent the registry has never seen is accepted, exactly as
     /// [`Registry::add_transform`] accepts one — publish order stays

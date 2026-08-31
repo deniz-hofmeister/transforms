@@ -200,11 +200,13 @@ jobs:
         run: cargo build --no-default-features --target ${{ matrix.target }}
 
   # Accidental breaking changes are caught against the latest release
-  # published on crates.io. Additive surface must be declared: the check
-  # also fails when new API ships without the matching minor bump in
-  # Cargo.toml. (AGENTS.md release checklist — deliberately added only
-  # after 2.0.0, when a published baseline the lints can enumerate
-  # against started to exist.)
+  # published on crates.io. Additive surface must be declared too: the
+  # check also fails when new public items (such as methods) ship without
+  # the matching minor bump in Cargo.toml — though not every addition has
+  # a lint; new #[non_exhaustive] enum variants, for one, pass unflagged.
+  # (AGENTS.md release checklist — deliberately added only after 2.0.0,
+  # when a published baseline the lints can enumerate against started to
+  # exist.)
   semver:
     name: semver
     runs-on: ubuntu-latest

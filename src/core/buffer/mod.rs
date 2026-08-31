@@ -253,9 +253,17 @@ where
         Self {
             parent: None,
             child: None,
+            // Both sides spelled out in full, no `..`: if `Kind` ever grows
+            // a field, this match must fail to compile so the new field gets
+            // an explicit carry-or-reset decision — this method's whole
+            // purpose is preserving the frame's properties.
             kind: match &self.kind {
                 Kind::Static(_) => Kind::Static(None),
-                Kind::Dynamic { max_age, .. } => Kind::Dynamic {
+                Kind::Dynamic {
+                    data: _,
+                    latest_timestamp: _,
+                    max_age,
+                } => Kind::Dynamic {
                     data: BTreeMap::new(),
                     latest_timestamp: None,
                     max_age: *max_age,

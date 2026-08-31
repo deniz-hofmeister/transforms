@@ -93,10 +93,9 @@ where
     /// made, not whenever an insert fails.
     ///
     /// (The variant name predates `reparent_frame` and is kept for
-    /// compatibility; renaming it is logged for 3.0.)
-    #[error(
-        "add_transform cannot change the child frame's parent ({current_parent}); re-parenting takes reparent_frame"
-    )]
+    /// compatibility; renaming it would be a breaking change, deferred to
+    /// a 3.0.)
+    #[error("add_transform cannot change the child frame's parent ({current_parent})")]
     ReparentingNotSupported {
         /// The parent frame pinned by the child frame's first insert.
         current_parent: String,
@@ -127,12 +126,16 @@ where
     /// root, existing only as other frames' parent. Giving a root a parent
     /// is an ordinary first insert —
     /// [`Registry::add_transform`](crate::Registry::add_transform) — not a
-    /// re-parent. The one arrangement neither call reaches is reversing an
-    /// existing edge (making a frame the parent of its own current parent,
-    /// which the cycle check rejects from the other side): rebuild that
-    /// edge explicitly —
+    /// re-parent. The one arrangement neither call reaches directly is
+    /// reversing an existing edge (making a frame the parent of its own
+    /// current parent, which the cycle check rejects from the other side):
+    /// first delete the edge —
     /// [`Registry::remove_frame`](crate::Registry::remove_frame) on its
-    /// child frame, then re-add both frames in the new arrangement.
+    /// child frame — then attach the old parent under the old child:
+    /// [`Registry::add_transform`](crate::Registry::add_transform) if the
+    /// old parent was a root,
+    /// [`Registry::reparent_frame`](crate::Registry::reparent_frame) if it
+    /// hangs mid-tree with a pin of its own.
     #[error("frame {0} has no parent to replace")]
     NoParentToReplace(String),
 

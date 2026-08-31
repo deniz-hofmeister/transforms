@@ -325,8 +325,11 @@ single source of truth for what the gate is — extend the script, not the
 workflow.
 CI additionally runs the test suite natively on ARM64 as well as x86_64
 (the Raspberry Pi / Jetson deployment class), checks the MSRV
-(`cargo check` on Rust 1.86), and runs `cargo audit` against the RustSec
-advisory database.
+(`cargo check` on Rust 1.86), runs `cargo audit` against the RustSec
+advisory database, and runs `cargo semver-checks` against the latest
+release published on crates.io — which also fails when new public API
+(such as a method) ships without the matching minor bump in `Cargo.toml`,
+so version bumps land with the feature that needs them.
 
 Docs are part of the change: the README (API Reference, What's New, examples
 table) and rustdoc must be updated in the same commit as the code they
@@ -409,6 +412,7 @@ tagged tree. The checklist, in order:
 - `cargo publish`.
 - Create a GitHub release for the tag (pre-releases marked as such). For
   2.0.0 stable specifically: mark it as latest.
-- After 2.0.0 is published: add a `cargo-semver-checks` CI job so accidental
-  breaking changes are caught against the published baseline. This is
-  deliberately not added pre-release — everything is breaking against 1.4.1.
+- The `cargo-semver-checks` CI job (added with 2.2.0) catches accidental
+  breaking changes against the published baseline on every push. It was
+  deliberately not added before 2.0.0 published — everything was breaking
+  against 1.4.1, so there was no baseline it could enumerate against.

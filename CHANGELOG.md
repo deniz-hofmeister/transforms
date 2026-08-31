@@ -44,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `RegistryError::ReparentingNotSupported`'s message and documentation
   now point to `reparent_frame` as the deliberate re-parenting path
-  (the variant name predates the feature; a rename is logged for 3.0).
+  (the variant name predates the feature; renaming it would be a
+  breaking change, deferred to a 3.0).
 
 ## [2.1.0] - 2026-08-27
 
