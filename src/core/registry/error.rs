@@ -21,7 +21,14 @@ use crate::{
 /// asked with.
 ///
 /// The first six variants are reported by
-/// [`add_transform`](crate::Registry::add_transform), the next three by
+/// [`add_transform`](crate::Registry::add_transform);
+/// [`reparent_frame`](crate::Registry::reparent_frame) shares five of
+/// them — all but [`ReparentingNotSupported`](Self::ReparentingNotSupported),
+/// since the seed transform crosses the same checks an insert does — and adds
+/// [`NoParentToReplace`](Self::NoParentToReplace) and
+/// [`ParentUnchanged`](Self::ParentUnchanged), plus
+/// [`UnknownFrame`](Self::UnknownFrame) for a frame that exists nowhere.
+/// The three variants after those are reported by
 /// the lookups, and [`NoCommonTime`](Self::NoCommonTime) by
 /// [`latest_common_time`](crate::Registry::latest_common_time) — which
 /// shares [`UnknownFrame`](Self::UnknownFrame) and
@@ -69,10 +76,25 @@ where
     SelfReferentialFrame,
 
     /// The child frame already has a different parent, given here.
-    /// Re-parenting is not supported; remove the frame first
+    /// [`Registry::add_transform`](crate::Registry::add_transform) never
+    /// changes an existing pin — a publisher with a stale frame layout
+    /// must not silently rewire the tree — so re-parenting takes a
+    /// deliberate call:
+    /// [`Registry::reparent_frame`](crate::Registry::reparent_frame)
+    /// moves the frame under the transform's parent, at the price of the
+    /// frame's stored history. To move the frame *and* keep its history,
+    /// or to change its static-or-dynamic kind, remove the frame
     /// ([`Registry::remove_frame`](crate::Registry::remove_frame)) and
-    /// re-add it under its new parent.
-    #[error("re-parenting is not supported (the child frame's parent is {current_parent})")]
+    /// re-add its history under the new parent.
+    ///
+    /// Do not resolve this error mechanically: two publishers that
+    /// disagree on the frame's parent would then take turns wiping each
+    /// other's history. Re-parent when the *decision* to re-parent was
+    /// made, not whenever an insert fails.
+    ///
+    /// (The variant name predates `reparent_frame` and is kept for
+    /// compatibility; renaming it is logged for 3.0.)
+    #[error("add_transform cannot change the child frame's parent ({current_parent}); re-parenting takes reparent_frame")]
     ReparentingNotSupported {
         /// The parent frame pinned by the child frame's first insert.
         current_parent: String,
@@ -88,11 +110,40 @@ where
     /// one or the other, never both. Fires even after the frame has been
     /// drained of every sample: the kind is a property of the frame, not of
     /// what it currently stores.
+    /// [`Registry::reparent_frame`](crate::Registry::reparent_frame)
+    /// deliberately preserves it — a seed transform of the opposite kind is
+    /// rejected with this same variant, because a move must not quietly
+    /// turn a time series into an eternal pose (or the reverse).
     /// [`Registry::remove_frame`](crate::Registry::remove_frame) is the only
     /// way to change it — remove the frame, then re-add it with the other
     /// kind.
     #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
+
+    /// [`Registry::reparent_frame`](crate::Registry::reparent_frame) was
+    /// asked to move a frame that has no parent to replace: the frame is a
+    /// root, existing only as other frames' parent. Giving a root a parent
+    /// is an ordinary first insert —
+    /// [`Registry::add_transform`](crate::Registry::add_transform) — not a
+    /// re-parent. The one arrangement neither call reaches is reversing an
+    /// existing edge (making a frame the parent of its own current parent,
+    /// which the cycle check rejects from the other side): rebuild that
+    /// edge explicitly —
+    /// [`Registry::remove_frame`](crate::Registry::remove_frame) on its
+    /// child frame, then re-add both frames in the new arrangement.
+    #[error("frame {0} has no parent to replace")]
+    NoParentToReplace(String),
+
+    /// [`Registry::reparent_frame`](crate::Registry::reparent_frame) was
+    /// asked to "move" a frame to the parent it already has. This is an
+    /// error rather than an upsert into the existing history because
+    /// re-parenting drops the frame's stored history: a caller resolving
+    /// every failed insert into a re-parent would wipe the buffer once and
+    /// look correct forever after. Publishing samples on an existing edge
+    /// is [`Registry::add_transform`](crate::Registry::add_transform)'s
+    /// job.
+    #[error("frame {0} already has this parent")]
+    ParentUnchanged(String),
 
     /// The requested frame exists nowhere in the transform tree, neither
     /// as a child nor as a parent frame. Usually a typo or a frame that

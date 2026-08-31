@@ -11,6 +11,9 @@
 //! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
 //! - **Coverage Query**: `Registry::latest_common_time` reports the newest
 //!   instant a chain can serve, or that no instant is commonly covered.
+//! - **Re-parenting**: `Registry::reparent_frame` atomically moves a child
+//!   frame under a new parent — at the loud, documented price of the
+//!   frame's stored history.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
 //!   automatically cleans up old dynamic transforms on insert; one built with
 //!   `Registry::new` keeps them until `remove_transforms_before` is called.
@@ -245,8 +248,9 @@ where
     /// Returns `RegistryError::SelfReferentialFrame` if the transform's
     /// parent and child are the same frame,
     /// `RegistryError::ReparentingNotSupported` if the child frame
-    /// already has a different parent (remove the frame first with
-    /// [`Registry::remove_frame`]), and `RegistryError::CycleDetected` if the
+    /// already has a different parent — this call never rewires the tree;
+    /// that takes an explicit [`Registry::reparent_frame`] — and
+    /// `RegistryError::CycleDetected` if the
     /// new relationship would create a cycle in the frame tree.
     ///
     /// Inserting at a timestamp the child frame already stores replaces the
@@ -564,7 +568,8 @@ where
     /// that only adds samples leaves the follow-up lookup succeeding,
     /// merely no longer at the newest instant; one that evicts — a
     /// [`Registry::with_max_age`] expiry riding on an insert,
-    /// [`Registry::remove_transforms_before`], [`Registry::remove_frame`] —
+    /// [`Registry::remove_transforms_before`], [`Registry::remove_frame`],
+    /// a [`Registry::reparent_frame`] dropping a hop's history —
     /// can remove the instant, and the lookup fails loudly
     /// (`RegistryError::NotFoundAt`, or `UnknownFrame`/`Disconnected` once
     /// a frame is gone). Either way the failure is loud: no interleaving
@@ -717,8 +722,8 @@ where
     ///
     /// A frame drained of every transform keeps its entry, and with it the
     /// parent frame and the static-or-dynamic kind pinned by its first
-    /// insert. Routine cleanup therefore never re-opens a frame for
-    /// re-parenting or for a change of kind, and a lookup on a drained frame
+    /// insert. Routine cleanup therefore never unpins a frame's parent or
+    /// re-opens its kind, and a lookup on a drained frame
     /// fails with `RegistryError::NotFoundAt` naming that frame rather than
     /// reporting it as unknown. Frame entries are released only by
     /// [`Registry::remove_frame`] — a process that mints transient frame
@@ -735,8 +740,11 @@ where
     /// Removes a child frame and all of its transforms from the registry.
     ///
     /// Returns `true` if the frame existed. This is also the escape hatch
-    /// for re-parenting, which `add_transform` rejects: remove the frame,
-    /// then re-add it under its new parent.
+    /// for everything no other call reaches: changing a frame's
+    /// static-or-dynamic kind, moving a frame *with* its history
+    /// (re-insert the history under the new parent —
+    /// [`Registry::reparent_frame`] moves a frame but drops what it
+    /// stored), and rebuilding a reversed edge.
     ///
     /// Removing a frame that parents other frames strands those
     /// descendants: they keep their pin to the removed parent, so lookups
@@ -750,6 +758,173 @@ where
         child: &str,
     ) -> bool {
         self.data.remove(child).is_some()
+    }
+
+    /// Moves a child frame under a new parent, dropping its stored history.
+    ///
+    /// `t.child()` is the frame to move, `t.parent()` the new parent, and
+    /// `t` itself becomes the frame's first sample under the new pin — the
+    /// frame's buffer is replaced by an empty one seeded with `t`, so its
+    /// coverage collapses to the seed. That cost is loud, never silent: a
+    /// lookup at any other instant fails with
+    /// `RegistryError::NotFoundAt` carrying `covered: Some((seed, seed))`,
+    /// and [`Registry::latest_common_time`] reports the collapse the same
+    /// way. To move a frame *without* losing history, use
+    /// [`Registry::remove_frame`] and re-add the history under the new
+    /// parent.
+    ///
+    /// What the move preserves: the frame's static-or-dynamic kind and its
+    /// `max_age` expiry policy belong to the frame, not to the seed — a
+    /// seed of the opposite kind is rejected
+    /// (`RegistryError::StaticDynamicConflict`), and
+    /// [`Registry::remove_frame`] remains the only way to change a frame's
+    /// kind. Descendants ride along: their pins are untouched, so the whole
+    /// subtree answers under the new parent with every descendant's history
+    /// intact.
+    ///
+    /// A new parent the registry has never seen is accepted, exactly as
+    /// [`Registry::add_transform`] accepts one — publish order stays
+    /// irrelevant. The flip side: a typo in the new parent's name detaches
+    /// the subtree rather than erroring, and if the old parent was a root
+    /// whose name appeared nowhere else, later lookups toward it diagnose
+    /// `UnknownFrame` naming the *old* parent. Validate frame names at the
+    /// boundary where they enter the system.
+    ///
+    /// Nothing constrains the seed's timestamp against the history the move
+    /// drops: a seed older than the frame's newest stored sample is
+    /// accepted, and the frame's coverage moves *backwards* to that
+    /// instant. A producer whose messages can reorder in flight — any
+    /// transport, a replayed log — can therefore re-parent on a stale
+    /// message if this call is wired mechanically to incoming data. Gate
+    /// the call on the *decision* to re-parent, not on message arrival, and
+    /// when in doubt compare the seed's stamp against
+    /// [`Registry::latest_common_time`] for the frame under its current
+    /// parent first.
+    ///
+    /// With the registry behind a lock, the natural idiom — decide, then
+    /// re-parent, or retry a failed [`Registry::add_transform`] as a
+    /// re-parent — is a two-call *write* sequence: make both calls under
+    /// one write guard, mirroring the read-pair rule on
+    /// [`Registry::latest_common_time`]. Across separate guards an
+    /// interleaved writer can steal the move (this call then fails with
+    /// `ParentUnchanged`) or move the frame elsewhere first (this call
+    /// destroys that writer's fresh seed). Either interleaving is loud or
+    /// lost-update, never a wrong pose — but the single-guard form has
+    /// neither.
+    ///
+    /// # Errors
+    ///
+    /// Checked in this order, and every rejection leaves the registry
+    /// untouched — the move commits only after all of them pass:
+    ///
+    /// Returns `RegistryError::UnknownFrame` if `t.child()` exists nowhere
+    /// in the tree, and `RegistryError::NoParentToReplace` if it is a known
+    /// root — a root gains a parent through an ordinary
+    /// [`Registry::add_transform`] insert. (Reversing an existing edge is
+    /// reachable through neither call; see `NoParentToReplace`'s
+    /// documentation for the rebuild recipe.)
+    ///
+    /// Returns `RegistryError::ParentUnchanged` if `t.parent()` is the
+    /// frame's current parent. Deliberately an error, not an upsert:
+    /// resolving every failed insert into a re-parent would wipe the
+    /// frame's history once and look correct forever after.
+    ///
+    /// Returns `RegistryError::CycleDetected` if the move would close a
+    /// cycle — the one condition a caller cannot pre-check from the
+    /// outside, and the reason this operation exists as a single atomic
+    /// call rather than the destroy-then-fail `remove_frame`-and-re-add
+    /// sequence.
+    ///
+    /// Returns what [`Registry::add_transform`] would return for the seed
+    /// itself: `RegistryError::NonUnitRotation` or
+    /// `RegistryError::NonFiniteValues` for unusable numbers,
+    /// `RegistryError::SelfReferentialFrame` if `t.parent() == t.child()`,
+    /// and `RegistryError::StaticDynamicConflict` if the seed's stamp kind
+    /// does not match the frame's.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// let mut registry = Registry::<Timestamp>::new();
+    ///
+    /// // odom starts under map_a...
+    /// registry
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "map_a",
+    ///             "odom",
+    ///             Vector3::new(1.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(Timestamp::from_nanos(1_000)),
+    ///         )
+    ///         .unwrap(),
+    ///     )
+    ///     .unwrap();
+    ///
+    /// // ...until a map switch moves it under map_b. The transform both
+    /// // re-pins the frame and seeds its history under the new parent.
+    /// registry
+    ///     .reparent_frame(
+    ///         Transform::new(
+    ///             "map_b",
+    ///             "odom",
+    ///             Vector3::new(2.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(Timestamp::from_nanos(2_000)),
+    ///         )
+    ///         .unwrap(),
+    ///     )
+    ///     .unwrap();
+    ///
+    /// let moved = registry
+    ///     .get_transform("map_b", "odom", Timestamp::from_nanos(2_000))
+    ///     .unwrap();
+    /// assert_eq!(moved.translation(), Vector3::new(2.0, 0.0, 0.0));
+    /// ```
+    pub fn reparent_frame(
+        &mut self,
+        t: Transform<T>,
+    ) -> Result<(), RegistryError<T>> {
+        let Some(old) = self.data.get(t.child()) else {
+            return Err(if Self::frame_exists(t.child(), &self.data) {
+                // A known root: it has no parent to replace.
+                RegistryError::NoParentToReplace(t.child().into())
+            } else {
+                RegistryError::UnknownFrame(t.child().into())
+            });
+        };
+        // Defensive: unreachable through `Registry`, which registers a
+        // buffer only after its pinning first insert succeeds.
+        let Some(current_parent) = old.parent() else {
+            return Err(RegistryError::NoParentToReplace(t.child().into()));
+        };
+        if current_parent == t.parent() {
+            return Err(RegistryError::ParentUnchanged(t.child().into()));
+        }
+        // Checked against the tree with the old edge still in place: a walk
+        // upward from the new parent cannot cross the moved frame's old
+        // out-edge without first arriving at the frame itself — exactly the
+        // case that reports the cycle — so the pre-commit tree gives the
+        // same answer as the post-commit one would.
+        if Self::creates_cycle(t.child(), t.parent(), &self.data) {
+            return Err(RegistryError::CycleDetected);
+        }
+
+        // The fresh buffer keeps the frame's kind and expiry policy and pins
+        // nothing; the seed's insert runs the numeric, self-reference and
+        // kind checks and pins the new parent. Only after every check has
+        // passed does the single `HashMap::insert` commit the move.
+        let mut fresh = old.empty_like();
+        let child: String = t.child().into();
+        fresh.insert(t)?;
+        self.data.insert(child, fresh);
+        Ok(())
     }
 
     /// Adds a transform to the data buffer.
@@ -795,9 +970,11 @@ where
     /// create a cycle in the frame tree.
     ///
     /// Walks upward from `parent` through the pinned buffer parents. The walk
-    /// terminates because the existing tree is acyclic: every edge was added
-    /// through this check, an existing buffer's parent is pinned and cannot
-    /// change, and `remove_frame` only deletes edges.
+    /// terminates because the existing tree is acyclic: every edge in the
+    /// map passed this check at the moment it entered — `add_transform` for
+    /// a new frame, `reparent_frame` for a replaced edge — occupied inserts
+    /// cannot change a pinned parent, and `remove_frame` only deletes
+    /// edges, so the map is acyclic at every instant.
     fn creates_cycle(
         child: &str,
         parent: &str,
@@ -822,7 +999,7 @@ where
     /// parents, collecting the edges crossed. A frame with no buffer is its
     /// own root: the edge list is empty. The walk terminates because the
     /// existing tree is acyclic — every edge in it passed the cycle check
-    /// at insertion.
+    /// when it entered the map, at insertion or at re-parenting.
     fn ancestry<'a>(
         frame: &'a str,
         data: &'a HashMap<String, Buffer<T>>,
@@ -1120,8 +1297,9 @@ where
         let mut transforms = VecDeque::new();
         let mut current_frame: String = from.into();
 
-        // The frame tree is acyclic by construction (cycles are rejected at
-        // insertion), so the walk visits every frame at most once and
+        // The frame tree is acyclic by construction (cycles are rejected
+        // whenever an edge enters the map — at insertion and at
+        // re-parenting), so the walk visits every frame at most once and
         // terminates at a root.
         while let Some(frame_buffer) = data.get(&current_frame) {
             match frame_buffer.get(timestamp) {

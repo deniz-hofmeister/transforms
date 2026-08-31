@@ -10,12 +10,16 @@
 //! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
 //! pin, the child pin, the static-xor-dynamic kind, and the numeric validity
 //! of what is stored. `Registry` adds only the check that needs a view of the
-//! whole tree — the cycle check — and runs it solely for a child frame it has
-//! not seen before, precisely because this module's pin makes an existing
-//! buffer's parent immutable. Any rework of the storage below must keep those
-//! pins: without them a re-parenting insert reaches no check at all, and every
-//! later lookup through the frame returns a pose expressed relative to the
-//! wrong parent.
+//! whole tree — the cycle check — and runs it solely when an edge enters the
+//! map: a child frame it has not seen before, or a
+//! [`reparent_frame`](crate::Registry::reparent_frame) replacing a frame's
+//! edge. Occupied inserts skip it precisely because this module's pin makes
+//! an existing buffer's parent immutable — `reparent_frame` does not bend
+//! that: it never edits a pinned buffer, it swaps in a fresh one
+//! ([`Buffer::empty_like`]) whose own first insert pins the new parent. Any
+//! rework of the storage below must keep those pins: without them a
+//! re-parenting insert reaches no check at all, and every later lookup
+//! through the frame returns a pose expressed relative to the wrong parent.
 //!
 //! The numeric check is deliberately *not* redundant with the one the
 //! constructors run. A [`Transform`] is validated where it is built, but `*`,
@@ -83,8 +87,10 @@ type NearestTransforms<'a, T> = (
 ///
 /// The first insert pins the buffer's parent and child frames: every later
 /// insert must carry the same pair, so a buffer stores the history of
-/// exactly one parent-child relationship. Re-parenting is rejected with
-/// `InsertError::ReparentingNotSupported`, and a transform for a different
+/// exactly one parent-child relationship. A differing parent is rejected
+/// with `InsertError::ReparentingNotSupported` — at this level
+/// unconditionally; `Registry::reparent_frame` moves a frame by replacing
+/// its buffer, never by bending this pin — and a transform for a different
 /// child frame with `InsertError::ChildFrameMismatch`.
 ///
 /// When constructed with [`Buffer::dynamic_with_max_age`], entries older
@@ -232,11 +238,38 @@ where
         }
     }
 
+    /// Creates an empty buffer of this buffer's kind: the same static or
+    /// dynamic storage and, for a dynamic buffer, the same `max_age` expiry
+    /// policy — holding no transforms and pinning no frames.
+    ///
+    /// This is how [`Registry::reparent_frame`](crate::Registry::reparent_frame)
+    /// rebuilds a frame's buffer without re-deciding either property from
+    /// whichever transform seeds the move: the kind and the retention policy
+    /// belong to the frame, and a re-parent that re-derived the kind from
+    /// its seed would let a static seed on a dynamic frame silently rewrite
+    /// the frame's entire history as one eternal pose.
+    #[must_use]
+    pub fn empty_like(&self) -> Self {
+        Self {
+            parent: None,
+            child: None,
+            kind: match &self.kind {
+                Kind::Static(_) => Kind::Static(None),
+                Kind::Dynamic { max_age, .. } => Kind::Dynamic {
+                    data: BTreeMap::new(),
+                    latest_timestamp: None,
+                    max_age: *max_age,
+                },
+            },
+        }
+    }
+
     /// Returns the buffer's parent frame, pinned by the first insert.
     ///
     /// `None` for a buffer that has never held a transform. The parent stays
     /// pinned even if all entries are removed; drop the whole buffer
-    /// (`Registry::remove_frame`) to release it.
+    /// (`Registry::remove_frame`) — or replace it wholesale, as
+    /// `Registry::reparent_frame` does — to release it.
     #[must_use]
     pub fn parent(&self) -> Option<&str> {
         self.parent.as_deref()
