@@ -199,6 +199,25 @@ jobs:
       - name: Build for ${{ matrix.target }}
         run: cargo build --no-default-features --target ${{ matrix.target }}
 
+  # Accidental breaking changes are caught against the latest release
+  # published on crates.io. Additive surface must be declared: the check
+  # also fails when new API ships without the matching minor bump in
+  # Cargo.toml. (AGENTS.md release checklist — deliberately added only
+  # after 2.0.0, when a published baseline the lints can enumerate
+  # against started to exist.)
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          toolchain: stable
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+      - name: Check against the published baseline
+        run: cargo semver-checks check-release
+
   security:
     name: security
     runs-on: ubuntu-latest
