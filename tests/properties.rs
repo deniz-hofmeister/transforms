@@ -15,6 +15,11 @@ use transforms::{
 /// Tolerance for comparing computed against expected geometry.
 const EPSILON: f64 = 1e-9;
 
+/// Frames `f0..f6` for the random-tree property: small enough that a random
+/// op sequence connects them often, large enough for chains several hops
+/// deep — where a broken cycle check would first show up.
+const FRAMES: usize = 7;
+
 /// 2^53 nanoseconds: the boundary beyond which `f64` can no longer represent
 /// every nanosecond count exactly, and where `Timestamp::as_seconds` starts
 /// refusing to convert.
@@ -343,6 +348,71 @@ proptest! {
                     latest_common_start,
                     result
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn random_inserts_and_re_parents_keep_the_tree_walkable(
+        // Each op is (re-parent?, parent frame, child frame, instant). Most
+        // of the re-parents are rejected — an unknown frame, a root, an
+        // unchanged parent, a cycle — and every rejection is a valid
+        // outcome: what is under test is that no accepted sequence can
+        // leave a tree a walk gets lost in.
+        ops in proptest::collection::vec(
+            (any::<bool>(), 0..FRAMES, 0..FRAMES, 1_u64..8),
+            1..24,
+        ),
+    ) {
+        let mut registry = Registry::new();
+        for (reparent, parent, child, nanos) in ops {
+            let child_frame = format!("f{child}");
+            let transform = Transform::new(
+                &format!("f{parent}"),
+                &child_frame,
+                Vector3::new(1.0, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(Timestamp::from_nanos(nanos)),
+            )
+            .unwrap();
+
+            if reparent {
+                if registry.reparent_frame(transform.clone()).is_ok() {
+                    // The move happened, so repeating it is not a move at
+                    // all — and never an upsert that would wipe the seed the
+                    // first call just stored.
+                    let repeated = registry.reparent_frame(transform);
+                    prop_assert!(
+                        matches!(
+                            &repeated,
+                            Err(RegistryError::ParentUnchanged(frame)) if frame == &child_frame
+                        ),
+                        "expected ParentUnchanged for {child_frame}, got {repeated:?}",
+                    );
+                }
+            } else {
+                // Cycles, re-parenting inserts and self-references are all
+                // expected here; only their acceptance would be a bug.
+                let _ = registry.add_transform(transform);
+            }
+        }
+
+        // Every ordered pair of frames, at instants inside and outside the
+        // published range. A cycle would make the chain walk run forever, so
+        // returning at all is the property; an answer that does come back
+        // must name exactly the frames asked for.
+        for target in 0..FRAMES {
+            for source in 0..FRAMES {
+                let (target, source) = (format!("f{target}"), format!("f{source}"));
+                for nanos in [0_u64, 4, 9] {
+                    let outcome = registry.get_transform(&target, &source, Timestamp::from_nanos(nanos));
+                    if let Ok(transform) = outcome {
+                        prop_assert_eq!(transform.parent(), target.as_str());
+                        prop_assert_eq!(transform.child(), source.as_str());
+                    }
+                }
+                // The coverage query walks the same tree.
+                let _ = registry.latest_common_time(&target, &source);
             }
         }
     }

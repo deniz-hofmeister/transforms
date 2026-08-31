@@ -94,7 +94,9 @@ where
     ///
     /// (The variant name predates `reparent_frame` and is kept for
     /// compatibility; renaming it is logged for 3.0.)
-    #[error("add_transform cannot change the child frame's parent ({current_parent}); re-parenting takes reparent_frame")]
+    #[error(
+        "add_transform cannot change the child frame's parent ({current_parent}); re-parenting takes reparent_frame"
+    )]
     ReparentingNotSupported {
         /// The parent frame pinned by the child frame's first insert.
         current_parent: String,

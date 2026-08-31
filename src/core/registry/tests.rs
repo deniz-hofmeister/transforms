@@ -2626,4 +2626,534 @@ mod registry_tests {
         let result = registry.get_transform("world", "base_link", t).unwrap();
         assert_abs_diff_eq!(result.translation(), Vector3::new(10.0, 0.0, 0.0));
     }
+
+    #[test]
+    fn reparent_frame_rejects_a_kind_change_in_both_directions() {
+        // The static-or-dynamic kind belongs to the frame, not to the seed.
+        // Deciding it from the seed would let a static seed rewrite a
+        // dynamic frame's entire history as one eternal pose — the
+        // design-review blocker — and a dynamic seed turn a mount into a
+        // time series that answers at one instant only. Both are the same
+        // refusal, and neither may touch what is stored.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+
+        // A dynamic frame, given a static seed.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+        let result = registry.reparent_frame(translated("map_b", "odom", Stamp::Static, 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "a static seed must not re-parent a dynamic frame, got {result:?}"
+        );
+        let unchanged = registry.get_transform("map_a", "odom", t1).unwrap();
+        assert_eq!(unchanged.translation(), Vector3::new(1.0, 0.0, 0.0));
+        assert_eq!(unchanged.timestamp(), Stamp::At(t1));
+
+        // A static frame, given a dynamic seed.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(
+                Transform::static_between(
+                    "base",
+                    "lidar",
+                    Vector3::new(0.5, 0.0, 0.0),
+                    Quaternion::identity(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let result = registry.reparent_frame(translated("mast", "lidar", Stamp::At(t2), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "a dynamic seed must not re-parent a static frame, got {result:?}"
+        );
+        let unchanged = registry.get_transform("base", "lidar", t2).unwrap();
+        assert_eq!(unchanged.translation(), Vector3::new(0.5, 0.0, 0.0));
+    }
+
+    #[test]
+    fn reparent_frame_preserves_the_max_age_expiry_policy() {
+        // The expiry policy is a property of the frame's buffer, fixed when
+        // the frame was created. The replacement buffer inherits it, so
+        // eviction keeps working on the new edge exactly as it did on the
+        // old one — a move must not quietly turn a bounded frame unbounded.
+        let mut registry = Registry::with_max_age(Duration::from_secs(1));
+        let t_old = Timestamp::from_nanos(1_000_000_000);
+        let seed = Timestamp::from_nanos(10_000_000_000);
+        let t_mid = Timestamp::from_nanos(11_000_000_000);
+        let t_new = Timestamp::from_nanos(13_000_000_000);
+
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t_old), 1.0))
+            .unwrap();
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(seed), 2.0))
+            .unwrap();
+
+        for (t, x) in [(t_mid, 3.0), (t_new, 4.0)] {
+            registry
+                .add_transform(translated("map_b", "odom", Stamp::At(t), x))
+                .unwrap();
+        }
+
+        // Both the seed and the sample one second after it are older than
+        // max_age relative to the newest insert: the covered range has
+        // collapsed onto that newest sample.
+        let result = registry.get_transform("map_b", "odom", seed);
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NotFoundAt { frame, requested, covered, .. })
+                    if frame == "odom" && *requested == seed && *covered == Some((t_new, t_new))
+            ),
+            "expected the re-parented buffer to expire under max_age, got {result:?}"
+        );
+        assert!(registry.get_transform("map_b", "odom", t_new).is_ok());
+    }
+
+    #[test]
+    fn reparent_frame_moves_the_whole_subtree() {
+        // map -> odom -> base; moving odom carries base along, because
+        // base's pin to odom is untouched. Only the moved frame pays the
+        // history price — its descendants keep theirs.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+        for (t, x) in [(t1, 2.0), (t2, 3.0)] {
+            registry
+                .add_transform(translated("odom", "base", Stamp::At(t), x))
+                .unwrap();
+        }
+
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 4.0))
+            .unwrap();
+
+        // The subtree answers under the new parent...
+        let moved = registry.get_transform("map_b", "base", t2).unwrap();
+        assert_abs_diff_eq!(moved.translation(), Vector3::new(7.0, 0.0, 0.0));
+
+        // ...and base's own history is intact, including the instant the
+        // moved edge no longer covers.
+        let history = registry.get_transform("odom", "base", t1).unwrap();
+        assert_eq!(history.translation(), Vector3::new(2.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn reparent_frame_accepts_a_sibling_move() {
+        // b and c both hang off a; moving c under its sibling b closes no
+        // cycle — the walk upward from b reaches the root without ever
+        // meeting c — so the check must not refuse a perfectly ordinary
+        // subtree rearrangement.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "c", Stamp::At(t), 2.0))
+            .unwrap();
+
+        registry
+            .reparent_frame(translated("b", "c", Stamp::At(t), 5.0))
+            .unwrap();
+
+        let result = registry.get_transform("a", "c", t).unwrap();
+        assert_abs_diff_eq!(result.translation(), Vector3::new(6.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn reparent_frame_rejects_cycles() {
+        // Tree a -> b -> c -> d. Moving b under any of its own descendants
+        // would close a cycle, and this is the one condition a caller cannot
+        // pre-check from the outside — the reason the operation is atomic.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        for &t in &[t1, t3] {
+            registry
+                .add_transform(translated("a", "b", Stamp::At(t), 1.0))
+                .unwrap();
+            registry
+                .add_transform(translated("c", "d", Stamp::At(t), 3.0))
+                .unwrap();
+        }
+        // The middle hop is published once only, so the cleanup below drains
+        // it without touching the rest of the tree.
+        registry
+            .add_transform(translated("b", "c", Stamp::At(t1), 2.0))
+            .unwrap();
+
+        // Under its own direct child.
+        let result = registry.reparent_frame(translated("c", "b", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::CycleDetected)),
+            "moving a frame under its own child must be refused, got {result:?}"
+        );
+
+        // Under a deeper descendant.
+        let result = registry.reparent_frame(translated("d", "b", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::CycleDetected)),
+            "moving a frame under its own descendant must be refused, got {result:?}"
+        );
+
+        // The same refusal through a drained intermediate frame: the
+        // topology is the pinned parents, not the data they still hold.
+        registry.remove_transforms_before(t2);
+        let result = registry.reparent_frame(translated("d", "b", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::CycleDetected)),
+            "a drained frame still counts toward the topology, got {result:?}"
+        );
+
+        // Every rejection left the registry untouched.
+        assert_eq!(
+            registry.get_transform("a", "b", t3).unwrap().translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            registry.get_transform("c", "d", t3).unwrap().translation(),
+            Vector3::new(3.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn reparent_frame_drops_the_frames_history_loudly() {
+        // The frame's coverage collapses onto the seed instant. The price is
+        // documented, and it must be paid loudly: a lookup at a dropped
+        // instant fails naming the frame and the range it now covers, never
+        // by serving the seed's pose as if it held at that instant.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t_seed = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(translated("map_a", "odom", Stamp::At(t), x))
+                .unwrap();
+        }
+
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t_seed), 5.0))
+            .unwrap();
+
+        let result = registry.get_transform("map_b", "odom", t1);
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NotFoundAt { frame, requested, covered, .. })
+                    if frame == "odom"
+                        && *requested == t1
+                        && *covered == Some((t_seed, t_seed))
+            ),
+            "expected NotFoundAt carrying the collapsed range, got {result:?}"
+        );
+
+        let seeded = registry.get_transform("map_b", "odom", t_seed).unwrap();
+        assert_eq!(seeded.translation(), Vector3::new(5.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn reparent_frame_rejects_an_unchanged_parent() {
+        // Deliberately an error rather than an upsert: a caller resolving
+        // every failed insert into a re-parent would wipe the frame's
+        // history once and look correct forever after.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(translated("map", "odom", Stamp::At(t), x))
+                .unwrap();
+        }
+
+        let result = registry.reparent_frame(translated("map", "odom", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(&result, Err(RegistryError::ParentUnchanged(frame)) if frame == "odom"),
+            "expected ParentUnchanged naming the frame, got {result:?}"
+        );
+
+        // Nothing was wiped and nothing was inserted either: the seed is not
+        // a sample on the existing edge.
+        assert_eq!(
+            registry
+                .get_transform("map", "odom", t1)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            registry
+                .get_transform("map", "odom", t2)
+                .unwrap()
+                .translation(),
+            Vector3::new(2.0, 0.0, 0.0)
+        );
+        assert!(registry.get_transform("map", "odom", t3).is_err());
+    }
+
+    #[test]
+    fn reparent_frame_diagnoses_a_root_and_an_unknown_frame_differently() {
+        // A root exists — as other frames' parent — but has no parent to
+        // replace; it gains one through an ordinary insert. A frame that
+        // exists nowhere is the publisher-typo case, and the two must not
+        // read the same.
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", Stamp::At(t), 1.0))
+            .unwrap();
+
+        let result = registry.reparent_frame(translated("world", "map", Stamp::At(t), 2.0));
+        assert!(
+            matches!(&result, Err(RegistryError::NoParentToReplace(frame)) if frame == "map"),
+            "expected NoParentToReplace for a known root, got {result:?}"
+        );
+
+        let result = registry.reparent_frame(translated("world", "ghost", Stamp::At(t), 2.0));
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "ghost"),
+            "expected UnknownFrame for a frame that exists nowhere, got {result:?}"
+        );
+
+        assert_eq!(
+            registry
+                .get_transform("map", "odom", t)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn reparent_frame_rejects_a_self_referential_or_non_finite_seed() {
+        // The seed crosses the same checks an inserted transform does, and
+        // failing them leaves the registry exactly as it was — the buffer
+        // swap happens only after the seed's insert into the fresh buffer
+        // has succeeded.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        let result = registry.reparent_frame(translated("odom", "odom", Stamp::At(t2), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::SelfReferentialFrame)),
+            "a frame cannot be re-parented under itself, got {result:?}"
+        );
+
+        // A seed whose numbers are unusable. The constructors reject one, so
+        // building it takes the crate-internal escape hatch.
+        let non_finite = Transform::unvalidated(
+            "map_b".into(),
+            "odom".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(non_finite);
+        assert!(
+            matches!(result, Err(RegistryError::NonFiniteValues)),
+            "expected the flat NonFiniteValues for an unusable seed, got {result:?}"
+        );
+
+        assert_eq!(
+            registry
+                .get_transform("map", "odom", t1)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+        assert!(registry.get_transform("map_b", "odom", t2).is_err());
+    }
+
+    #[test]
+    fn reparent_frame_checks_the_topology_before_the_seed() {
+        // The documented check order is itself the contract: the questions
+        // about the frame are answered before the seed is looked at. Both
+        // seeds below carry unusable numbers, and neither is reported for
+        // them — an unchanged parent and a cycle are the more fundamental
+        // faults, and a caller must not be sent chasing the wrong one.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("b", "c", Stamp::At(t1), 2.0))
+            .unwrap();
+
+        let unchanged = Transform::unvalidated(
+            "a".into(),
+            "b".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(unchanged);
+        assert!(
+            matches!(&result, Err(RegistryError::ParentUnchanged(frame)) if frame == "b"),
+            "expected ParentUnchanged ahead of the seed's own faults, got {result:?}"
+        );
+
+        let cyclic = Transform::unvalidated(
+            "c".into(),
+            "b".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(cyclic);
+        assert!(
+            matches!(result, Err(RegistryError::CycleDetected)),
+            "expected CycleDetected ahead of the seed's own faults, got {result:?}"
+        );
+
+        let intact = registry.get_transform("a", "c", t1).unwrap();
+        assert_abs_diff_eq!(intact.translation(), Vector3::new(3.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn reparent_frame_collapses_latest_common_time_to_the_seed() {
+        // The coverage query reports the collapse the same way a lookup
+        // does: the moved hop now serves exactly one instant, so it bounds
+        // every chain that crosses it.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t_far = Timestamp::from_nanos(5_000_000_000);
+
+        let mut registry = Registry::new();
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(translated("map_a", "odom", Stamp::At(t), 1.0))
+                .unwrap();
+            registry
+                .add_transform(translated("odom", "base", Stamp::At(t), 2.0))
+                .unwrap();
+        }
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 5.0))
+            .unwrap();
+
+        assert_eq!(
+            registry.latest_common_time("map_b", "odom").unwrap(),
+            Stamp::At(t2)
+        );
+        assert_eq!(
+            registry.latest_common_time("map_b", "base").unwrap(),
+            Stamp::At(t2)
+        );
+        assert!(registry.get_transform("map_b", "base", t2).is_ok());
+
+        // A seed past everything the rest of the chain covers leaves no
+        // common instant at all, named on the moved hop.
+        let mut registry = Registry::new();
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(translated("map_a", "odom", Stamp::At(t), 1.0))
+                .unwrap();
+            registry
+                .add_transform(translated("odom", "base", Stamp::At(t), 2.0))
+                .unwrap();
+        }
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t_far), 5.0))
+            .unwrap();
+
+        let result = registry.latest_common_time("map_b", "base");
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NoCommonTime { frame, covered, .. })
+                    if frame == "odom" && *covered == Some((t_far, t_far))
+            ),
+            "expected NoCommonTime naming the moved hop, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_accepts_an_unknown_new_parent() {
+        // Publish order stays irrelevant: a parent the registry has never
+        // seen is accepted, exactly as an ordinary insert accepts one.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 2.0))
+            .unwrap();
+        assert_eq!(
+            registry
+                .get_transform("map_b", "odom", t2)
+                .unwrap()
+                .translation(),
+            Vector3::new(2.0, 0.0, 0.0)
+        );
+
+        // The documented flip side: map_a was a root whose name appeared
+        // nowhere else, so it is now unknown, and a lookup toward it is
+        // diagnosed as a typo would be. Pinned deliberately — a typo in the
+        // new parent's name detaches a subtree instead of erroring.
+        let result = registry.get_transform("map_a", "odom", t2);
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "map_a"),
+            "expected the old root to be reported as unknown, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_accepts_a_stale_seed_and_moves_coverage_backwards() {
+        // Nothing constrains the seed's stamp against the history the move
+        // drops, so a seed older than the frame's newest sample is accepted
+        // and the frame's coverage moves backwards. That is why the docs
+        // tell callers to gate this call on the decision to re-parent rather
+        // than on message arrival; if this assertion ever changes, the docs
+        // change with it.
+        let stale = Timestamp::from_nanos(2_000);
+        let newest = Timestamp::from_nanos(9_000);
+        let mut registry = Registry::new();
+        for nanos in [4_000, 9_000] {
+            registry
+                .add_transform(translated(
+                    "map_a",
+                    "odom",
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                    1.0,
+                ))
+                .unwrap();
+        }
+
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(stale), 2.0))
+            .unwrap();
+
+        assert_eq!(
+            registry.latest_common_time("map_b", "odom").unwrap(),
+            Stamp::At(stale)
+        );
+        let result = registry.get_transform("map_b", "odom", newest);
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NotFoundAt { frame, covered, .. })
+                    if frame == "odom" && *covered == Some((stale, stale))
+            ),
+            "expected the coverage to have moved back to the stale seed, got {result:?}"
+        );
+    }
 }
