@@ -2596,4 +2596,34 @@ mod registry_tests {
             other => panic!("expected UnknownFrame, got {other:?}"),
         }
     }
+
+    #[test]
+    fn remove_frame_then_readding_root_reconnects_subtree() {
+        // map -> odom -> base_link; moving the odom subtree under a new
+        // parent takes removing and re-adding *only* odom. base_link keeps
+        // its pin to odom throughout and reconnects through it — with its
+        // history intact — the moment odom is back. This pins the documented
+        // subtree-move recipe (README "strict tree" paragraph).
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", Stamp::At(t), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("odom", "base_link", Stamp::At(t), 2.0))
+            .unwrap();
+        registry
+            .add_transform(translated("world", "map", Stamp::At(t), 4.0))
+            .unwrap();
+
+        assert!(registry.remove_frame("odom"));
+        registry
+            .add_transform(translated("world", "odom", Stamp::At(t), 8.0))
+            .unwrap();
+
+        // base_link was never touched, yet the whole subtree answers under
+        // the new parent — through base_link's untouched history.
+        let result = registry.get_transform("world", "base_link", t).unwrap();
+        assert_abs_diff_eq!(result.translation(), Vector3::new(10.0, 0.0, 0.0));
+    }
 }

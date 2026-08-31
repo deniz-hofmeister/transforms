@@ -510,7 +510,9 @@ public, so the formulas above are the whole migration.
 2. **Re-parenting is rejected.** 1.x let a new parent silently win;
    2.0 returns `ReparentingNotSupported`. Escape hatch:
    `registry.remove_frame(child)` then re-add. Removing a mid-tree frame
-   strands its descendants — re-add each one.
+   strands its descendants only until it is re-added: they keep their pin
+   to it, so re-adding the removed frame alone reconnects the whole
+   subtree, history intact.
 3. **Same-frame lookup returns the identity.** `get_transform(x, x, t)`
    errored in 1.x; it now returns `Ok(identity)`. The same goes for
    `get_transform_at`'s coinciding-frame legs — `source` equal to the

@@ -742,7 +742,9 @@ where
     /// descendants: they keep their pin to the removed parent, so lookups
     /// that crossed the removed frame fail, diagnosed relative to the
     /// remaining tree — which can name a frame other than the one removed.
-    /// To move a whole subtree, remove and re-add each descendant.
+    /// That pin is also what reconnects them: to move a whole subtree,
+    /// remove its root frame and re-add only that frame under the new
+    /// parent — the descendants reconnect through it, history intact.
     pub fn remove_frame(
         &mut self,
         child: &str,

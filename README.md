@@ -326,7 +326,9 @@ transform (re-parenting is rejected — remove the frame with
 `Registry::remove_frame` and re-add it to change its parent), a frame cannot
 be its own parent, and cycles are rejected at insertion. Removing a
 mid-tree frame strands its descendants (they keep their pin to the removed
-parent), so re-parent a subtree by removing and re-adding each descendant.
+parent) until it is re-added, so re-parent a whole subtree by removing its
+root frame and re-adding only that frame under the new parent — the
+descendants reconnect through their kept pins, history intact.
 Re-publishing a transform at an already-stored timestamp replaces that
 sample: last write wins. Native re-parenting support may become a feature
 in a later release.
