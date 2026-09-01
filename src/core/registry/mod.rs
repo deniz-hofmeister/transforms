@@ -827,6 +827,35 @@ where
     /// [`Registry::latest_common_time`] when the question is connectivity
     /// rather than timing.
     ///
+    /// In pictures — the move touches exactly one buffer. With a sibling
+    /// still naming the old parent, the vacated branch remains a
+    /// complete, intact tree:
+    ///
+    /// ```text
+    /// before                      after reparent_frame(map_b -> odom)
+    ///
+    /// world                       world
+    ///  └─ map_a                    └─ map_a           (unchanged)
+    ///      ├─ landmark                 └─ landmark    (unchanged)
+    ///      └─ odom  [t0..t5]     map_b                (new root)
+    ///          └─ base            └─ odom             (seed only)
+    ///                                 └─ base         (unchanged)
+    /// ```
+    ///
+    /// Without the sibling — the old parent a root, the replaced pin its
+    /// only appearance — the old parent vanishes with the move, because
+    /// roots have no buffer of their own, only their name in their
+    /// children's pins:
+    ///
+    /// ```text
+    /// map_a                       map_b                (new root)
+    ///  └─ odom  [t0..t5]           └─ odom             (seed only)
+    ///      └─ base                     └─ base         (unchanged)
+    ///
+    ///                             map_a is gone: lookups toward it
+    ///                             report UnknownFrame("map_a")
+    /// ```
+    ///
     /// Nothing constrains the seed's timestamp against the history the move
     /// drops. A seed older than the frame's newest stored sample is
     /// accepted, and the frame's coverage moves *backwards* to that
