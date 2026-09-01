@@ -90,7 +90,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.1.0"
+transforms = "2.1.1"
 ```
 
 ### Feature Flags
@@ -126,7 +126,7 @@ For `no_std` environments (requires a heap allocator):
 
 ```toml
 [dependencies]
-transforms = { version = "2.1.0", default-features = false }
+transforms = { version = "2.1.1", default-features = false }
 ```
 
 ## Quick Start
