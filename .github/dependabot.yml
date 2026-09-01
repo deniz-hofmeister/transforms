@@ -9,6 +9,11 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    ignore:
+      # criterion 0.8+ declares rust-version 1.86, above the crate's MSRV of
+      # 1.85 (see Cargo.toml). Do not bump past 0.7 while the MSRV stands.
+      - dependency-name: "criterion"
+        versions: [">= 0.8.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

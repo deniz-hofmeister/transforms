@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- MSRV lowered from 1.86 to 1.85 — the edition 2024 floor, and the rustc
+  Debian 13 "trixie" ships. Every runtime dependency already permits 1.85;
+  the previous 1.86 came solely from the `criterion` dev-dependency, which
+  is held at 0.7 (declared MSRV 1.80) so the claim stays verifiable by the
+  CI MSRV job rather than resting on criterion 0.8's rolling MSRV policy.
+  Dev-only: downstream builds compile the same code as before.
+
 ## [2.1.0] - 2026-08-27
 
 ### Added
@@ -504,6 +515,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...HEAD
 [2.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1

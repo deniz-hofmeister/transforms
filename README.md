@@ -100,7 +100,8 @@ transforms = "2.1.0"
 | `std` | Yes | Enables `Timestamp::now()`, its panic-free `Timestamp::try_now()`, and the `SystemTime` time type |
 | `serde` | No | `Serialize`/`Deserialize` for the geometry and time types |
 
-Minimum supported Rust version: 1.86 (checked in CI).
+Minimum supported Rust version: 1.85 (checked in CI) — the edition 2024
+floor, so it cannot go lower without giving up the edition.
 
 Note on `serde`: `Timestamp` is `#[serde(transparent)]`, so it serializes as
 the bare `u64` nanosecond count — an integer every serde format encodes
