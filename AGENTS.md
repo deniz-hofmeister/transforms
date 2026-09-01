@@ -237,7 +237,9 @@ code in the same commit.
 The gate below machine-checks lints, formatting, and docs; everything else in
 this section is convention, enforced in review — follow it anyway.
 
-- Edition 2024, `rust-version = "1.86"` (verified by a CI job). `#![warn(missing_docs)]` and
+- Edition 2024, `rust-version = "1.85"` — the edition floor, verified by a
+  CI job; criterion is held at 0.7 to keep it true (see Cargo.toml and the
+  dependabot ignore rule). `#![warn(missing_docs)]` and
   `#![warn(clippy::pedantic)]` must stay at **zero warnings** in both feature
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
   standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
@@ -343,7 +345,7 @@ single source of truth for what the gate is — extend the script, not the
 workflow.
 CI additionally runs the test suite natively on ARM64 as well as x86_64
 (the Raspberry Pi / Jetson deployment class), checks the MSRV
-(`cargo check` on Rust 1.86), and runs `cargo audit` against the RustSec
+(`cargo check` on Rust 1.85), and runs `cargo audit` against the RustSec
 advisory database.
 
 Docs are part of the change: the README (API Reference, What's New, examples
