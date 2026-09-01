@@ -17,12 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before any mutation, so a rejection leaves the registry untouched;
   the previously documented `remove_frame`-then-re-add route could
   destroy the frame first and only then discover the cycle. The price
-  is the frame's stored history, dropped loudly (coverage collapses to
-  the seed's instant); the frame's static-or-dynamic kind and its
-  `max_age` expiry policy are deliberately preserved — a seed of the
-  opposite kind is rejected with `StaticDynamicConflict` rather than
-  quietly rewriting a time series as one eternal pose. Descendants
-  ride along with their history intact.
+  is the frame's stored history — paid loudly by a dynamic frame
+  (coverage collapses to the seed's instant) and retroactively by a
+  static one (the replaced pose answers every instant, past included,
+  as any static re-publish does); the frame's static-or-dynamic kind
+  and its `max_age` expiry policy are deliberately preserved — a seed
+  of the opposite kind is rejected with `StaticDynamicConflict`, since
+  a frame flipped to static would answer every instant where a dynamic
+  frame fails loudly once its stream stops. Descendants ride along
+  with their history intact.
 - `RegistryError::NoParentToReplace(frame)`: `reparent_frame`'s
   refusal for a known root — a root gains a parent through an ordinary
   `add_transform` insert, not a re-parent.
@@ -42,10 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `RegistryError::ReparentingNotSupported`'s message and documentation
-  now point to `reparent_frame` as the deliberate re-parenting path
-  (the variant name predates the feature; renaming it would be a
-  breaking change, deferred to a 3.0).
+- `RegistryError::ReparentingNotSupported`'s message now reads
+  "add_transform cannot change the child frame's parent (\<parent\>)"
+  (was "re-parenting is not supported (the child frame's parent is
+  \<parent\>)"), and its documentation points to `reparent_frame` as
+  the deliberate re-parenting path (the variant name predates the
+  feature; renaming it would be a breaking change, deferred to a 3.0).
 
 ## [2.1.0] - 2026-08-27
 

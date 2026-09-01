@@ -122,7 +122,10 @@ would produce) a silent wrong answer:
   — before mutating anything, preserves the frame's static-xor-dynamic kind
   and `max_age` (via the crate-private `Buffer::empty_like`; a cross-kind
   seed fails with `StaticDynamicConflict`), and drops the frame's stored
-  history loudly. `Registry::remove_frame` plus re-adding remains the route
+  history — loudly for a dynamic frame (coverage collapses to the seed),
+  retroactively and silently for a static one (the replaced pose answers
+  every instant, as any static re-publish does).
+  `Registry::remove_frame` plus re-adding remains the route
   for kind changes and keep-the-history moves. Chain resolution relies on
   the result — the topology is acyclic at every instant and time-invariant
   for the duration of any query.
@@ -171,7 +174,9 @@ would produce) a silent wrong answer:
   transform is valid for all time — and never releases a frame: a drained
   buffer keeps its pinned parent and its static/dynamic kind, so cleanup cannot
   re-open a frame for re-parenting or a change of kind.
-  `Registry::remove_frame` is the only release.
+  `Registry::remove_frame` is the only release on the cleanup path;
+  `Registry::reparent_frame` also releases a pin — by replacing the
+  buffer wholesale, never by draining it.
 - Transforms are validated where they are built: `Transform::new`,
   `Transform::static_between` and the `Deserialize` impl all run
   `Transform::validate`, rejecting non-finite components and rotations whose
@@ -327,9 +332,11 @@ CI additionally runs the test suite natively on ARM64 as well as x86_64
 (the Raspberry Pi / Jetson deployment class), checks the MSRV
 (`cargo check` on Rust 1.86), runs `cargo audit` against the RustSec
 advisory database, and runs `cargo semver-checks` against the latest
-release published on crates.io — which also fails when new public API
-(such as a method) ships without the matching minor bump in `Cargo.toml`,
-so version bumps land with the feature that needs them.
+release published on crates.io. That job catches accidental *breaking*
+changes only — additive surface is not covered: neither an added method
+nor a new `#[non_exhaustive]` variant produces a lint (verified against
+cargo-semver-checks 0.50: this crate's own new method passes at a patch
+bump) — so the matching minor bump stays on the author and the review.
 
 Docs are part of the change: the README (API Reference, What's New, examples
 table) and rustdoc must be updated in the same commit as the code they

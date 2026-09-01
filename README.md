@@ -31,7 +31,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 - **Transformable Trait**: Implement on your own types to make them transformable between coordinate frames.
 - **Transform Into**: Resolve and apply transforms directly from a `Localized` value with `get_transform_for`, eliminating manual frame and timestamp bookkeeping.
 - **Latest Common Time**: `latest_common_time` reports the newest instant a chain can serve — freshness is a first-class answer, not a retry loop or an assumed publisher rate.
-- **Re-parenting**: `Registry::reparent_frame` atomically moves a child frame under a new parent — validated first, committed in one step, at the loud, documented price of the frame's stored history.
+- **Re-parenting**: `Registry::reparent_frame` atomically moves a child frame under a new parent — validated first, committed in one step, at the documented price of the frame's stored history.
 
 ## What's New
 
@@ -43,9 +43,12 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
   child frame under a new parent — every check (including the cycle
   check, which the caller cannot run from outside) happens before any
   mutation, so a rejection leaves the registry untouched. The price is
-  the frame's stored history, dropped loudly: coverage collapses to the
-  seed transform's instant, and lookups at other instants fail with
-  `NotFoundAt` rather than answering from stale geometry. The frame's
+  the frame's stored history. A dynamic frame pays it loudly: coverage
+  collapses to the seed transform's instant, and lookups at other
+  instants fail with `NotFoundAt` rather than answering from stale
+  geometry. A static frame has no time series to lose — its replaced
+  pose answers every instant, past included, exactly as any static
+  re-publish does. The frame's
   static-or-dynamic kind and `max_age` expiry policy are preserved;
   descendants ride along with their history intact. Two new error
   variants: `NoParentToReplace` (roots gain parents via
@@ -216,8 +219,9 @@ history — is documented on the method.
 Every registry call reports `errors::RegistryError<T>`, one flat
 `#[non_exhaustive]` enum: `NonUnitRotation`, `NonFiniteValues`,
 `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected` and
-`StaticDynamicConflict` from insertion; `NoParentToReplace` and
-`ParentUnchanged` from `reparent_frame`, whose seed also crosses the
+`StaticDynamicConflict` from insertion; `NoParentToReplace`,
+`ParentUnchanged`, and the lookups' `UnknownFrame` from
+`reparent_frame`, whose seed also crosses the
 insertion checks; `UnknownFrame`, `Disconnected` and
 `NotFoundAt` from lookups; `NoCommonTime` from `latest_common_time`, which
 shares `UnknownFrame` and `Disconnected` with the lookups so the same
@@ -355,7 +359,14 @@ a deliberate act with a deliberate API — `Registry::reparent_frame`
 re-pins the frame atomically at the price of its stored history, and
 `Registry::remove_frame` followed by re-adding covers what that call
 refuses: changing a frame's kind, moving it *with* its history, or
-re-rooting. Removing a mid-tree frame strands its descendants (they keep
+re-rooting. A grasped or docked payload usually wants no kind change at
+all: keep its frame dynamic and publish the attachment at rate, so a
+stopped stream fails loudly instead of a stale static pose answering
+forever. And when a static frame does move, build the seed with
+`Transform::static_between` — lookup results always carry `Stamp::At`,
+so a read-back pose handed straight to `reparent_frame` is rejected
+with `StaticDynamicConflict`; pass its `translation()` and `rotation()`
+through instead. Removing a mid-tree frame strands its descendants (they keep
 their pin to the removed parent) only until it is re-added, so either
 route moves a whole subtree by touching just the subtree's root — the
 descendants reconnect through their kept pins, history intact.
@@ -584,6 +595,7 @@ This library draws inspiration from ROS2's tf2 (Transform Framework 2), solving 
 | **Error Handling** | C++ exceptions | Rust `Result` types |
 | **Buffer Default** | 10 seconds | User-configured |
 | **Cleanup** | Automatic background process | Automatic (`with_max_age`) or manual (`Registry::new`), both modes |
+| **Frame tree model** | Parent stored per sample — publishing a new parent silently re-parents, and history under old parents is kept and served | One parent per frame — re-parenting is an explicit `reparent_frame` that drops the frame's history |
 
 ### Middleware Independence
 
@@ -622,20 +634,23 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
 
 - **O(log n) time lookups**: transforms are stored in `BTreeMap` indexed by
   timestamp; multi-hop lookups scale linearly with chain depth, and a failed
-  lookup runs an O(frames) diagnosis scan to name the cause
+  lookup or a rejected re-parent runs an O(frames) diagnosis scan to name
+  the cause
 - **Early-exit chain resolution**: walks stop as soon as the target frame is reached
 - **At most one inversion per lookup**: each half of the chain is composed in
   its natural direction, so a lookup toward an ancestor
   (`get_transform("map", "lidar", t)`) inverts nothing at all — a single-hop
   lookup at a stored timestamp returns that stored transform bit for bit
-- **Automatic cleanup**: `with_max_age` registries prevent unbounded memory
-  growth; eviction pops expired entries from the front of the map,
-  O(log n + evicted) per insert
+- **Automatic cleanup**: `with_max_age` registries bound each frame's
+  sample memory; eviction pops expired entries from the front of the map,
+  O(log n + evicted) per insert. Frames themselves are never auto-released
+  — a frame nobody publishes keeps its last window until
+  `Registry::remove_frame`
 - **Allocation profile**: a single-hop lookup performs 5 heap allocations
   toward an ancestor and 6 in the reverse direction (~0.5 KB churn),
   regardless of buffer size, plus ~2 per additional hop (135 at 64 hops) —
   frame names are `String`s; insertion into an existing frame does not clone
-  the frame name
+  the frame name (`reparent_frame` clones it once)
 - **All arithmetic is `f64`**: on single-precision-FPU cores (Cortex-M4F,
   M33) transform math runs through soft-float; only double-precision FPUs
   (M7-class) execute it in hardware

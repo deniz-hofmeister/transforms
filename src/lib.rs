@@ -30,7 +30,7 @@
 //!   retry loop or an assumed publisher rate.
 //! - **Re-parenting**: `Registry::reparent_frame` atomically moves a child
 //!   frame under a new parent — validated first, committed in one step, at
-//!   the loud, documented price of the frame's stored history.
+//!   the documented price of the frame's stored history.
 //! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
 //!
 //! # Non-Goals

@@ -12,8 +12,8 @@
 //! - **Coverage Query**: `Registry::latest_common_time` reports the newest
 //!   instant a chain can serve, or that no instant is commonly covered.
 //! - **Re-parenting**: `Registry::reparent_frame` atomically moves a child
-//!   frame under a new parent — at the loud, documented price of the
-//!   frame's stored history.
+//!   frame under a new parent — at the documented price of the frame's
+//!   stored history.
 //! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
 //!   automatically cleans up old dynamic transforms on insert; one built with
 //!   `Registry::new` keeps them until `remove_transforms_before` is called.
@@ -764,24 +764,55 @@ where
     ///
     /// `t.child()` is the frame to move, `t.parent()` the new parent, and
     /// `t` itself becomes the frame's first sample under the new pin — the
-    /// frame's buffer is replaced by an empty one seeded with `t`, so its
-    /// coverage collapses to the seed. That cost is loud, never silent: a
+    /// frame's buffer is replaced by an empty one seeded with `t`. What
+    /// that costs depends on the frame's kind. A *dynamic* frame's
+    /// coverage collapses to the seed instant, and the collapse is loud: a
     /// lookup at any other instant fails with
     /// `RegistryError::NotFoundAt` carrying `covered: Some((seed, seed))`,
-    /// and [`Registry::latest_common_time`] reports the collapse the same
-    /// way. To move a frame *without* losing history, use
+    /// [`Registry::latest_common_time`] reports it the same way (moving
+    /// backwards across this call when the seed is older than the dropped
+    /// history — it is not monotonic), and the frame's whole subtree stays
+    /// dark until the new edge's next publish grows coverage back. A
+    /// *static* frame has no time series to lose: the seed replaces the
+    /// single stored pose and keeps answering every instant — including
+    /// instants before the move, which the old pose answered differently —
+    /// so a static re-parent is retroactive and silent, exactly as an
+    /// ordinary static re-publish is. Model an attachment as a dynamic
+    /// frame where the past must stay honest, and mind
+    /// [`Registry::get_transform_at`], whose `fixed_frame` must not change
+    /// over time: a static re-parent between its two legs breaks that
+    /// precondition without an error.
+    ///
+    /// To move a frame *without* losing history, use
     /// [`Registry::remove_frame`] and re-add the history under the new
-    /// parent.
+    /// parent — *re-expressed* in it: looking the frame up toward the new
+    /// parent at each wanted instant, before the removal, yields exactly
+    /// the transforms to re-add, while relabelling old-parent samples
+    /// under the new parent's name is accepted and silently moves the
+    /// frame.
     ///
     /// What the move preserves: the frame's static-or-dynamic kind and its
     /// `max_age` expiry policy belong to the frame, not to the seed — a
     /// seed of the opposite kind is rejected
-    /// (`RegistryError::StaticDynamicConflict`), and
-    /// [`Registry::remove_frame`] remains the only way to change a frame's
-    /// kind. Descendants ride along: their pins are untouched, so the whole
+    /// (`RegistryError::StaticDynamicConflict`), so a move that must
+    /// change kind is not a re-parent: use [`Registry::remove_frame`],
+    /// then [`Registry::add_transform`] — the re-add still crosses the
+    /// cycle check, so that route is safe, only non-atomic. For a grasped
+    /// object the better shape is usually no kind change at all: keep the
+    /// frame dynamic and publish the attachment at rate, so a stopped
+    /// stream fails loudly where a static pose would keep answering.
+    /// Descendants ride along: their pins are untouched, so the whole
     /// subtree answers under the new parent with every descendant's history
     /// intact — at the instants the moved hop still serves, which for a
     /// dynamic frame is the seed's instant until new samples arrive.
+    ///
+    /// Cost: like [`Registry::remove_frame`] and
+    /// [`Registry::remove_transforms_before`], the call frees everything
+    /// it drops, so its latency is proportional to the discarded sample
+    /// count — and the replacement buffer exists before the old one is
+    /// freed, so the atomic path transiently holds one extra map node
+    /// (~1.4 KB) of heap. On a nearly-full embedded heap the non-atomic
+    /// recipe has the lower peak.
     ///
     /// A new parent the registry has never seen is accepted, exactly as
     /// [`Registry::add_transform`] accepts one — publish order stays
@@ -789,18 +820,33 @@ where
     /// the subtree rather than erroring, and if the old parent was a root
     /// whose name appeared nowhere else, later lookups toward it diagnose
     /// `UnknownFrame` naming the *old* parent. Validate frame names at the
-    /// boundary where they enter the system.
+    /// boundary where they enter the system. If the old parent survives
+    /// elsewhere in the tree, lookups toward it fail as `NotFoundAt`
+    /// naming the *moved* frame at instants its collapsed coverage misses,
+    /// and as `Disconnected` at instants it covers — ask
+    /// [`Registry::latest_common_time`] when the question is connectivity
+    /// rather than timing.
     ///
     /// Nothing constrains the seed's timestamp against the history the move
-    /// drops: a seed older than the frame's newest stored sample is
+    /// drops. A seed older than the frame's newest stored sample is
     /// accepted, and the frame's coverage moves *backwards* to that
-    /// instant. A producer whose messages can reorder in flight — any
-    /// transport, a replayed log — can therefore re-parent on a stale
-    /// message if this call is wired mechanically to incoming data. Gate
-    /// the call on the *decision* to re-parent, not on message arrival, and
-    /// when in doubt compare the seed's stamp against
-    /// [`Registry::latest_common_time`] for the frame under its current
-    /// parent first.
+    /// instant — a producer whose messages can reorder in flight (any
+    /// transport, a replayed log) can therefore re-parent on a stale
+    /// message if this call is wired mechanically to incoming data. A seed
+    /// stamped *ahead* of the live stream is worse under a
+    /// [`Registry::with_max_age`] registry: the seed becomes the expiry
+    /// reference, so every later real sample older than `max_age` relative
+    /// to it is evicted on the very insert that added it — accepted,
+    /// stored, gone — until the stream catches up to the seed's clock.
+    /// Gate the call on the *decision* to re-parent, not on message
+    /// arrival, and take the seed's stamp from the frame's own data
+    /// stream, not from the clock of whatever decided the move. Two more
+    /// rules the registry cannot enforce: publish only samples actually
+    /// measured relative to the new parent on the new edge — a backfilled
+    /// sample that predates the move interpolates against the seed as if
+    /// it were — and when re-arranging more than one hop of a chain, seed
+    /// the moves at the same instant, or the chain has no common instant
+    /// at all until fresh samples arrive on every moved edge.
     ///
     /// With the registry behind a lock, the natural idiom — decide, then
     /// re-parent, or retry a failed [`Registry::add_transform`] as a
@@ -811,7 +857,10 @@ where
     /// `ParentUnchanged`) or move the frame elsewhere first (this call
     /// destroys that writer's fresh seed). Either interleaving is loud or
     /// lost-update, never a wrong pose — but the single-guard form has
-    /// neither.
+    /// neither. The call reports nothing about what it replaced — on
+    /// success the old parent's name is gone — so a system that must audit
+    /// re-parenting records the decision (frame, old parent, new parent,
+    /// seed stamp) on the caller's side, under that same write guard.
     ///
     /// # Errors
     ///
@@ -831,10 +880,10 @@ where
     /// frame's history once and look correct forever after.
     ///
     /// Returns `RegistryError::CycleDetected` if the move would close a
-    /// cycle — the one condition a caller cannot pre-check from the
-    /// outside, and the reason this operation exists as a single atomic
-    /// call rather than the destroy-then-fail `remove_frame`-and-re-add
-    /// sequence.
+    /// cycle — the one condition that stays uncheckable however much
+    /// state the caller tracks (it needs a view of the whole tree), and
+    /// the reason this operation exists as a single atomic call rather
+    /// than the destroy-then-fail `remove_frame`-and-re-add sequence.
     ///
     /// Returns what [`Registry::add_transform`] would return for the seed
     /// itself: `RegistryError::NonUnitRotation` or

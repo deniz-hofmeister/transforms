@@ -411,8 +411,28 @@ proptest! {
                         prop_assert_eq!(transform.child(), source.as_str());
                     }
                 }
-                // The coverage query walks the same tree.
-                let _ = registry.latest_common_time(&target, &source);
+                // The coverage query walks the same tree — and an instant it
+                // promises must be servable (a promised instant no hop can
+                // serve is the invariant a re-parent's collapsed hop is best
+                // placed to break).
+                match registry.latest_common_time(&target, &source) {
+                    Ok(Stamp::At(promised)) => {
+                        let served = registry.get_transform(&target, &source, promised);
+                        prop_assert!(
+                            served.is_ok(),
+                            "latest_common_time promised {promised:?}, lookup failed: {served:?}",
+                        );
+                    }
+                    Ok(Stamp::Static) => {
+                        let served =
+                            registry.get_transform(&target, &source, Timestamp::from_nanos(4));
+                        prop_assert!(
+                            served.is_ok(),
+                            "a static chain must serve any instant, got {served:?}",
+                        );
+                    }
+                    Err(_) => {}
+                }
             }
         }
     }

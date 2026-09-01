@@ -113,8 +113,9 @@ where
     /// what it currently stores.
     /// [`Registry::reparent_frame`](crate::Registry::reparent_frame)
     /// deliberately preserves it — a seed transform of the opposite kind is
-    /// rejected with this same variant, because a move must not quietly
-    /// turn a time series into an eternal pose (or the reverse).
+    /// rejected with this same variant: the move drops the history either
+    /// way, but a frame flipped to static would answer every instant where
+    /// a dynamic frame fails loudly once its stream stops.
     /// [`Registry::remove_frame`](crate::Registry::remove_frame) is the only
     /// way to change it — remove the frame, then re-add it with the other
     /// kind.
@@ -135,7 +136,12 @@ where
     /// [`Registry::add_transform`](crate::Registry::add_transform) if the
     /// old parent was a root,
     /// [`Registry::reparent_frame`](crate::Registry::reparent_frame) if it
-    /// hangs mid-tree with a pin of its own.
+    /// hangs mid-tree with a pin of its own. The mid-tree route replaces
+    /// the old parent's own edge to *its* parent, splitting the reversed
+    /// pair and its descendants off from the tree above; re-attach the
+    /// pair's new root afterwards if the split is not wanted.
+    /// (Defensively, the variant is also returned for a registered frame
+    /// with no pinned parent — a state `Registry` cannot produce.)
     #[error("frame {0} has no parent to replace")]
     NoParentToReplace(String),
 
@@ -147,7 +153,7 @@ where
     /// look correct forever after. Publishing samples on an existing edge
     /// is [`Registry::add_transform`](crate::Registry::add_transform)'s
     /// job.
-    #[error("frame {0} already has this parent")]
+    #[error("frame {0} already has the requested parent")]
     ParentUnchanged(String),
 
     /// The requested frame exists nowhere in the transform tree, neither

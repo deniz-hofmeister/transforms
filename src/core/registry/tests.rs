@@ -3209,4 +3209,392 @@ mod registry_tests {
             "expected the coverage to have moved back to the stale seed, got {result:?}"
         );
     }
+
+    #[test]
+    fn reparent_frame_refuses_the_old_edges_publisher_and_grows_coverage_back() {
+        // The sequel every live system produces: the old parent's publisher
+        // does not know about the switch and keeps publishing. Its inserts
+        // must be refused naming the frame's *current* parent — the payload
+        // the stale publisher's operator needs — while the new edge's
+        // publisher is accepted, so the post-move collapse is transient:
+        // one publish cycle re-opens the covered range.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 2.0))
+            .unwrap();
+
+        let stale = registry.add_transform(translated("map_a", "odom", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(
+                &stale,
+                Err(RegistryError::ReparentingNotSupported { current_parent })
+                    if current_parent == "map_b"
+            ),
+            "expected the refusal to name the current parent, got {stale:?}"
+        );
+        assert!(registry.get_transform("map_a", "odom", t3).is_err());
+
+        registry
+            .add_transform(translated("map_b", "odom", Stamp::At(t3), 3.0))
+            .unwrap();
+        let mid = Timestamp::from_nanos(2_500_000_000);
+        let grown = registry.get_transform("map_b", "odom", mid).unwrap();
+        assert_abs_diff_eq!(grown.translation(), Vector3::new(2.5, 0.0, 0.0));
+        assert_eq!(
+            registry.latest_common_time("map_b", "odom").unwrap(),
+            Stamp::At(t3)
+        );
+    }
+
+    #[test]
+    fn reparent_frame_then_cleanup_keeps_the_new_pin_and_kind() {
+        // The cleanup invariant has a second pin-establishment path now: the
+        // fresh buffer's own first insert. Draining a re-parented frame must
+        // behave like draining any frame — a cutoff at the seed retains it
+        // (remove_before is strictly-less-than), a cutoff past it drains to
+        // covered: None rather than a timing range, and the drained frame
+        // still holds the NEW pin and its kind, so cleanup re-opens nothing.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        for (t, x) in [(t1, 1.0), (t2, 2.0)] {
+            registry
+                .add_transform(translated("map_a", "odom", Stamp::At(t), x))
+                .unwrap();
+        }
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 5.0))
+            .unwrap();
+
+        registry.remove_transforms_before(t2);
+        assert!(registry.get_transform("map_b", "odom", t2).is_ok());
+
+        registry.remove_transforms_before(t3);
+        let drained = registry.get_transform("map_b", "odom", t2);
+        assert!(
+            matches!(
+                &drained,
+                Err(RegistryError::NotFoundAt { frame, covered, .. })
+                    if frame == "odom" && covered.is_none()
+            ),
+            "expected the drained frame to report covered: None, got {drained:?}"
+        );
+
+        let stale = registry.add_transform(translated("map_a", "odom", Stamp::At(t3), 9.0));
+        assert!(
+            matches!(
+                &stale,
+                Err(RegistryError::ReparentingNotSupported { current_parent })
+                    if current_parent == "map_b"
+            ),
+            "expected the drained frame to keep the new pin, got {stale:?}"
+        );
+        let cross_kind = registry.add_transform(translated("map_b", "odom", Stamp::Static, 9.0));
+        assert!(
+            matches!(cross_kind, Err(RegistryError::StaticDynamicConflict)),
+            "expected the drained frame to keep its kind, got {cross_kind:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_joins_two_disconnected_trees() {
+        // Trees are joined the same way they are grown: by an edge. Moving a
+        // frame from one tree under a frame of another connects the two, and
+        // the old root — whose name appeared nowhere else — leaves the tree
+        // entirely.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t2), 1.0))
+            .unwrap();
+        for &t in &[t1, t2] {
+            registry
+                .add_transform(translated("c", "d", Stamp::At(t), 2.0))
+                .unwrap();
+        }
+        let apart = registry.get_transform("c", "b", t2);
+        assert!(
+            matches!(apart, Err(RegistryError::Disconnected { .. })),
+            "expected the trees to start disconnected"
+        );
+
+        registry
+            .reparent_frame(translated("d", "b", Stamp::At(t2), 4.0))
+            .unwrap();
+        let joined = registry.get_transform("c", "b", t2).unwrap();
+        assert_abs_diff_eq!(joined.translation(), Vector3::new(6.0, 0.0, 0.0));
+
+        let old = registry.get_transform("a", "b", t2);
+        assert!(
+            matches!(&old, Err(RegistryError::UnknownFrame(frame)) if frame == "a"),
+            "expected the vacated root to be unknown, got {old:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_diagnoses_the_frame_before_a_broken_seed() {
+        // The front half of the documented check order: the child frame's
+        // own diagnosis — unknown, or a root — reports before the seed's
+        // numbers are looked at, completing the order the existing
+        // check-order test pins for ParentUnchanged and CycleDetected.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        let unknown = Transform::unvalidated(
+            "world".into(),
+            "ghost".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(unknown);
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "ghost"),
+            "expected UnknownFrame ahead of the seed's own faults, got {result:?}"
+        );
+
+        let root = Transform::unvalidated(
+            "world".into(),
+            "map".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(root);
+        assert!(
+            matches!(&result, Err(RegistryError::NoParentToReplace(frame)) if frame == "map"),
+            "expected NoParentToReplace ahead of the seed's own faults, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_rejects_a_non_unit_rotation_seed_as_the_flat_variant() {
+        // The seed crosses the same checks an insert does, and the flat-enum
+        // rule holds on this path too: a denormalized rotation arrives as
+        // RegistryError::NonUnitRotation, never wrapped in TransformError.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        let denormalized = Transform::unvalidated(
+            "map_b".into(),
+            "odom".into(),
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::from_wxyz(2.0, 0.0, 0.0, 0.0),
+            Stamp::At(t2),
+        );
+        let result = registry.reparent_frame(denormalized);
+        assert!(
+            matches!(result, Err(RegistryError::NonUnitRotation(_))),
+            "expected the flat NonUnitRotation for a denormalized seed, got {result:?}"
+        );
+        assert_eq!(
+            registry
+                .get_transform("map_a", "odom", t1)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn reparent_frame_seed_survives_a_lookup_bit_for_bit() {
+        // A single-hop lookup at a stored timestamp returns the stored
+        // transform exactly, and the seed is stored like any sample. Exact
+        // equality with a non-identity rotation would catch a spurious
+        // renormalization, inversion, or recomposition that the
+        // identity-rotation fixtures elsewhere cannot see; (0.6, 0, 0, 0.8)
+        // is exactly representable and exactly unit.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map_a", "odom", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        let seed = Transform::new(
+            "map_b",
+            "odom",
+            Vector3::new(1.5, -2.25, 0.125),
+            Quaternion::from_wxyz(0.6, 0.0, 0.0, 0.8),
+            Stamp::At(t2),
+        )
+        .unwrap();
+        registry.reparent_frame(seed.clone()).unwrap();
+        assert_eq!(registry.get_transform("map_b", "odom", t2).unwrap(), seed);
+    }
+
+    #[test]
+    fn get_transform_at_across_a_reparented_hop_depends_on_the_fixed_frame() {
+        // get_transform_at resolves two legs at two instants against the
+        // topology as it stands now. Where the fixed frame sits relative to
+        // the moved hop decides the outcome: below it, neither leg crosses
+        // the collapsed edge and the query keeps answering from the
+        // descendant's untouched history; above it, both legs cross the
+        // moved hop and fail loudly at the instants it no longer covers.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t3 = Timestamp::from_nanos(3_000_000_000);
+        let mut registry = Registry::new();
+        for (t, x) in [(t1, 1.0), (t2, 1.5)] {
+            registry
+                .add_transform(translated("map_a", "odom", Stamp::At(t), x))
+                .unwrap();
+        }
+        for (t, x) in [(t1, 2.0), (t2, 3.0), (t3, 4.0)] {
+            registry
+                .add_transform(translated("odom", "base", Stamp::At(t), x))
+                .unwrap();
+        }
+        registry
+            .reparent_frame(translated("map_b", "odom", Stamp::At(t2), 5.0))
+            .unwrap();
+
+        // Fixed frame below the moved hop: served entirely by odom -> base.
+        let below = registry
+            .get_transform_at("base", t1, "base", t3, "odom")
+            .unwrap();
+        assert_abs_diff_eq!(below.translation(), Vector3::new(2.0, 0.0, 0.0));
+
+        // Fixed frame above it: the t1 and t3 legs need the moved hop,
+        // which now covers only the seed instant.
+        let above = registry.get_transform_at("base", t1, "base", t3, "map_b");
+        assert!(
+            matches!(&above, Err(RegistryError::NotFoundAt { frame, .. }) if frame == "odom"),
+            "expected the legs to fail at the collapsed hop, got {above:?}"
+        );
+    }
+
+    #[test]
+    fn successive_reparent_frames_pay_per_move_and_can_disjoin_a_chain() {
+        // Each move pays the history price on the moved frame only: a second
+        // move drops the first move's seed, while a descendant's history
+        // survives every move. And two moved hops on one chain, seeded at
+        // different instants, leave the chain with no common instant at all
+        // — two disjoint one-point ranges — until fresh samples arrive.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let t4 = Timestamp::from_nanos(4_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t1), 1.0))
+            .unwrap();
+        for (t, x) in [(t1, 2.0), (t2, 3.0), (t4, 4.0)] {
+            registry
+                .add_transform(translated("b", "c", Stamp::At(t), x))
+                .unwrap();
+        }
+
+        registry
+            .reparent_frame(translated("n1", "b", Stamp::At(t2), 5.0))
+            .unwrap();
+        registry
+            .reparent_frame(translated("n2", "b", Stamp::At(t4), 6.0))
+            .unwrap();
+
+        // The second move dropped the first move's seed...
+        let first_seed = registry.get_transform("n2", "b", t2);
+        assert!(
+            matches!(
+                &first_seed,
+                Err(RegistryError::NotFoundAt { frame, covered, .. })
+                    if frame == "b" && *covered == Some((t4, t4))
+            ),
+            "expected the first move's seed to be gone, got {first_seed:?}"
+        );
+        // ...the intermediate root vanished with its only edge...
+        let gone = registry.get_transform("n1", "b", t4);
+        assert!(
+            matches!(&gone, Err(RegistryError::UnknownFrame(frame)) if frame == "n1"),
+            "expected the intermediate root to be unknown, got {gone:?}"
+        );
+        // ...and the descendant's history survived both moves.
+        assert_eq!(
+            registry.get_transform("b", "c", t1).unwrap().translation(),
+            Vector3::new(2.0, 0.0, 0.0)
+        );
+
+        // Two moved hops on one chain, seeded apart, share no instant.
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("a", "b", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("b", "c", Stamp::At(t1), 2.0))
+            .unwrap();
+        registry
+            .reparent_frame(translated("n", "b", Stamp::At(t2), 3.0))
+            .unwrap();
+        registry
+            .reparent_frame(translated("n", "c", Stamp::At(t4), 4.0))
+            .unwrap();
+        let none = registry.latest_common_time("b", "c");
+        assert!(
+            matches!(none, Err(RegistryError::NoCommonTime { .. })),
+            "expected two disjoint one-instant hops to share no time, got {none:?}"
+        );
+    }
+
+    #[test]
+    fn reparent_frame_moves_a_static_frame_in_a_max_age_registry() {
+        // Expiry is per-buffer and static buffers never expire: a static
+        // move through a with_max_age registry must neither expire the
+        // mount nor flip its kind, however far the dynamic traffic
+        // elsewhere advances.
+        let mut registry = Registry::with_max_age(Duration::from_secs(1));
+        registry
+            .add_transform(
+                Transform::static_between(
+                    "mount_a",
+                    "tool",
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        registry
+            .reparent_frame(
+                Transform::static_between(
+                    "mount_b",
+                    "tool",
+                    Vector3::new(2.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let t_late = Timestamp::from_nanos(60_000_000_000);
+        registry
+            .add_transform(translated("mount_b", "wrist", Stamp::At(t_late), 3.0))
+            .unwrap();
+        let served = registry.get_transform("mount_b", "tool", t_late).unwrap();
+        assert_abs_diff_eq!(served.translation(), Vector3::new(2.0, 0.0, 0.0));
+        let early = registry
+            .get_transform("mount_b", "tool", Timestamp::from_nanos(5))
+            .unwrap();
+        assert_abs_diff_eq!(early.translation(), Vector3::new(2.0, 0.0, 0.0));
+
+        let result = registry.add_transform(translated("mount_b", "tool", Stamp::At(t_late), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "expected the moved frame to still be static, got {result:?}"
+        );
+    }
 }

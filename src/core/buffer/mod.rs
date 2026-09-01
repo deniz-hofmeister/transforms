@@ -245,9 +245,11 @@ where
     /// This is how [`Registry::reparent_frame`](crate::Registry::reparent_frame)
     /// rebuilds a frame's buffer without re-deciding either property from
     /// whichever transform seeds the move: the kind and the retention policy
-    /// belong to the frame, and a re-parent that re-derived the kind from
-    /// its seed would let a static seed on a dynamic frame silently rewrite
-    /// the frame's entire history as one eternal pose.
+    /// belong to the frame. The dropped history cannot be the reason — the
+    /// move discards it either way. What the pin protects is everything
+    /// after the move: a seed allowed to flip a dynamic frame to static
+    /// would turn the frame's loud out-of-coverage failures on a stopped
+    /// stream into a pose that answers at every instant.
     #[must_use]
     pub fn empty_like(&self) -> Self {
         Self {
