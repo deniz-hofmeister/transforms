@@ -36,6 +36,16 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v2.1.2 (Unreleased)
+
+- `latest_common_time` now reports timestamp arithmetic errors when a custom
+  clock cannot interpolate at the newest common instant, instead of returning
+  an instant the subsequent lookup cannot serve.
+- Geometry tests now check approximate comparisons' rejection behavior,
+  scalar multiplication, and inversion overflow in individual components.
+- The existing single-stamp limitation of `get_transform_at` is documented
+  below; its representation is unchanged in this patch.
+
 ### v2.1.0
 
 - **`Registry::latest_common_time`**: "what is the newest instant this
@@ -90,7 +100,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.1.1"
+transforms = "2.1.2"
 ```
 
 ### Feature Flags
@@ -126,7 +136,7 @@ For `no_std` environments (requires a heap allocator):
 
 ```toml
 [dependencies]
-transforms = { version = "2.1.1", default-features = false }
+transforms = { version = "2.1.2", default-features = false }
 ```
 
 ## Quick Start
@@ -189,6 +199,22 @@ samples, exact also for mid-tree pairs, `Stamp::Static` when every hop is
 static (the caller picks the instant). The intended idiom is that call
 followed by `get_transform` at the returned instant, both under the same
 lock guard when the registry is shared.
+
+For custom clocks, `latest_common_time` also checks the timestamp arithmetic
+needed at that instant. An unrepresentable interpolation interval or offset
+returns `RegistryError::TransformError(TransformError::TimestampError(..))`;
+the query does not search earlier instants after such a failure. It does not
+evaluate geometry, so a subsequent lookup can still report numeric errors.
+
+`get_transform_at` maps source-time coordinates into the target frame at
+the target time, but the returned `Transform` stores only the target stamp.
+When the times differ, keep both instants separately and apply the rotation
+and translation explicitly, labeling the output with the target frame and
+time. Do not apply such a result through `Transformable`, compose it as a
+single-time transform, or reinsert it into a registry: those operations
+cannot check the lost source time. Serialization also loses that provenance,
+and `validate()` checks numbers only. Reinsertion can silently overwrite a
+correct target-time sample with source-time geometry.
 
 Every registry call reports `errors::RegistryError<T>`, one flat
 `#[non_exhaustive]` enum: `NonUnitRotation`, `NonFiniteValues`,

@@ -95,6 +95,12 @@ where
 /// first: a rotation whose norm is 1.01 scales everything it touches by 2%
 /// and reports success.
 ///
+/// Cross-time results from
+/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) cannot
+/// satisfy this trait's timestamp contract when the source and target times
+/// differ: they retain only the target stamp. Follow that method's guidance
+/// for explicitly applying the geometry with both instants retained.
+///
 /// # Errors
 ///
 /// Returns `TransformError` if:

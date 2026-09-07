@@ -573,7 +573,12 @@ public, so the formulas above are the whole migration.
    `SameFrameMultiplication` in 1.x (and still in 2.0.0-alpha.1; resolved
    since beta.1).
 4. **Results always carry the requested timestamp**, including over
-   all-static chains.
+   all-static chains. `get_transform_at` carries only the **target** time:
+   its cross-time geometry does not retain the source instant. Keep both
+   instants separately and apply its rotation and translation explicitly;
+   ordinary `Transformable` application, composition, registry insertion,
+   and serialization cannot check that provenance. This existing limitation
+   remains in 2.1.2; numeric validation does not detect it.
 5. **Cleanup preserves static transforms — and frame pins.**
    `remove_transforms_before` (1.x: `delete_transforms_before`) deleted
    static transforms in 1.x; it now spares them. It also never releases a frame: a frame drained of every

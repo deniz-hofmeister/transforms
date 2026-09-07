@@ -56,7 +56,7 @@
 
 use crate::{
     geometry::Transform,
-    time::{Stamp, TimePoint, Timestamp},
+    time::{Stamp, TimeError, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
 use core::{fmt, time::Duration};
@@ -402,6 +402,23 @@ where
                 _ => Err(GetError::NoTransformAvailable),
             },
         }
+    }
+
+    /// Checks the timestamp arithmetic needed to interpolate at `timestamp`,
+    /// without cloning or computing geometry. Coverage is checked separately
+    /// by the caller: missing neighbors and static buffers need no arithmetic.
+    pub fn check_interpolation_time(
+        &self,
+        timestamp: T,
+    ) -> Result<(), TimeError> {
+        if let (Some((start, _)), Some((end, _))) = self.get_nearest(&timestamp) {
+            // Match Transform::interpolate: an exact sample needs only the
+            // zero span; otherwise both the interval and offset must fit.
+            if !end.duration_since(*start)?.is_zero() {
+                timestamp.duration_since(*start)?;
+            }
+        }
+        Ok(())
     }
 
     /// Retrieves the nearest transforms before and after the given timestamp.

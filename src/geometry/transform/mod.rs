@@ -33,6 +33,11 @@ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 /// into the parent frame. It carries a translation, a rotation, and a
 /// [`Stamp`]: one instant, or all time.
 ///
+/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) has a
+/// temporal metadata limitation: its geometry can relate two different
+/// instants, but this type stores only the target instant. Keep the source
+/// instant separately and follow that method's application restrictions.
+///
 /// [`Transform::new`] and [`Transform::static_between`] build one from
 /// components; both reject non-finite components and rotations whose norm
 /// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`], and the fields are

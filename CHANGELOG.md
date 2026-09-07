@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - Unreleased
+
+### Fixed
+
+- `Registry::latest_common_time` checks the timestamp arithmetic needed to
+  interpolate at its answer. Custom clocks whose spans cannot fit in
+  `Duration` now receive the same timestamp error as a lookup, instead of
+  an unusable instant. Exact samples and representable neighboring spans
+  remain usable even within a wider history; edges above the common
+  ancestor are still ignored. The query does not evaluate geometry or
+  search earlier instants after an arithmetic failure.
+- Regression-test gaps in scalar multiplication, approximate comparisons
+  (numeric tolerances and exact frame/time metadata), and inversion with
+  overflow in just one translation component.
+
+### Changed
+
+- Document the existing temporal metadata limitation of `get_transform_at`:
+  the result stores only the target stamp even when its geometry refers to
+  a different source instant. Callers must retain both instants and apply
+  the geometry explicitly; ordinary application, composition, reinsertion,
+  and serialization cannot check that provenance. The representation and
+  wire format are unchanged in this patch.
+- Clarify that `TimePoint::duration_since` may fail for an ordered span
+  that cannot be represented as `Duration`.
+
 ## [2.1.1] - 2026-09-01
 
 ### Changed
@@ -515,6 +541,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...HEAD
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0
