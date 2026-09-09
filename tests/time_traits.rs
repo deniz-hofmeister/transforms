@@ -2,7 +2,7 @@ use core::time::Duration;
 
 use transforms::{
     Registry,
-    errors::{RegistryError, TimeError},
+    errors::{RegistryError, TimeError, TransformError},
     geometry::{Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
@@ -87,6 +87,209 @@ impl TimePoint for UnconvertibleTime {
     fn as_seconds_lossy(self) -> f64 {
         f64::NAN
     }
+}
+
+/// A clock whose ordered range exceeds `Duration`'s range. Individual
+/// interpolation intervals can still be representable within that history.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct WideNanos(u128);
+
+impl TimePoint for WideNanos {
+    fn duration_since(
+        self,
+        earlier: Self,
+    ) -> Result<Duration, TimeError> {
+        let nanos = self
+            .0
+            .checked_sub(earlier.0)
+            .ok_or(TimeError::DurationUnderflow)?;
+        let seconds =
+            u64::try_from(nanos / 1_000_000_000).map_err(|_| TimeError::DurationOverflow)?;
+        let subsecond =
+            u32::try_from(nanos % 1_000_000_000).map_err(|_| TimeError::DurationOverflow)?;
+        Ok(Duration::new(seconds, subsecond))
+    }
+
+    fn checked_sub(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimeError> {
+        self.0
+            .checked_sub(rhs.as_nanos())
+            .map(Self)
+            .ok_or(TimeError::DurationUnderflow)
+    }
+
+    fn as_seconds_lossy(self) -> f64 {
+        self.0 as f64 / 1_000_000_000.0
+    }
+}
+
+fn wide_clock_registry(samples: &[(&str, &str, u128)]) -> Registry<WideNanos> {
+    let mut registry = Registry::new();
+    for &(parent, child, nanos) in samples {
+        registry
+            .add_transform(
+                Transform::new(
+                    parent,
+                    child,
+                    Vector3::zero(),
+                    Quaternion::identity(),
+                    Stamp::At(WideNanos(nanos)),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    registry
+}
+
+#[test]
+fn latest_common_time_rejects_unrepresentable_interpolation_spans() {
+    let huge = Duration::MAX.as_nanos() + 1;
+    let registry = wide_clock_registry(&[("a", "b", 0), ("a", "b", huge), ("b", "c", 1)]);
+
+    for (target, source) in [("a", "c"), ("c", "a")] {
+        assert!(matches!(
+            registry.get_transform(target, source, WideNanos(1)),
+            Err(RegistryError::TransformError(
+                TransformError::TimestampError(TimeError::DurationOverflow)
+            ))
+        ));
+        assert!(matches!(
+            registry.latest_common_time(target, source),
+            Err(RegistryError::TransformError(
+                TransformError::TimestampError(TimeError::DurationOverflow)
+            ))
+        ));
+    }
+}
+
+#[test]
+fn latest_common_time_serves_exact_samples_in_a_wide_history() {
+    let huge = Duration::MAX.as_nanos() + 1;
+    let registry = wide_clock_registry(&[("a", "b", 0), ("a", "b", huge), ("b", "c", huge)]);
+
+    let stamp = registry.latest_common_time("a", "c").unwrap();
+    assert_eq!(stamp, Stamp::At(WideNanos(huge)));
+    assert_eq!(
+        registry
+            .get_transform("a", "c", stamp.at().unwrap())
+            .unwrap()
+            .timestamp(),
+        stamp
+    );
+}
+
+#[test]
+fn latest_common_time_checks_only_neighboring_sample_spans() {
+    let huge = Duration::MAX.as_nanos() + 1;
+    let registry = wide_clock_registry(&[
+        ("a", "b", 0),
+        ("a", "b", huge - 2),
+        ("a", "b", huge),
+        ("b", "c", huge - 1),
+    ]);
+
+    let stamp = registry.latest_common_time("a", "c").unwrap();
+    assert_eq!(stamp, Stamp::At(WideNanos(huge - 1)));
+    assert_eq!(
+        registry
+            .get_transform("a", "c", stamp.at().unwrap())
+            .unwrap()
+            .timestamp(),
+        stamp
+    );
+}
+
+#[test]
+fn latest_common_time_ignores_unrepresentable_spans_above_the_common_ancestor() {
+    let huge = Duration::MAX.as_nanos() + 1;
+    let registry = wide_clock_registry(&[
+        ("a", "b", 0),
+        ("a", "b", huge),
+        ("b", "c", 1),
+        ("b", "d", 1),
+    ]);
+
+    let stamp = registry.latest_common_time("c", "d").unwrap();
+    assert_eq!(stamp, Stamp::At(WideNanos(1)));
+    assert_eq!(
+        registry
+            .get_transform("c", "d", stamp.at().unwrap())
+            .unwrap()
+            .timestamp(),
+        stamp
+    );
+}
+
+/// A finer-resolution clock can express an interval's endpoints in
+/// nanoseconds while its interpolation offset falls between nanoseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct Picos(u64);
+
+impl TimePoint for Picos {
+    fn duration_since(
+        self,
+        earlier: Self,
+    ) -> Result<Duration, TimeError> {
+        let picos = self
+            .0
+            .checked_sub(earlier.0)
+            .ok_or(TimeError::DurationUnderflow)?;
+        if picos % 1_000 != 0 {
+            return Err(TimeError::AccuracyLoss);
+        }
+        Ok(Duration::from_nanos(picos / 1_000))
+    }
+
+    fn checked_sub(
+        self,
+        rhs: Duration,
+    ) -> Result<Self, TimeError> {
+        let picos =
+            u64::try_from(rhs.as_nanos() * 1_000).map_err(|_| TimeError::DurationOverflow)?;
+        self.0
+            .checked_sub(picos)
+            .map(Self)
+            .ok_or(TimeError::DurationUnderflow)
+    }
+
+    fn as_seconds_lossy(self) -> f64 {
+        self.0 as f64 / 1_000_000_000_000.0
+    }
+}
+
+#[test]
+fn latest_common_time_rejects_an_unrepresentable_offset_within_a_representable_interval() {
+    let mut registry = Registry::new();
+    for (parent, child, time) in [("a", "b", 0), ("a", "b", 2_000), ("b", "c", 1)] {
+        registry
+            .add_transform(
+                Transform::new(
+                    parent,
+                    child,
+                    Vector3::zero(),
+                    Quaternion::identity(),
+                    Stamp::At(Picos(time)),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+
+    assert!(matches!(
+        registry.get_transform("a", "c", Picos(1)),
+        Err(RegistryError::TransformError(
+            TransformError::TimestampError(TimeError::AccuracyLoss)
+        ))
+    ));
+    assert!(matches!(
+        registry.latest_common_time("a", "c"),
+        Err(RegistryError::TransformError(
+            TransformError::TimestampError(TimeError::AccuracyLoss)
+        ))
+    ));
 }
 
 #[test]

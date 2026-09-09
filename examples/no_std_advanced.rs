@@ -99,6 +99,9 @@ fn main() {
     info!("Object in map at t2: {:?}", object_in_map_t2.translation());
 
     // --- Time travel ---
+    // The result stores only target_time. Keep source_time separately when
+    // using its geometry; do not reinsert it as a single-time sample or
+    // apply it through Transformable, which cannot check both instants.
     // "Where was the object at t1, expressed in the camera frame at t2?"
     // The camera hasn't moved, so the answer is the object's t1 map position
     // relative to the camera: (1, 0.5, 0) - (0, 2, 0) = (1, -1.5, 0)

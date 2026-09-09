@@ -86,6 +86,7 @@ use crate::{
         Buffer,
         buffer::{Coverage, GetError},
     },
+    errors::TransformError,
     geometry::{Localized, Quaternion, Transform, Vector3},
     time::{Stamp, TimePoint, Timestamp},
 };
@@ -431,6 +432,23 @@ where
     /// `target_frame` both coincide with it, the result is the identity
     /// transform carrying `target_time`.
     ///
+    /// # Temporal metadata limitation
+    ///
+    /// The returned geometry maps coordinates in `source_frame` at
+    /// `source_time` into `target_frame` at `target_time`, but its single
+    /// stamp stores only `target_time`. When the times differ, retain both
+    /// instants alongside the result. Apply its rotation and translation
+    /// explicitly to source-time coordinates and label the output with the
+    /// target frame and time.
+    ///
+    /// Such a result must not be used as an ordinary single-time transform:
+    /// [`Transformable`](crate::Transformable) checks against the target
+    /// stamp and rejects a source-time point; composition, serialization,
+    /// and [`Registry::add_transform`] cannot recover or check the lost
+    /// source time. Re-inserting it can overwrite a valid target-time
+    /// sample with source-time geometry. [`Transform::validate`] checks
+    /// only numeric validity and does not detect this misuse.
+    ///
     /// # Choosing the fixed frame
     ///
     /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
@@ -586,6 +604,14 @@ where
     /// the named frame's range), or a hop holds no data at all
     /// (`covered: None`).
     ///
+    /// Returns `RegistryError::TransformError` wrapping
+    /// `TransformError::TimestampError` if the newest common instant needs
+    /// interpolation whose interval or offset the clock cannot express as
+    /// a `Duration`. This checks the neighboring samples, not the full
+    /// stored history, and does not search for an earlier instant on failure.
+    /// Geometry is not evaluated here; the subsequent lookup can still
+    /// report a numeric failure, such as overflow during inversion.
+    ///
     /// # Examples
     ///
     /// ```
@@ -671,7 +697,7 @@ where
         // back to it, which the latest-starting range decides.
         let mut common_end: Option<T> = None;
         let mut latest_start: Option<((T, T), &str)> = None;
-        for &(frame, buffer) in chain {
+        for &(frame, buffer) in chain.clone() {
             match buffer.coverage() {
                 Coverage::AllTime => {}
                 Coverage::Empty => {
@@ -702,7 +728,14 @@ where
                     covered: Some(covered),
                 })
             }
-            (Some(end), _) => Ok(Stamp::At(end)),
+            (Some(end), _) => {
+                for &(_, buffer) in chain {
+                    buffer
+                        .check_interpolation_time(end)
+                        .map_err(TransformError::from)?;
+                }
+                Ok(Stamp::At(end))
+            }
             // Every hop is static: the chain puts no bound on time.
             (None, _) => Ok(Stamp::Static),
         }

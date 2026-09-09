@@ -201,6 +201,42 @@ mod transform_tests {
     }
 
     #[test]
+    fn inverse_rejects_overflow_in_any_single_translation_component() {
+        // A finite, valid input can overflow one output axis while the
+        // other two stay finite. A NaN input alone cannot catch a weakened
+        // guard: quaternion multiplication spreads its NaN to every axis.
+        let cosine = 0.923_879_532_511_286_7;
+        let sine = 0.382_683_432_365_089_8;
+        for (translation, rotation) in [
+            (
+                Vector3::new(1.28e308, 1.28e308, 0.0),
+                Quaternion::from_wxyz(cosine, 0.0, 0.0, sine),
+            ),
+            (
+                Vector3::new(0.0, 1.28e308, 1.28e308),
+                Quaternion::from_wxyz(cosine, sine, 0.0, 0.0),
+            ),
+            (
+                Vector3::new(1.28e308, 0.0, 1.28e308),
+                Quaternion::from_wxyz(cosine, 0.0, sine, 0.0),
+            ),
+        ] {
+            let transform = Transform::new(
+                "a",
+                "b",
+                translation,
+                rotation,
+                Stamp::At(Timestamp::zero()),
+            )
+            .unwrap();
+            assert!(matches!(
+                transform.inverse(),
+                Err(TransformError::NonFiniteValues)
+            ));
+        }
+    }
+
+    #[test]
     fn mul_translation() {
         let t = Timestamp::zero();
 
