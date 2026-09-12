@@ -1,0 +1,29 @@
+diff --git a/src/geometry/transform/mod.rs b/src/geometry/transform/mod.rs
+index b128139..cd4e453 100644
+--- a/src/geometry/transform/mod.rs
++++ b/src/geometry/transform/mod.rs
+@@ -168,7 +168,7 @@ where
+         rotation: Quaternion,
+         timestamp: Stamp<T>,
+     ) -> Result<Self, TransformError> {
+-        let transform = Self::unvalidated(
++        let mut transform = Self::unvalidated(
+             parent.into(),
+             child.into(),
+             translation,
+@@ -176,6 +176,7 @@ where
+             timestamp,
+         );
+         transform.validate()?;
++        transform.rotation = transform.rotation.normalize()?;
+         Ok(transform)
+     }
+
+@@ -578,6 +579,7 @@ where
+
+         let mut result = self.compose_ignoring_time(rhs)?;
+         result.timestamp = timestamp;
++        result.validate()?;
+         Ok(result)
+     }
+ }

@@ -36,6 +36,13 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v2.1.3 (Unreleased)
+
+- Dynamic history stores geometry and a timestamp key instead of complete
+  transforms with repeated frame names. Lookup walks borrow pinned names,
+  reducing allocations without changing results, errors, or serialization.
+  Updated host measurements are in [Performance](#performance).
+
 ### v2.1.2
 
 - Dependency version requirements now match the latest Rust 1.85-compatible
@@ -89,11 +96,9 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 - **Rust-first API cleanup**: exact `==` with tolerant comparison in the
   `approx` traits, `#[non_exhaustive]` errors, private internals, optional
   `serde` support, an enforced panic policy, and MSRV 1.86.
-- **A stated envelope**: `f64` is a commitment — f32 and mixed precision are
-  Non-Goals — and the [Performance](#performance) section publishes what
-  that costs: measured per-operation timings and allocation counts, ~320 B
-  of resident heap per stored sample under short frame names, and the rates
-  and tree depths that do and do not fit an MCU.
+- **A stated embedded scope**: `f64` and `no_std + alloc` remain the
+  commitments. [Performance](#performance) distinguishes measured host
+  resource usage from bare-metal compilation coverage.
 
 `add_transform` is now fallible — the headline migration for 1.x users:
 
@@ -295,7 +300,7 @@ The main interface for managing transforms. It stores `Buffer` instances (one pe
 
 ### Buffer (internal)
 
-Time-indexed storage for transforms between a specific child-parent frame pair, owned by the registry and not reachable from outside the crate. A dynamic buffer uses a `BTreeMap<T, Transform<T>>` for O(log n) lookups with automatic interpolation for timestamps between stored values; a static buffer stores its single transform inline and serves it for any requested time.
+Time-indexed storage for transforms between a specific child-parent frame pair, owned by the registry and not reachable from outside the crate. A dynamic buffer uses a `BTreeMap<T, Sample>` containing only translation and rotation, with frame names pinned once per buffer and timestamps in the map keys, for O(log n) lookups with automatic interpolation; a static buffer stores its single transform inline and serves it for any requested time.
 
 ### Transform
 
@@ -628,69 +633,59 @@ With `std`, `std::time::SystemTime` support is already implemented, so `Registry
 - **Automatic cleanup**: `with_max_age` registries prevent unbounded memory
   growth; eviction pops expired entries from the front of the map,
   O(log n + evicted) per insert
-- **Allocation profile**: a single-hop lookup performs 5 heap allocations
-  toward an ancestor and 6 in the reverse direction (~0.5 KB churn),
-  regardless of buffer size, plus ~2 per additional hop (135 at 64 hops) —
-  frame names are `String`s; insertion into an existing frame does not clone
-  the frame name
-- **All arithmetic is `f64`**: on single-precision-FPU cores (Cortex-M4F,
-  M33) transform math runs through soft-float; only double-precision FPUs
-  (M7-class) execute it in hardware
-- **Identical numbers in both feature modes**: `sqrt`, `sin`, and `acos`
-  come from [libm](https://crates.io/crates/libm) with and without `std`,
-  never from the platform's own math library, so a desktop replay
-  reproduces the target's interpolated rotations bit for bit
+- **Compact dynamic history**: each sample holds 56 B of geometry plus
+  its `T` map key; parent and child names are stored per buffer. Static
+  buffers still store one complete transform.
+- **Allocation profile**: a single-hop lookup performs 3 heap allocations
+  toward an ancestor and 5 in the reverse direction. Four ancestor-ward
+  hops use 9 allocations; 64 hops use 133. These measurements use nonempty,
+  eight-character frame names. Results still own their names.
+- **All arithmetic is `f64`**: hardware acceleration depends on the actual
+  device's double-precision support; compilation for a target does not
+  establish latency on a particular board.
+- **Same arithmetic in both feature modes**: `sqrt`, `sin`, and `acos`
+  come from [libm](https://crates.io/crates/libm) with and without `std`.
+  The tests pin interpolated rotations bit for bit across those feature
+  modes on the test host. This is not a measurement of cross-device replay.
 
 ### Measured cost
 
-On x86-64 (Intel i7-1065G7, release + LTO, counting global allocator),
-against frames holding 1000 dynamic samples each:
+The v2 storage/traversal comparison used x86-64, release builds, and
+Valgrind 3.27.1. Requested heap bytes exclude allocator bookkeeping and
+fragmentation. The fixtures insert samples in timestamp order; these are
+measurements of those fixtures, not universal memory bounds.
 
-| Operation | Time | Allocations |
-|---|---|---|
-| `add_transform`, steady state under `with_max_age` | ~0.4 µs | 2 |
-| `get_transform`, 1 hop, at a stored stamp | ~0.6 µs | 5 |
-| `get_transform`, 1 hop, interpolated | ~0.7 µs | 5 |
-| `get_transform`, 4 hops toward an ancestor, interpolated | ~1.9 µs | 11 |
-| `get_transform` rejecting an unknown frame among 1000 frames | ~9 µs | 3 |
+| Fixture | Before | Compact history |
+|---|---:|---:|
+| 10,000 dynamic samples, 8-character names | 2,556,806 B | 1,220,983 B |
+| 10,000 dynamic samples, 128-character names | 4,957,408 B | 1,221,825 B |
+| 1-hop stored or interpolated ancestor lookup | 5 allocations | 3 allocations |
+| 1-hop reverse lookup | 6 allocations | 5 allocations |
+| 4-hop interpolated ancestor lookup | 11 allocations | 9 allocations |
 
-Resident memory is about **320 B per stored sample while both frame names
-are 32 characters or shorter** — a 120-byte `Transform`, its entry in the
-ordered map, and the two frame-name strings, including allocator block
-granularity. Every sample owns its own copy of both names, so the figure
-rises with them: each name adds another 32 B per sample for every further
-32 characters. A ROS-style pair of 45-character namespaced names therefore
-costs ~64 B more, about **385 B per sample**, and a dynamic edge published
-at 1 kHz under a one-second `max_age` holds ~320 KB under short names but
-~385 KB under that pair. At equal name length 32-bit targets are smaller
-(`Transform` is 96 B there), but the name strings are not — so size an MCU
-heap from the names you actually publish, not from the headline figure.
+Longer names now add a fixed cost per dynamic edge rather than a cost per
+historical sample. The short-name fixture uses about 122 B of requested
+heap per sample, including map storage. Custom timestamp sizes, insertion
+order, map occupancy, allocator overhead, frame count, and transient
+lookup allocations affect actual heap requirements. The comparison and
+reproduction scripts are in
+[the v2 feasibility report](analysis/v2-feasibility/REPORT.md).
 
 ### Supported envelope
 
-The crate commits to `f64` (see [Non-Goals](#non-goals)), so on cores
-without a double-precision FPU every coordinate operation is emulated in
-software. That, together with the per-sample memory above, is what decides
-fitness:
+The crate retains its `f64`, `no_std + alloc` API and the bare-metal build
+matrix: `thumbv7em-none-eabihf`, `thumbv6m-none-eabi`,
+`thumbv8m.main-none-eabihf`, and `riscv32imc-unknown-none-elf`. This verifies
+compilation, including the optional serde path; it does not establish a
+lookup rate, energy cost, or worst-case execution time on those devices.
+No MCU timing measurements accompany this change. The previous estimated
+rate table and its unmeasured ±2× confidence interval have been removed.
 
-| Platform | Workload | Memory for a 1 s window | Basis |
-|---|---|---|---|
-| x86-64 / ARM64 SBC (Raspberry Pi, Jetson) | 1 kHz tick: 6 dynamic edges published and 3 lookups of 3–5 hops, ~11 µs/tick ≈ 1% of one core | ~1.9 MB, against gigabytes | measured |
-| Cortex-M7 (STM32 F7/H7 — hardware `f64`) | between the rows above and below: the one named MCU class that does not pay soft-float | same per-sample figure | neither measured nor estimated |
-| Cortex-M4F / M33 (`f64` in software) | ~100 Hz, mostly-static tree, one or two dynamic edges: single-digit percent of the core | ~64 KB of a 192 KB SRAM | estimated |
-| Cortex-M4F / M33 | 1 kHz over 6 dynamic edges: **does not fit** — RAM runs out before CPU does | ~1.9 MB against 192 KB SRAM | estimated |
-| Cortex-M0+ / RV32IMC (no FPU) | static trees and occasional lookups; one four-hop lookup is estimated above 1 ms | ~32 KB per dynamic edge at 100 Hz | estimated |
-
-The estimated rows come from first principles — the soft-float symbols a
-bare-metal build links, scaled by the x86-64 measurements above — and
-nothing here was executed on target, so treat them as ±2×. The memory
-column is arithmetic on the short-name per-sample figure above, so it
-bounds the 32-bit rows only for frame names that short — namespaced names
-push every row up.
-
-Static transforms cost one sample forever, so publishing fixed mounts with
-`Transform::static_between` is the cheapest way to keep an embedded tree
-inside this envelope; `with_max_age` bounds the rest.
+Size a target heap using its actual allocator, timestamp type, frame
+count, sample rate, and retention window. `with_max_age` limits timestamp
+history, not the number of samples or frames. Static transforms retain one
+sample and survive cleanup. Measure the intended board and workload before
+assigning a real-time budget.
 
 Benchmarks are available in the `benches/` directory. Run with:
 

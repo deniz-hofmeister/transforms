@@ -29,6 +29,11 @@
 //! before a transform starts answering lookups, and the check is O(1) per
 //! insert.
 //!
+//! Dynamic samples retain only translation and rotation: their frames live
+//! in the buffer's pins and their timestamps in the ordered map's keys.
+//! Reads reconstruct the public `Transform` with those same values, using
+//! the same interpolation arithmetic as `Transform::interpolate`.
+//!
 //! # Features
 //!
 //! - **Store Transforms with Timestamps**: The `Buffer` allows you to store multiple transforms,
@@ -55,7 +60,7 @@
 //!     cleanup.
 
 use crate::{
-    geometry::Transform,
+    geometry::{Quaternion, Transform, Vector3},
     time::{Stamp, TimeError, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
@@ -63,10 +68,14 @@ use core::{fmt, time::Duration};
 pub(crate) use error::{GetError, InsertError};
 mod error;
 
-type NearestTransforms<'a, T> = (
-    Option<(&'a T, &'a Transform<T>)>,
-    Option<(&'a T, &'a Transform<T>)>,
-);
+type NearestTransforms<'a, T> = (Option<(&'a T, &'a Sample)>, Option<(&'a T, &'a Sample)>);
+
+/// Geometry copied from a transform validated by `Buffer::insert`. Dynamic
+/// samples share the buffer's pinned frames and use the map key as their stamp.
+struct Sample {
+    translation: Vector3,
+    rotation: Quaternion,
+}
 
 /// A buffer that stores transforms ordered by timestamps.
 ///
@@ -173,7 +182,7 @@ where
     Static(Option<Transform<T>>),
     /// A time series of samples, keyed by their instant.
     Dynamic {
-        data: BTreeMap<T, Transform<T>>,
+        data: BTreeMap<T, Sample>,
         latest_timestamp: Option<T>,
         max_age: Option<Duration>,
     },
@@ -342,7 +351,13 @@ where
                     Some(current_latest) if current_latest > timestamp => current_latest,
                     _ => timestamp,
                 });
-                data.insert(timestamp, transform);
+                data.insert(
+                    timestamp,
+                    Sample {
+                        translation: transform.translation(),
+                        rotation: transform.rotation(),
+                    },
+                );
                 remove_expired(data, *latest_timestamp, *max_age);
             }
             _ => return Err(InsertError::StaticDynamicConflict),
@@ -392,8 +407,22 @@ where
         let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
-            (Some(before), Some(after)) => Transform::interpolate(before.1, after.1, timestamp)
-                .map_err(GetError::Interpolation),
+            (Some((start, before)), Some((end, after))) => {
+                let (Some(parent), Some(child)) = (&self.parent, &self.child) else {
+                    return Err(GetError::NoTransformAvailable);
+                };
+                // Both samples came from validated inserts; the pinned
+                // frames and map keys preserve their original metadata.
+                Transform::unvalidated(
+                    parent.clone(),
+                    child.clone(),
+                    before.translation,
+                    before.rotation,
+                    Stamp::At(*start),
+                )
+                .interpolate_to(after.translation, after.rotation, *start, *end, timestamp)
+                .map_err(GetError::Interpolation)
+            }
             _ => match (data.first_key_value(), data.last_key_value()) {
                 (Some((first, _)), Some((last, _))) => Err(GetError::OutOfRange {
                     start: *first,
@@ -489,7 +518,7 @@ where
 /// older than the threshold, so skipping the sweep entirely is the correct
 /// behavior — the `checked_sub` failure is deliberately not an error.
 fn remove_expired<T>(
-    data: &mut BTreeMap<T, Transform<T>>,
+    data: &mut BTreeMap<T, Sample>,
     latest_timestamp: Option<T>,
     max_age: Option<Duration>,
 ) where

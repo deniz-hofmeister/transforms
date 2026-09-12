@@ -210,22 +210,18 @@
 //!   restriction lints.
 //!   In `no_std` builds, allocation failure aborts via the global
 //!   allocation error handler, as with any `alloc`-based crate: size the
-//!   heap for `max_age` times the insert rate times about 320 B per stored
-//!   sample, measured on x86-64, or bound growth with
-//!   `Registry::remove_transforms_before`. That coefficient holds while
-//!   both frame names are 32 characters or shorter: every sample owns a
-//!   copy of both names, and each adds another 32 B per sample for every
-//!   further 32 characters, so a ROS-style pair of 45-character names
-//!   costs about 385 B instead. 32-bit targets are smaller only at equal
-//!   name length — the names themselves cost the same. The README's
-//!   supported-envelope table turns that coefficient into rates and chain
-//!   depths per platform.
+//!   heap for the retained sample count, map overhead, and per-frame names.
+//!   A dynamic sample stores 56 B of geometry plus its `T` map key; an
+//!   x86-64 measurement with `Timestamp` and 10,000 sequential inserts used
+//!   about 122 B of requested heap per sample, before allocator overhead.
+//!   Measure the actual allocator and workload when sizing a target heap.
 //! - **Checked arithmetic**: all time arithmetic is checked; overflow and
 //!   underflow surface as errors, never as wraparound.
-//! - **Reproducible float math**: `sqrt`, `sin`, and `acos` come from `libm`
+//! - **Same math in both feature modes**: `sqrt`, `sin`, and `acos` come from `libm`
 //!   whether or not `std` is enabled, never from the platform's math
-//!   library, so the same inputs give bit-identical results on a host and on
-//!   the target it replays.
+//!   library. Tests pin interpolated rotations bit for bit in both feature
+//!   modes on the test host; bare-metal builds do not measure cross-device
+//!   replay.
 //! - **Validated inputs**: a `Transform` is validated where it is built —
 //!   the constructors and the `serde` `Deserialize` impl reject non-finite
 //!   values and non-unit rotations, and the private fields keep a built one

@@ -1,0 +1,77 @@
+{
+  "baseline_revision": "56482d172925d5ae6477f886a86fbba9376e572c",
+  "branch": "feature/v2-feasibility",
+  "gate": "GATE PASSED (all steps completed)",
+  "toolchains": {
+    "gate_and_probes": "rustc 1.100.0-nightly (0fc141305 2026-09-11)",
+    "stable": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "msrv": "rustc 1.85.1 (4eb161250 2025-03-15)"
+  },
+  "traces": {
+    "baseline": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    },
+    "compact": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    },
+    "candidate": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    },
+    "baseline-no-std": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    },
+    "candidate-no-std": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    },
+    "deque": {
+      "lines": 278880,
+      "sha256": "b77b197346248d9b6aacfbfbe495d2c48331e59373f3f2d5563096a81bf438f5"
+    }
+  },
+  "semver_checks": {
+    "std": "223 checks: 223 pass, 31 skip",
+    "no-std": "223 checks: 223 pass, 31 skip",
+    "serde": "223 checks: 223 pass, 31 skip",
+    "no-std-serde": "223 checks: 223 pass, 31 skip",
+    "released": "223 checks: 223 pass, 31 skip"
+  },
+  "msrv_and_stable_clippy": "all four feature combinations passed",
+  "extra_bare_metal": "riscv32imc-unknown-none-elf with and without serde passed",
+  "retained_library_files": {
+    "src/core/buffer/mod.rs": "92db399f5af6d82bc47c2b23c2b3ae118b4b335e0e03571653b9b2acc46a0d11",
+    "src/core/registry/mod.rs": "68acc56bf9243d36d94bb6e25ee2b4b7c27c2ef44f2298941c6b224030584935",
+    "src/geometry/transform/mod.rs": "235403eb9bdc5c1aa9082a9ece231fda49084de2881cb6ba85611cde42a59f4a"
+  },
+  "prototypes": {
+    "path": "6 compatibility tests passed, 2 failed",
+    "numeric": "154 existing unit tests passed, 3 failed; 7 compatibility tests passed, 1 failed",
+    "scalar_default": "concrete compiles, generic E0283 on nightly and Rust 1.85",
+    "deque": {
+      "trace": "matches baseline",
+      "60000_sample_out_of_order_insert_median_ns": {
+        "baseline": 627.727,
+        "candidate": 530.36,
+        "deque": 22296.886
+      }
+    }
+  },
+  "release_followup": {
+    "released_tag": "v2.1.2",
+    "released_commit": "71a263c11c5faa5eb1e80a5c14c1f59ce233b089",
+    "code_identical_to_original_baseline": true,
+    "patch_semver_checks": {
+      "std": "223 checks: 223 pass, 31 skip",
+      "no-std": "223 checks: 223 pass, 31 skip",
+      "serde": "223 checks: 223 pass, 31 skip",
+      "no-std-serde": "223 checks: 223 pass, 31 skip"
+    },
+    "next_patch_version": "2.1.3",
+    "unreleased_changelog_version": "2.1.3"
+  },
+  "pr_base_revision": "71a263c"
+}

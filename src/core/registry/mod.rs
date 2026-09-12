@@ -1149,21 +1149,23 @@ where
         walk_failure: &mut Option<(String, GetError<T>)>,
     ) -> Option<VecDeque<Transform<T>>> {
         let mut transforms = VecDeque::new();
-        let mut current_frame: String = from.into();
+        let mut current_frame = from;
 
         // The frame tree is acyclic by construction (cycles are rejected at
         // insertion), so the walk visits every frame at most once and
         // terminates at a root.
-        while let Some(frame_buffer) = data.get(&current_frame) {
+        while let Some((frame_buffer, parent)) = data
+            .get(current_frame)
+            .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
+        {
             match frame_buffer.get(timestamp) {
                 Ok(tf) => {
-                    current_frame.clear();
-                    current_frame.push_str(tf.parent());
+                    current_frame = parent;
                     transforms.push_back(tf);
                 }
                 Err(source) => {
                     if walk_failure.is_none() {
-                        *walk_failure = Some((current_frame.clone(), source));
+                        *walk_failure = Some((current_frame.into(), source));
                     }
                     break;
                 }
