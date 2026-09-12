@@ -12,9 +12,10 @@ combinations (223 checks pass, 31 skip per run). The appropriate next version
 for these changes is **2.1.3**. A minor release is permitted for substantial
 private improvements but is not required by these changes.
 [SemVer specification, clauses 6–7](https://semver.org/spec/v2.0.0.html).
-PR preparation updated the implementation branch to that release base and
-placed its changelog notes under v2.1.3 (Unreleased). The package version
-remains 2.1.2 until release preparation.
+PR preparation updated the implementation branch to that release base.
+Release preparation now sets the manifest, lockfile, installation snippets,
+and current-version documentation to 2.1.3, with a release date of 2026-09-12
+and a changelog comparison ending at `v2.1.3`.
 
 **Two implementation changes are validated for v2:** compact dynamic history
 and borrowing pinned names during the existing lookup walk. Their supporting
