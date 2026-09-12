@@ -48,6 +48,12 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 - The existing single-stamp limitation of `get_transform_at` is documented
   below; its representation is unchanged in this patch.
 
+### v2.1.1
+
+- **MSRV lowered to Rust 1.85**, the edition 2024 floor. `criterion` is
+  held at 0.7 to preserve compatibility; downstream builds compile the
+  same code as before.
+
 ### v2.1.0
 
 - **`Registry::latest_common_time`**: "what is the newest instant this
