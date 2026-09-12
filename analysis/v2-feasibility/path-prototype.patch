@@ -1,0 +1,276 @@
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 6a3234c..5975bdc 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -661,32 +661,8 @@ where
+             return Ok(Stamp::Static);
+         }
+
+-        let (target_edges, target_root) = Self::ancestry(target, &self.data);
+-        let (source_edges, source_root) = Self::ancestry(source, &self.data);
+-        if target_root != source_root {
+-            // The walks ended in different trees: an unknown frame, or two
+-            // known but disconnected ones — the same diagnosis order as a
+-            // failed lookup.
+-            for frame in [target, source] {
+-                if !Self::frame_exists(frame, &self.data) {
+-                    return Err(RegistryError::UnknownFrame(frame.into()));
+-                }
+-            }
+-            return Err(RegistryError::Disconnected {
+-                target_frame: target.into(),
+-                source_frame: source.into(),
+-            });
+-        }
+-
+-        // Drop the shared tail above the common ancestor: the connecting
+-        // chain does not cross those edges, so their coverage must not
+-        // constrain the answer.
+-        let shared = target_edges
+-            .iter()
+-            .rev()
+-            .zip(source_edges.iter().rev())
+-            .take_while(|((target_frame, _), (source_frame, _))| target_frame == source_frame)
+-            .count();
++        let (target_edges, source_edges) = Self::connecting_path(target, source, &self.data)?;
++        let shared = 0;
+         let chain = target_edges
+             .iter()
+             .take(target_edges.len() - shared)
+@@ -952,104 +928,72 @@ where
+             ));
+         }
+
+-        let reached = |chain: &VecDeque<Transform<T>>, goal: &str| {
+-            chain.back().is_some_and(|tf| tf.parent() == goal)
+-        };
+-
+-        let mut walk_failure = None;
+-        let target_chain =
+-            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
+-
+-        let result = match target_chain {
+-            // `source` is an ancestor of `target`: the target-side chain
+-            // spans the whole path, no source-side walk is needed.
+-            Some(target_chain) if reached(&target_chain, source) => {
+-                Self::combine_transforms(target_chain, VecDeque::new())
+-            }
+-            target_chain => match (
+-                target_chain,
+-                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure),
+-            ) {
+-                // `target` is an ancestor of `source`: the source-side chain
+-                // spans the whole path by itself.
+-                (_, Some(source_chain)) if reached(&source_chain, target) => {
+-                    Self::combine_transforms(VecDeque::new(), source_chain)
+-                }
+-                // Both chains ran to the root: drop the shared suffix above
+-                // the common parent and combine the remainders.
+-                (Some(mut target_chain), Some(mut source_chain)) => {
+-                    Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
+-                    // The two walks must meet at a common parent; otherwise
+-                    // they stopped in different subtrees — an unknown frame,
+-                    // a mid-chain timestamp gap, or disconnected trees — and
+-                    // no transform exists at this time. Diagnose the failure
+-                    // instead of letting the junction fail composition with
+-                    // a misleading IncompatibleFrames.
+-                    let connected = match (target_chain.back(), source_chain.back()) {
+-                        (Some(target_top), Some(source_top)) => {
+-                            target_top.parent() == source_top.parent()
+-                        }
+-                        _ => false,
+-                    };
+-                    if connected {
+-                        Self::combine_transforms(target_chain, source_chain)
+-                    } else {
+-                        Some(Err(Self::diagnose_not_found(
++        let (target_edges, source_edges) = Self::connecting_path(target, source, data)?;
++        let mut target_chain = VecDeque::new();
++        let mut source_chain = VecDeque::new();
++        for (edges, chain) in [
++            (target_edges, &mut target_chain),
++            (source_edges, &mut source_chain),
++        ] {
++            for (frame, buffer) in edges {
++                match buffer.get(timestamp) {
++                    Ok(tf) => chain.push_back(tf),
++                    Err(error) => {
++                        return Err(Self::diagnose_not_found(
+                             target,
+                             source,
+                             timestamp,
+                             data,
+-                            &mut walk_failure,
+-                        )))
++                            &mut Some((frame.into(), error)),
++                        ));
+                     }
+                 }
+-                (Some(target_chain), None) => {
+-                    Self::combine_transforms(target_chain, VecDeque::new())
+-                }
+-                (None, Some(source_chain)) => {
+-                    Self::combine_transforms(VecDeque::new(), source_chain)
+-                }
+-                (None, None) => Some(Err(Self::diagnose_not_found(
+-                    target,
+-                    source,
+-                    timestamp,
+-                    data,
+-                    &mut walk_failure,
+-                ))),
+-            },
++            }
+         }
+-        // Both walks empty without a recorded failure cannot happen today
+-        // (every call site passes at least one non-empty chain), but if it
+-        // ever does, it is a failed lookup and diagnosed as such.
+-        .unwrap_or_else(|| {
+-            Err(Self::diagnose_not_found(
+-                target,
+-                source,
+-                timestamp,
+-                data,
+-                &mut walk_failure,
+-            ))
+-        })?;
++        Self::combine_transforms(target_chain, source_chain)
++            .unwrap_or_else(|| {
++                Err(Self::diagnose_not_found(
++                    target, source, timestamp, data, &mut None,
++                ))
++            })
++            .map(|result| result.restamped(Stamp::At(timestamp)))
++    }
+
+-        // A chain can resolve without ever reaching the requested frame, for
+-        // example when `source` does not exist in the tree and the walk
+-        // stopped at the root instead. Verify the combined transform answers
+-        // the exact question asked; otherwise report it as not found.
+-        if result.parent() != target || result.child() != source {
+-            return Err(Self::diagnose_not_found(
+-                target,
+-                source,
+-                timestamp,
+-                data,
+-                &mut walk_failure,
+-            ));
++    fn connecting_path<'a>(
++        target: &'a str,
++        source: &'a str,
++        data: &'a HashMap<String, Buffer<T>>,
++    ) -> Result<(Vec<(&'a str, &'a Buffer<T>)>, Vec<(&'a str, &'a Buffer<T>)>), RegistryError<T>>
++    {
++        let (mut target_edges, target_root) = Self::ancestry(target, data);
++        let (mut source_edges, source_root) = Self::ancestry(source, data);
++        if target_root != source_root {
++            // The walks ended in different trees: an unknown frame, or two
++            // known but disconnected ones — the same diagnosis order as a
++            // failed lookup.
++            for frame in [target, source] {
++                if !Self::frame_exists(frame, data) {
++                    return Err(RegistryError::UnknownFrame(frame.into()));
++                }
++            }
++            return Err(RegistryError::Disconnected {
++                target_frame: target.into(),
++                source_frame: source.into(),
++            });
+         }
+
+-        // The result answers "where is `source` relative to `target` at the
+-        // requested time", so it carries the requested timestamp — also for
+-        // chains of static transforms, which are themselves stamped
+-        // `Stamp::Static`.
+-        Ok(result.restamped(Stamp::At(timestamp)))
++        // Drop the shared tail above the common ancestor: the connecting
++        // chain does not cross those edges, so their coverage must not
++        // constrain the answer.
++        let shared = target_edges
++            .iter()
++            .rev()
++            .zip(source_edges.iter().rev())
++            .take_while(|((target_frame, _), (source_frame, _))| target_frame == source_frame)
++            .count();
++        target_edges.truncate(target_edges.len() - shared);
++        source_edges.truncate(source_edges.len() - shared);
++        Ok((target_edges, source_edges))
+     }
+
+     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
+@@ -1133,75 +1077,6 @@ where
+         Ok(result.restamped(Stamp::At(target_time)))
+     }
+
+-    /// Constructs a chain of transforms from a starting frame to a target
+-    /// frame at a given timestamp, or `None` if the walk yields no
+-    /// transforms. Diagnosing the reason is the caller's job
+-    /// (`diagnose_not_found`).
+-    ///
+-    /// A buffer lookup failing along the way ends the walk; the first such
+-    /// failure across all walks of one lookup is recorded in `walk_failure`
+-    /// so the caller can report it if the lookup fails as a whole.
+-    fn get_transform_chain(
+-        from: &str,
+-        to: &str,
+-        timestamp: T,
+-        data: &HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+-    ) -> Option<VecDeque<Transform<T>>> {
+-        let mut transforms = VecDeque::new();
+-        let mut current_frame: String = from.into();
+-
+-        // The frame tree is acyclic by construction (cycles are rejected at
+-        // insertion), so the walk visits every frame at most once and
+-        // terminates at a root.
+-        while let Some(frame_buffer) = data.get(&current_frame) {
+-            match frame_buffer.get(timestamp) {
+-                Ok(tf) => {
+-                    current_frame.clear();
+-                    current_frame.push_str(tf.parent());
+-                    transforms.push_back(tf);
+-                }
+-                Err(source) => {
+-                    if walk_failure.is_none() {
+-                        *walk_failure = Some((current_frame.clone(), source));
+-                    }
+-                    break;
+-                }
+-            }
+-
+-            // Reaching `to` completes the chain; walking on to the root would
+-            // only add work that truncate_at_common_parent discards again.
+-            if current_frame == to {
+-                break;
+-            }
+-        }
+-
+-        if transforms.is_empty() {
+-            None
+-        } else {
+-            Some(transforms)
+-        }
+-    }
+-
+-    /// Truncates two transform chains at their common parent frame to optimize the transformation computation.
+-    fn truncate_at_common_parent(
+-        from_chain: &mut VecDeque<Transform<T>>,
+-        to_chain: &mut VecDeque<Transform<T>>,
+-    ) {
+-        let mut start_idx = 0;
+-        for (i, j) in from_chain.iter().rev().zip(to_chain.iter().rev()) {
+-            if i == j {
+-                start_idx += 1;
+-            } else {
+-                break;
+-            }
+-        }
+-
+-        // Truncate the chains at the common parent frame
+-        from_chain.truncate(from_chain.len() - start_idx);
+-        to_chain.truncate(to_chain.len() - start_idx);
+-    }
+-
+     /// Combines the two half-chains of a lookup into the transform that
+     /// expresses `source` in `target`.
+     ///

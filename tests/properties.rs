@@ -387,3 +387,65 @@ proptest! {
         );
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
+
+    #[test]
+    fn dynamic_history_matches_a_reference_map_after_upserts_expiry_and_cleanup(
+        max_age in prop::option::of(0_u64..64),
+        operations in prop::collection::vec((0_u8..5, 0_u64..128, -100_i32..100), 1..100),
+    ) {
+        let mut registry = max_age.map_or_else(
+            Registry::new,
+            |age| Registry::with_max_age(core::time::Duration::from_nanos(age)),
+        );
+        let mut reference = std::collections::BTreeMap::new();
+        let mut latest: Option<u64> = None;
+        let mut exists = false;
+        for (operation, nanos, coordinate) in operations {
+            if operation == 0 {
+                registry.remove_transforms_before(Timestamp::from_nanos(nanos));
+                reference.retain(|at, _| *at >= nanos);
+                latest = reference.last_key_value().map(|(&at, _)| at);
+            } else {
+                let transform = Transform::new(
+                    "parent", "child",
+                    Vector3::new(f64::from(coordinate), -0.0, 0.25),
+                    Quaternion::identity(),
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                ).unwrap();
+                registry.add_transform(transform.clone()).unwrap();
+                exists = true;
+                reference.insert(nanos, transform);
+                latest = Some(latest.map_or(nanos, |old| old.max(nanos)));
+                if let Some(cutoff) = latest.zip(max_age).and_then(|(at, age)| at.checked_sub(age)) {
+                    reference.retain(|at, _| *at >= cutoff);
+                }
+            }
+            for requested in [0, nanos, 32, 64, 96, 127] {
+                let stamp = Timestamp::from_nanos(requested);
+                let actual = registry.get_transform("parent", "child", stamp);
+                match (reference.range(..=requested).next_back(), reference.range(requested..).next()) {
+                    (Some((_, before)), Some((_, after))) => {
+                        let expected = Transform::interpolate(before, after, stamp).unwrap();
+                        prop_assert_eq!(actual.unwrap(), expected);
+                    }
+                    _ if exists => {
+                        let expected_range = reference.first_key_value().zip(reference.last_key_value())
+                            .map(|((&start, _), (&end, _))| (Timestamp::from_nanos(start), Timestamp::from_nanos(end)));
+                        match actual.unwrap_err() {
+                            RegistryError::NotFoundAt { frame, requested, covered, .. } => {
+                                prop_assert_eq!(frame, "child");
+                                prop_assert_eq!(requested, stamp);
+                                prop_assert_eq!(covered, expected_range);
+                            }
+                            other => prop_assert!(false, "unexpected error: {other:?}"),
+                        }
+                    }
+                    _ => prop_assert!(matches!(actual, Err(RegistryError::UnknownFrame(_)))),
+                }
+            }
+        }
+    }
+}

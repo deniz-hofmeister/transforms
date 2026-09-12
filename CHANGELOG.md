@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - Unreleased
+
+### Changed
+
+- Store dynamic history as timestamp keys and geometry, with frame names
+  pinned once per buffer. Borrow those names during lookup walks. Public
+  signatures, serde bytes, interpolation arithmetic, validation, removal,
+  and error precedence are preserved. Host measurements show lower sample
+  memory use and fewer lookup allocations; the README replaces obsolete
+  storage figures and unmeasured MCU rate estimates with measured evidence.
+
 ## [2.1.2] - 2026-09-12
 
 ### Added
@@ -549,6 +560,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...HEAD
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...v2.1.0

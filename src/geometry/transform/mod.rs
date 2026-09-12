@@ -412,21 +412,34 @@ where
             });
         }
 
+        from.clone()
+            .interpolate_to(to.translation, to.rotation, from_time, to_time, timestamp)
+    }
+
+    /// Interpolates geometry after the caller has checked frames, dynamic
+    /// stamps, and the requested range. The buffer stores those invariants
+    /// once per edge, so it can use the same arithmetic without rebuilding
+    /// a second transform and allocating its frame names.
+    pub(crate) fn interpolate_to(
+        mut self,
+        translation: Vector3,
+        rotation: Quaternion,
+        from_time: T,
+        to_time: T,
+        timestamp: T,
+    ) -> Result<Self, TransformError> {
         let range = to_time.duration_since(from_time)?;
         if range.is_zero() {
-            return Ok(from.clone());
+            return Ok(self);
         }
 
         let diff = timestamp.duration_since(from_time)?;
         let ratio = diff.as_secs_f64() / range.as_secs_f64();
 
-        Ok(Self::unvalidated(
-            from.parent.clone(),
-            from.child.clone(),
-            (1.0 - ratio) * from.translation + ratio * to.translation,
-            from.rotation.slerp(to.rotation, ratio),
-            Stamp::At(timestamp),
-        ))
+        self.translation = (1.0 - ratio) * self.translation + ratio * translation;
+        self.rotation = self.rotation.slerp(rotation, ratio);
+        self.timestamp = Stamp::At(timestamp);
+        Ok(self)
     }
 
     /// Computes the inverse of the transform: the same relationship read the

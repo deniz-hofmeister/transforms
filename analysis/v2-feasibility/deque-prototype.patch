@@ -1,0 +1,161 @@
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -58,7 +58,7 @@
+     geometry::{Quaternion, Transform, Vector3},
+     time::{Stamp, TimeError, TimePoint, Timestamp},
+ };
+-use alloc::{collections::BTreeMap, string::String};
++use alloc::{collections::VecDeque, string::String};
+ use core::{fmt, time::Duration};
+ pub(crate) use error::{GetError, InsertError};
+ mod error;
+@@ -135,8 +135,9 @@
+                 .field(
+                     "covered",
+                     &data
+-                        .first_key_value()
+-                        .zip(data.last_key_value())
++                        .front()
++                        .map(|(t, s)| (t, s))
++                        .zip(data.back().map(|(t, s)| (t, s)))
+                         .map(|((start, _), (end, _))| (start, end)),
+                 )
+                 .field("latest", latest_timestamp)
+@@ -177,7 +178,7 @@
+     Static(Option<Transform<T>>),
+     /// A time series of samples, keyed by their instant.
+     Dynamic {
+-        data: BTreeMap<T, Sample>,
++        data: VecDeque<(T, Sample)>,
+         latest_timestamp: Option<T>,
+         max_age: Option<Duration>,
+     },
+@@ -197,7 +198,7 @@
+             parent: None,
+             child: None,
+             kind: Kind::Dynamic {
+-                data: BTreeMap::new(),
++                data: VecDeque::new(),
+                 latest_timestamp: None,
+                 max_age: None,
+             },
+@@ -215,7 +216,7 @@
+             parent: None,
+             child: None,
+             kind: Kind::Dynamic {
+-                data: BTreeMap::new(),
++                data: VecDeque::new(),
+                 latest_timestamp: None,
+                 max_age: Some(max_age),
+             },
+@@ -257,7 +258,10 @@
+         match &self.kind {
+             Kind::Static(Some(_)) => Coverage::AllTime,
+             Kind::Static(None) => Coverage::Empty,
+-            Kind::Dynamic { data, .. } => match (data.first_key_value(), data.last_key_value()) {
++            Kind::Dynamic { data, .. } => match (
++                data.front().map(|(t, s)| (t, s)),
++                data.back().map(|(t, s)| (t, s)),
++            ) {
+                 (Some((&start, _)), Some((&end, _))) => Coverage::Range { start, end },
+                 _ => Coverage::Empty,
+             },
+@@ -346,13 +350,17 @@
+                     Some(current_latest) if current_latest > timestamp => current_latest,
+                     _ => timestamp,
+                 });
+-                data.insert(
+-                    timestamp,
+-                    Sample {
+-                        translation: transform.translation(),
+-                        rotation: transform.rotation(),
+-                    },
+-                );
++                let sample = Sample {
++                    translation: transform.translation(),
++                    rotation: transform.rotation(),
++                };
++                let index = data.partition_point(|(at, _)| *at < timestamp);
++                if let Some((at, stored)) = data.get_mut(index).filter(|(at, _)| *at == timestamp) {
++                    *at = timestamp;
++                    *stored = sample;
++                } else {
++                    data.insert(index, (timestamp, sample));
++                }
+                 remove_expired(data, *latest_timestamp, *max_age);
+             }
+             _ => return Err(InsertError::StaticDynamicConflict),
+@@ -418,7 +426,10 @@
+                 .interpolate_to(after.translation, after.rotation, *start, *end, timestamp)
+                 .map_err(GetError::Interpolation)
+             }
+-            _ => match (data.first_key_value(), data.last_key_value()) {
++            _ => match (
++                data.front().map(|(t, s)| (t, s)),
++                data.back().map(|(t, s)| (t, s)),
++            ) {
+                 (Some((first, _)), Some((last, _))) => Err(GetError::OutOfRange {
+                     start: *first,
+                     end: *last,
+@@ -459,7 +470,11 @@
+             return (None, None);
+         };
+
+-        let before = data.range(..=timestamp).next_back();
++        let index = data.partition_point(|(at, _)| at <= timestamp);
++        let before = index
++            .checked_sub(1)
++            .and_then(|i| data.get(i))
++            .map(|(t, s)| (t, s));
+
+         if let Some((t, _)) = before {
+             if t == timestamp {
+@@ -467,7 +482,7 @@
+             }
+         }
+
+-        let after = data.range(timestamp..).next();
++        let after = data.get(index).map(|(t, s)| (t, s));
+         (before, after)
+     }
+
+@@ -491,13 +506,14 @@
+             // the boundary in O(log n); freeing the evicted prefix is
+             // O(evicted) on top — the same O(log n + evicted) as expiry,
+             // each entry freed exactly once.
+-            let kept = data.split_off(&timestamp);
++            let index = data.partition_point(|(at, _)| *at < timestamp);
++            let kept = data.split_off(index);
+             *data = kept;
+             // The expiry reference must not outlive the samples it was
+             // derived from: a stale value would make `max_age` eviction
+             // measure a restarted stream against the wiped one, silently
+             // evicting every new sample on the insert that added it.
+-            *latest_timestamp = data.last_key_value().map(|(&k, _)| k);
++            *latest_timestamp = data.back().map(|(t, s)| (t, s)).map(|(&k, _)| k);
+         }
+     }
+ }
+@@ -513,7 +529,7 @@
+ /// older than the threshold, so skipping the sweep entirely is the correct
+ /// behavior — the `checked_sub` failure is deliberately not an error.
+ fn remove_expired<T>(
+-    data: &mut BTreeMap<T, Sample>,
++    data: &mut VecDeque<(T, Sample)>,
+     latest_timestamp: Option<T>,
+     max_age: Option<Duration>,
+ ) where
+@@ -521,11 +537,11 @@
+ {
+     if let (Some(max_age), Some(latest_timestamp)) = (max_age, latest_timestamp) {
+         if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
+-            while let Some((&oldest, _)) = data.first_key_value() {
++            while let Some((&oldest, _)) = data.front().map(|(t, s)| (t, s)) {
+                 if oldest >= threshold {
+                     break;
+                 }
+-                data.pop_first();
++                data.pop_front();
+             }
+         }
+     }
