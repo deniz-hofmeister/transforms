@@ -38,6 +38,8 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
 ### v2.1.2 (Unreleased)
 
+- Dependency version requirements now match the latest Rust 1.85-compatible
+  releases in the lockfile; `criterion` remains at 0.7.0 to preserve the MSRV.
 - `latest_common_time` now reports timestamp arithmetic errors when a custom
   clock cannot interpolate at the newest common instant, instead of returning
   an instant the subsequent lookup cannot serve.
