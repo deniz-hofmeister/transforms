@@ -36,7 +36,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
-### v2.1.2 (Unreleased)
+### v2.1.2
 
 - Dependency version requirements now match the latest Rust 1.85-compatible
   releases in the lockfile; `criterion` remains at 0.7.0 to preserve the MSRV.
@@ -45,6 +45,8 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
   an instant the subsequent lookup cannot serve.
 - Geometry tests now check approximate comparisons' rejection behavior,
   scalar multiplication, and inversion overflow in individual components.
+- CI checks API compatibility against the latest published release in all
+  four combinations of the `std` and `serde` features.
 - The existing single-stamp limitation of `get_transform_at` is documented
   below; its representation is unchanged in this patch.
 
