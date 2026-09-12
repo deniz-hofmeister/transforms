@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refresh dependency version requirements to the latest releases compatible
+  with Rust 1.85, matching the existing lockfile. `criterion` remains at
+  0.7.0 because 0.8 requires Rust 1.86; the crate's MSRV stays at 1.85.
 - Document the existing temporal metadata limitation of `get_transform_at`:
   the result stores only the target stamp even when its geometry refers to
   a different source instant. Callers must retain both instants and apply

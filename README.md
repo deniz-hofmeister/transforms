@@ -38,6 +38,8 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
 ### v2.1.2 (Unreleased)
 
+- Dependency version requirements now match the latest Rust 1.85-compatible
+  releases in the lockfile; `criterion` remains at 0.7.0 to preserve the MSRV.
 - `latest_common_time` now reports timestamp arithmetic errors when a custom
   clock cannot interpolate at the newest common instant, instead of returning
   an instant the subsequent lookup cannot serve.
@@ -45,6 +47,12 @@ Full version history lives in [CHANGELOG.md](CHANGELOG.md).
   scalar multiplication, and inversion overflow in individual components.
 - The existing single-stamp limitation of `get_transform_at` is documented
   below; its representation is unchanged in this patch.
+
+### v2.1.1
+
+- **MSRV lowered to Rust 1.85**, the edition 2024 floor. `criterion` is
+  held at 0.7 to preserve compatibility; downstream builds compile the
+  same code as before.
 
 ### v2.1.0
 
