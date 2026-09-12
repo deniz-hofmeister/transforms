@@ -23,7 +23,7 @@ jobs:
   # done"), run verbatim, so the two cannot drift apart. It is nightly-only
   # by design; the jobs below add what it deliberately leaves to CI — the
   # stable and MSRV toolchains, the ARM64 runner, the RISC-V target, and the
-  # advisory-database audit.
+  # advisory-database audit and published-API compatibility checks.
   gate:
     name: gate
     runs-on: ubuntu-latest
@@ -198,6 +198,27 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: Build for ${{ matrix.target }}
         run: cargo build --no-default-features --target ${{ matrix.target }}
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+        with:
+          toolchain: stable
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+      # Without an explicit baseline, the tool uses the latest published
+      # release from crates.io, so the baseline advances after each release.
+      - name: Check API compatibility (std)
+        run: cargo semver-checks check-release --default-features
+      - name: Check API compatibility (no_std)
+        run: cargo semver-checks check-release --only-explicit-features
+      - name: Check API compatibility (std + serde)
+        run: cargo semver-checks check-release --all-features
+      - name: Check API compatibility (no_std + serde)
+        run: cargo semver-checks check-release --only-explicit-features --features serde
 
   security:
     name: security
