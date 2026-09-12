@@ -36,7 +36,7 @@ A fast, middleware-independent coordinate transform library for Rust.
 
 Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
-### v2.1.3 (Unreleased)
+### v2.1.3
 
 - Dynamic history stores geometry and a timestamp key instead of complete
   transforms with repeated frame names. Lookup walks borrow pinned names,
@@ -115,7 +115,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-transforms = "2.1.2"
+transforms = "2.1.3"
 ```
 
 ### Feature Flags
@@ -151,7 +151,7 @@ For `no_std` environments (requires a heap allocator):
 
 ```toml
 [dependencies]
-transforms = { version = "2.1.2", default-features = false }
+transforms = { version = "2.1.3", default-features = false }
 ```
 
 ## Quick Start

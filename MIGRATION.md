@@ -578,7 +578,7 @@ public, so the formulas above are the whole migration.
    instants separately and apply its rotation and translation explicitly;
    ordinary `Transformable` application, composition, registry insertion,
    and serialization cannot check that provenance. This existing limitation
-   remains in 2.1.2; numeric validation does not detect it.
+   remains in 2.1.3; numeric validation does not detect it.
 5. **Cleanup preserves static transforms — and frame pins.**
    `remove_transforms_before` (1.x: `delete_transforms_before`) deleted
    static transforms in 1.x; it now spares them. It also never releases a frame: a frame drained of every
