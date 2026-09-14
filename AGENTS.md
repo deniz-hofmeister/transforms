@@ -109,8 +109,7 @@ altitude. To place a proposed capability:
   the same list verbatim — edit both or neither. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity, and no f32 or mixed-precision
-  scalar — every coordinate and rotation is `f64`, on every target, which is
-  why the README publishes a supported envelope instead of a rate claim. Do
+  scalar — every coordinate and rotation is `f64`, on every target. Do
   not implement these even if an issue requests them; redirect to the
   maintainer.
 - Library code must not panic on reachable paths. The only documented panic is
@@ -163,7 +162,7 @@ would produce) a silent wrong answer:
   It must never return an instant some hop cannot serve — min of the
   dynamic hops' newest samples, guarded by max of their starts, over
   only the hops the connecting chain crosses.
-- Every `Registry` call reports `RegistryError<T>` and it stays **flat**:
+- Every fallible `Registry` call reports `RegistryError<T>` and it stays **flat**:
   one `match` reaches every cause and every payload. `TransformError` is
   pure geometry and time, and the single `RegistryError::TransformError` arm
   that wraps it must never carry `NonUnitRotation` or `NonFiniteValues` —
@@ -296,63 +295,31 @@ this section is convention, enforced in review — follow it anyway.
 
 ## Definition of done — the verification gate
 
-All of the following must pass before a change is complete
-(`tests/test_all.sh` runs the whole gate). The gate requires a **nightly**
-toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
-options. No particular nightly is pinned — any recent one will do, however
-Rust was installed (rustup, Nix, or a distro package), so two machines may
-well be running different nightlies. Stable and MSRV verification is CI's
-job. Nightly clippy usually anticipates stable's lints, but a lint can also
-relax on nightly before stable follows — `float_cmp` stopped firing on
-comparisons against `f64::INFINITY` there while stable 1.98 still flags them
-— so a green local gate makes green CI clippy likely, not guaranteed; when
-the two disagree, CI's stable clippy is the arbiter, and
-`rustup run stable cargo clippy` reproduces it locally. Keep the script's
-lint list and CI's in step regardless: the moment the script lints fewer
-feature combinations than CI does, a lint can land in CI that nobody could
-have seen locally.
+Run `tests/test_all.sh` to completion before a change is complete. It requires
+an unpinned recent nightly toolchain with rustfmt, clippy, and the three ARM
+targets below. On rustup installations:
 
-```bash
-cargo build                                         # both modes build first
-cargo build --no-default-features
-cargo test
-cargo test --no-default-features
-cargo test --features serde
-cargo test --no-default-features --features serde
-cargo clippy --all-targets -- -D warnings
-cargo clippy --all-targets --no-default-features -- -D warnings
-cargo clippy --all-targets --features serde -- -D warnings
-cargo clippy --all-targets --no-default-features --features serde -- -D warnings
-cargo fmt --check                                   # nightly rustfmt (see above)
-RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
-RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features   # the docs.rs configuration
-cargo run --example std_minimal                     # and the other std examples
-cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
-cargo bench -- --test
-cargo bench --no-default-features -- --test         # CI also builds no_std benches
-cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std proof
-cargo build --no-default-features --target thumbv6m-none-eabi      # Cortex-M0+: soft float, no CAS
-cargo build --no-default-features --target thumbv8m.main-none-eabihf
-cargo build --no-default-features --features serde --target thumbv7em-none-eabihf   # serde stays std-free
-cargo build --no-default-features --features serde --target thumbv6m-none-eabi
-cargo build --no-default-features --features serde --target thumbv8m.main-none-eabihf
+```sh
+rustup target add --toolchain nightly thumbv7em-none-eabihf thumbv6m-none-eabi thumbv8m.main-none-eabihf
+rustup run nightly tests/test_all.sh
 ```
 
-(On rustup machines: `rustup run nightly tests/test_all.sh`, and
-`rustup target add <target>` once per target, if missing. CI also builds
-`riscv32imc-unknown-none-elf`.)
-CI runs this same script verbatim in its `gate` job, so the script is the
-single source of truth for what the gate is — extend the script, not the
-workflow.
-CI additionally runs the test suite natively on ARM64 as well as x86_64
-(the Raspberry Pi / Jetson deployment class), checks the MSRV
-(`cargo check` on Rust 1.85), runs `cargo audit` against the RustSec
-advisory database, and checks API compatibility against the latest published
-release with `cargo-semver-checks` in all four feature combinations.
+With a Nix or distro nightly on PATH, run the script directly. It checks builds,
+tests and clippy in both std modes and serde combinations; formatting; rustdoc
+including docs.rs settings; all examples; benchmark smoke tests; and ARM
+bare-metal builds with and without serde. It prints `GATE PASSED` only after
+all checks finish. Never weaken or bypass it.
 
-Docs are part of the change: the README (API Reference, What's New, examples
-table) and rustdoc must be updated in the same commit as the code they
-describe. Documentation drift is treated as a bug.
+CI runs the same script. Change the gate in the script, and keep its clippy
+feature combinations aligned with CI. CI additionally checks stable clippy,
+native x86_64/ARM64 tests, Rust 1.85, RISC-V compilation, `cargo audit`, and
+published-API compatibility in all four feature combinations. Stable clippy
+is the arbiter when it differs from nightly; reproduce with
+`rustup run stable cargo clippy` and the relevant feature flags.
+
+Update user-facing docs with the behavior they describe. Keep the README
+brief, link to rustdoc for API contracts, and update examples and the changelog
+when relevant. Documentation drift is a bug.
 
 ## API stability
 
@@ -397,17 +364,8 @@ it lands on master through the usual branch-and-merge flow before anything
 is tagged, and the tag goes on master — `cargo publish` then runs from the
 tagged tree. The checklist, in order:
 
-- Finalize `CHANGELOG.md`: replace the version's `Unreleased` marker with the
-  release date and repoint its compare link to the tag. For 2.0.0 stable
-  specifically, this step is also the consolidation, and it must happen
-  here — before the tag and the publish, never after: `CHANGELOG.md` and
-  `MIGRATION.md` ship inside the `.crate`, and a published crate is
-  immutable. Fold the five published pre-release sections (alpha.1,
-  beta.1–beta.4) and the never-published rc.2 section into a single
-  `[2.0.0]` section organized by Keep-a-Changelog categories, give it the
-  one compare link `v1.4.1...v2.0.0`, resolve the cross-references the
-  fold orphans — entries pointing at per-pre-release sections, or at the
-  never-published rc.2 — and verify `MIGRATION.md` against the result.
+- Finalize `CHANGELOG.md`: set the release date, repoint its comparison to
+  the tag, and verify `MIGRATION.md`. Both ship in the immutable crate package.
 - Confirm the `version` in `Cargo.toml` matches the release, regenerate
   `Cargo.lock` so it records that version (any `cargo build` after the
   bump does), and bump the version pins in the README installation
@@ -418,10 +376,9 @@ tagged tree. The checklist, in order:
   confirm the diff is exactly the changelogged one. Against a baseline the
   release already majors over it enumerates nothing — every breaking lint is
   skipped as permitted, and the run proves only that the tooling works and
-  that the declared bump covers whatever changed. Measured for 2.0.0 against
-  `v1.4.1`: 254 checks, all skipped. To see the diff itself before such a
-  release, run it once with the version temporarily set to a patch bump on
-  the baseline.
+  that the declared bump covers whatever changed. To inspect the breaking
+  diff, run once with the version temporarily set to a patch bump on the
+  baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
 - Merge the release-prep branch to master. If the merge is not a
@@ -429,7 +386,7 @@ tagged tree. The checklist, in order:
   gate has seen.
 - Tag `vX.Y.Z` on the merge and push the tag.
 - `cargo publish`.
-- Create a GitHub release for the tag (pre-releases marked as such). For
-  2.0.0 stable specifically: mark it as latest.
+- Create a GitHub release for the tag; mark pre-releases as such and the
+  current stable release as latest.
 - The `semver` CI job checks against the latest published release; its
   baseline advances automatically after publication.

@@ -7,6 +7,8 @@
 //! This example uses `Registry::new`, which does not automatically remove old
 //! transforms; cleanup is done manually with `remove_transforms_before`.
 
+//! Hosted executable with the library's `std` feature disabled.
+
 #[cfg(not(feature = "std"))]
 fn main() {
     use core::time::Duration;

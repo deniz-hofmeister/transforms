@@ -1,40 +1,52 @@
-//! A fast, middleware-independent coordinate transform library for robotics and computer vision applications.
+//! Rigid-body coordinate transforms inspired by ROS2 tf2.
 //!
-//! This library provides functionality for managing coordinate transformations between different frames
-//! of reference.
+//! This crate shares tf2's frame-tree, buffering, and interpolation concepts.
+//! It is a Rust implementation with no ROS2 dependency or tf2 API-compatibility
+//! requirement. ROS2 communication belongs in an application or adapter.
 //!
-//! # Architecture
+//! [`Registry`] stores a frame tree and resolves transforms between frames,
+//! interpolating translation linearly and rotation with SLERP. A
+//! [`Transform`] maps child-frame coordinates into its parent frame:
+//! `get_transform("map", "sensor", t)` expresses sensor data in map coordinates.
 //!
-//! The library is organized around two public components:
+//! Use [`Transform::static_between`] for a relationship valid at all times.
+//! Dynamic samples carry [`time::Stamp::At`]; no timestamp value is reserved.
+//! [`Registry::with_max_age`] evicts old samples on insertion, while
+//! [`Registry::new`] retains them until manual removal.
 //!
-//! - **Registry**: The main interface for managing transforms
-//! - **Transform**: The core data structure representing spatial transformations
-//!
-//! Internally the registry keeps one time-indexed buffer per child frame;
-//! that storage is a private implementation detail.
+//! Constructors and deserialization validate transforms. Derived results can
+//! accumulate rotation drift or overflow; see [`Transform::validate`] and
+//! [`Transformable`] before applying or publishing them. Cross-time results
+//! have additional restrictions documented on [`Registry::get_transform_at`].
 //!
 //! # Features
 //!
-//! - **Transform Interpolation**: Smooth interpolation between transforms at different timestamps
-//! - **Transform Chaining**: Automatic computation of transforms between indirectly connected frames
-//! - **Static Transforms**: Transforms carrying `Stamp::Static` are valid for
-//!   all time; build them with `Transform::static_between`. No timestamp value
-//!   is reserved — every instant, including `t = 0`, is ordinary dynamic data.
-//! - **Custom Timestamp Types**: You can use your own `Copy + Ord + Debug` timestamp type by
-//!   implementing `time::TimePoint`'s three methods.
-//! - **Time-based Buffer Management**: `Registry::with_max_age` cleans up old transforms
-//!   automatically on insert; `Registry::new` keeps them until `remove_transforms_before`
-//!   is called. Both work with and without `std`.
-//! - **Latest Common Time**: `Registry::latest_common_time` reports the newest
-//!   instant a chain can serve — freshness is a first-class answer, not a
-//!   retry loop or an assumed publisher rate.
-//! - **Serde**: optional serialization for the geometry and time types behind the `serde` feature.
+//! - `std` (default): `Timestamp::now()`, `Timestamp::try_now()`,
+//!   and `std::time::SystemTime` support.
+//! - `serde`: serialization and deserialization for geometry and time types.
+//!
+//! Disabling `std` requires a heap allocator. All coordinates are `f64`, and
+//! `libm` supplies the same arithmetic in both feature modes. Tests pin selected
+//! results on the test host; cross-device bitwise replay is not guaranteed.
+//!
+//! # Reliability
+//!
+//! This crate forbids unsafe code; dependencies must still be sound. Its only
+//! documented panic is `Timestamp::now()` on an unrepresentable system
+//! clock; use `Timestamp::try_now()` to handle that error. Allocation
+//! failure follows the application's allocation error handler.
+//!
+//! [`Registry`] inherits `Send` and `Sync` from its timestamp type. Readers may
+//! hold `RwLock` read guards together; readers can wait for writers.
+//! `HashDoS` resistance and deterministic hash ordering are not guarantees.
+//!
+//! Geometry equality is exact. The `approx` 0.5 comparison traits are part of
+//! the public API and compare numeric components, with exact frame and time
+//! metadata. See [`geometry::Quaternion`] for rotation conventions.
 //!
 //! # Non-Goals
 //!
-//! This library intentionally limits its scope to rigid body transformations (translation and rotation)
-//! commonly used in robotics and computer vision. The following transformations are explicitly not
-//! supported and will not be considered for future implementation:
+//! The following are outside this crate's scope:
 //!
 //! - Scaling transformations
 //! - Skew transformations
@@ -46,208 +58,34 @@
 //! - Extrapolation
 //! - f32 or mixed-precision arithmetic (every coordinate and rotation is f64)
 //!
-//! This decision helps maintain the library's focus on its core purpose: providing fast and efficient
-//! rigid body transformations for robotics applications. For more general transformation needs,
-//! consider using a computer graphics or linear algebra library instead.
-//!
 //! # Examples
 //!
-//! ```rust
+//! ```
 //! use transforms::{
 //!     Registry,
 //!     geometry::{Quaternion, Transform, Vector3},
-//!     time::{Stamp, Timestamp},
+//!     time::Timestamp,
 //! };
 //!
-//! # #[cfg(feature = "std")]
-//! use core::time::Duration;
-//! # #[cfg(feature = "std")]
-//! let mut registry = Registry::with_max_age(Duration::from_secs(60));
-//! # #[cfg(feature = "std")]
-//! let timestamp = Timestamp::now();
+//! let mut registry: Registry = Registry::new();
+//! registry
+//!     .add_transform(
+//!         Transform::static_between(
+//!             "base",
+//!             "sensor",
+//!             Vector3::new(1.0, 0.0, 0.0),
+//!             Quaternion::identity(),
+//!         )
+//!         .unwrap(),
+//!     )
+//!     .unwrap();
 //!
-//! # #[cfg(not(feature = "std"))]
-//! # let mut registry = Registry::new();
-//! # #[cfg(not(feature = "std"))]
-//! # let timestamp = Timestamp::zero();
-//!
-//! // Create a transform from frame "base" to frame "sensor"
-//! let transform = Transform::new(
-//!     "base",
-//!     "sensor",
-//!     Vector3::new(1.0, 0.0, 0.0),
-//!     Quaternion::identity(),
-//!     Stamp::At(timestamp),
-//! )
-//! .unwrap();
-//!
-//! // Add the transform to the registry
-//! registry.add_transform(transform).unwrap();
-//!
-//! // Retrieve the transform
-//! let result = registry.get_transform("base", "sensor", timestamp).unwrap();
-//!
-//! # #[cfg(not(feature = "std"))]
-//! # // Remove old transforms
-//! # #[cfg(not(feature = "std"))]
-//! # registry.remove_transforms_before(timestamp);
+//! let transform = registry
+//!     .get_transform("base", "sensor", Timestamp::zero())
+//!     .unwrap();
+//! assert_eq!(transform.parent(), "base");
+//! assert_eq!(transform.child(), "sensor");
 //! ```
-//!
-//! # Transform and Data Transformation
-//!
-//! The library provides a `Transform` type that represents spatial transformations between different
-//! coordinate frames. Transforms follow the common robotics convention where transformations are
-//! considered from child to parent frame (e.g., from sensor frame to base frame, or from base frame
-//! to map frame).
-//!
-//! To make your data transformable between different coordinate frames, implement the `Transformable`
-//! trait. This allows you to easily transform your data using the transforms stored in the registry.
-//! ```rust
-//! use transforms::{
-//!     Transformable,
-//!     geometry::{Point, Quaternion, Transform, Vector3},
-//!     time::{Stamp, Timestamp},
-//! };
-//!
-//! # #[cfg(not(feature = "std"))]
-//! # let now = Timestamp::zero();
-//! # #[cfg(feature = "std")]
-//! let now = Timestamp::now();
-//!
-//! // Create a point in the camera frame
-//! let mut point = Point::new(
-//!     Vector3::new(1.0, 0.0, 0.0),
-//!     Quaternion::identity(),
-//!     now,
-//!     "camera",
-//! );
-//!
-//! // Define transform from camera to base frame
-//! let transform = Transform::new(
-//!     "base",
-//!     "camera",
-//!     Vector3::new(0.0, 1.0, 0.0),
-//!     Quaternion::identity(),
-//!     Stamp::At(point.timestamp),
-//! )
-//! .unwrap();
-//!
-//! // Transform the point from camera frame to base frame
-//! point.transform(&transform).unwrap();
-//! assert_eq!(point.position.x, 1.0);
-//! assert_eq!(point.position.y, 1.0);
-//! ```
-//!
-//! The transform convention follows the common robotics practice where data typically needs to be
-//! transformed from specific sensor reference frames "up" to more general frames like the robot's
-//! base frame or a global map frame.
-//!
-//! # Relationship with ROS2's tf2
-//!
-//! This library draws inspiration from ROS2's tf2 (Transform Framework 2), a widely-used
-//! transform library in the robotics community. While this crate aims to solve the same
-//! fundamental problem of transformation tracking, it does so in its own way.
-//!
-//! ## Similarities with tf2
-//!
-//! - Maintains relationships between coordinate frames in a tree structure
-//! - Buffers transforms over time
-//! - Supports transform lookups between arbitrary frames
-//! - Handles interpolation between transforms
-//!
-//! ## Key Differences
-//!
-//! This library:
-//! - Is a pure Rust implementation, not a wrapper around tf2
-//! - Makes no attempt to perfectly match the ROS2/tf2 API
-//! - Focuses on providing an ergonomic Rust-first experience
-//! - Is independent of ROS2's middleware and communication system
-//!
-//! While the core concepts and functionality align with tf2, this library prioritizes
-//! optimal usage for rust software over maintaining API compatibility with ROS2's tf2. Users
-//! familiar with tf2 will find the concepts familiar, but the implementation details
-//! and API design follow Rust idioms and best practices as best as it can.
-//!
-//! # `TimePoint` vs `Timestamp`
-//!
-//! `time::TimePoint` defines the required behavior for timestamp types.
-//! `time::Timestamp` is the default implementation, so `Registry` in type
-//! position — `let registry: Registry = Registry::new();` — is
-//! `Registry<Timestamp>`. A default type parameter does not apply in
-//! expression position, where the type is inferred from usage: annotate if
-//! the surrounding code does not pin it down.
-//! If you need a custom clock, implement `TimePoint` and use
-//! `Registry::<CustomTimestamp>::new()`.
-//! With `std`, `std::time::SystemTime` is already supported via an existing
-//! `TimePoint` implementation.
-//! See `time` module docs for custom time-type guidance.
-//!
-//! # Performance Considerations
-//!
-//! - Transform lookups are O(log n) in the stored samples per frame;
-//!   multi-hop lookups additionally scale linearly with chain depth, and a
-//!   failed lookup runs an O(frames) diagnosis scan to name the cause
-//! - Automatic cleanup of old transforms prevents unbounded memory growth
-//!   (eviction on insert is O(log n + evicted)); the number of *frames* is
-//!   unbounded — long-running processes that mint transient frame names
-//!   should call `Registry::remove_frame` when a frame retires
-//!
-//! # External Crates
-//!
-//! If you are looking for a version of this crate that is directly compatible with ROS1 & ROS2 consider
-//! [roslibrust_transforms](https://docs.rs/roslibrust_transforms/latest/roslibrust_transforms/) that wraps
-//! this crate for pure-Rust ROS clients.
-//!
-//! # Reliability
-//!
-//! - **Memory safety**: `#![forbid(unsafe_code)]` — pure Rust throughout.
-//! - **Panic policy**: library code does not panic on reachable paths; the
-//!   single documented exception is `Timestamp::now()` on a system clock
-//!   outside the representable range — before the Unix epoch, or more than
-//!   `u64::MAX` nanoseconds after it (mid-2554) — for which
-//!   `Timestamp::try_now` is the panic-free variant. This is enforced with
-//!   clippy's `unwrap_used`, `expect_used`, `panic`, and `indexing_slicing`
-//!   restriction lints.
-//!   In `no_std` builds, allocation failure aborts via the global
-//!   allocation error handler, as with any `alloc`-based crate: size the
-//!   heap for the retained sample count, map overhead, and per-frame names.
-//!   A dynamic sample stores 56 B of geometry plus its `T` map key; an
-//!   x86-64 measurement with `Timestamp` and 10,000 sequential inserts used
-//!   about 122 B of requested heap per sample, before allocator overhead.
-//!   Measure the actual allocator and workload when sizing a target heap.
-//! - **Checked arithmetic**: all time arithmetic is checked; overflow and
-//!   underflow surface as errors, never as wraparound.
-//! - **Same math in both feature modes**: `sqrt`, `sin`, and `acos` come from `libm`
-//!   whether or not `std` is enabled, never from the platform's math
-//!   library. Tests pin interpolated rotations bit for bit in both feature
-//!   modes on the test host; bare-metal builds do not measure cross-device
-//!   replay.
-//! - **Validated inputs**: a `Transform` is validated where it is built —
-//!   the constructors and the `serde` `Deserialize` impl reject non-finite
-//!   values and non-unit rotations, and the private fields keep a built one
-//!   valid. Composition, interpolation, inversion and lookups deliberately do
-//!   not re-validate what they derive (norms drift a few ulps per hop, and
-//!   rejecting that would fail legitimate long chains), so
-//!   `Registry::add_transform` re-runs the check on the way into storage —
-//!   a derived transform re-published into a registry is caught there rather
-//!   than answering every later lookup with plausible nonsense. The registry
-//!   additionally enforces what only it can see: an acyclic, single-parent
-//!   frame tree. Invalid data is rejected with an error rather than
-//!   corrupting lookups.
-//! - **Thread safety**: all types are `Send + Sync`; wrap the `Registry` in
-//!   your preferred lock for concurrent use (see the README for an example).
-//! - **Deterministic hashing**: the frame map uses hashbrown's default
-//!   hasher with a fixed seed on targets without entropy sources, giving
-//!   deterministic behavior on MCUs. `HashDoS` resistance is deliberately
-//!   not a goal — frame names come from the application, not the network.
-//!
-//! # Stability Commitments
-//!
-//! The `approx` traits (`AbsDiffEq`/`RelativeEq`) implemented on the
-//! geometry types make `approx` 0.5 part of this crate's public API: a
-//! future `approx` 0.6 requires a semver-major release of this crate. This
-//! is deliberate — tolerant comparison is the documented alternative to the
-//! exact `==`.
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -275,3 +113,8 @@ pub mod geometry;
 pub mod time;
 pub use core::Registry;
 pub use geometry::{Localized, Transform, Transformable};
+
+// Compile the README examples in every feature combination.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme {}

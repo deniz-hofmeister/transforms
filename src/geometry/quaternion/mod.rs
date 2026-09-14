@@ -7,14 +7,18 @@ pub use error::QuaternionError;
 
 mod error;
 
-// The `sqrt`, `sin`, and `acos` below are `libm`'s in every feature mode,
-// never `std`'s: a desktop replay and the MCU it replays must agree bit for
-// bit, and `std`'s implementations are the platform's, which do not.
+// Use the same math implementation in both feature modes.
 
-/// A quaternion representing a rotation in 3D space.
+/// Quaternion components in scalar-first `(w, x, y, z)` order.
 ///
-/// With the optional `serde` feature, this type implements `Serialize` and
-/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+/// Rotation operations expect unit quaternions; construction and public
+/// field assignment do not validate or normalize. Use [`Self::normalize`]
+/// when needed. With right-handed axes, positive rotations follow the
+/// right-hand rule. Hamilton multiplication `q1 * q2` applies `q2` first.
+///
+/// Equality and `approx` traits compare components, not equivalent rotations:
+/// `q` and `-q` represent the same rotation but need not compare equal.
+/// With `serde`, this type implements `Serialize` and `Deserialize`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Quaternion {
@@ -31,12 +35,8 @@ pub struct Quaternion {
 impl Quaternion {
     /// Creates a quaternion from its `w`, `x`, `y`, and `z` components.
     ///
-    /// The scalar part `w` comes first — the name spells the order out,
-    /// because the other common convention puts it last and a silently
-    /// swapped `w` is a valid quaternion describing a different rotation.
-    /// No normalization is performed; rotations are expected to be unit
-    /// quaternions, so call [`Quaternion::normalize`] if the components do not
-    /// already form one.
+    /// No normalization is performed. Use [`Quaternion::normalize`] if the
+    /// components do not already form a unit quaternion.
     ///
     /// # Examples
     ///
@@ -214,7 +214,8 @@ impl Quaternion {
 
     /// Rotates a vector by the quaternion.
     ///
-    /// The vector is treated as a pure quaternion with a real part of zero.
+    /// Computes `q * (0, v) * q.conjugate()`. The quaternion must be unit
+    /// length; otherwise the result is also scaled by its squared norm.
     ///
     /// # Examples
     ///
@@ -223,10 +224,10 @@ impl Quaternion {
     /// # use approx::assert_relative_eq;
     ///
     /// let q = Quaternion::from_wxyz(
-    ///     (core::f64::consts::PI / 4.0).cos(),
+    ///     core::f64::consts::FRAC_1_SQRT_2,
     ///     0.0,
     ///     0.0,
-    ///     (core::f64::consts::PI / 4.0).sin(),
+    ///     core::f64::consts::FRAC_1_SQRT_2,
     /// );
     /// let v = Vector3::new(1.0, 0.0, 0.0);
     /// assert_relative_eq!(q.rotate_vector(v), Vector3::new(0.0, 1.0, 0.0));
@@ -271,7 +272,8 @@ impl Quaternion {
     /// let q1 = Quaternion::identity();
     /// let q2 = Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0);
     /// let result = q1.slerp(q2, 0.5);
-    /// let expected = Quaternion::from_wxyz((0.5_f64).sqrt(), (0.5_f64).sqrt(), 0.0, 0.0);
+    /// let half = core::f64::consts::FRAC_1_SQRT_2;
+    /// let expected = Quaternion::from_wxyz(half, half, 0.0, 0.0);
     /// assert_relative_eq!(result.w, expected.w, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.x, expected.x, epsilon = f64::EPSILON);
     /// assert_relative_eq!(result.y, expected.y, epsilon = f64::EPSILON);

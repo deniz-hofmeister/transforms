@@ -1,63 +1,9 @@
-//! A module for managing a buffer of transforms with timestamps.
+//! Per-child storage owned by `Registry`.
 //!
-//! This module provides the `Buffer` struct, which is designed to store and manage
-//! a collection of transforms, each associated with a timestamp. The buffer uses
-//! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
-//!
-//! `Buffer` is internal to the crate: [`Registry`](crate::Registry) owns one
-//! per child frame and is the only way to reach it. The invariants that make a
-//! frame tree well-formed are split between the two, and most of them live
-//! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
-//! pin, the child pin, the static-xor-dynamic kind, and the numeric validity
-//! of what is stored. `Registry` adds only the check that needs a view of the
-//! whole tree — the cycle check — and runs it solely for a child frame it has
-//! not seen before, precisely because this module's pin makes an existing
-//! buffer's parent immutable. Any rework of the storage below must keep those
-//! pins: without them a re-parenting insert reaches no check at all, and every
-//! later lookup through the frame returns a pose expressed relative to the
-//! wrong parent.
-//!
-//! The numeric check is deliberately *not* redundant with the one the
-//! constructors run. A [`Transform`] is validated where it is built, but `*`,
-//! [`Transform::interpolate`], [`Transform::inverse`] and every registry
-//! lookup derive transforms without re-validating them — by design, because
-//! rotation norms drift across a long chain. A caller who flattens a chain
-//! and re-publishes the result therefore hands storage a value nothing has
-//! checked, and a rotation that has left
-//! [`UNIT_NORM_TOLERANCE`](crate::geometry::UNIT_NORM_TOLERANCE) silently
-//! scales every vector every later lookup rotates. This is the last boundary
-//! before a transform starts answering lookups, and the check is O(1) per
-//! insert.
-//!
-//! Dynamic samples retain only translation and rotation: their frames live
-//! in the buffer's pins and their timestamps in the ordered map's keys.
-//! Reads reconstruct the public `Transform` with those same values, using
-//! the same interpolation arithmetic as `Transform::interpolate`.
-//!
-//! # Features
-//!
-//! - **Store Transforms with Timestamps**: The `Buffer` allows you to store multiple transforms,
-//!   each associated with a unique timestamp. This is useful for applications that require
-//!   time-based transformations, such as robotics, animation, and simulations.
-//!
-//! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
-//!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
-//!   provide an estimated transform at the requested timestamp.
-//!
-//! - **Static Buffers**: A buffer is either static or dynamic — a property declared at
-//!   construction ([`Buffer::static_edge`] vs. [`Buffer::dynamic`]) and fixed for the buffer's
-//!   lifetime. A static buffer holds one transform carrying `Stamp::Static` and returns it for
-//!   any requested timestamp; a dynamic buffer holds a time series of `Stamp::At` samples.
-//!   Inserting the opposite kind is rejected with `InsertError::StaticDynamicConflict`.
-//!
-//! - **Automatic Expiration of Transforms**:
-//!   - Buffers created with `Buffer::dynamic_with_max_age` remove entries older than `max_age`
-//!     relative to the latest inserted timestamp on every insert.
-//!   - This ensures that the buffer does not grow indefinitely and only retains relevant
-//!     transforms within the specified duration.
-//!   - Buffers created with `Buffer::dynamic` never expire entries; use the `remove_before`
-//!     method for manual cleanup. Static transforms never expire and survive manual
-//!     cleanup.
+//! Dynamic samples store geometry under timestamp keys; frame names are pinned
+//! once per buffer. Static buffers store one transform. Insertion validates
+//! geometry, frame pins, and kind even for derived transforms; the registry
+//! adds the cycle check. Cleanup preserves the pins and static data.
 
 use crate::{
     geometry::{Quaternion, Transform, Vector3},

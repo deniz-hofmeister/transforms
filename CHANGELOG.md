@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Shorten the README, migration guide, and API documentation. Correct
+  transform direction, subtree removal, cross-time examples, concurrency,
+  serialization, and portability claims; retain the ROS2/tf2 comparison.
+- Compile the README example as a doctest in every feature combination.
+
 ## [2.1.3] - 2026-09-12
 
 ### Changed
@@ -154,8 +163,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
   `std`. `Registry` also implements `Default`. Mind rustc's suggestion
   on the 1.x call site: "remove the extra argument" compiles into a
   registry that never evicts — if you had a `max_age`, you want
-  `with_max_age` (MIGRATION.md break 1 spells this out).
-- **Breaking:** every `Registry` call reports one flat error type,
+  `with_max_age` (see [migration guidance](MIGRATION.md#construction-and-insertion)).
+- **Breaking:** every fallible `Registry` call reports one flat error type,
   `errors::RegistryError<T>`. 1.4.1 answered a failed lookup with the
   catch-all `TransformError::NotFound(from, to)` — or, for frames in
   different trees, with `IncompatibleFrames` — and could return a
@@ -354,9 +363,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
   `Stamp` is an explicitly tagged enum — `{"At": 1753142400000000000}`
   and `"Static"` in JSON, a variant index ahead of the payload in
   non-self-describing formats, the width of index and integer belonging
-  to the codec (postcard and bincode 2's `config::standard()` write a
-  1-byte index and a LEB128 varint; bincode 1.x and bincode 2's
-  `config::legacy()` a fixed 4-byte index and fixed-width integer) — and
+  to the codec and its configuration — and
   `Timestamp` is `#[serde(transparent)]`, a bare nanosecond integer
   rather than a one-field record. No magic value appears on the wire and
   staticness is always spelled: a `timestamp` that is *missing* or
@@ -398,8 +405,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - Property-based test suite (proptest) covering the core invariants;
   fully deterministic test fixtures and non-mutating benchmarks; panic
   policy enforced with clippy restriction lints and documented in the
-  crate-level Reliability section. All public types are `Send + Sync`,
-  documented and compile-asserted.
+  crate-level Reliability section. Public types with the default timestamp
+  are compile-asserted to be `Send + Sync`.
 - Behavioral pin tests for commitments that freeze at stable: duplicate-
   timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
   semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
@@ -473,19 +480,15 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - `no_std` works on real bare-metal targets: float math goes through
   `libm` and dependencies no longer pull in `std`. A heap allocator
   (`alloc`) is required.
-- Docs: `Registry::new` states what its lack of a `max_age` costs — not
-  only unbounded retention, but an unbounded interpolation gap, since a
-  lookup between samples recorded either side of a publisher stall
-  interpolates straight across it. `Registry::with_max_age` bounds both,
-  and the `Default` impl points at the same explanation.
+- Docs: describe unbounded retention and interpolation gaps with
+  `Registry::new`, and eviction on insertion with `Registry::with_max_age`.
 - Docs: duplicate-timestamp inserts are documented as last-write-wins
   upserts; `remove_frame` documents that it strands descendants of a
   mid-tree frame; interpolation is documented to span interior gaps of any
   size (bounding freshness is the caller's job); the O(log n) lookup claim is
   qualified (per-frame; linear in chain depth; O(frames) failure
   diagnosis); the `approx` 0.5 public-API commitment is recorded;
-  allocation-failure behavior and the deterministic-hasher trade-off are
-  stated for `no_std`.
+  allocation-failure behavior is stated for `no_std`.
 - Docs: the scalar type is a commitment, not an accident. f32 and
   mixed-precision arithmetic are Non-Goals (README and crate root, one
   identical list), and the README publishes the envelope that commitment
@@ -560,6 +563,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...HEAD
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1

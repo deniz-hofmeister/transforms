@@ -1,85 +1,4 @@
-//! # Registry Module
-//!
-//! The `registry` module provides the core functionality for managing transforms between different coordinate frames. It maintains a collection of transforms and offers methods to add, retrieve, and chain these transforms.
-//!
-//! ## Features
-//!
-//! - **Static Transforms**: The registry can handle static transforms —
-//!   transforms carrying `Stamp::Static`, valid for all time; build them
-//!   with `Transform::static_between`.
-//! - **Dynamic Transforms**: Supports dynamic transforms with timestamps to handle time-varying transformations.
-//! - **Interpolation**: Interpolates between transforms if a requested timestamp lies between two known transforms.
-//! - **Coverage Query**: `Registry::latest_common_time` reports the newest
-//!   instant a chain can serve, or that no instant is commonly covered.
-//! - **Automatic Buffer Cleanup**: A registry built with `Registry::with_max_age`
-//!   automatically cleans up old dynamic transforms on insert; one built with
-//!   `Registry::new` keeps them until `remove_transforms_before` is called.
-//!
-//! ## Usage
-//!
-//! The `Registry` struct is the main entry point for interacting with the registry.
-//!
-//! ## Time type selection
-//!
-//! `Registry` defaults to `Timestamp` in type position, so
-//! `let registry: Registry = Registry::new();` is a `Registry<Timestamp>`.
-//! The default does not apply in expression position — there the time type
-//! is inferred from usage, so annotate it where the surrounding code does
-//! not pin it down.
-//!
-//! You can use custom timestamps by implementing `time::TimePoint` and then
-//! constructing `Registry::<CustomTimestamp>::new()`.
-//!
-//! With the `std` feature enabled, `std::time::SystemTime` already implements
-//! `TimePoint`, so `Registry::<SystemTime>::with_max_age(Duration::from_secs(...))`
-//! works out of the box.
-//!
-//! # Examples
-//!
-//! ```rust
-//! # {
-//! use transforms::{
-//!     Registry,
-//!     geometry::{Quaternion, Transform, Vector3},
-//!     time::{Stamp, Timestamp},
-//! };
-//!
-//! # #[cfg(feature = "std")]
-//! use core::time::Duration;
-//! # #[cfg(feature = "std")]
-//! let mut registry = Registry::with_max_age(Duration::from_secs(60));
-//! # #[cfg(feature = "std")]
-//! let t1 = Timestamp::now();
-//!
-//! # #[cfg(not(feature = "std"))]
-//! # let mut registry = Registry::new();
-//! # #[cfg(not(feature = "std"))]
-//! # let t1 = Timestamp::zero();
-//!
-//! let t2 = t1;
-//!
-//! // Define a transform from frame "a" to frame "b"
-//! let t_a_b_1 = Transform::new(
-//!     "a",
-//!     "b",
-//!     Vector3::new(1.0, 0.0, 0.0),
-//!     Quaternion::identity(),
-//!     Stamp::At(t1),
-//! )
-//! .unwrap();
-//!
-//! // For validation
-//! let t_a_b_2 = t_a_b_1.clone();
-//!
-//! // Add the transform to the registry
-//! registry.add_transform(t_a_b_1).unwrap();
-//!
-//! // Retrieve the transform from "a" to "b"
-//! let result = registry.get_transform("a", "b", t2);
-//! assert!(result.is_ok());
-//! assert_eq!(result.unwrap(), t_a_b_2);
-//! # }
-//! ```
+//! Frame-tree storage and transform lookup.
 
 use crate::{
     core::{
@@ -102,64 +21,25 @@ mod error;
 /// its child frame, in walk order — and the root frame the walk ends on.
 type Ancestry<'a, T> = (Vec<(&'a str, &'a Buffer<T>)>, &'a str);
 
-/// A registry for managing transforms between different frames. It can
-/// traverse the parent-child tree and calculate the final transform.
-/// It will interpolate between two entries if a time is requested that
-/// lies in between.
+/// A frame tree with timestamped transform history.
 ///
-/// The `Registry` struct provides methods to add and retrieve transforms
-/// between frames.
+/// Lookups interpolate between samples and compose the connecting transforms.
+/// Use [`Registry::with_max_age`] for automatic eviction or [`Registry::new`]
+/// for manual retention. Buffers are private implementation details.
 ///
-/// # Examples
+/// The time type defaults to [`Timestamp`] in type annotations. Where inference
+/// has no timestamp to use, write `Registry::<Timestamp>::new()`. Custom clocks
+/// implement [`TimePoint`]; `std::time::SystemTime` is supported with `std`.
 ///
-/// ```
-/// use transforms::{
-///     Registry,
-///     geometry::{Quaternion, Transform, Vector3},
-///     time::{Stamp, Timestamp},
-/// };
-///
-/// # #[cfg(feature = "std")]
-/// use core::time::Duration;
-/// # #[cfg(feature = "std")]
-/// let mut registry = Registry::with_max_age(Duration::from_secs(60));
-/// # #[cfg(feature = "std")]
-/// let t1 = Timestamp::now();
-///
-/// # #[cfg(not(feature = "std"))]
-/// # let mut registry = Registry::new();
-/// # #[cfg(not(feature = "std"))]
-/// # let t1 = Timestamp::zero();
-///
-/// let t2 = t1;
-///
-/// // Define a transform from frame "a" to frame "b"
-/// let t_a_b_1 = Transform::new(
-///     "a",
-///     "b",
-///     Vector3::new(1.0, 0.0, 0.0),
-///     Quaternion::identity(),
-///     Stamp::At(t1),
-/// )
-/// .unwrap();
-///
-/// // For validation
-/// let t_a_b_2 = t_a_b_1.clone();
-///
-/// // Add the transform to the registry
-/// registry.add_transform(t_a_b_1).unwrap();
-///
-/// // Retrieve the transform from "a" to "b"
-/// let result = registry.get_transform("a", "b", t2);
-/// assert!(result.is_ok());
-/// assert_eq!(result.unwrap(), t_a_b_2);
-/// ```
+/// `Registry<T>` is `Send` and `Sync` when `T` is. An external `RwLock` permits
+/// concurrent readers; writers need exclusive access, and readers may wait for
+/// writers. Keep dependent queries under one guard.
 #[derive(Debug)]
 pub struct Registry<T = Timestamp>
 where
     T: TimePoint,
 {
-    /// Maps a child frame name to the buffer of transforms into that frame.
+    /// Maps a child frame name to its transforms into the parent frame.
     data: HashMap<String, Buffer<T>>,
     max_age: Option<Duration>,
 }
@@ -168,32 +48,12 @@ impl<T> Registry<T>
 where
     T: TimePoint,
 {
-    /// Creates a new `Registry` without automatic cleanup.
+    /// Creates a registry without automatic cleanup.
     ///
-    /// **Nothing bounds this registry.** Two consequences follow, and both
-    /// are the caller's to manage:
-    ///
-    /// - *Memory* grows with the insert rate. Transforms are kept until
-    ///   removed manually with [`Registry::remove_transforms_before`], and
-    ///   frames until [`Registry::remove_frame`].
-    /// - *Interpolation* spans any gap between two retained samples, however
-    ///   large. A lookup between samples recorded before and after a pause —
-    ///   a stalled publisher, a rebooting robot — interpolates straight
-    ///   across it and answers confidently, because both neighbors are still
-    ///   stored.
-    ///
-    /// [`Registry::with_max_age`] bounds both at once: evicting on insert
-    /// caps the retained window, and no gap between two retained samples can
-    /// then exceed `max_age`. Prefer it unless the retention policy is
-    /// genuinely the caller's.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{Registry, time::Timestamp};
-    ///
-    /// let registry = Registry::<Timestamp>::new();
-    /// ```
+    /// Samples remain until [`Registry::remove_transforms_before`] or
+    /// [`Registry::remove_frame`] removes them. Memory use and interpolation
+    /// gaps are unbounded. Use [`Registry::with_max_age`] to limit the retained
+    /// time window.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -202,21 +62,15 @@ where
         }
     }
 
-    /// Creates a new `Registry` with automatic cleanup after `max_age`.
+    /// Creates a registry with eviction on insertion.
     ///
-    /// Dynamic transforms older than `max_age` relative to the latest
-    /// inserted timestamp of their child frame are removed automatically on
-    /// insert (`Duration::ZERO` retains only the newest sample per frame).
-    /// Static transforms never expire.
+    /// Dynamic samples older than the child's newest inserted timestamp minus
+    /// `max_age` are removed. The boundary is inclusive; `Duration::ZERO`
+    /// retains only the newest sample. Wall-clock time is never consulted,
+    /// and static transforms never expire.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use core::time::Duration;
-    /// use transforms::{Registry, time::Timestamp};
-    ///
-    /// let mut registry = Registry::<Timestamp>::with_max_age(Duration::from_secs(60));
-    /// ```
+    /// This bounds retained history duration, not sample or frame count.
+    /// Available with and without `std`.
     #[must_use]
     pub fn with_max_age(max_age: Duration) -> Self {
         Self {
@@ -225,56 +79,20 @@ where
         }
     }
 
-    /// Adds a transform to the registry.
+    /// Inserts a transform, replacing any sample at the same timestamp.
+    ///
+    /// The first insert pins the child's parent and static/dynamic kind until
+    /// [`Registry::remove_frame`] releases it. Numeric validation runs on every
+    /// insert, including derived transforms that were not checked after composition.
     ///
     /// # Errors
     ///
-    /// Returns `RegistryError::NonUnitRotation` or
-    /// `RegistryError::NonFiniteValues` if the transform's numbers are
-    /// unusable. A transform straight from a constructor cannot fail this —
-    /// but one composed with `*`, interpolated, inverted, or read back out of
-    /// a lookup was deliberately never re-validated, so re-publishing such a
-    /// value is checked here rather than silently corrupting every lookup
-    /// that later crosses the frame.
-    ///
-    /// Returns `RegistryError::StaticDynamicConflict` if the transform's
-    /// child frame already holds transforms of the opposite kind: a child
-    /// frame is either static (`Stamp::Static`) or dynamic (`Stamp::At`),
-    /// never both. The kind is decided by the first transform inserted for
-    /// the frame.
-    ///
-    /// Returns `RegistryError::SelfReferentialFrame` if the transform's
-    /// parent and child are the same frame,
-    /// `RegistryError::ReparentingNotSupported` if the child frame
-    /// already has a different parent (remove the frame first with
-    /// [`Registry::remove_frame`]), and `RegistryError::CycleDetected` if the
-    /// new relationship would create a cycle in the frame tree.
-    ///
-    /// Inserting at a timestamp the child frame already stores replaces the
-    /// stored transform: last write wins. Re-publishing a sample at the
-    /// same stamp is an upsert, not an error.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     Registry,
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
-    ///
-    /// let mut registry = Registry::<Timestamp>::new();
-    /// let transform = Transform::new(
-    ///     "base",
-    ///     "sensor",
-    ///     Vector3::new(1.0, 0.0, 0.0),
-    ///     Quaternion::identity(),
-    ///     Stamp::At(Timestamp::zero()),
-    /// )
-    /// .unwrap();
-    ///
-    /// registry.add_transform(transform).unwrap();
-    /// ```
+    /// - [`RegistryError::NonFiniteValues`] or [`RegistryError::NonUnitRotation`]
+    ///   if numeric validation fails.
+    /// - [`RegistryError::StaticDynamicConflict`] if the child's kind differs.
+    /// - [`RegistryError::SelfReferentialFrame`] if parent equals child.
+    /// - [`RegistryError::ReparentingNotSupported`] if the child's parent differs.
+    /// - [`RegistryError::CycleDetected`] if a new edge would close a cycle.
     pub fn add_transform(
         &mut self,
         t: Transform<T>,
@@ -282,61 +100,30 @@ where
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
-    /// Retrieves the transform that maps `source`-frame coordinates into
-    /// the `target` frame at the requested timestamp.
+    /// Maps `source`-frame coordinates into `target` at `timestamp`.
     ///
-    /// # Direction convention
+    /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+    /// The result has `parent == target`, `child == source`, and
+    /// `Stamp::At(timestamp)`, including over all-static chains. Equal frame
+    /// names return the identity, even if the frame has not been registered.
     ///
-    /// The returned transform has `parent == target` and `child == source`:
-    /// applying it to data expressed in the `source` frame yields that data
-    /// expressed in the `target` frame, matching tf2's
-    /// `lookupTransform(target_frame, source_frame, time)` and this
-    /// registry's own [`Registry::get_transform_at`]. Mind the order — to
-    /// bring lidar points into the map frame, ask for
-    /// `get_transform("map", "lidar", t)`; swapping the arguments silently
-    /// yields the exact inverse.
-    ///
-    /// The returned transform always carries the requested timestamp, also
-    /// when the chain consists of static transforms. Requesting a frame
-    /// relative to itself returns the identity transform.
-    ///
-    /// Interpolation spans any gap between two stored samples, however
-    /// large — a lookup between samples recorded before and after a pause
-    /// (say, a robot rebooting) interpolates straight across it. Bounding
-    /// data freshness is the caller's responsibility, via `max_age` and
-    /// insert cadence.
+    /// Interpolation spans any gap between retained samples; there is no
+    /// extrapolation. Use [`Registry::latest_common_time`] to find the newest
+    /// commonly covered instant. Neither query measures age against a clock.
     ///
     /// # Errors
     ///
-    /// Returns `RegistryError::UnknownFrame` if a requested frame exists
-    /// nowhere in the tree, `RegistryError::NotFoundAt` if the lookup
-    /// failed at a frame that exists but could not serve the requested time,
-    /// and `RegistryError::Disconnected` if both frames exist but live in
-    /// trees that no transform chain connects.
+    /// Returns [`RegistryError::UnknownFrame`] for an unknown endpoint,
+    /// [`RegistryError::NotFoundAt`] for a recorded sampling failure, or
+    /// [`RegistryError::Disconnected`] for known frames with no connecting chain.
+    /// A sampling failure takes precedence over a simultaneous disconnection;
+    /// see the error variants for payloads.
     ///
-    /// `NotFoundAt` names the frame the walk stopped at, the timestamp asked
-    /// for, and `covered`: that frame's covered time range when it holds
-    /// data the request falls outside of, or `None` — no range to carry —
-    /// when it holds no data at all, the state a frame drained by
-    /// [`Registry::remove_transforms_before`] stays in until something is
-    /// inserted into it again. "What is the newest instant this chain
-    /// *can* serve" is a first-class query: ask
-    /// [`Registry::latest_common_time`] and re-request at its answer —
-    /// exact for mid-tree targets too, with no retrying.
-    ///
-    /// Composing, inverting or interpolating the transforms the walk
-    /// collected can itself fail: inverting a half-chain that composed to an
-    /// infinite translation reports `RegistryError::NonFiniteValues`,
-    /// anything else `RegistryError::TransformError`. Those are the two
-    /// lookup failures that name no frame.
-    ///
-    /// A returned transform is *not* re-validated (see [`Transform`]), and
-    /// the check above is the inversion's, not the lookup's: a lookup toward
-    /// an ancestor — the documented direction — inverts nothing, so a chain
-    /// of extreme magnitudes composes to an infinite translation and comes
-    /// back as `Ok`. Whether an overflow is reported therefore depends on
-    /// the direction asked for. Call [`Transform::validate`] on a result
-    /// whose inputs can reach those magnitudes.
+    /// Geometry or time operations can fail with [`RegistryError::TransformError`]
+    /// or [`RegistryError::NonFiniteValues`]. The result is not re-validated:
+    /// inversion rejects an infinite translation, but a lookup toward an ancestor
+    /// inverts nothing and can return an overflow as `Ok`. Call
+    /// [`Transform::validate`] if inputs can reach such magnitudes.
     ///
     /// # Examples
     ///
@@ -346,39 +133,26 @@ where
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::{Stamp, Timestamp},
     /// };
-    /// # #[cfg(feature = "std")]
-    /// use core::time::Duration;
     ///
-    /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::with_max_age(Duration::from_secs(60));
-    /// # #[cfg(feature = "std")]
-    /// let t1 = Timestamp::now();
+    /// let t = Timestamp::from_nanos(1);
+    /// let mut registry = Registry::new();
+    /// registry
+    ///     .add_transform(
+    ///         Transform::new(
+    ///             "map",
+    ///             "lidar",
+    ///             Vector3::new(2.0, 0.0, 0.0),
+    ///             Quaternion::identity(),
+    ///             Stamp::At(t),
+    ///         )
+    ///         .unwrap(),
+    ///     )
+    ///     .unwrap();
     ///
-    /// # #[cfg(not(feature = "std"))]
-    /// # let mut registry = Registry::new();
-    /// # #[cfg(not(feature = "std"))]
-    /// # let t1 = Timestamp::zero();
-    ///
-    /// let t2 = t1;
-    ///
-    /// // Define a transform from frame "a" to frame "b"
-    /// let t_a_b_1 = Transform::new(
-    ///     "a",
-    ///     "b",
-    ///     Vector3::new(1.0, 0.0, 0.0),
-    ///     Quaternion::identity(),
-    ///     Stamp::At(t1),
-    /// )
-    /// .unwrap();
-    /// // For validation
-    /// let t_a_b_2 = t_a_b_1.clone();
-    ///
-    /// registry.add_transform(t_a_b_1).unwrap();
-    ///
-    /// // "b"-frame data expressed in "a": target "a", source "b"
-    /// let result = registry.get_transform("a", "b", t2);
-    /// assert!(result.is_ok());
-    /// assert_eq!(result.unwrap(), t_a_b_2);
+    /// let transform = registry.get_transform("map", "lidar", t).unwrap();
+    /// assert_eq!(transform.parent(), "map");
+    /// assert_eq!(transform.child(), "lidar");
+    /// assert_eq!(transform.translation(), Vector3::new(2.0, 0.0, 0.0));
     /// ```
     pub fn get_transform(
         &self,
@@ -389,18 +163,15 @@ where
         Self::process_get_transform(target, source, timestamp, &self.data)
     }
 
-    /// Retrieves a transform for a specific value into `target_frame`.
+    /// Resolves a transform using `value`'s frame and timestamp.
     ///
-    /// The source frame and timestamp are taken from the value.
-    ///
-    /// If the value is already in `target_frame`, this returns an identity
-    /// transform with `parent == child == target_frame` and the value's
-    /// timestamp (via `get_transform`'s same-frame identity).
+    /// Equivalent to `get_transform(target_frame, value.frame(), value.timestamp())`.
+    /// This does not modify `value`; apply the result separately through
+    /// [`Transformable`](crate::Transformable).
     ///
     /// # Errors
     ///
-    /// Returns a `RegistryError` if a transform cannot be resolved; the
-    /// variants are [`Registry::get_transform`]'s.
+    /// The same as [`Registry::get_transform`].
     pub fn get_transform_for<U>(
         &self,
         value: &U,
@@ -412,55 +183,33 @@ where
         self.get_transform(target_frame, value.frame(), value.timestamp())
     }
 
-    /// Retrieves a transform between two frames at different timestamps using a fixed frame.
+    /// Maps source-time coordinates into the target frame at another time.
     ///
-    /// This is the "time travel" API that allows you to get the transform from a source frame
-    /// at one time to a target frame at a different time. This is useful for scenarios like
-    /// tracking an object that was detected on a moving platform (e.g., a conveyor belt) and
-    /// getting its current position in a static world frame.
+    /// This is tf2-style "time travel": a historical position is re-expressed in
+    /// another frame at `target_time`. It does not predict an object's motion.
+    /// The two lookups connect through `fixed_frame`, which the caller must ensure
+    /// is stationary between the instants. Having no parent does not establish
+    /// physical stationarity.
     ///
-    /// The algorithm works by:
-    /// 1. Computing the transform that expresses `source_frame` in `fixed_frame` at `source_time`
-    /// 2. Computing the transform that expresses `target_frame` in `fixed_frame` at `target_time`
-    /// 3. Combining the two into the requested transform
-    ///
-    /// `fixed_frame` is a frame that does not change over time, used as an
-    /// intermediate reference point (typically a world or map frame).
-    ///
-    /// Either endpoint may coincide with `fixed_frame`: that leg is then the
-    /// identity, so only the other leg is resolved. When `source_frame` and
-    /// `target_frame` both coincide with it, the result is the identity
-    /// transform carrying `target_time`.
+    /// An endpoint equal to `fixed_frame` needs no lookup for that leg. If both
+    /// endpoints equal it, the result is the identity at `target_time`.
     ///
     /// # Temporal metadata limitation
     ///
-    /// The returned geometry maps coordinates in `source_frame` at
-    /// `source_time` into `target_frame` at `target_time`, but its single
-    /// stamp stores only `target_time`. When the times differ, retain both
-    /// instants alongside the result. Apply its rotation and translation
-    /// explicitly to source-time coordinates and label the output with the
-    /// target frame and time.
+    /// The result stores only `target_time`. When the times differ, retain both
+    /// instants and apply the rotation and translation explicitly to source-time
+    /// coordinates, labeling the output with the target frame and time.
     ///
-    /// Such a result must not be used as an ordinary single-time transform:
-    /// [`Transformable`](crate::Transformable) checks against the target
-    /// stamp and rejects a source-time point; composition, serialization,
-    /// and [`Registry::add_transform`] cannot recover or check the lost
-    /// source time. Re-inserting it can overwrite a valid target-time
-    /// sample with source-time geometry. [`Transform::validate`] checks
-    /// only numeric validity and does not detect this misuse.
-    ///
-    /// # Choosing the fixed frame
-    ///
-    /// **The caller is responsible for ensuring that `fixed_frame` is actually stationary
-    /// between `source_time` and `target_time`.** Passing a frame that moves between the
-    /// two timestamps will produce a mathematically meaningless result without any error.
-    /// Root frames (e.g., `"world"`, `"map"`) that have no parent are always safe choices.
+    /// Do not apply such a result through [`Transformable`](crate::Transformable),
+    /// compose it as a single-time transform, or insert it into a registry.
+    /// Those operations cannot check the lost source time; insertion can overwrite
+    /// a valid target-time sample. Serialization also loses that provenance.
+    /// [`Transform::validate`] checks numbers only.
     ///
     /// # Errors
     ///
-    /// Returns a `RegistryError` if any of the required transforms cannot be
-    /// found at the specified times; the variants are
-    /// [`Registry::get_transform`]'s, reported per leg.
+    /// The same lookup and numeric failures as [`Registry::get_transform`],
+    /// reported for either leg or their composition.
     ///
     /// # Examples
     ///
@@ -470,77 +219,32 @@ where
     ///     geometry::{Quaternion, Transform, Vector3},
     ///     time::{Stamp, Timestamp},
     /// };
-    /// # #[cfg(feature = "std")]
-    /// use core::time::Duration;
     ///
-    /// # #[cfg(feature = "std")]
-    /// let mut registry = Registry::with_max_age(Duration::from_secs(60));
-    /// # #[cfg(feature = "std")]
-    /// let t1 = Timestamp::now();
-    /// # #[cfg(feature = "std")]
-    /// let t2 = (t1 + Duration::from_secs(1)).unwrap();
-    ///
-    /// # #[cfg(not(feature = "std"))]
-    /// # let mut registry = Registry::new();
-    /// # #[cfg(not(feature = "std"))]
-    /// # let t1 = Timestamp::from_nanos(1_000_000_000);
-    /// # #[cfg(not(feature = "std"))]
-    /// # let t2 = Timestamp::from_nanos(2_000_000_000);
-    ///
-    /// // Tree: fixed -> a -> b
-    ///
-    /// // fixed -> a at t1: a is at x=1
-    /// registry
-    ///     .add_transform(
-    ///         Transform::new(
-    ///             "fixed",
-    ///             "a",
-    ///             Vector3::new(1.0, 0.0, 0.0),
-    ///             Quaternion::identity(),
-    ///             Stamp::At(t1),
+    /// let source_time = Timestamp::from_nanos(1);
+    /// let target_time = Timestamp::from_nanos(2);
+    /// let mut registry = Registry::new();
+    /// for (time, x) in [(source_time, 1.0), (target_time, 2.0)] {
+    ///     registry
+    ///         .add_transform(
+    ///             Transform::new(
+    ///                 "world",
+    ///                 "camera",
+    ///                 Vector3::new(x, 0.0, 0.0),
+    ///                 Quaternion::identity(),
+    ///                 Stamp::At(time),
+    ///             )
+    ///             .unwrap(),
     ///         )
-    ///         .unwrap(),
-    ///     )
+    ///         .unwrap();
+    /// }
+    ///
+    /// // The camera's old origin, expressed in its later frame.
+    /// let transform = registry
+    ///     .get_transform_at("camera", target_time, "camera", source_time, "world")
     ///     .unwrap();
-    ///
-    /// // fixed -> a at t2: a has moved to x=2
-    /// registry
-    ///     .add_transform(
-    ///         Transform::new(
-    ///             "fixed",
-    ///             "a",
-    ///             Vector3::new(2.0, 0.0, 0.0),
-    ///             Quaternion::identity(),
-    ///             Stamp::At(t2),
-    ///         )
-    ///         .unwrap(),
-    ///     )
-    ///     .unwrap();
-    ///
-    /// // a -> b at t1: b is at y=1 relative to a
-    /// registry
-    ///     .add_transform(
-    ///         Transform::new(
-    ///             "a",
-    ///             "b",
-    ///             Vector3::new(0.0, 1.0, 0.0),
-    ///             Quaternion::identity(),
-    ///             Stamp::At(t1),
-    ///         )
-    ///         .unwrap(),
-    ///     )
-    ///     .unwrap();
-    ///
-    /// // Express b-at-t1 in a-at-t2, using "fixed" as the stationary reference
-    /// let result = registry.get_transform_at(
-    ///     "a",     // target_frame
-    ///     t2,      // target_time
-    ///     "b",     // source_frame
-    ///     t1,      // source_time
-    ///     "fixed", // fixed_frame
-    /// );
-    ///
-    /// assert!(result.is_ok());
+    /// let position = transform.rotation().rotate_vector(Vector3::zero()) + transform.translation();
+    /// assert_eq!(position, Vector3::new(-1.0, 0.0, 0.0));
+    /// assert_eq!(transform.timestamp(), Stamp::At(target_time));
     /// ```
     pub fn get_transform_at(
         &self,
@@ -560,57 +264,30 @@ where
         )
     }
 
-    /// Returns the newest instant [`Registry::get_transform`] can serve for
-    /// this pair of frames, without resolving the transform.
+    /// Returns the newest instant covered by every connecting hop.
     ///
-    /// `Stamp::At(t)` reports the newest instant every hop of the
-    /// connecting chain covers: the oldest of the dynamic hops' newest
-    /// samples. The answer consults only the hops the chain actually
-    /// crosses — edges above the two frames' common ancestor do not
-    /// constrain it — so it is exact for mid-tree pairs too. It is also
-    /// symmetric in its arguments: both lookup directions serve the same
-    /// instants. `Stamp::Static` means the chain puts no bound on time at
-    /// all — every hop is static, or `target == source` (the identity,
-    /// which serves any instant, matching `get_transform`) — so the caller
-    /// picks the instant.
+    /// For dynamic chains, the answer is the minimum of the newest samples,
+    /// provided it is at least the maximum of the oldest samples. Only edges
+    /// between the requested frames count; edges above their common ancestor do
+    /// not. The answer is symmetric in the frame arguments.
     ///
-    /// The intended idiom is this call followed by
-    /// [`Registry::get_transform`] at the returned instant. The instant
-    /// stays within every hop's covered range only while the registry is
-    /// unmodified — with the registry behind a lock, make both calls under
-    /// the same read guard. Across separate guards, an interleaved write
-    /// that only adds samples leaves the follow-up lookup succeeding,
-    /// merely no longer at the newest instant; one that evicts — a
-    /// [`Registry::with_max_age`] expiry riding on an insert,
-    /// [`Registry::remove_transforms_before`], [`Registry::remove_frame`] —
-    /// can remove the instant, and the lookup fails loudly
-    /// (`RegistryError::NotFoundAt`, or `UnknownFrame`/`Disconnected` once
-    /// a frame is gone). Either way the failure is loud: no interleaving
-    /// produces a wrong pose.
+    /// Returns `Stamp::Static` for all-static chains or equal frame names, even
+    /// unregistered ones. The caller then chooses an instant.
+    ///
+    /// Use the returned instant with [`Registry::get_transform`]. If the registry
+    /// is shared, make both calls under one read guard: intervening writes can
+    /// change the geometry, coverage, or topology. This query checks time arithmetic
+    /// but does not evaluate geometry; the lookup can still fail numerically.
     ///
     /// # Errors
     ///
-    /// Returns `RegistryError::UnknownFrame` if a requested frame exists
-    /// nowhere in the tree and `RegistryError::Disconnected` if both exist
-    /// but no chain connects them — the same variants, matched by the same
-    /// arms, as a failed [`Registry::get_transform`]. (When several faults
-    /// coexist the two calls may prioritize differently: a lookup reports
-    /// its recorded walk failure over `Disconnected`, this query decides
-    /// topology first.)
-    ///
-    /// Returns `RegistryError::NoCommonTime` when no instant is servable
-    /// by every hop of the chain, naming the hop that rules it out: either
-    /// the dynamic hops' covered ranges are disjoint (`covered` carries
-    /// the named frame's range), or a hop holds no data at all
-    /// (`covered: None`).
-    ///
-    /// Returns `RegistryError::TransformError` wrapping
-    /// `TransformError::TimestampError` if the newest common instant needs
-    /// interpolation whose interval or offset the clock cannot express as
-    /// a `Duration`. This checks the neighboring samples, not the full
-    /// stored history, and does not search for an earlier instant on failure.
-    /// Geometry is not evaluated here; the subsequent lookup can still
-    /// report a numeric failure, such as overflow during inversion.
+    /// - [`RegistryError::UnknownFrame`] or [`RegistryError::Disconnected`] for
+    ///   invalid topology. Unlike `get_transform`, this query checks topology first.
+    /// - [`RegistryError::NoCommonTime`] for empty or disjoint coverage.
+    /// - [`RegistryError::TransformError`] wrapping
+    ///   [`TransformError::TimestampError`] if interpolation at the newest common
+    ///   instant needs an unrepresentable interval or offset. Only the neighboring
+    ///   samples are checked; no earlier instant is tried after an arithmetic error.
     ///
     /// # Examples
     ///
@@ -623,17 +300,17 @@ where
     ///
     /// let mut registry = Registry::new();
     /// for (parent, child, nanos) in [
-    ///     ("map", "odom", 4_000),
-    ///     ("map", "odom", 9_000),
-    ///     ("odom", "base", 3_000),
-    ///     ("odom", "base", 7_000), // this hop lags: nothing newer yet
+    ///     ("map", "odom", 4),
+    ///     ("map", "odom", 9),
+    ///     ("odom", "base", 3),
+    ///     ("odom", "base", 7),
     /// ] {
     ///     registry
     ///         .add_transform(
     ///             Transform::new(
     ///                 parent,
     ///                 child,
-    ///                 Vector3::new(1.0, 0.0, 0.0),
+    ///                 Vector3::zero(),
     ///                 Quaternion::identity(),
     ///                 Stamp::At(Timestamp::from_nanos(nanos)),
     ///             )
@@ -642,15 +319,12 @@ where
     ///         .unwrap();
     /// }
     ///
-    /// // The map ← base chain is bounded by its laggiest hop.
     /// let stamp = registry.latest_common_time("map", "base").unwrap();
-    /// assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(7_000)));
-    ///
-    /// // The returned instant is servable: the two-call idiom.
-    /// let latest = registry
+    /// assert_eq!(stamp, Stamp::At(Timestamp::from_nanos(7)));
+    /// let transform = registry
     ///     .get_transform("map", "base", stamp.at().unwrap())
     ///     .unwrap();
-    /// assert_eq!(latest.timestamp(), stamp);
+    /// assert_eq!(transform.timestamp(), stamp);
     /// ```
     pub fn latest_common_time(
         &self,
@@ -741,21 +415,14 @@ where
         }
     }
 
-    /// Removes dynamic transforms older than the given threshold.
+    /// Removes dynamic samples strictly older than `timestamp`.
     ///
-    /// Iterates over all buffers and removes their dynamic entries with a
-    /// timestamp lower than the input argument. Static transforms are
-    /// preserved: they are valid for all time, so cleaning them up by
-    /// timestamp would silently destroy them.
+    /// Static transforms and frame entries remain. A drained frame keeps its parent
+    /// and kind, and lookups crossing its edge report [`RegistryError::NotFoundAt`]
+    /// with `covered: None`. A fully drained buffer resets its expiry reference,
+    /// allowing a stream to restart at earlier timestamps.
     ///
-    /// A frame drained of every transform keeps its entry, and with it the
-    /// parent frame and the static-or-dynamic kind pinned by its first
-    /// insert. Routine cleanup therefore never re-opens a frame for
-    /// re-parenting or for a change of kind, and a lookup on a drained frame
-    /// fails with `RegistryError::NotFoundAt` naming that frame rather than
-    /// reporting it as unknown. Frame entries are released only by
-    /// [`Registry::remove_frame`] — a process that mints transient frame
-    /// names must call it when a frame retires.
+    /// Use [`Registry::remove_frame`] to release a frame and its pins.
     pub fn remove_transforms_before(
         &mut self,
         timestamp: T,
@@ -765,17 +432,48 @@ where
         }
     }
 
-    /// Removes a child frame and all of its transforms from the registry.
+    /// Removes a child's incoming edge and all samples stored on that edge.
     ///
-    /// Returns `true` if the frame existed. This is also the escape hatch
-    /// for re-parenting, which `add_transform` rejects: remove the frame,
-    /// then re-add it under its new parent.
+    /// Returns whether the child had an edge. A root known only as a parent has
+    /// no edge to remove. Descendant edges and their samples remain: the removed
+    /// child becomes their subtree's root, disconnected from its former ancestors.
     ///
-    /// Removing a frame that parents other frames strands those
-    /// descendants: they keep their pin to the removed parent, so lookups
-    /// that crossed the removed frame fail, diagnosed relative to the
-    /// remaining tree — which can name a frame other than the one removed.
-    /// To move a whole subtree, remove and re-add each descendant.
+    /// To re-parent a subtree, remove its root's incoming edge and insert one
+    /// under the new parent. Descendants whose immediate parents are unchanged
+    /// need no removal; their stored history remains available.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::Timestamp,
+    /// };
+    ///
+    /// let mut registry: Registry = Registry::new();
+    /// for (parent, child) in [("world", "base"), ("base", "sensor")] {
+    ///     registry
+    ///         .add_transform(
+    ///             Transform::static_between(parent, child, Vector3::zero(), Quaternion::identity())
+    ///                 .unwrap(),
+    ///         )
+    ///         .unwrap();
+    /// }
+    ///
+    /// assert!(registry.remove_frame("base"));
+    /// registry
+    ///     .add_transform(
+    ///         Transform::static_between("new_world", "base", Vector3::zero(), Quaternion::identity())
+    ///             .unwrap(),
+    ///     )
+    ///     .unwrap();
+    /// let transform = registry
+    ///     .get_transform("new_world", "sensor", Timestamp::zero())
+    ///     .unwrap();
+    /// assert_eq!(transform.parent(), "new_world");
+    /// assert_eq!(transform.child(), "sensor");
+    /// ```
     pub fn remove_frame(
         &mut self,
         child: &str,

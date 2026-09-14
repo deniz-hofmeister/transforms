@@ -10,7 +10,7 @@ pub enum TimeError {
     /// Adding would produce a time beyond the representable range.
     #[error("duration overflow")]
     DurationOverflow,
-    /// Converting to seconds could not be done exactly.
+    /// The timestamp exceeds the supported precision range for conversion to seconds.
     #[error("conversion to seconds lost accuracy")]
     AccuracyLoss,
 }
