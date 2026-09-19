@@ -159,9 +159,10 @@ measurements and reproduction commands. Run `cargo bench` for benchmarks.
 
 ## What's new
 
-2.1.3 reduces dynamic-history memory use and lookup allocations. Public APIs,
-serialization, and numerical behavior are unchanged. See the
-[changelog](CHANGELOG.md) for earlier releases.
+2.1.3 reduces dynamic-history memory use and lookup allocations, and
+shortens and corrects the documentation. Public APIs, serialization, and
+numerical behavior are unchanged. See the [changelog](CHANGELOG.md) for
+earlier releases.
 
 ## Examples
 
