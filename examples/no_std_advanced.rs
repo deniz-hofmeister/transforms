@@ -1,12 +1,9 @@
-//! This example demonstrates the "time travel" feature of the transforms library
-//! using a conveyor belt scenario, without the `std` feature.
+//! Express a conveyor object's historical position in a later camera frame,
+//! then measure the conveyor's displacement between two stored instants.
+//! `get_transform_at` changes the coordinate reference; it does not predict motion.
 //!
-//! Scenario: A camera detects an object on a moving conveyor belt at t1.
-//! We want to know where that object is now (at t2), given that the conveyor
-//! has moved. The "map" frame is stationary and serves as the fixed reference frame.
-//!
-//! Frame tree: map -> conveyor -> object
-//!                 \-> camera
+//! Frame tree (parent -> child): map -> conveyor -> object, map -> camera.
+//! Hosted executable with the library's `std` feature disabled.
 
 #[cfg(not(feature = "std"))]
 fn main() {
@@ -99,6 +96,9 @@ fn main() {
     info!("Object in map at t2: {:?}", object_in_map_t2.translation());
 
     // --- Time travel ---
+    // The result stores only target_time. Keep source_time separately when
+    // using its geometry; do not reinsert it as a single-time sample or
+    // apply it through Transformable, which cannot check both instants.
     // "Where was the object at t1, expressed in the camera frame at t2?"
     // The camera hasn't moved, so the answer is the object's t1 map position
     // relative to the camera: (1, 0.5, 0) - (0, 2, 0) = (1, -1.5, 0)

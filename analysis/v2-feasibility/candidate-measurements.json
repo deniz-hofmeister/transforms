@@ -1,0 +1,65 @@
+{
+  "memory": [
+    {
+      "samples": 1000,
+      "name_length": 8,
+      "requested": 124134,
+      "estimated_allocator_overhead": 1586
+    },
+    {
+      "samples": 1000,
+      "name_length": 128,
+      "requested": 124976,
+      "estimated_allocator_overhead": 1528
+    },
+    {
+      "samples": 10000,
+      "name_length": 8,
+      "requested": 1220983,
+      "estimated_allocator_overhead": 13545
+    },
+    {
+      "samples": 10000,
+      "name_length": 128,
+      "requested": 1221825,
+      "estimated_allocator_overhead": 13487
+    }
+  ],
+  "lookups": [
+    {
+      "depth": 1,
+      "direction": "forward",
+      "stamp": "exact",
+      "allocations": 3.0,
+      "allocated_bytes": 496.0
+    },
+    {
+      "depth": 1,
+      "direction": "reverse",
+      "stamp": "exact",
+      "allocations": 5.0,
+      "allocated_bytes": 512.0
+    },
+    {
+      "depth": 1,
+      "direction": "forward",
+      "stamp": "interpolated",
+      "allocations": 3.0,
+      "allocated_bytes": 496.0
+    },
+    {
+      "depth": 4,
+      "direction": "forward",
+      "stamp": "interpolated",
+      "allocations": 9.0,
+      "allocated_bytes": 544.0
+    },
+    {
+      "depth": 64,
+      "direction": "forward",
+      "stamp": "exact",
+      "allocations": 133.0,
+      "allocated_bytes": 15904.0
+    }
+  ]
+}

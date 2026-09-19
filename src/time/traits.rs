@@ -18,8 +18,10 @@ use crate::time::TimeError;
 ///
 /// Implementations must keep `Ord` total and consistent with
 /// [`TimePoint::duration_since`] and [`TimePoint::checked_sub`]: if `a < b`,
-/// then `b.duration_since(a)` is the `Ok` span between them. Sample
-/// ordering, interpolation, and eviction all rest on that consistency.
+/// then `b.duration_since(a)` returns the positive span between them, or
+/// an error if that span cannot be represented as a `Duration`; equal
+/// instants yield `Duration::ZERO`. Sample ordering, interpolation, and
+/// eviction all rest on that consistency.
 ///
 /// No timestamp value is reserved: staticness is expressed by
 /// [`Stamp::Static`](crate::time::Stamp), not by a sentinel instant, so

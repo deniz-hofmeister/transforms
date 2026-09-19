@@ -10,20 +10,11 @@ use crate::{
 use alloc::string::String;
 use approx::{AbsDiffEq, RelativeEq};
 
-/// Represents a point in space with a position, orientation, timestamp, and its frame of reference.
+/// An observation with position, orientation, timestamp, and reference frame.
 ///
-/// The `Point` struct represents a single observation of data, at some given moment in time, with respect
-/// to a specific reference frame. It encapsulates a 3D position using a `Vector3`, an orientation
-/// using a `Quaternion`, a `Timestamp` to indicate when the point was recorded, and  a `String`
-/// representing the coordinate reference frame its data is relative to.
-///
-/// A `Point` is a data record, not an invariant carrier: build it with
-/// [`Point::new`] and read or write its fields freely. It is the reference
-/// implementation of [`Transformable`] and [`Localized`]; the invariants that
-/// matter live on the [`Transform`] being applied, not here.
-///
-/// With the optional `serde` feature, this type implements `Serialize` and
-/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
+/// Fields are public and unvalidated. This is the reference implementation of
+/// [`Transformable`] and [`Localized`]. With `serde`, it implements `Serialize`
+/// and `Deserialize` without numeric validation.
 ///
 /// # Examples
 ///
@@ -99,54 +90,14 @@ where
     }
 }
 
-/// The `Transformable` trait defines an interface for objects that can be transformed
-/// using a `Transform`. Implementors of this trait can apply a transformation to
-/// themselves, modifying their position and orientation.
-///
-/// # Examples
-///
-/// ```
-/// use transforms::{
-///     Transform, Transformable,
-///     geometry::{Point, Quaternion, Vector3},
-///     time::{Stamp, Timestamp},
-/// };
-///
-/// let mut point: Point = Point::new(
-///     Vector3::new(1.0, 2.0, 3.0),
-///     Quaternion::identity(),
-///     Timestamp::zero(),
-///     "b",
-/// );
-///
-/// let transform: Transform = Transform::new(
-///     "a",
-///     "b",
-///     Vector3::new(2.0, 0.0, 0.0),
-///     Quaternion::identity(),
-///     Stamp::At(Timestamp::zero()),
-/// )
-/// .unwrap();
-///
-/// let r = point.transform(&transform);
-/// assert!(r.is_ok());
-/// assert_eq!(point.frame, "a");
-/// assert_eq!(point.position.x, 3.0);
-/// ```
 impl<T> Transformable<T> for Point<T>
 where
     T: TimePoint,
 {
     /// Applies a transformation to the `Point`, updating its position, orientation, and frame.
     ///
-    /// The transform's geometry is applied as given: this method checks the
-    /// frame and the time, and re-validates no numbers. A [`Transform`] built
-    /// through its constructors or read through its `Deserialize` impl was
-    /// validated there; one *derived* from valid transforms — `*`,
-    /// [`Transform::inverse`], [`Transform::interpolate`], every registry
-    /// lookup — was not. For a transform of derived or otherwise uncontrolled
-    /// provenance, [`Transform::validate`] is the check; see the precondition
-    /// documented on [`Transformable`].
+    /// Checks frames and timestamps only. See [`Transformable`]'s numeric
+    /// precondition and cross-time restrictions.
     ///
     /// # Errors
     ///
@@ -186,56 +137,6 @@ where
     }
 }
 
-/// The `Localized` trait provides frame and timestamp introspection for a `Point`,
-/// enabling automatic transform lookup via
-/// [`Registry::get_transform_for`](crate::Registry::get_transform_for).
-///
-/// # Examples
-///
-/// ```
-/// # #[cfg(feature = "std")]
-/// use core::time::Duration;
-/// use transforms::{
-///     Registry, Transformable,
-///     geometry::{Point, Quaternion, Transform, Vector3},
-///     time::{Stamp, Timestamp},
-/// };
-///
-/// # #[cfg(feature = "std")]
-/// let mut registry = Registry::with_max_age(Duration::from_secs(10));
-/// # #[cfg(not(feature = "std"))]
-/// # let mut registry = Registry::new();
-/// # #[cfg(feature = "std")]
-/// let t = Timestamp::now();
-/// # #[cfg(not(feature = "std"))]
-/// # let t = Timestamp::zero();
-///
-/// registry
-///     .add_transform(
-///         Transform::new(
-///             "map",
-///             "camera",
-///             Vector3::new(1.0, 0.0, 0.0),
-///             Quaternion::identity(),
-///             Stamp::At(t),
-///         )
-///         .unwrap(),
-///     )
-///     .unwrap();
-///
-/// let mut point = Point::new(
-///     Vector3::new(1.0, 0.0, 0.0),
-///     Quaternion::identity(),
-///     t,
-///     "camera",
-/// );
-///
-/// // Localized lets the registry extract frame and timestamp automatically
-/// let tf = registry.get_transform_for(&point, "map").unwrap();
-/// point.transform(&tf).unwrap();
-/// assert_eq!(point.frame, "map");
-/// assert_eq!(point.position.x, 2.0);
-/// ```
 impl<T> Localized<T> for Point<T>
 where
     T: TimePoint,

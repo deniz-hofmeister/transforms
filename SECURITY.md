@@ -2,10 +2,7 @@
 
 ## Supported Versions
 
-| Version              | Supported |
-|----------------------|-----------|
-| latest 2.x release   | Yes       |
-| < 2.0                | No        |
+Only the latest 2.x release is supported.
 
 ## Reporting a Vulnerability
 
@@ -18,11 +15,7 @@ communicated after triage.
 
 ## Scope
 
-This is a coordinate transform library. Memory safety is enforced via
-`#![forbid(unsafe_code)]`, so classic memory-corruption vulnerabilities are
-ruled out by construction. This code positions robots, however, and the worst
-failure mode is not a crash — it is a plausible-looking wrong answer returned
-silently. Correctness bugs that produce wrong transforms in safety-relevant
-systems are therefore treated with security-level seriousness: if such a bug
-is sensitive, report it through the same private channel; otherwise a regular
-bug report is fine.
+This crate forbids unsafe code; memory safety still depends on the soundness
+of its dependencies. Incorrect transforms can affect physical systems. Report
+sensitive correctness bugs through the same private channel; use a regular
+issue for non-sensitive bugs.

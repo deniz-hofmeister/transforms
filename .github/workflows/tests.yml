@@ -23,13 +23,13 @@ jobs:
   # done"), run verbatim, so the two cannot drift apart. It is nightly-only
   # by design; the jobs below add what it deliberately leaves to CI — the
   # stable and MSRV toolchains, the ARM64 runner, the RISC-V target, and the
-  # advisory-database audit.
+  # advisory-database audit and published-API compatibility checks.
   gate:
     name: gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           components: clippy, rustfmt
           toolchain: nightly
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           components: rustfmt
           toolchain: nightly
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           components: clippy
           toolchain: stable
@@ -83,7 +83,7 @@ jobs:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Run tests (std)
@@ -100,7 +100,7 @@ jobs:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Run tests (std + serde)
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Build docs
@@ -126,9 +126,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
-          toolchain: "1.86"
+          toolchain: "1.85"
       - name: Check (std)
         run: cargo check --all-targets
       - name: Check (no_std)
@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Run example std_minimal
@@ -164,7 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Bench smoke test (std)
@@ -191,7 +191,7 @@ jobs:
           - riscv32imc-unknown-none-elf
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Install bare-metal target
@@ -199,26 +199,26 @@ jobs:
       - name: Build for ${{ matrix.target }}
         run: cargo build --no-default-features --target ${{ matrix.target }}
 
-  # Accidental breaking changes are caught against the latest release
-  # published on crates.io. Additive surface is NOT covered: neither an
-  # added method nor a new #[non_exhaustive] enum variant produces a
-  # lint (verified against cargo-semver-checks 0.50 — a new method at a
-  # patch bump passes), so the matching minor bump stays on the author.
-  # (AGENTS.md release checklist — deliberately added only after 2.0.0,
-  # when a published baseline the lints can enumerate against started to
-  # exist.)
   semver:
     name: semver
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
-      - name: Check against the published baseline
-        run: cargo semver-checks check-release
+      # Without an explicit baseline, the tool uses the latest published
+      # release from crates.io, so the baseline advances after each release.
+      - name: Check API compatibility (std)
+        run: cargo semver-checks check-release --default-features
+      - name: Check API compatibility (no_std)
+        run: cargo semver-checks check-release --only-explicit-features
+      - name: Check API compatibility (std + serde)
+        run: cargo semver-checks check-release --all-features
+      - name: Check API compatibility (no_std + serde)
+        run: cargo semver-checks check-release --only-explicit-features --features serde
 
   security:
     name: security
@@ -226,7 +226,7 @@ jobs:
     continue-on-error: false
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
         with:
           toolchain: stable
       - name: Install cargo-audit

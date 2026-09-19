@@ -34,15 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolving every failed insert into a re-parent would wipe the
   frame's history once and look correct forever after.
 
-### Fixed
-
-- The README, MIGRATION.md and the `Registry::remove_frame` docs
-  taught that moving a subtree requires removing and re-adding each
-  descendant. False and destructive: descendants keep their pin to the
-  removed frame, so re-adding only the subtree's root reconnects the
-  whole subtree with every descendant's history intact. The corrected
-  recipe is now documented and pinned by a test.
-
 ### Changed
 
 - `RegistryError::ReparentingNotSupported`'s message now reads
@@ -51,6 +42,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   \<parent\>)"), and its documentation points to `reparent_frame` as
   the deliberate re-parenting path (the variant name predates the
   feature; renaming it would be a breaking change, deferred to a 3.0).
+
+## [2.1.3] - 2026-09-19
+
+### Changed
+
+- Shorten the README, migration guide, and API documentation. Correct
+  transform direction, subtree removal, cross-time examples, concurrency,
+  serialization, and portability claims; retain the ROS2/tf2 comparison.
+- Compile the README example as a doctest in every feature combination.
+- Store dynamic history as timestamp keys and geometry, with frame names
+  pinned once per buffer. Borrow those names during lookup walks. Public
+  signatures, serde bytes, interpolation arithmetic, validation, removal,
+  and error precedence are preserved. Host measurements show lower sample
+  memory use and fewer lookup allocations; the README replaces obsolete
+  storage figures and unmeasured MCU rate estimates with measured evidence.
+
+## [2.1.2] - 2026-09-12
+
+### Added
+
+- CI checks API compatibility against the latest published release in all
+  four combinations of the `std` and `serde` features.
+
+### Fixed
+
+- `Registry::latest_common_time` checks the timestamp arithmetic needed to
+  interpolate at its answer. Custom clocks whose spans cannot fit in
+  `Duration` now receive the same timestamp error as a lookup, instead of
+  an unusable instant. Exact samples and representable neighboring spans
+  remain usable even within a wider history; edges above the common
+  ancestor are still ignored. The query does not evaluate geometry or
+  search earlier instants after an arithmetic failure.
+- Regression-test gaps in scalar multiplication, approximate comparisons
+  (numeric tolerances and exact frame/time metadata), and inversion with
+  overflow in just one translation component.
+
+### Changed
+
+- Refresh dependency version requirements to the latest releases compatible
+  with Rust 1.85, matching the existing lockfile. `criterion` remains at
+  0.7.0 because 0.8 requires Rust 1.86; the crate's MSRV stays at 1.85.
+- Document the existing temporal metadata limitation of `get_transform_at`:
+  the result stores only the target stamp even when its geometry refers to
+  a different source instant. Callers must retain both instants and apply
+  the geometry explicitly; ordinary application, composition, reinsertion,
+  and serialization cannot check that provenance. The representation and
+  wire format are unchanged in this patch.
+- Clarify that `TimePoint::duration_since` may fail for an ordered span
+  that cannot be represented as `Duration`.
+
+## [2.1.1] - 2026-09-01
+
+### Changed
+
+- MSRV lowered from 1.86 to 1.85 — the edition 2024 floor, and the rustc
+  Debian 13 "trixie" ships. Every runtime dependency already permits 1.85;
+  the previous 1.86 came solely from the `criterion` dev-dependency, which
+  is held at 0.7 (declared MSRV 1.80) so the claim stays verifiable by the
+  CI MSRV job rather than resting on criterion 0.8's rolling MSRV policy.
+  Dev-only: downstream builds compile the same code as before.
 
 ## [2.1.0] - 2026-08-27
 
@@ -145,8 +196,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
   `std`. `Registry` also implements `Default`. Mind rustc's suggestion
   on the 1.x call site: "remove the extra argument" compiles into a
   registry that never evicts — if you had a `max_age`, you want
-  `with_max_age` (MIGRATION.md break 1 spells this out).
-- **Breaking:** every `Registry` call reports one flat error type,
+  `with_max_age` (see [migration guidance](MIGRATION.md#construction-and-insertion)).
+- **Breaking:** every fallible `Registry` call reports one flat error type,
   `errors::RegistryError<T>`. 1.4.1 answered a failed lookup with the
   catch-all `TransformError::NotFound(from, to)` — or, for frames in
   different trees, with `IncompatibleFrames` — and could return a
@@ -389,8 +440,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - Property-based test suite (proptest) covering the core invariants;
   fully deterministic test fixtures and non-mutating benchmarks; panic
   policy enforced with clippy restriction lints and documented in the
-  crate-level Reliability section. All public types are `Send + Sync`,
-  documented and compile-asserted.
+  crate-level Reliability section. Public types with the default timestamp
+  are compile-asserted to be `Send + Sync`.
 - Behavioral pin tests for commitments that freeze at stable: duplicate-
   timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
   semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
@@ -551,7 +602,10 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
-[2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...master
+[2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...master
+[2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
+[2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
+[2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.1...v2.0.0
 [1.4.1]: https://github.com/deniz-hofmeister/transforms/compare/v1.4.0...v1.4.1

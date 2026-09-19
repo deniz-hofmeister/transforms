@@ -36,12 +36,40 @@ no. Concretely:
 - Question single-use generality: a helper with one caller, a type parameter
   with one instantiation, a config knob with one setting.
 
+## Scope: what belongs in the core
+
+The crate owns exactly the computations its invariants make dangerous to
+perform anywhere else, and its interface exposes validated answers about its
+state — never the raw state. Non-Goals bounds the domain; this bounds the
+altitude. To place a proposed capability:
+
+- If it can be built correctly and exactly on the public API, it belongs
+  outside — the caller's code or a companion crate, never here. (An async
+  wait-for-transform layer composes on the public API; out.)
+- If the correct version needs sealed internals, the choice is core or
+  nowhere. Never resolve it by exposing the internals instead: primitives are
+  a larger commitment than the narrow query they would enable, and they hand
+  every downstream the composition mistakes the query exists to prevent.
+  Minimalism is measured in exported commitments, not exported functions.
+- Between core and nowhere: if the substitute users would build outside is
+  merely verbose, wait for demonstrated need. If it is a wrong-answer
+  generator, ship the correct version — this crate cannot assume a
+  well-maintained utility layer will materialize around it, and pushed-out
+  invariant logic becomes hand-rolled wrong copies. (`latest_common_time` is
+  core because its max-of-starts guard is precisely what external
+  implementations omit.)
+- No addition is precedent for its neighbors. Each point of a query family
+  is argued from an invariant and its own demonstrated need —
+  `latest_common_time` does not license `earliest_common_time` or coverage
+  introspection.
+
 ## Architecture in five lines
 
 - `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
   frame name, plus chain resolution between arbitrary frames.
-- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Transform<T>>`
-  ordered by timestamp, with interpolation between stored samples. Only
+- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Sample>`
+  holding dynamic geometry, with frames pinned once per buffer and timestamps
+  in map keys; a static buffer holds one transform. Only
   `Registry` reaches it; it is not part of the public API.
 - `geometry` — `Transform` (translation + rotation + timestamp + parent/child
   frames), `Vector3`, `Quaternion`, and `Point` as the reference implementation
@@ -81,8 +109,7 @@ no. Concretely:
   the same list verbatim — edit both or neither. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
   non-linear interpolation, no tf2 API parity, and no f32 or mixed-precision
-  scalar — every coordinate and rotation is `f64`, on every target, which is
-  why the README publishes a supported envelope instead of a rate claim. Do
+  scalar — every coordinate and rotation is `f64`, on every target. Do
   not implement these even if an issue requests them; redirect to the
   maintainer.
 - Library code must not panic on reachable paths. The only documented panic is
@@ -147,7 +174,7 @@ would produce) a silent wrong answer:
   It must never return an instant some hop cannot serve — min of the
   dynamic hops' newest samples, guarded by max of their starts, over
   only the hops the connecting chain crosses.
-- Every `Registry` call reports `RegistryError<T>` and it stays **flat**:
+- Every fallible `Registry` call reports `RegistryError<T>` and it stays **flat**:
   one `match` reaches every cause and every payload. `TransformError` is
   pure geometry and time, and the single `RegistryError::TransformError` arm
   that wraps it must never carry `NonUnitRotation` or `NonFiniteValues` —
@@ -224,7 +251,9 @@ code in the same commit.
 The gate below machine-checks lints, formatting, and docs; everything else in
 this section is convention, enforced in review — follow it anyway.
 
-- Edition 2024, `rust-version = "1.86"` (verified by a CI job). `#![warn(missing_docs)]` and
+- Edition 2024, `rust-version = "1.85"` — the edition floor, verified by a
+  CI job; criterion is held at 0.7 to keep it true (see Cargo.toml and the
+  dependabot ignore rule). `#![warn(missing_docs)]` and
   `#![warn(clippy::pedantic)]` must stay at **zero warnings** in both feature
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
   standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
@@ -280,67 +309,33 @@ this section is convention, enforced in review — follow it anyway.
 
 ## Definition of done — the verification gate
 
-All of the following must pass before a change is complete
-(`tests/test_all.sh` runs the whole gate). The gate requires a **nightly**
-toolchain and crashes explicitly otherwise: rustfmt.toml uses nightly-only
-options. No particular nightly is pinned — any recent one will do, however
-Rust was installed (rustup, Nix, or a distro package), so two machines may
-well be running different nightlies. Stable and MSRV verification is CI's
-job. Nightly clippy usually anticipates stable's lints, but a lint can also
-relax on nightly before stable follows — `float_cmp` stopped firing on
-comparisons against `f64::INFINITY` there while stable 1.98 still flags them
-— so a green local gate makes green CI clippy likely, not guaranteed; when
-the two disagree, CI's stable clippy is the arbiter, and
-`rustup run stable cargo clippy` reproduces it locally. Keep the script's
-lint list and CI's in step regardless: the moment the script lints fewer
-feature combinations than CI does, a lint can land in CI that nobody could
-have seen locally.
+Run `tests/test_all.sh` to completion before a change is complete. It requires
+an unpinned recent nightly toolchain with rustfmt, clippy, and the three ARM
+targets below. On rustup installations:
 
-```bash
-cargo build                                         # both modes build first
-cargo build --no-default-features
-cargo test
-cargo test --no-default-features
-cargo test --features serde
-cargo test --no-default-features --features serde
-cargo clippy --all-targets -- -D warnings
-cargo clippy --all-targets --no-default-features -- -D warnings
-cargo clippy --all-targets --features serde -- -D warnings
-cargo clippy --all-targets --no-default-features --features serde -- -D warnings
-cargo fmt --check                                   # nightly rustfmt (see above)
-RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
-RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features   # the docs.rs configuration
-cargo run --example std_minimal                     # and the other std examples
-cargo run --example no_std_minimal --no-default-features   # and the other no_std examples
-cargo bench -- --test
-cargo bench --no-default-features -- --test         # CI also builds no_std benches
-cargo build --no-default-features --target thumbv7em-none-eabihf   # real no_std proof
-cargo build --no-default-features --target thumbv6m-none-eabi      # Cortex-M0+: soft float, no CAS
-cargo build --no-default-features --target thumbv8m.main-none-eabihf
-cargo build --no-default-features --features serde --target thumbv7em-none-eabihf   # serde stays std-free
-cargo build --no-default-features --features serde --target thumbv6m-none-eabi
-cargo build --no-default-features --features serde --target thumbv8m.main-none-eabihf
+```sh
+rustup target add --toolchain nightly thumbv7em-none-eabihf thumbv6m-none-eabi thumbv8m.main-none-eabihf
+rustup run nightly tests/test_all.sh
 ```
 
-(On rustup machines: `rustup run nightly tests/test_all.sh`, and
-`rustup target add <target>` once per target, if missing. CI also builds
-`riscv32imc-unknown-none-elf`.)
-CI runs this same script verbatim in its `gate` job, so the script is the
-single source of truth for what the gate is — extend the script, not the
-workflow.
-CI additionally runs the test suite natively on ARM64 as well as x86_64
-(the Raspberry Pi / Jetson deployment class), checks the MSRV
-(`cargo check` on Rust 1.86), runs `cargo audit` against the RustSec
-advisory database, and runs `cargo semver-checks` against the latest
-release published on crates.io. That job catches accidental *breaking*
-changes only — additive surface is not covered: neither an added method
-nor a new `#[non_exhaustive]` variant produces a lint (verified against
-cargo-semver-checks 0.50: this crate's own new method passes at a patch
-bump) — so the matching minor bump stays on the author and the review.
+With a Nix or distro nightly on PATH, run the script directly. It checks builds,
+tests and clippy in both std modes and serde combinations; formatting; rustdoc
+including docs.rs settings; all examples; benchmark smoke tests; and ARM
+bare-metal builds with and without serde. It prints `GATE PASSED` only after
+all checks finish. Never weaken or bypass it.
 
-Docs are part of the change: the README (API Reference, What's New, examples
-table) and rustdoc must be updated in the same commit as the code they
-describe. Documentation drift is treated as a bug.
+CI runs the same script. Change the gate in the script, and keep its clippy
+feature combinations aligned with CI. CI additionally checks stable clippy,
+native x86_64/ARM64 tests, Rust 1.85, RISC-V compilation, `cargo audit`, and
+published-API compatibility in all four feature combinations. Stable clippy
+is the arbiter when it differs from nightly — a lint can relax on nightly
+before stable follows (`float_cmp` against `f64::INFINITY` did), so a green
+local gate makes green CI likely, not guaranteed; reproduce with
+`rustup run stable cargo clippy` and the relevant feature flags.
+
+Update user-facing docs with the behavior they describe. Keep the README
+brief, link to rustdoc for API contracts, and update examples and the changelog
+when relevant. Documentation drift is a bug.
 
 ## API stability
 
@@ -385,17 +380,8 @@ it lands on master through the usual branch-and-merge flow before anything
 is tagged, and the tag goes on master — `cargo publish` then runs from the
 tagged tree. The checklist, in order:
 
-- Finalize `CHANGELOG.md`: replace the version's `Unreleased` marker with the
-  release date and repoint its compare link to the tag. For 2.0.0 stable
-  specifically, this step is also the consolidation, and it must happen
-  here — before the tag and the publish, never after: `CHANGELOG.md` and
-  `MIGRATION.md` ship inside the `.crate`, and a published crate is
-  immutable. Fold the five published pre-release sections (alpha.1,
-  beta.1–beta.4) and the never-published rc.2 section into a single
-  `[2.0.0]` section organized by Keep-a-Changelog categories, give it the
-  one compare link `v1.4.1...v2.0.0`, resolve the cross-references the
-  fold orphans — entries pointing at per-pre-release sections, or at the
-  never-published rc.2 — and verify `MIGRATION.md` against the result.
+- Finalize `CHANGELOG.md`: set the release date, repoint its comparison to
+  the tag, and verify `MIGRATION.md`. Both ship in the immutable crate package.
 - Confirm the `version` in `Cargo.toml` matches the release, regenerate
   `Cargo.lock` so it records that version (any `cargo build` after the
   bump does), and bump the version pins in the README installation
@@ -406,10 +392,9 @@ tagged tree. The checklist, in order:
   confirm the diff is exactly the changelogged one. Against a baseline the
   release already majors over it enumerates nothing — every breaking lint is
   skipped as permitted, and the run proves only that the tooling works and
-  that the declared bump covers whatever changed. Measured for 2.0.0 against
-  `v1.4.1`: 254 checks, all skipped. To see the diff itself before such a
-  release, run it once with the version temporarily set to a patch bump on
-  the baseline.
+  that the declared bump covers whatever changed. To inspect the breaking
+  diff, run once with the version temporarily set to a patch bump on the
+  baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
 - Merge the release-prep branch to master. If the merge is not a
@@ -417,9 +402,7 @@ tagged tree. The checklist, in order:
   gate has seen.
 - Tag `vX.Y.Z` on the merge and push the tag.
 - `cargo publish`.
-- Create a GitHub release for the tag (pre-releases marked as such). For
-  2.0.0 stable specifically: mark it as latest.
-- The `cargo-semver-checks` CI job (added with 2.2.0) catches accidental
-  breaking changes against the published baseline on every push. It was
-  deliberately not added before 2.0.0 published — everything was breaking
-  against 1.4.1, so there was no baseline it could enumerate against.
+- Create a GitHub release for the tag; mark pre-releases as such and the
+  current stable release as latest.
+- The `semver` CI job checks against the latest published release; its
+  baseline advances automatically after publication.

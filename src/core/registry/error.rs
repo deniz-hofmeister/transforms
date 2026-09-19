@@ -9,42 +9,14 @@ use crate::{
     time::{TimePoint, Timestamp},
 };
 
-/// Error type for every [`Registry`](crate::Registry) call: insertion,
-/// lookup, and the [`latest_common_time`](crate::Registry::latest_common_time)
-/// coverage query.
+/// Errors from fallible [`Registry`](crate::Registry) operations.
 ///
-/// One flat enum for both: every cause a registry call can report is a
-/// variant of this type, so a caller diagnoses a failure with a single
-/// `match` instead of unwrapping nested error types. The lookup payloads
-/// carry timestamps in the registry's own time type `T` rather than
-/// pre-formatted seconds, so a caller can compare them against the clock it
-/// asked with.
-///
-/// The first six variants are reported by
-/// [`add_transform`](crate::Registry::add_transform);
-/// [`reparent_frame`](crate::Registry::reparent_frame) shares five of
-/// them — all but [`ReparentingNotSupported`](Self::ReparentingNotSupported),
-/// since the seed transform crosses the same checks an insert does — and adds
-/// [`NoParentToReplace`](Self::NoParentToReplace) and
-/// [`ParentUnchanged`](Self::ParentUnchanged), plus
-/// [`UnknownFrame`](Self::UnknownFrame) for a frame that exists nowhere.
-/// The three variants after those are reported by
-/// the lookups, and [`NoCommonTime`](Self::NoCommonTime) by
-/// [`latest_common_time`](crate::Registry::latest_common_time) — which
-/// shares [`UnknownFrame`](Self::UnknownFrame) and
-/// [`Disconnected`](Self::Disconnected) with the lookups, so the same
-/// match arms diagnose both. One crossover: where a lookup inverts a half-chain that
-/// composed to an infinite translation, it reports the same flat
-/// [`NonFiniteValues`](Self::NonFiniteValues) an insert would — one spelling
-/// per condition, on every path that reports it at all.
-///
-/// [`TransformError`](Self::TransformError) is the geometry or time failure
-/// of an operation on the resolved chain and is the one arm that wraps
-/// another error type. It never carries
-/// `TransformError::NonUnitRotation` or `TransformError::NonFiniteValues` —
-/// those are canonically the flat [`NonUnitRotation`](Self::NonUnitRotation)
-/// and [`NonFiniteValues`](Self::NonFiniteValues) variants, so neither
-/// condition has two spellings to match on.
+/// Lookup payloads retain the registry's time type `T`; conversion to seconds
+/// occurs only in `Display`. Numeric validation failures use the flat
+/// [`NonUnitRotation`](Self::NonUnitRotation) and
+/// [`NonFiniteValues`](Self::NonFiniteValues) variants, including on lookup
+/// return paths. Other geometry and time errors use
+/// [`TransformError`](Self::TransformError).
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum RegistryError<T = Timestamp>
@@ -177,29 +149,16 @@ where
         source_frame: String,
     },
 
-    /// The lookup stopped at a frame that exists in the tree but could not
-    /// serve the requested time. `frame` names where the chain walk stopped
-    /// and `covered` says which of two cases it is: `Some(range)` when the
-    /// request falls outside data the frame does hold — typically a
-    /// transient gap, and `requested > end` means merely too new — or
-    /// `None` when the frame holds no data at all. Only the first case is a
-    /// timing question. A frame drained by
-    /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
-    /// keeps its entry and reports `None` for as long as nothing is
-    /// inserted into it, so waiting or widening the requested time window
-    /// will not make it answer.
+    /// A sampled edge could not serve the requested time.
     ///
-    /// Receiving this variant does not guarantee the frames are connectable:
-    /// when a data gap and a topological disconnection coexist, the recorded
-    /// walk failure takes precedence over the [`Disconnected`](Self::Disconnected)
-    /// diagnosis.
+    /// `covered: Some((start, end))` means the request falls outside that
+    /// edge's retained range; `None` means it has no samples. Changing the
+    /// requested time cannot help an empty edge until new data is inserted.
     ///
-    /// The `Some` case's `requested > end` reading — merely too new —
-    /// raises the question "what is the newest instant this chain *can*
-    /// serve?". That is a first-class query:
-    /// [`Registry::latest_common_time`](crate::Registry::latest_common_time)
-    /// answers it exactly, also for mid-tree targets, without retrying
-    /// lookups against this variant's payloads.
+    /// A recorded sampling failure takes precedence over `Disconnected`, so
+    /// this error does not establish that the endpoints are connected.
+    /// Use [`Registry::latest_common_time`](crate::Registry::latest_common_time)
+    /// to find their newest commonly covered instant.
     #[error(
         "transform from {source_frame} into {target_frame} at {} not found ({frame} {})",
         .requested.as_seconds_lossy(),
@@ -221,21 +180,12 @@ where
         covered: Option<(T, T)>,
     },
 
-    /// [`Registry::latest_common_time`](crate::Registry::latest_common_time)
-    /// found no instant that every hop of the resolved chain can serve —
-    /// so a lookup between these frames would fail at *any* requested
-    /// time. `frame` names the hop that rules it out and `covered` says
-    /// how: `Some(range)` when that frame's stored range begins after the
-    /// newest instant the rest of the chain still covers — the chain's
-    /// covered ranges are disjoint, typically one hop lagging far behind
-    /// another under `max_age` eviction — or `None` when the frame holds
-    /// no data at all, the state
-    /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
-    /// leaves a drained frame in. Either way, only inserts make the
-    /// chain answer again: data on the named frame for the `None` case;
-    /// for the `Some` case, ranges that come to overlap — the named
-    /// frame's range reaching back via a backfill at a past instant, or
-    /// every hop still ending before that range catching up to it.
+    /// No instant is covered by every connecting edge.
+    ///
+    /// `covered: Some(range)` names an edge whose range begins after the
+    /// newest instant the rest of the chain covers. `None` names an empty
+    /// edge. Recovery requires inserting data so the ranges overlap, or
+    /// changing the topology. Backfill is subject to the retention policy.
     #[error(
         "no instant is covered by every hop between {target_frame} and {source_frame} ({frame} {})",
         Coverage(.covered)

@@ -12,20 +12,6 @@ use crate::time::{TimePoint, Timestamp};
 /// produce — including `t = 0` on boot-relative clocks — is ordinary
 /// dynamic data.
 ///
-/// # Examples
-///
-/// ```
-/// use transforms::time::{Stamp, Timestamp};
-///
-/// let dynamic: Stamp = Stamp::At(Timestamp::zero());
-/// let fixed: Stamp = Stamp::Static;
-///
-/// assert!(!dynamic.is_static());
-/// assert!(fixed.is_static());
-/// assert_eq!(dynamic.at(), Some(Timestamp::zero()));
-/// assert_eq!(fixed.at(), None);
-/// ```
-///
 /// `Stamp` is deliberately not ordered. `Static` denotes all time rather
 /// than an instant, so it has no position on a time axis; a derived ordering
 /// would place it below every real instant and make the natural
@@ -39,6 +25,20 @@ use crate::time::{TimePoint, Timestamp};
 /// non-self-describing formats. No timestamp value is reserved, and neither
 /// an absent nor a `null` `timestamp` field decodes — a message that lost
 /// its stamp is an error, never an eternal static transform.
+///
+/// # Examples
+///
+/// ```
+/// use transforms::time::{Stamp, Timestamp};
+///
+/// let dynamic: Stamp = Stamp::At(Timestamp::zero());
+/// let fixed: Stamp = Stamp::Static;
+///
+/// assert!(!dynamic.is_static());
+/// assert!(fixed.is_static());
+/// assert_eq!(dynamic.at(), Some(Timestamp::zero()));
+/// assert_eq!(fixed.at(), None);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Stamp<T = Timestamp>

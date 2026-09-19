@@ -272,6 +272,15 @@ mod buffer_tests {
         assert!(buffer.get(t).is_ok());
     }
 
+    fn assert_sample(
+        (timestamp, sample): (&Timestamp, &crate::core::buffer::Sample),
+        expected: &Transform,
+    ) {
+        assert_eq!(Stamp::At(*timestamp), expected.timestamp());
+        assert_eq!(sample.translation, expected.translation());
+        assert_eq!(sample.rotation, expected.rotation());
+    }
+
     #[test]
     fn get_nearest() {
         let mut buffer = Buffer::dynamic();
@@ -290,36 +299,36 @@ mod buffer_tests {
 
         // Exact match
         let (before, after) = buffer.get_nearest(&t2);
-        assert_eq!(before.unwrap(), (&t2, &p2));
-        assert_eq!(after.unwrap(), (&t2, &p2));
+        assert_sample(before.unwrap(), &p2);
+        assert_sample(after.unwrap(), &p2);
 
         // Between two points
         let p_mid = (t1 + Duration::from_millis(500)).unwrap();
         let (before, after) = buffer.get_nearest(&p_mid);
-        assert_eq!(before.unwrap(), (&t1, &p1));
-        assert_eq!(after.unwrap(), (&t2, &p2));
+        assert_sample(before.unwrap(), &p1);
+        assert_sample(after.unwrap(), &p2);
 
         // Before first point
         let p_0 = (t1 - Duration::from_secs(1)).unwrap();
         let (before, after) = buffer.get_nearest(&p_0);
-        assert_eq!(before, None);
-        assert_eq!(after.unwrap(), (&t1, &p1));
+        assert!(before.is_none());
+        assert_sample(after.unwrap(), &p1);
 
         // After last point
         let p_4 = (t3 + Duration::from_secs(1)).unwrap();
         let (before, after) = buffer.get_nearest(&p_4);
-        assert_eq!(before.unwrap(), (&t3, &p3));
-        assert_eq!(after, None);
+        assert_sample(before.unwrap(), &p3);
+        assert!(after.is_none());
 
         // Exactly at first point
         let (before, after) = buffer.get_nearest(&t1);
-        assert_eq!(before.unwrap(), (&t1, &p1));
-        assert_eq!(after.unwrap(), (&t1, &p1));
+        assert_sample(before.unwrap(), &p1);
+        assert_sample(after.unwrap(), &p1);
 
         // Exactly at last point
         let (before, after) = buffer.get_nearest(&t3);
-        assert_eq!(before.unwrap(), (&t3, &p3));
-        assert_eq!(after.unwrap(), (&t3, &p3));
+        assert_sample(before.unwrap(), &p3);
+        assert_sample(after.unwrap(), &p3);
     }
 
     #[test]
@@ -385,16 +394,16 @@ mod buffer_tests {
         // Before the point
         let (before, after) = buffer.get_nearest(&(t - Duration::from_secs(1)).unwrap());
         assert!(before.is_none());
-        assert_eq!(after.unwrap(), (&t, &point));
+        assert_sample(after.unwrap(), &point);
 
         // Exact match
         let (before, after) = buffer.get_nearest(&t);
-        assert_eq!(before.unwrap(), (&t, &point));
-        assert_eq!(after.unwrap(), (&t, &point));
+        assert_sample(before.unwrap(), &point);
+        assert_sample(after.unwrap(), &point);
 
         // After the point
         let (before, after) = buffer.get_nearest(&(t + Duration::from_secs(1)).unwrap());
-        assert_eq!(before.unwrap(), (&t, &point));
+        assert_sample(before.unwrap(), &point);
         assert!(after.is_none());
     }
 

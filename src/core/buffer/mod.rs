@@ -1,76 +1,29 @@
-//! A module for managing a buffer of transforms with timestamps.
+//! Per-child storage owned by `Registry`.
 //!
-//! This module provides the `Buffer` struct, which is designed to store and manage
-//! a collection of transforms, each associated with a timestamp. The buffer uses
-//! an ordered map (B-tree) to efficiently store and retrieve transforms based on their timestamps.
-//!
-//! `Buffer` is internal to the crate: [`Registry`](crate::Registry) owns one
-//! per child frame and is the only way to reach it. The invariants that make a
-//! frame tree well-formed are split between the two, and most of them live
-//! here: [`Buffer::insert`] is the sole enforcement site for the single-parent
-//! pin, the child pin, the static-xor-dynamic kind, and the numeric validity
-//! of what is stored. `Registry` adds only the check that needs a view of the
-//! whole tree — the cycle check — and runs it solely when an edge enters the
-//! map: a child frame it has not seen before, or a
-//! [`reparent_frame`](crate::Registry::reparent_frame) replacing a frame's
-//! edge. Occupied inserts skip it precisely because this module's pin makes
-//! an existing buffer's parent immutable — `reparent_frame` does not bend
-//! that: it never edits a pinned buffer, it swaps in a fresh one
-//! ([`Buffer::empty_like`]) whose own first insert pins the new parent. Any
-//! rework of the storage below must keep those pins: without them a
-//! re-parenting insert reaches no check at all, and every later lookup
-//! through the frame returns a pose expressed relative to the wrong parent.
-//!
-//! The numeric check is deliberately *not* redundant with the one the
-//! constructors run. A [`Transform`] is validated where it is built, but `*`,
-//! [`Transform::interpolate`], [`Transform::inverse`] and every registry
-//! lookup derive transforms without re-validating them — by design, because
-//! rotation norms drift across a long chain. A caller who flattens a chain
-//! and re-publishes the result therefore hands storage a value nothing has
-//! checked, and a rotation that has left
-//! [`UNIT_NORM_TOLERANCE`](crate::geometry::UNIT_NORM_TOLERANCE) silently
-//! scales every vector every later lookup rotates. This is the last boundary
-//! before a transform starts answering lookups, and the check is O(1) per
-//! insert.
-//!
-//! # Features
-//!
-//! - **Store Transforms with Timestamps**: The `Buffer` allows you to store multiple transforms,
-//!   each associated with a unique timestamp. This is useful for applications that require
-//!   time-based transformations, such as robotics, animation, and simulations.
-//!
-//! - **Retrieve Transforms with Interpolation**: You can retrieve transforms at specific timestamps.
-//!   If an exact match is not found, the buffer can interpolate between the nearest transforms to
-//!   provide an estimated transform at the requested timestamp.
-//!
-//! - **Static Buffers**: A buffer is either static or dynamic — a property declared at
-//!   construction ([`Buffer::static_edge`] vs. [`Buffer::dynamic`]) and fixed for the buffer's
-//!   lifetime. A static buffer holds one transform carrying `Stamp::Static` and returns it for
-//!   any requested timestamp; a dynamic buffer holds a time series of `Stamp::At` samples.
-//!   Inserting the opposite kind is rejected with `InsertError::StaticDynamicConflict`.
-//!
-//! - **Automatic Expiration of Transforms**:
-//!   - Buffers created with `Buffer::dynamic_with_max_age` remove entries older than `max_age`
-//!     relative to the latest inserted timestamp on every insert.
-//!   - This ensures that the buffer does not grow indefinitely and only retains relevant
-//!     transforms within the specified duration.
-//!   - Buffers created with `Buffer::dynamic` never expire entries; use the `remove_before`
-//!     method for manual cleanup. Static transforms never expire and survive manual
-//!     cleanup.
+//! Dynamic samples store geometry under timestamp keys; frame names are pinned
+//! once per buffer. Static buffers store one transform. Insertion validates
+//! geometry, frame pins, and kind even for derived transforms; the registry
+//! adds the cycle check whenever an edge enters the map: a first insert, or
+//! `Registry::reparent_frame` replacing a buffer through [`Buffer::empty_like`]
+//! rather than editing a pin. Cleanup preserves the pins and static data.
 
 use crate::{
-    geometry::Transform,
-    time::{Stamp, TimePoint, Timestamp},
+    geometry::{Quaternion, Transform, Vector3},
+    time::{Stamp, TimeError, TimePoint, Timestamp},
 };
 use alloc::{collections::BTreeMap, string::String};
 use core::{fmt, time::Duration};
 pub(crate) use error::{GetError, InsertError};
 mod error;
 
-type NearestTransforms<'a, T> = (
-    Option<(&'a T, &'a Transform<T>)>,
-    Option<(&'a T, &'a Transform<T>)>,
-);
+type NearestTransforms<'a, T> = (Option<(&'a T, &'a Sample)>, Option<(&'a T, &'a Sample)>);
+
+/// Geometry copied from a transform validated by `Buffer::insert`. Dynamic
+/// samples share the buffer's pinned frames and use the map key as their stamp.
+struct Sample {
+    translation: Vector3,
+    rotation: Quaternion,
+}
 
 /// A buffer that stores transforms ordered by timestamps.
 ///
@@ -179,7 +132,7 @@ where
     Static(Option<Transform<T>>),
     /// A time series of samples, keyed by their instant.
     Dynamic {
-        data: BTreeMap<T, Transform<T>>,
+        data: BTreeMap<T, Sample>,
         latest_timestamp: Option<T>,
         max_age: Option<Duration>,
     },
@@ -385,7 +338,13 @@ where
                     Some(current_latest) if current_latest > timestamp => current_latest,
                     _ => timestamp,
                 });
-                data.insert(timestamp, transform);
+                data.insert(
+                    timestamp,
+                    Sample {
+                        translation: transform.translation(),
+                        rotation: transform.rotation(),
+                    },
+                );
                 remove_expired(data, *latest_timestamp, *max_age);
             }
             _ => return Err(InsertError::StaticDynamicConflict),
@@ -435,8 +394,22 @@ where
         let (before, after) = self.get_nearest(&timestamp);
 
         match (before, after) {
-            (Some(before), Some(after)) => Transform::interpolate(before.1, after.1, timestamp)
-                .map_err(GetError::Interpolation),
+            (Some((start, before)), Some((end, after))) => {
+                let (Some(parent), Some(child)) = (&self.parent, &self.child) else {
+                    return Err(GetError::NoTransformAvailable);
+                };
+                // Both samples came from validated inserts; the pinned
+                // frames and map keys preserve their original metadata.
+                Transform::unvalidated(
+                    parent.clone(),
+                    child.clone(),
+                    before.translation,
+                    before.rotation,
+                    Stamp::At(*start),
+                )
+                .interpolate_to(after.translation, after.rotation, *start, *end, timestamp)
+                .map_err(GetError::Interpolation)
+            }
             _ => match (data.first_key_value(), data.last_key_value()) {
                 (Some((first, _)), Some((last, _))) => Err(GetError::OutOfRange {
                     start: *first,
@@ -445,6 +418,23 @@ where
                 _ => Err(GetError::NoTransformAvailable),
             },
         }
+    }
+
+    /// Checks the timestamp arithmetic needed to interpolate at `timestamp`,
+    /// without cloning or computing geometry. Coverage is checked separately
+    /// by the caller: missing neighbors and static buffers need no arithmetic.
+    pub fn check_interpolation_time(
+        &self,
+        timestamp: T,
+    ) -> Result<(), TimeError> {
+        if let (Some((start, _)), Some((end, _))) = self.get_nearest(&timestamp) {
+            // Match Transform::interpolate: an exact sample needs only the
+            // zero span; otherwise both the interval and offset must fit.
+            if !end.duration_since(*start)?.is_zero() {
+                timestamp.duration_since(*start)?;
+            }
+        }
+        Ok(())
     }
 
     /// Retrieves the nearest transforms before and after the given timestamp.
@@ -515,7 +505,7 @@ where
 /// older than the threshold, so skipping the sweep entirely is the correct
 /// behavior — the `checked_sub` failure is deliberately not an error.
 fn remove_expired<T>(
-    data: &mut BTreeMap<T, Transform<T>>,
+    data: &mut BTreeMap<T, Sample>,
     latest_timestamp: Option<T>,
     max_age: Option<Duration>,
 ) where

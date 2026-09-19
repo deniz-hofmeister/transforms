@@ -27,41 +27,27 @@ mod traits;
 /// lookup they take part in without any error.
 pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
 
-/// Where a child frame sits inside its parent frame, and when that holds.
+/// Maps child-frame coordinates into a parent frame at a given stamp.
 ///
-/// A transform with frames `(parent, child)` maps child-frame coordinates
-/// into the parent frame. It carries a translation, a rotation, and a
-/// [`Stamp`]: one instant, or all time.
+/// Positions are rotated first, then translated. [`Transform::new`] and
+/// [`Transform::static_between`] reject non-finite components and rotations
+/// outside [`UNIT_NORM_TOLERANCE`]. Fields are private; use the accessors to
+/// read components and a constructor to change them.
 ///
-/// [`Transform::new`] and [`Transform::static_between`] build one from
-/// components; both reject non-finite components and rotations whose norm
-/// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`], and the fields are
-/// private so a built transform cannot be edited back into an invalid state.
-/// Read the components with [`translation`](Self::translation),
-/// [`rotation`](Self::rotation), [`timestamp`](Self::timestamp),
-/// [`parent`](Self::parent) and [`child`](Self::child); to change one, build
-/// a new transform.
+/// Derived transforms (composition, interpolation, inversion, and registry
+/// lookups) are not re-validated. Rotation norms can drift beyond the tolerance
+/// and translations can overflow. Use [`validate`](Self::validate) when needed;
+/// [`Registry::add_transform`](crate::Registry::add_transform) always validates
+/// before storage.
 ///
-/// Transforms *derived* from validated ones — [`inverse`](Self::inverse),
-/// [`interpolate`](Self::interpolate), `*` composition, and every registry
-/// lookup — are deliberately not re-validated: rotation norms drift by a few
-/// ulps per composition, so re-checking a long chain would reject legitimate
-/// results. A derived transform is therefore *usually* valid but not
-/// guaranteed to be: composing operands that each sit at the edge of the
-/// tolerance walks past it, and extreme magnitudes overflow a translation to
-/// infinity. [`validate`](Self::validate) is there for exactly that — a
-/// transform whose provenance a caller does not control — and
-/// `Registry::add_transform` runs it, so a derived transform cannot re-enter
-/// storage unchecked.
+/// With `serde`, this type implements `Serialize` and `Deserialize`.
+/// Deserialization validates; serialization writes the components unchanged.
+/// Validate a derived result before publishing it to avoid a decode failure.
 ///
-/// With the optional `serde` feature, this type implements `Serialize` and
-/// `Deserialize` (the docs.rs listing cannot banner derive-generated impls).
-/// Deserialization runs the same validation as the constructors, so a
-/// transform read off the wire is valid too. Serialization does not: it writes
-/// the fields as they stand, so a *derived* transform that drifted past the
-/// tolerance encodes without complaint and fails on the consumer's decode.
-/// Call [`validate`](Self::validate) before persisting or publishing a derived
-/// transform.
+/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) returns
+/// cross-time geometry with only the target stamp. Retain the source instant
+/// and follow that method's application restrictions; numeric validation does
+/// not check temporal provenance.
 ///
 /// # Examples
 ///
@@ -120,9 +106,7 @@ where
     ///
     /// Returns `TransformError::NonFiniteValues` if any component is NaN or
     /// infinite, and `TransformError::NonUnitRotation` if the rotation's norm
-    /// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`]. Both would
-    /// otherwise corrupt every lookup the transform takes part in without any
-    /// error.
+    /// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`].
     ///
     /// # Examples
     ///
@@ -211,13 +195,12 @@ where
         Self::new(parent, child, translation, rotation, Stamp::Static)
     }
 
-    /// Assembles a transform without validating it.
+    /// Assembles components without validation.
     ///
-    /// For values derived from already-validated transforms — interpolation,
-    /// inversion, composition, the registry's synthesized identity — where
-    /// re-validating would reject legitimate results whose rotation norm has
-    /// drifted within tolerance across a long chain. Every input reaching
-    /// this constructor must come from a transform that was validated once.
+    /// For the registry's identity and for values derived from already
+    /// validated transforms — interpolation, inversion, composition — where
+    /// re-validating would reject legitimate norm drift. Every caller must
+    /// be able to name the validated transform its inputs came from.
     pub(crate) fn unvalidated(
         parent: String,
         child: String,
@@ -407,21 +390,34 @@ where
             });
         }
 
+        from.clone()
+            .interpolate_to(to.translation, to.rotation, from_time, to_time, timestamp)
+    }
+
+    /// Interpolates geometry after the caller has checked frames, dynamic
+    /// stamps, and the requested range. The buffer stores those invariants
+    /// once per edge, so it can use the same arithmetic without rebuilding
+    /// a second transform and allocating its frame names.
+    pub(crate) fn interpolate_to(
+        mut self,
+        translation: Vector3,
+        rotation: Quaternion,
+        from_time: T,
+        to_time: T,
+        timestamp: T,
+    ) -> Result<Self, TransformError> {
         let range = to_time.duration_since(from_time)?;
         if range.is_zero() {
-            return Ok(from.clone());
+            return Ok(self);
         }
 
         let diff = timestamp.duration_since(from_time)?;
         let ratio = diff.as_secs_f64() / range.as_secs_f64();
 
-        Ok(Self::unvalidated(
-            from.parent.clone(),
-            from.child.clone(),
-            (1.0 - ratio) * from.translation + ratio * to.translation,
-            from.rotation.slerp(to.rotation, ratio),
-            Stamp::At(timestamp),
-        ))
+        self.translation = (1.0 - ratio) * self.translation + ratio * translation;
+        self.rotation = self.rotation.slerp(rotation, ratio);
+        self.timestamp = Stamp::At(timestamp);
+        Ok(self)
     }
 
     /// Computes the inverse of the transform: the same relationship read the
@@ -543,15 +539,15 @@ where
 
     /// Composes two transforms: `t_a_b * t_b_c` yields `t_a_c`.
     ///
-    /// The left-hand side's child frame must equal the right-hand side's
-    /// parent frame; any other pairing is not a valid composition and
-    /// returns an error. Unless one operand is static, both timestamps
-    /// must be equal.
+    /// The result is not re-validated; see [`Transform::validate`].
     ///
-    /// The result is not re-validated: rotation norms drift by a few ulps per
-    /// composition, and rejecting that drift would fail legitimate long
-    /// chains. Composing operands of extreme magnitude can therefore overflow
-    /// the translation to infinity — [`Transform::validate`] catches it.
+    /// # Errors
+    ///
+    /// Returns [`TransformError::TimestampMismatch`] for unequal timestamps,
+    /// unless either operand is static; [`TransformError::IncompatibleFrames`]
+    /// unless `self.child() == rhs.parent()`; and
+    /// [`TransformError::SameFrameMultiplication`] when the child frames match.
+    /// The last restriction also rejects a right-hand identity transform.
     #[inline]
     fn mul(
         self,

@@ -42,67 +42,27 @@ where
     fn timestamp(&self) -> T;
 }
 
-/// A trait for types that can be transformed between different coordinate frames.
-///
-/// This trait provides functionality to apply spatial transformations to objects,
-/// typically used in robotics and computer vision applications. The transformations
-/// follow the common robotics convention where transforms are considered from child
-/// to parent frame (e.g., from sensor frame to base frame, or from base frame to
-/// map frame).
-///
-/// # Frame Convention
-///
-/// In robotics, it's common to transform data from sensor reference frames "up" to
-/// base or map reference frames. For example:
-/// - A camera's data might need to be transformed from the camera frame to the robot's base frame
-/// - Lidar points might need to be transformed from the lidar frame to the map frame
-///
-/// This trait follows this convention, where transforms are applied from child frame
-/// to parent frame. The child frame is typically the more specific/local frame (e.g.,
-/// a sensor frame), while the parent frame is typically the more general/global frame
-/// (e.g., map or world frame).
+/// Applies a rigid-body transform to a value in place.
 ///
 /// # Contract
 ///
-/// An implementation owes the rigid-body map, in this order: every bound
-/// position `p` becomes
-/// `transform.rotation().rotate_vector(p) + transform.translation()` —
-/// rotate first, then translate — and every orientation `q` becomes
-/// `transform.rotation() * q`, the transform's rotation on the left. A
-/// free vector — a velocity, a surface normal — takes the rotation only,
-/// and owes no translation. Where the object carries them, as
-/// [`Point`](crate::geometry::Point) does, its frame becomes the
-/// transform's parent frame; timestamps are checked, never rewritten.
-/// The reversed variants compile, and each has a blind spot that keeps
-/// weak tests green: translating before rotating agrees with the
-/// contract until a real rotation meets a non-zero translation, and
-/// `q * transform.rotation()` agrees until the object's own orientation
-/// is non-identity and does not commute with the transform's. Beyond the
-/// blind spot both produce a silent wrong answer, never a loud failure.
-/// `Point`'s implementation is the reference, and the suite pins both
-/// orders.
+/// For a transform `tf`, positions become
+/// `tf.rotation().rotate_vector(position) + tf.translation()` and orientations
+/// become `tf.rotation() * orientation`. Free vectors take only the rotation.
+/// When present, the value's frame becomes `tf.parent()` and its timestamp is
+/// preserved. [`Point`](crate::geometry::Point) is the reference implementation.
 ///
-/// # Precondition
+/// # Preconditions
 ///
-/// An implementation applies the transform's geometry as given; it checks
-/// frames and time, not numbers. A [`Transform`] built through its
-/// constructors or read through its `Deserialize` impl was checked there —
-/// both reject non-finite components and non-unit rotations. One *derived*
-/// from valid transforms was not: `*`, [`Transform::inverse`],
-/// [`Transform::interpolate`] and registry lookups deliberately skip the
-/// re-check, and composing operands at the edge of the tolerance walks past
-/// it. Applying such a transform deserves a [`Transform::validate`] call
-/// first: a rotation whose norm is 1.01 scales everything it touches by 2%
-/// and reports success.
+/// The caller supplies numerically valid geometry. Implementations check frames
+/// and timestamps, without re-validating numbers. Constructors validate
+/// transforms; derived results may drift or overflow. Call
+/// [`Transform::validate`] before applying a derived result when needed.
 ///
-/// # Errors
-///
-/// Returns `TransformError` if:
-/// - The frames are incompatible (transform's child frame doesn't match the object's frame)
-/// - The timestamps don't match — except for static transforms (carrying
-///   `Stamp::Static`, e.g. built with `Transform::static_between`), which
-///   are valid for all time
-/// - Other transform-specific errors occur
+/// Cross-time results from
+/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) must be
+/// applied explicitly when their source and target times differ; they retain
+/// only the target stamp.
 ///
 /// # Examples
 ///
@@ -129,9 +89,9 @@ where
 /// .unwrap();
 ///
 /// // Transform the point from camera frame to base frame
-/// point
-///     .transform(&transform)
-///     .expect("failed to transform point");
+/// point.transform(&transform).unwrap();
+/// assert_eq!(point.frame, "base");
+/// assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
 /// ```
 pub trait Transformable<T = Timestamp>
 where
@@ -139,9 +99,7 @@ where
 {
     /// Applies a transform to this object, modifying it in place.
     ///
-    /// What "applies" must compute — rotate, then translate; the
-    /// transform's rotation on the left of the orientation composition —
-    /// is pinned by the trait-level Contract section.
+    /// See the trait-level contract for position, orientation, and metadata updates.
     ///
     /// # Errors
     ///
