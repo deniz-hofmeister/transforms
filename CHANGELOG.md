@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.3] - 2026-09-19
 
 ### Changed
 
@@ -13,11 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transform direction, subtree removal, cross-time examples, concurrency,
   serialization, and portability claims; retain the ROS2/tf2 comparison.
 - Compile the README example as a doctest in every feature combination.
-
-## [2.1.3] - 2026-09-12
-
-### Changed
-
 - Store dynamic history as timestamp keys and geometry, with frame names
   pinned once per buffer. Borrow those names during lookup walks. Public
   signatures, serde bytes, interpolation arithmetic, validation, removal,
@@ -569,7 +564,6 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
-[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...HEAD
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1
