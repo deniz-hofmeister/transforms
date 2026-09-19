@@ -2,12 +2,15 @@
 
 [![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
 [![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+[![no_std](https://img.shields.io/badge/no__std-compatible-brightgreen.svg)](https://docs.rust-embedded.org/book/)
 [![tests](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml)
 
 A Rust coordinate transform library inspired by ROS2 tf2, for robotics and
 computer vision. It provides familiar frame trees, timestamped buffers,
 transform chaining, and interpolation, with a Rust API and no middleware
-dependency. It supports `no_std` with `alloc`.
+dependency. It forbids unsafe code and supports `no_std` with `alloc`.
 
 [API reference](https://docs.rs/transforms) · [Migration guide](MIGRATION.md) ·
 [Changelog](CHANGELOG.md)

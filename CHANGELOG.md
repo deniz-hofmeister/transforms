@@ -363,7 +363,9 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
   `Stamp` is an explicitly tagged enum — `{"At": 1753142400000000000}`
   and `"Static"` in JSON, a variant index ahead of the payload in
   non-self-describing formats, the width of index and integer belonging
-  to the codec and its configuration — and
+  to the codec (postcard and bincode 2's `config::standard()` write a
+  1-byte index and a LEB128 varint; bincode 1.x and bincode 2's
+  `config::legacy()` a fixed 4-byte index and fixed-width integer) — and
   `Timestamp` is `#[serde(transparent)]`, a bare nanosecond integer
   rather than a one-field record. No magic value appears on the wire and
   staticness is always spelled: a `timestamp` that is *missing* or
@@ -480,15 +482,19 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - `no_std` works on real bare-metal targets: float math goes through
   `libm` and dependencies no longer pull in `std`. A heap allocator
   (`alloc`) is required.
-- Docs: describe unbounded retention and interpolation gaps with
-  `Registry::new`, and eviction on insertion with `Registry::with_max_age`.
+- Docs: `Registry::new` states what its lack of a `max_age` costs — not
+  only unbounded retention, but an unbounded interpolation gap, since a
+  lookup between samples recorded either side of a publisher stall
+  interpolates straight across it. `Registry::with_max_age` bounds both,
+  and the `Default` impl points at the same explanation.
 - Docs: duplicate-timestamp inserts are documented as last-write-wins
   upserts; `remove_frame` documents that it strands descendants of a
   mid-tree frame; interpolation is documented to span interior gaps of any
   size (bounding freshness is the caller's job); the O(log n) lookup claim is
   qualified (per-frame; linear in chain depth; O(frames) failure
   diagnosis); the `approx` 0.5 public-API commitment is recorded;
-  allocation-failure behavior is stated for `no_std`.
+  allocation-failure behavior and the deterministic-hasher trade-off are
+  stated for `no_std`.
 - Docs: the scalar type is a commitment, not an accident. f32 and
   mixed-precision arithmetic are Non-Goals (README and crate root, one
   identical list), and the README publishes the envelope that commitment

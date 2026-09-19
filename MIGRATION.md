@@ -218,3 +218,10 @@ serialization does not validate derived results.
 Struct field order and stamp variant order (`Static` first, `At` second)
 are part of the binary wire contract. Integer encoding and endianness belong
 to the codec and its configuration; different codecs are not interchangeable.
+
+A 1.x-shaped payload does not decode silently as 2.x data, with one
+exception: a 1.x postcard payload stamped exactly `t = 0` (the 1.x static
+sentinel) decodes cleanly as `Stamp::Static`, because its single `0x00`
+byte reads as variant 0. That is right for a 1.x static publisher and wrong
+for a genuine boot-relative `t = 0` sample. Do not rely on it in place of a
+version tag.

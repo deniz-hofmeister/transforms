@@ -1,5 +1,5 @@
 //! An example on how to add and retrieve transforms.
-
+//!
 //! Hosted executable with the library's `std` feature disabled.
 
 #[cfg(not(feature = "std"))]

@@ -314,7 +314,9 @@ CI runs the same script. Change the gate in the script, and keep its clippy
 feature combinations aligned with CI. CI additionally checks stable clippy,
 native x86_64/ARM64 tests, Rust 1.85, RISC-V compilation, `cargo audit`, and
 published-API compatibility in all four feature combinations. Stable clippy
-is the arbiter when it differs from nightly; reproduce with
+is the arbiter when it differs from nightly — a lint can relax on nightly
+before stable follows (`float_cmp` against `f64::INFINITY` did), so a green
+local gate makes green CI likely, not guaranteed; reproduce with
 `rustup run stable cargo clippy` and the relevant feature flags.
 
 Update user-facing docs with the behavior they describe. Keep the README

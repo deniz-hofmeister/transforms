@@ -197,8 +197,10 @@ where
 
     /// Assembles components without validation.
     ///
-    /// Use during construction followed by validation, for the registry's identity,
-    /// or to derive a result from previously validated transform geometry.
+    /// For the registry's identity and for values derived from already
+    /// validated transforms — interpolation, inversion, composition — where
+    /// re-validating would reject legitimate norm drift. Every caller must
+    /// be able to name the validated transform its inputs came from.
     pub(crate) fn unvalidated(
         parent: String,
         child: String,
