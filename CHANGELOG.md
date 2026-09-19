@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Shorten the README, migration guide, and API documentation. Correct
+  transform direction, subtree removal, cross-time examples, concurrency,
+  serialization, and portability claims; retain the ROS2/tf2 comparison.
+- Compile the README example as a doctest in every feature combination.
+
 ## [2.1.3] - 2026-09-12
 
 ### Changed
@@ -154,8 +163,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
   `std`. `Registry` also implements `Default`. Mind rustc's suggestion
   on the 1.x call site: "remove the extra argument" compiles into a
   registry that never evicts — if you had a `max_age`, you want
-  `with_max_age` (MIGRATION.md break 1 spells this out).
-- **Breaking:** every `Registry` call reports one flat error type,
+  `with_max_age` (see [migration guidance](MIGRATION.md#construction-and-insertion)).
+- **Breaking:** every fallible `Registry` call reports one flat error type,
   `errors::RegistryError<T>`. 1.4.1 answered a failed lookup with the
   catch-all `TransformError::NotFound(from, to)` — or, for frames in
   different trees, with `IncompatibleFrames` — and could return a
@@ -398,8 +407,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - Property-based test suite (proptest) covering the core invariants;
   fully deterministic test fixtures and non-mutating benchmarks; panic
   policy enforced with clippy restriction lints and documented in the
-  crate-level Reliability section. All public types are `Send + Sync`,
-  documented and compile-asserted.
+  crate-level Reliability section. Public types with the default timestamp
+  are compile-asserted to be `Send + Sync`.
 - Behavioral pin tests for commitments that freeze at stable: duplicate-
   timestamp upserts, `SameFrameMultiplication`, `max_age` boundary
   semantics (`Duration::ZERO`, inclusive boundary, out-of-order inserts),
@@ -560,6 +569,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...HEAD
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1

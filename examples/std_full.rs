@@ -1,14 +1,10 @@
 //! This example demonstrates the use of the registry in an async context
-//! with concurrent readers and a single writer, using an `RwLock` to allow
-//! multiple readers to query transforms simultaneously without blocking
-//! each other.
+//! with concurrent readers and a single writer using an `RwLock`.
+//! Readers share access; both readers and writers may wait for the lock.
 //!
-//! The writer stamps every sample with the instant it describes, as a real
-//! publisher must. There is no extrapolation, so the newest sample is
-//! always older than the clock and asking at `now()` would fail — instead
-//! the reader asks the registry which instant the whole chain can serve
-//! (`latest_common_time`) and queries exactly there, both calls under one
-//! read guard. The reader needs no knowledge of the writer's rate.
+//! Samples are stamped at publication. Readers query `latest_common_time`
+//! and then look up that instant under the same read guard, avoiding a request
+//! newer than the stored data.
 
 #[tokio::main]
 #[cfg(feature = "std")]
@@ -75,11 +71,8 @@ async fn main() {
         }
     });
 
-    // Reader task - queries transforms (shared access, does not block other
-    // readers). The lookup crosses the dynamic a -> b edge and the static
-    // b -> lidar mount in one chain. The sleep at the top of the loop lets
-    // the writer's first sample land before the first query; a query racing
-    // ahead of it would fail loudly with UnknownFrame, never guess.
+    // Read across the dynamic a -> b edge and static b -> lidar mount.
+    // A reader that runs before the first dynamic insert gets UnknownFrame.
     let registry_reader = registry.clone();
     let reader = tokio::spawn(async move {
         loop {
