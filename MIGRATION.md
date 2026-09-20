@@ -1,4 +1,4 @@
-# Migrating to 2.1
+# Migrating to 2.2
 
 From 2.0.0, no API migration is required. From 1.x or a 2.0 pre-release,
 apply the changes below. The current API is documented on
@@ -18,6 +18,12 @@ apply the changes below. The current API is documented on
   the subsequent lookup, subject to its numeric limitations.
 - `Registry`'s `Debug` output summarizes buffers. Do not parse or snapshot
   its text as a stable interface.
+- Since 2.2.0, `Registry::reparent_frame(transform)` moves the transform's
+  child under its parent atomically, seeding the new edge with that transform
+  and dropping the child's stored history; its kind and `max_age` policy are
+  kept. Handle the new `RegistryError::NoParentToReplace` (the child is a
+  root) and `RegistryError::ParentUnchanged` (the parent is already the
+  requested one) variants. `ReparentingNotSupported`'s message text changed.
 
 ## Coming from 1.x
 
@@ -109,7 +115,8 @@ implementation history with no replacement public type.
 | `NotFoundAt { frame, requested, covered, .. }` | A sampled edge cannot serve the request; `covered: None` means it holds no samples |
 | `NoCommonTime { frame, covered, .. }` | Connecting edges have empty or disjoint coverage |
 | `NonUnitRotation`, `NonFiniteValues` | Numeric validation failed |
-| `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | Insertion violated a topology or kind constraint |
+| `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | An insert or `reparent_frame` violated a topology or kind constraint |
+| `NoParentToReplace(frame)`, `ParentUnchanged(frame)` | `reparent_frame` refused: the frame is a root, or already has that parent |
 | `TransformError(error)` | A geometry or time operation failed |
 
 `requested` and `covered` retain your time type `T`. With `Some((start, end))`,
@@ -154,8 +161,10 @@ comparisons do not account for opposite signs representing the same rotation.
 ### Runtime changes and limitations
 
 - A child's parent and kind stay pinned until `remove_frame` removes its
-  incoming edge. To re-parent a subtree, remove and re-add only its root's
-  edge. Descendants with unchanged immediate parents retain their history.
+  incoming edge; since 2.2.0 `reparent_frame` replaces the parent pin and
+  keeps the kind. To re-parent a subtree, remove and re-add only its root's
+  edge, or call `reparent_frame` on the root. Descendants with unchanged
+  immediate parents retain their history.
 - `remove_transforms_before` preserves static transforms and frame pins.
   Drained frames report `NotFoundAt { covered: None, .. }`; a fully drained
   buffer resets its expiry reference, allowing earlier timestamps again.

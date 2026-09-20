@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-20
+
+### Added
+
+- `Registry::reparent_frame(transform)`: atomic native re-parenting.
+  The transform's child is the frame to move, its parent the new
+  parent, and the transform itself seeds the frame's history under the
+  new pin. Every check — root/unknown diagnosis, unchanged parent,
+  cycle detection, and the ordinary insert checks on the seed — runs
+  before any mutation, so a rejection leaves the registry untouched;
+  the previously documented `remove_frame`-then-re-add route could
+  destroy the frame first and only then discover the cycle. The price
+  is the frame's stored history — paid loudly by a dynamic frame
+  (coverage collapses to the seed's instant) and retroactively by a
+  static one (the replaced pose answers every instant, past included,
+  as any static re-publish does); the frame's static-or-dynamic kind
+  and its `max_age` expiry policy are deliberately preserved — a seed
+  of the opposite kind is rejected with `StaticDynamicConflict`, since
+  a frame flipped to static would answer every instant where a dynamic
+  frame fails loudly once its stream stops. Descendants ride along
+  with their history intact.
+- `RegistryError::NoParentToReplace(frame)`: `reparent_frame`'s
+  refusal for a known root — a root gains a parent through an ordinary
+  `add_transform` insert, not a re-parent.
+- `RegistryError::ParentUnchanged(frame)`: `reparent_frame`'s refusal
+  when the "new" parent is the current one. An error, not an upsert:
+  re-parenting drops the frame's history, and such a move would drop
+  that history for nothing.
+
+### Changed
+
+- `RegistryError::ReparentingNotSupported`'s message now reads
+  "add_transform cannot change the child frame's parent (\<parent\>)"
+  (was "re-parenting is not supported (the child frame's parent is
+  \<parent\>)"), and its documentation points to `reparent_frame` as
+  the deliberate re-parenting path (the variant name predates the
+  feature; renaming it would be a breaking change, deferred to a 3.0).
+
 ## [2.1.3] - 2026-09-19
 
 ### Changed
@@ -564,6 +602,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.0...v2.1.1

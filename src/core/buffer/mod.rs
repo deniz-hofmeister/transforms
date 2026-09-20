@@ -3,7 +3,9 @@
 //! Dynamic samples store geometry under timestamp keys; frame names are pinned
 //! once per buffer. Static buffers store one transform. Insertion validates
 //! geometry, frame pins, and kind even for derived transforms; the registry
-//! adds the cycle check. Cleanup preserves the pins and static data.
+//! adds the cycle check whenever an edge enters the map: a first insert, or
+//! `Registry::reparent_frame` replacing a buffer through [`Buffer::empty_like`]
+//! rather than editing a pin. Cleanup preserves the pins and static data.
 
 use crate::{
     geometry::{Quaternion, Transform, Vector3},
@@ -38,8 +40,10 @@ struct Sample {
 ///
 /// The first insert pins the buffer's parent and child frames: every later
 /// insert must carry the same pair, so a buffer stores the history of
-/// exactly one parent-child relationship. Re-parenting is rejected with
-/// `InsertError::ReparentingNotSupported`, and a transform for a different
+/// exactly one parent-child relationship. A differing parent is rejected
+/// with `InsertError::ReparentingNotSupported` — at this level
+/// unconditionally; `Registry::reparent_frame` moves a frame by replacing
+/// its buffer, never by bending this pin — and a transform for a different
 /// child frame with `InsertError::ChildFrameMismatch`.
 ///
 /// When constructed with [`Buffer::dynamic_with_max_age`], entries older
@@ -187,11 +191,48 @@ where
         }
     }
 
+    /// Creates an empty buffer of this buffer's kind: the same static or
+    /// dynamic storage and, for a dynamic buffer, the same `max_age` expiry
+    /// policy — holding no transforms and pinning no frames.
+    ///
+    /// This is how [`Registry::reparent_frame`](crate::Registry::reparent_frame)
+    /// rebuilds a frame's buffer without re-deciding either property from
+    /// whichever transform seeds the move: the kind and the retention policy
+    /// belong to the frame. The dropped history cannot be the reason — the
+    /// move discards it either way. What the pin protects is everything
+    /// after the move: a seed allowed to flip a dynamic frame to static
+    /// would turn the frame's loud out-of-coverage failures on a stopped
+    /// stream into a pose that answers at every instant.
+    #[must_use]
+    pub fn empty_like(&self) -> Self {
+        Self {
+            parent: None,
+            child: None,
+            // Both sides spelled out in full, no `..`: if `Kind` ever grows
+            // a field, this match must fail to compile so the new field gets
+            // an explicit carry-or-reset decision — this method's whole
+            // purpose is preserving the frame's properties.
+            kind: match &self.kind {
+                Kind::Static(_) => Kind::Static(None),
+                Kind::Dynamic {
+                    data: _,
+                    latest_timestamp: _,
+                    max_age,
+                } => Kind::Dynamic {
+                    data: BTreeMap::new(),
+                    latest_timestamp: None,
+                    max_age: *max_age,
+                },
+            },
+        }
+    }
+
     /// Returns the buffer's parent frame, pinned by the first insert.
     ///
     /// `None` for a buffer that has never held a transform. The parent stays
     /// pinned even if all entries are removed; drop the whole buffer
-    /// (`Registry::remove_frame`) to release it.
+    /// (`Registry::remove_frame`) — or replace it wholesale, as
+    /// `Registry::reparent_frame` does — to release it.
     #[must_use]
     pub fn parent(&self) -> Option<&str> {
         self.parent.as_deref()

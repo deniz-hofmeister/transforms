@@ -13,6 +13,8 @@
 //! Dynamic samples carry [`time::Stamp::At`]; no timestamp value is reserved.
 //! [`Registry::with_max_age`] evicts old samples on insertion, while
 //! [`Registry::new`] retains them until manual removal.
+//! [`Registry::reparent_frame`] moves a child frame under a new parent
+//! atomically, dropping that frame's stored history.
 //!
 //! Constructors and deserialization validate transforms. Derived results can
 //! accumulate rotation drift or overflow; see [`Transform::validate`] and

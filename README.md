@@ -21,14 +21,14 @@ Requires Rust 1.85 or later.
 
 ```toml
 [dependencies]
-transforms = "2.1.3"
+transforms = "2.2.0"
 ```
 
 For `no_std`, disable default features and provide a heap allocator:
 
 ```toml
 [dependencies]
-transforms = { version = "2.1.3", default-features = false }
+transforms = { version = "2.2.0", default-features = false }
 ```
 
 | Feature | Default | Effect |
@@ -83,9 +83,12 @@ assert_eq!(point.position, Vector3::new(3.0, 0.0, 0.0));
 - `Stamp::At(t)` is a dynamic sample; `Stamp::Static` is valid for all time.
   Use `Transform::static_between` for sensor mounts. Zero is an ordinary
   dynamic timestamp.
-- Each child has one parent and one kind (static or dynamic), fixed at its
+- Each child has one parent and one kind (static or dynamic), set at its
   first insertion. Cycles are rejected. Re-publishing a sample at the same
   timestamp replaces it.
+- `Registry::reparent_frame` moves a child under a new parent atomically,
+  dropping that child's stored history; descendants keep theirs. Use
+  `remove_frame` and re-insertion to change a kind or keep history.
 - `Registry::with_max_age` evicts on insertion relative to that child's
   newest inserted timestamp, never wall-clock time. It limits history
   duration, not sample or frame count. `Registry::new` retains data until
@@ -134,6 +137,7 @@ implementation, not a binding to tf2, and does not aim for API parity.
 | Communication | `tf2_ros` broadcasts and listens through ROS2 | No ROS2, DDS, or other transport dependency |
 | Waiting | ROS2 buffer supports waiting for transforms | Synchronous queries; caller supplies waiting |
 | Embedded use | ROS2 integration uses a hosted runtime | `no_std + alloc`, with `f64` geometry |
+| Re-parenting | Parent stored per sample; a new parent silently re-parents | One parent per frame; explicit `reparent_frame` drops that frame's history |
 
 The [tf2 cache implementation](https://github.com/ros2/geometry2/blob/rolling/tf2/src/cache.cpp)
 details zero-time lookup and pruning. For ROS integration in Rust, see
@@ -159,10 +163,12 @@ measurements and reproduction commands. Run `cargo bench` for benchmarks.
 
 ## What's new
 
-2.1.3 reduces dynamic-history memory use and lookup allocations, and
-shortens and corrects the documentation. Public APIs, serialization, and
-numerical behavior are unchanged. See the [changelog](CHANGELOG.md) for
-earlier releases.
+2.2.0 adds `Registry::reparent_frame`, atomic re-parenting at the price of the
+moved frame's stored history, with the `NoParentToReplace` and
+`ParentUnchanged` error variants. 2.1.3 reduced dynamic-history memory use and
+lookup allocations, and shortened and corrected the documentation, changing no
+public API, serialization, or numerical behavior. See the
+[changelog](CHANGELOG.md) for earlier releases.
 
 ## Examples
 
