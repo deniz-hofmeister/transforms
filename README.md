@@ -83,7 +83,7 @@ assert_eq!(point.position, Vector3::new(3.0, 0.0, 0.0));
 - `Stamp::At(t)` is a dynamic sample; `Stamp::Static` is valid for all time.
   Use `Transform::static_between` for sensor mounts. Zero is an ordinary
   dynamic timestamp.
-- Each child has one parent and one kind (static or dynamic), fixed at its
+- Each child has one parent and one kind (static or dynamic), set at its
   first insertion. Cycles are rejected. Re-publishing a sample at the same
   timestamp replaces it.
 - `Registry::reparent_frame` moves a child under a new parent atomically,
@@ -165,10 +165,10 @@ measurements and reproduction commands. Run `cargo bench` for benchmarks.
 
 2.2.0 adds `Registry::reparent_frame`, atomic re-parenting at the price of the
 moved frame's stored history, with the `NoParentToReplace` and
-`ParentUnchanged` error variants. 2.1.3 reduced dynamic-history memory use and lookup allocations, and
-shortens and corrects the documentation. Public APIs, serialization, and
-numerical behavior are unchanged. See the [changelog](CHANGELOG.md) for
-earlier releases.
+`ParentUnchanged` error variants. 2.1.3 reduced dynamic-history memory use and
+lookup allocations, and shortened and corrected the documentation, changing no
+public API, serialization, or numerical behavior. See the
+[changelog](CHANGELOG.md) for earlier releases.
 
 ## Examples
 

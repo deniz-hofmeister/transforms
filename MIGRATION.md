@@ -161,9 +161,10 @@ comparisons do not account for opposite signs representing the same rotation.
 ### Runtime changes and limitations
 
 - A child's parent and kind stay pinned until `remove_frame` removes its
-  incoming edge. To re-parent a subtree, remove and re-add only its root's
-  edge, or call `reparent_frame` on the root since 2.2.0. Descendants with
-  unchanged immediate parents retain their history.
+  incoming edge; since 2.2.0 `reparent_frame` replaces the parent pin and
+  keeps the kind. To re-parent a subtree, remove and re-add only its root's
+  edge, or call `reparent_frame` on the root. Descendants with unchanged
+  immediate parents retain their history.
 - `remove_transforms_before` preserves static transforms and frame pins.
   Drained frames report `NotFoundAt { covered: None, .. }`; a fully drained
   buffer resets its expiry reference, allowing earlier timestamps again.

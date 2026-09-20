@@ -379,8 +379,8 @@ proptest! {
             if reparent {
                 if registry.reparent_frame(transform.clone()).is_ok() {
                     // The move happened, so repeating it is not a move at
-                    // all — and never an upsert that would wipe the seed the
-                    // first call just stored.
+                    // all — and must not wipe the seed the first call just
+                    // stored.
                     let repeated = registry.reparent_frame(transform);
                     prop_assert!(
                         matches!(

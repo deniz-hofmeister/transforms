@@ -31,8 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `add_transform` insert, not a re-parent.
 - `RegistryError::ParentUnchanged(frame)`: `reparent_frame`'s refusal
   when the "new" parent is the current one. An error, not an upsert:
-  resolving every failed insert into a re-parent would wipe the
-  frame's history once and look correct forever after.
+  re-parenting drops the frame's history, and such a move would drop
+  that history for nothing.
 
 ### Changed
 

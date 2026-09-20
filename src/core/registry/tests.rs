@@ -2863,9 +2863,9 @@ mod registry_tests {
 
     #[test]
     fn reparent_frame_rejects_an_unchanged_parent() {
-        // Deliberately an error rather than an upsert: a caller resolving
-        // every failed insert into a re-parent would wipe the frame's
-        // history once and look correct forever after.
+        // Deliberately an error rather than an upsert: re-parenting drops
+        // the frame's history, and such a move would drop that history
+        // for nothing.
         let t1 = Timestamp::from_nanos(1_000_000_000);
         let t2 = Timestamp::from_nanos(2_000_000_000);
         let t3 = Timestamp::from_nanos(3_000_000_000);

@@ -120,11 +120,10 @@ where
     /// [`Registry::reparent_frame`](crate::Registry::reparent_frame) was
     /// asked to "move" a frame to the parent it already has. This is an
     /// error rather than an upsert into the existing history because
-    /// re-parenting drops the frame's stored history: a caller resolving
-    /// every failed insert into a re-parent would wipe the buffer once and
-    /// look correct forever after. Publishing samples on an existing edge
-    /// is [`Registry::add_transform`](crate::Registry::add_transform)'s
-    /// job.
+    /// re-parenting drops the frame's stored history, and such a move
+    /// would drop that history for nothing. Publishing samples on an
+    /// existing edge is
+    /// [`Registry::add_transform`](crate::Registry::add_transform)'s job.
     #[error("frame {0} already has the requested parent")]
     ParentUnchanged(String),
 

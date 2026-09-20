@@ -81,8 +81,9 @@ where
 
     /// Inserts a transform, replacing any sample at the same timestamp.
     ///
-    /// The first insert pins the child's parent and static/dynamic kind until
-    /// [`Registry::remove_frame`] releases it. Numeric validation runs on every
+    /// The first insert pins the child's parent and static/dynamic kind.
+    /// [`Registry::reparent_frame`] replaces the parent pin and keeps the kind;
+    /// [`Registry::remove_frame`] releases both. Numeric validation runs on every
     /// insert, including derived transforms that were not checked after composition.
     ///
     /// # Errors
