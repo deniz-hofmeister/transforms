@@ -115,7 +115,7 @@ implementation history with no replacement public type.
 | `NotFoundAt { frame, requested, covered, .. }` | A sampled edge cannot serve the request; `covered: None` means it holds no samples |
 | `NoCommonTime { frame, covered, .. }` | Connecting edges have empty or disjoint coverage |
 | `NonUnitRotation`, `NonFiniteValues` | Numeric validation failed |
-| `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | Insertion violated a topology or kind constraint |
+| `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | An insert or `reparent_frame` violated a topology or kind constraint |
 | `NoParentToReplace(frame)`, `ParentUnchanged(frame)` | `reparent_frame` refused: the frame is a root, or already has that parent |
 | `TransformError(error)` | A geometry or time operation failed |
 
