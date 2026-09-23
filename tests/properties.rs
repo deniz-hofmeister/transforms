@@ -353,6 +353,86 @@ proptest! {
     }
 
     #[test]
+    fn a_failed_lookup_names_an_edge_on_the_connecting_chain(
+        // Frame i + 1 hangs under frame parent % (i + 1) and covers
+        // [start, start + span]: a random tree rooted at f0, so every pair
+        // of frames is connected.
+        edges in proptest::collection::vec((0_usize..100, 0_u64..100, 0_u64..100), 1..8),
+        picks in (0_usize..100, 0_usize..100),
+        requested in 0_u64..200,
+    ) {
+        let mut registry = Registry::new();
+        let mut parents = Vec::new();
+        for (i, (parent, start, span)) in edges.iter().enumerate() {
+            let parent = parent % (i + 1);
+            parents.push(parent);
+            for nanos in [*start, start + span] {
+                let transform = Transform::new(
+                    &format!("f{parent}"),
+                    &format!("f{}", i + 1),
+                    Vector3::new(1.0, 0.0, 0.0),
+                    Quaternion::identity(),
+                    Stamp::At(Timestamp::from_nanos(nanos)),
+                )
+                .unwrap();
+                registry.add_transform(transform).unwrap();
+            }
+        }
+        let frames = edges.len() + 1;
+        let (a, b) = (picks.0 % frames, picks.1 % frames);
+        prop_assume!(a != b);
+
+        // The oracle: the chain crosses the edges of the frames on exactly
+        // one endpoint's path to the root. The common ancestor and every
+        // frame above it lie on both.
+        let path_to_root = |mut frame: usize| {
+            let mut path = vec![frame];
+            while frame != 0 {
+                frame = parents[frame - 1];
+                path.push(frame);
+            }
+            path
+        };
+        let (path_a, path_b) = (path_to_root(a), path_to_root(b));
+        let range = |frame: usize| {
+            let (_, start, span) = edges[frame - 1];
+            (Timestamp::from_nanos(start), Timestamp::from_nanos(start + span))
+        };
+        let failing: Vec<_> = path_a
+            .iter()
+            .filter(|frame| !path_b.contains(frame))
+            .chain(path_b.iter().filter(|frame| !path_a.contains(frame)))
+            .map(|&frame| (format!("f{frame}"), range(frame)))
+            .filter(|(_, (start, end))| {
+                !(*start..=*end).contains(&Timestamp::from_nanos(requested))
+            })
+            .collect();
+
+        let result = registry.get_transform(
+            &format!("f{a}"),
+            &format!("f{b}"),
+            Timestamp::from_nanos(requested),
+        );
+        if failing.is_empty() {
+            // Edges above the common ancestor may fail too; they must not
+            // fail the lookup.
+            prop_assert!(result.is_ok(), "expected a transform, got {:?}", result);
+        } else {
+            let on_chain = matches!(
+                &result,
+                Err(RegistryError::NotFoundAt { frame, covered: Some(covered), .. })
+                    if failing.contains(&(frame.clone(), *covered))
+            );
+            prop_assert!(
+                on_chain,
+                "expected NotFoundAt naming one of {:?}, got {:?}",
+                failing,
+                result
+            );
+        }
+    }
+
+    #[test]
     fn random_inserts_and_re_parents_keep_the_tree_walkable(
         // Each op is (re-parent?, parent frame, child frame, instant). Most
         // of the re-parents are rejected — an unknown frame, a root, an

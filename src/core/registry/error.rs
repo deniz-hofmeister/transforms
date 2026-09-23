@@ -154,6 +154,10 @@ where
     /// edge's retained range; `None` means it has no samples. Changing the
     /// requested time cannot help an empty edge until new data is inserted.
     ///
+    /// When the endpoints are connected, `frame` is an edge the chain between
+    /// them crosses, never one above their common ancestor, so its data is
+    /// data the lookup needs. Other edges on the chain may fail as well.
+    ///
     /// A recorded sampling failure takes precedence over `Disconnected`, so
     /// this error does not establish that the endpoints are connected.
     /// Use [`Registry::latest_common_time`](crate::Registry::latest_common_time)

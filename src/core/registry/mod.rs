@@ -17,9 +17,12 @@ use core::time::Duration;
 
 mod error;
 
-/// One frame's walk to its tree's root: the edges crossed — each keyed by
-/// its child frame, in walk order — and the root frame the walk ends on.
-type Ancestry<'a, T> = (Vec<(&'a str, &'a Buffer<T>)>, &'a str);
+/// Edges of the frame tree, each keyed by its child frame, in walk order.
+type Edges<'a, T> = Vec<(&'a str, &'a Buffer<T>)>;
+
+/// One frame's walk to its tree's root: the edges crossed and the root frame
+/// the walk ends on.
+type Ancestry<'a, T> = (Edges<'a, T>, &'a str);
 
 /// A frame tree with timestamped transform history.
 ///
@@ -116,10 +119,11 @@ where
     /// # Errors
     ///
     /// Returns [`RegistryError::UnknownFrame`] for an unknown endpoint,
-    /// [`RegistryError::NotFoundAt`] for a recorded sampling failure, or
-    /// [`RegistryError::Disconnected`] for known frames with no connecting chain.
-    /// A sampling failure takes precedence over a simultaneous disconnection;
-    /// see the error variants for payloads.
+    /// [`RegistryError::NotFoundAt`] for an edge that cannot serve `timestamp`,
+    /// or [`RegistryError::Disconnected`] for known frames with no connecting
+    /// chain. Between connected frames, the failing edge reported is one the
+    /// chain crosses. A sampling failure takes precedence over a simultaneous
+    /// disconnection; see the error variants for payloads.
     ///
     /// Geometry or time operations can fail with [`RegistryError::TransformError`]
     /// or [`RegistryError::NonFiniteValues`]. The result is not re-validated:
@@ -337,9 +341,10 @@ where
             return Ok(Stamp::Static);
         }
 
-        let (target_edges, target_root) = Self::ancestry(target, &self.data);
-        let (source_edges, source_root) = Self::ancestry(source, &self.data);
-        if target_root != source_root {
+        // Edges above the common ancestor are not part of the chain, so
+        // their coverage must not constrain the answer.
+        let Some((target_edges, source_edges)) = Self::connecting_chain(target, source, &self.data)
+        else {
             // The walks ended in different trees: an unknown frame, or two
             // known but disconnected ones — the same diagnosis order as a
             // failed lookup.
@@ -352,21 +357,8 @@ where
                 target_frame: target.into(),
                 source_frame: source.into(),
             });
-        }
-
-        // Drop the shared tail above the common ancestor: the connecting
-        // chain does not cross those edges, so their coverage must not
-        // constrain the answer.
-        let shared = target_edges
-            .iter()
-            .rev()
-            .zip(source_edges.iter().rev())
-            .take_while(|((target_frame, _), (source_frame, _))| target_frame == source_frame)
-            .count();
-        let chain = target_edges
-            .iter()
-            .take(target_edges.len() - shared)
-            .chain(source_edges.iter().take(source_edges.len() - shared));
+        };
+        let chain = target_edges.iter().chain(&source_edges);
 
         // The newest instant every hop serves is the *minimum* of the
         // dynamic hops' newest samples — provided every hop's range reaches
@@ -714,6 +706,31 @@ where
         (edges, current)
     }
 
+    /// The edges a chain between `target` and `source` crosses: each
+    /// endpoint's ancestry without the shared tail above their common
+    /// ancestor, target side first. `None` if the two walks end at different
+    /// roots — an unknown endpoint, or two disconnected trees.
+    fn connecting_chain<'a>(
+        target: &'a str,
+        source: &'a str,
+        data: &'a HashMap<String, Buffer<T>>,
+    ) -> Option<(Edges<'a, T>, Edges<'a, T>)> {
+        let (mut target_edges, target_root) = Self::ancestry(target, data);
+        let (mut source_edges, source_root) = Self::ancestry(source, data);
+        if target_root != source_root {
+            return None;
+        }
+        let shared = target_edges
+            .iter()
+            .rev()
+            .zip(source_edges.iter().rev())
+            .take_while(|((target_frame, _), (source_frame, _))| target_frame == source_frame)
+            .count();
+        target_edges.truncate(target_edges.len() - shared);
+        source_edges.truncate(source_edges.len() - shared);
+        Some((target_edges, source_edges))
+    }
+
     /// Returns `true` if the frame appears anywhere in the tree, as a child
     /// (buffer key) or as a parent. Roots exist only as parents, so a
     /// missing buffer alone does not make a frame unknown.
@@ -725,15 +742,22 @@ where
     }
 
     /// Diagnoses a failed lookup, in order of certainty: a requested frame
-    /// that exists nowhere in the tree, then a recorded chain-walk failure
-    /// (a known frame that could not serve the requested time, whether it
-    /// holds data outside that time or no data at all), and otherwise —
-    /// both frames known and both walks clean — the frames live in
-    /// disconnected trees. The scans run only on the failure path.
+    /// that exists nowhere in the tree, then a failed edge (a known frame
+    /// that could not serve the requested time, whether it holds data
+    /// outside that time or no data at all), and otherwise — both frames
+    /// known and both walks clean — the frames live in disconnected trees.
+    /// The scans run only on the failure path.
     ///
-    /// A walk that stopped on a failed *interpolation* is reported as that
-    /// failure rather than as a `NotFoundAt`: the frame does cover the
-    /// requested time, so neither `covered` shape would describe it.
+    /// For connected endpoints the failed edge is the first one on the
+    /// connecting chain, target side first. The walks run toward the root
+    /// and record the first failure they meet, which can lie above the
+    /// common ancestor on an edge this lookup never needed. For disconnected
+    /// endpoints no chain exists, and the recorded walk failure is reported,
+    /// taking precedence over `Disconnected`.
+    ///
+    /// An edge that failed on *interpolation* is reported as that failure
+    /// rather than as a `NotFoundAt`: the frame does cover the requested
+    /// time, so neither `covered` shape would describe it.
     fn diagnose_not_found(
         from: &str,
         to: &str,
@@ -746,7 +770,20 @@ where
                 return RegistryError::UnknownFrame(frame.into());
             }
         }
-        let (frame, covered) = match walk_failure.take() {
+        let failure = Self::connecting_chain(from, to, data)
+            .and_then(|(target_edges, source_edges)| {
+                target_edges
+                    .iter()
+                    .chain(&source_edges)
+                    .find_map(|&(frame, buffer)| {
+                        buffer
+                            .get(timestamp)
+                            .err()
+                            .map(|error| (frame.into(), error))
+                    })
+            })
+            .or_else(|| walk_failure.take());
+        let (frame, covered) = match failure {
             Some((frame, GetError::NoTransformAvailable)) => (frame, None),
             Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
             Some((_, GetError::Interpolation(cause))) => return cause.into(),
@@ -983,8 +1020,9 @@ where
     /// (`diagnose_not_found`).
     ///
     /// A buffer lookup failing along the way ends the walk; the first such
-    /// failure across all walks of one lookup is recorded in `walk_failure`
-    /// so the caller can report it if the lookup fails as a whole.
+    /// failure across all walks of one lookup is recorded in `walk_failure`.
+    /// It can lie above the common ancestor, so it is reported only for
+    /// disconnected endpoints, which have no connecting chain to re-sample.
     fn get_transform_chain(
         from: &str,
         to: &str,

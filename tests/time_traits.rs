@@ -166,6 +166,42 @@ fn latest_common_time_rejects_unrepresentable_interpolation_spans() {
 }
 
 #[test]
+fn lookup_diagnoses_the_connecting_chain_not_the_edge_above_it() {
+    // In both registries the target-side walk first fails on common's own
+    // edge, above the common ancestor, while the edge that blocks the
+    // lookup is source's. The diagnosis must describe the source edge, even
+    // where the two failures are of different kinds.
+    let huge = Duration::MAX.as_nanos() + 1;
+
+    // Unrepresentable arithmetic off the chain, a data gap on it.
+    let registry = wide_clock_registry(&[
+        ("root", "common", 0),
+        ("root", "common", huge),
+        ("common", "target", 1),
+        ("common", "source", 5),
+    ]);
+    assert!(matches!(
+        registry.get_transform("target", "source", WideNanos(1)),
+        Err(RegistryError::NotFoundAt { frame, covered: Some((WideNanos(5), WideNanos(5))), .. })
+            if frame == "source"
+    ));
+
+    // A data gap off the chain, unrepresentable arithmetic on it.
+    let registry = wide_clock_registry(&[
+        ("root", "common", 0),
+        ("common", "target", 1),
+        ("common", "source", 0),
+        ("common", "source", huge),
+    ]);
+    assert!(matches!(
+        registry.get_transform("target", "source", WideNanos(1)),
+        Err(RegistryError::TransformError(
+            TransformError::TimestampError(TimeError::DurationOverflow)
+        ))
+    ));
+}
+
+#[test]
 fn latest_common_time_serves_exact_samples_in_a_wide_history() {
     let huge = Duration::MAX.as_nanos() + 1;
     let registry = wide_clock_registry(&[("a", "b", 0), ("a", "b", huge), ("b", "c", huge)]);
