@@ -39,7 +39,7 @@ fn disconnected_lookup_preserves_sampling_failure_precedence() {
 }
 
 #[test]
-fn failed_lookup_preserves_failure_above_common_ancestor() {
+fn failed_lookup_names_the_failing_edge_on_the_connecting_chain() {
     let mut registry = Registry::new();
     for (parent, child, nanos) in [
         ("root", "common", 1),
@@ -50,9 +50,14 @@ fn failed_lookup_preserves_failure_above_common_ancestor() {
             .add_transform(sample(parent, child, nanos))
             .unwrap();
     }
+    // The edge above `common` cannot serve t = 2 either, and the target-side
+    // walk reaches it first, but the chain between the endpoints never
+    // crosses it.
     assert!(matches!(
         registry.get_transform("target", "source", Timestamp::from_nanos(2)),
-        Err(RegistryError::NotFoundAt { frame, .. }) if frame == "common"
+        Err(RegistryError::NotFoundAt { frame, covered, .. })
+            if frame == "source"
+                && covered == Some((Timestamp::from_nanos(1), Timestamp::from_nanos(1)))
     ));
 }
 

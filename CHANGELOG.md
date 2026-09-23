@@ -43,6 +43,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the deliberate re-parenting path (the variant name predates the
   feature; renaming it would be a breaking change, deferred to a 3.0).
 
+### Fixed
+
+- `RegistryError::NotFoundAt` between connected frames now names an edge
+  the connecting chain crosses. The lookup walks run toward the root and
+  reported the first failure they met, which could lie above the common
+  ancestor: `get_transform("cam", "lidar", t)` could blame a stale
+  `map -> odom` edge while the gap blocking it was on the lidar side, so a
+  caller waiting on or alarming for `frame` watched the wrong data. The
+  variant is unchanged except with a custom clock whose interpolation
+  arithmetic can fail: an arithmetic failure off the chain no longer masks
+  a data gap on it, nor a data gap off the chain an arithmetic failure on
+  it. Disconnected endpoints keep the documented precedence of a sampling
+  failure over `Disconnected`. The new guarantee is documented on
+  `NotFoundAt`.
+
 ## [2.1.3] - 2026-09-19
 
 ### Changed

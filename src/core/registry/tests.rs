@@ -1620,6 +1620,51 @@ mod registry_tests {
     }
 
     #[test]
+    fn not_found_at_names_an_edge_on_the_connecting_chain() {
+        // map -> odom -> {cam, base -> lidar}. At t = 50 two edges cannot
+        // serve: odom's (localization is stale) and base's (mid-chain on the
+        // lidar side). The cam <-> lidar chain meets at odom and never
+        // crosses odom's own edge, yet the cam-side walk reaches it first.
+        // Naming it would send the caller to wait for localization data
+        // this lookup does not need; it must name base, in both directions.
+        let mut registry = Registry::new();
+        for (parent, child, nanos) in [
+            ("map", "odom", 0),
+            ("odom", "cam", 0),
+            ("odom", "cam", 100),
+            ("odom", "base", 200),
+            ("base", "lidar", 0),
+            ("base", "lidar", 100),
+        ] {
+            registry
+                .add_transform(
+                    Transform::new(
+                        parent,
+                        child,
+                        Vector3::new(1.0, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(Timestamp::from_nanos(nanos)),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+
+        let base_range = Some((Timestamp::from_nanos(200), Timestamp::from_nanos(200)));
+        for (target, source) in [("cam", "lidar"), ("lidar", "cam")] {
+            let result = registry.get_transform(target, source, Timestamp::from_nanos(50));
+            assert!(
+                matches!(
+                    &result,
+                    Err(RegistryError::NotFoundAt { frame, covered, .. })
+                        if frame == "base" && *covered == base_range
+                ),
+                "expected NotFoundAt naming base for {target} <- {source}, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
     fn add_transform_rejects_static_dynamic_mixing() {
         let t_dynamic = Timestamp::from_nanos(1_000_000_000);
 

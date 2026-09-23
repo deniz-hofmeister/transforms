@@ -24,6 +24,9 @@ apply the changes below. The current API is documented on
   kept. Handle the new `RegistryError::NoParentToReplace` (the child is a
   root) and `RegistryError::ParentUnchanged` (the parent is already the
   requested one) variants. `ReparentingNotSupported`'s message text changed.
+- Since 2.2.0, a `NotFoundAt` between connected frames names an edge the
+  connecting chain crosses. Earlier releases could name a failing edge above
+  the common ancestor, which the lookup never needed.
 
 ## Coming from 1.x
 

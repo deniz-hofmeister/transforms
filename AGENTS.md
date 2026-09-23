@@ -164,8 +164,12 @@ would produce) a silent wrong answer:
   frame, the `requested: T` instant, and `covered: Option<(T, T)>`, which
   separates a gap in data the frame holds (`Some`, the covered range) from a
   frame holding nothing at all (`None`); a caller must not read the second
-  as a timing problem. Results always carry the requested timestamp (also
-  over static chains), and a frame relative to itself is the identity.
+  as a timing problem. Between connected endpoints, that frame is an edge
+  the connecting chain crosses: the walks toward the root can meet a
+  failure above the common ancestor first, and naming it sends the caller
+  to wait for data the lookup never needed. Results always carry the
+  requested timestamp (also over static chains), and a frame relative to
+  itself is the identity.
   `latest_common_time` diagnoses with the same `UnknownFrame` and
   `Disconnected`, and refuses with `NoCommonTime` — the same
   `frame` + `covered: Option<(T, T)>` payload shape, its own meaning:
