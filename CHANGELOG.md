@@ -42,6 +42,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   \<parent\>)"), and its documentation points to `reparent_frame` as
   the deliberate re-parenting path (the variant name predates the
   feature; renaming it would be a breaking change, deferred to a 3.0).
+- Lookups compose geometry along the walk with frame names borrowed from
+  the registry, and allocate names once, for the returned transform,
+  instead of twice per hop. On an x86-64 host, a lookup toward an ancestor
+  makes 3 heap allocations up to 4 hops (9 before at 4 hops) and 7 at 64
+  hops (133 before), and the probe's 1-hop and 4-hop lookups run about 30%
+  faster. `get_transform_at` composes its two legs the same way.
+  The arithmetic lives once, on a crate-private isometry type that
+  `Transform`'s `*`, `inverse` and `interpolate` also delegate to, so the
+  two paths cannot drift apart. Results, error variants and payloads, and
+  their precedence are unchanged: the 278,880-line differential trace of
+  `analysis/v2-feasibility` is byte-identical before and after, in both
+  feature modes.
 
 ### Fixed
 

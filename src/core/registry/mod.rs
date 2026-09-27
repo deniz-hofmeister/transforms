@@ -6,14 +6,17 @@ use crate::{
         buffer::{Coverage, GetError},
     },
     errors::TransformError,
-    geometry::{Localized, Quaternion, Transform, Vector3},
+    geometry::{
+        Localized, Transform,
+        transform::{Isometry, ensure_composable},
+    },
     time::{Stamp, TimePoint, Timestamp},
 };
-use alloc::{collections::VecDeque, string::String, vec::Vec};
+use alloc::{string::String, vec::Vec};
 pub use error::RegistryError;
 use hashbrown::HashMap;
 
-use core::time::Duration;
+use core::{ops::Mul, time::Duration};
 
 mod error;
 
@@ -23,6 +26,57 @@ type Edges<'a, T> = Vec<(&'a str, &'a Buffer<T>)>;
 /// One frame's walk to its tree's root: the edges crossed and the root frame
 /// the walk ends on.
 type Ancestry<'a, T> = (Edges<'a, T>, &'a str);
+
+/// A lookup's working form of a transform: one edge sampled at the
+/// requested instant, or a run of such edges composed into one, with
+/// `isometry` expressing `child` in `parent`.
+///
+/// The frame names borrow the registry's own keys and pins, and there is no
+/// stamp — every hop of a lookup holds at the requested instant, which the
+/// materialized result carries. A walk therefore allocates no frame name
+/// per hop; the lookup allocates names once, for the `Transform` it returns.
+#[derive(Clone, Copy)]
+struct Hop<'a> {
+    parent: &'a str,
+    child: &'a str,
+    isometry: Isometry,
+}
+
+impl Hop<'_> {
+    /// The same relationship read the other way round, with the frames
+    /// swapped.
+    ///
+    /// # Errors
+    ///
+    /// The `TransformError` of [`Isometry::inverse`].
+    fn inverse(self) -> Result<Self, TransformError> {
+        Ok(Hop {
+            parent: self.child,
+            child: self.parent,
+            isometry: self.isometry.inverse()?,
+        })
+    }
+}
+
+impl<'a> Mul for Hop<'a> {
+    type Output = Result<Hop<'a>, TransformError>;
+
+    /// Composes two hops: `t_a_b * t_b_c` yields `t_a_c`, under the same
+    /// frame rule as `Transform`'s `*`. A walk only builds hops that meet,
+    /// so the check never fails on a chain; it keeps a hop from answering
+    /// for frames its geometry does not relate if that ever stops holding.
+    fn mul(
+        self,
+        rhs: Hop<'a>,
+    ) -> Self::Output {
+        ensure_composable(self.child, rhs.parent, rhs.child)?;
+        Ok(Hop {
+            parent: self.parent,
+            child: rhs.child,
+            isometry: self.isometry * rhs.isometry,
+        })
+    }
+}
 
 /// A frame tree with timestamped transform history.
 ///
@@ -166,7 +220,18 @@ where
         source: &str,
         timestamp: T,
     ) -> Result<Transform<T>, RegistryError<T>> {
-        Self::process_get_transform(target, source, timestamp, &self.data)
+        let isometry = Self::resolve(target, source, timestamp, &self.data)?;
+        // The result answers "where is `source` relative to `target` at the
+        // requested time", so it carries the requested timestamp — also for
+        // chains of static transforms, which are themselves stamped
+        // `Stamp::Static`.
+        Ok(Transform::unvalidated(
+            target.into(),
+            source.into(),
+            isometry.translation,
+            isometry.rotation,
+            Stamp::At(timestamp),
+        ))
     }
 
     /// Resolves a transform using `value`'s frame and timestamp.
@@ -803,7 +868,9 @@ where
         }
     }
 
-    /// Retrieves and computes the transform between two frames at a specific timestamp.
+    /// Resolves the geometry that expresses `source` in `target` at
+    /// `timestamp`. The caller materializes the answer, with the requested
+    /// frames and stamp, as the one `Transform` the lookup allocates.
     ///
     /// # Errors
     ///
@@ -814,28 +881,21 @@ where
     /// * `RegistryError::Disconnected` - If both frames exist but no chain connects them
     /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If an operation on
     ///   the resolved chain failed
-    fn process_get_transform(
+    fn resolve(
         target: &str,
         source: &str,
         timestamp: T,
         data: &HashMap<String, Buffer<T>>,
-    ) -> Result<Transform<T>, RegistryError<T>> {
+    ) -> Result<Isometry, RegistryError<T>> {
         // A frame relative to itself is the identity, regardless of whether
         // the frame is known: the answer holds either way, and it keeps
         // same-frame queries consistent with `get_transform_for`.
         if target == source {
-            return Ok(Transform::unvalidated(
-                target.into(),
-                source.into(),
-                Vector3::zero(),
-                Quaternion::identity(),
-                Stamp::At(timestamp),
-            ));
+            return Ok(Isometry::identity());
         }
 
-        let reached = |chain: &VecDeque<Transform<T>>, goal: &str| {
-            chain.back().is_some_and(|tf| tf.parent() == goal)
-        };
+        let reached =
+            |chain: &[Hop<'_>], goal: &str| chain.last().is_some_and(|hop| hop.parent == goal);
 
         let mut walk_failure = None;
         let target_chain =
@@ -845,7 +905,7 @@ where
             // `source` is an ancestor of `target`: the target-side chain
             // spans the whole path, no source-side walk is needed.
             Some(target_chain) if reached(&target_chain, source) => {
-                Self::combine_transforms(target_chain, VecDeque::new())
+                Self::combine_transforms(&target_chain, &[])
             }
             target_chain => match (
                 target_chain,
@@ -854,7 +914,7 @@ where
                 // `target` is an ancestor of `source`: the source-side chain
                 // spans the whole path by itself.
                 (_, Some(source_chain)) if reached(&source_chain, target) => {
-                    Self::combine_transforms(VecDeque::new(), source_chain)
+                    Self::combine_transforms(&[], &source_chain)
                 }
                 // Both chains ran to the root: drop the shared suffix above
                 // the common parent and combine the remainders.
@@ -866,14 +926,14 @@ where
                     // no transform exists at this time. Diagnose the failure
                     // instead of letting the junction fail composition with
                     // a misleading IncompatibleFrames.
-                    let connected = match (target_chain.back(), source_chain.back()) {
+                    let connected = match (target_chain.last(), source_chain.last()) {
                         (Some(target_top), Some(source_top)) => {
-                            target_top.parent() == source_top.parent()
+                            target_top.parent == source_top.parent
                         }
                         _ => false,
                     };
                     if connected {
-                        Self::combine_transforms(target_chain, source_chain)
+                        Self::combine_transforms(&target_chain, &source_chain)
                     } else {
                         Some(Err(Self::diagnose_not_found(
                             target,
@@ -884,12 +944,8 @@ where
                         )))
                     }
                 }
-                (Some(target_chain), None) => {
-                    Self::combine_transforms(target_chain, VecDeque::new())
-                }
-                (None, Some(source_chain)) => {
-                    Self::combine_transforms(VecDeque::new(), source_chain)
-                }
+                (Some(target_chain), None) => Self::combine_transforms(&target_chain, &[]),
+                (None, Some(source_chain)) => Self::combine_transforms(&[], &source_chain),
                 (None, None) => Some(Err(Self::diagnose_not_found(
                     target,
                     source,
@@ -914,9 +970,9 @@ where
 
         // A chain can resolve without ever reaching the requested frame, for
         // example when `source` does not exist in the tree and the walk
-        // stopped at the root instead. Verify the combined transform answers
-        // the exact question asked; otherwise report it as not found.
-        if result.parent() != target || result.child() != source {
+        // stopped at the root instead. Verify the combined hop answers the
+        // exact question asked; otherwise report it as not found.
+        if result.parent != target || result.child != source {
             return Err(Self::diagnose_not_found(
                 target,
                 source,
@@ -926,11 +982,7 @@ where
             ));
         }
 
-        // The result answers "where is `source` relative to `target` at the
-        // requested time", so it carries the requested timestamp — also for
-        // chains of static transforms, which are themselves stamped
-        // `Stamp::Static`.
-        Ok(result.restamped(Stamp::At(timestamp)))
+        Ok(result.isometry)
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
@@ -964,73 +1016,55 @@ where
         // 2. Get transform expressing target_frame in fixed_frame at target_time
         // 3. Compute: T_target_to_fixed.inverse() * T_source_to_fixed
         //
-        // process_get_transform(parent, child) returns "child expressed in
-        // parent", so process_get_transform(fixed, source) returns "source
-        // expressed in fixed".
-
+        // resolve(parent, child) returns "child expressed in parent", so
+        // resolve(fixed, source) returns "source expressed in fixed".
+        //
         // An endpoint coinciding with the fixed frame makes its leg the
         // identity, so no composition is needed; short-circuit those cases.
-        // Multiplying with an identity carrying parent == child ==
-        // fixed_frame is not an option: `Mul` rejects self-referential
-        // operands as `SameFrameMultiplication`.
-        if source_frame == fixed_frame && target_frame == fixed_frame {
-            return Ok(Transform::unvalidated(
-                target_frame.into(),
-                source_frame.into(),
-                Vector3::zero(),
-                Quaternion::identity(),
-                Stamp::At(target_time),
-            ));
-        }
-        if source_frame == fixed_frame {
-            // The answer is the target leg alone, inverted.
-            let result = Self::process_get_transform(fixed_frame, target_frame, target_time, data)?
-                .inverse()?;
-            return Ok(result.restamped(Stamp::At(target_time)));
-        }
-        if target_frame == fixed_frame {
-            // The answer is the source leg alone.
-            let result = Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
-            return Ok(result.restamped(Stamp::At(target_time)));
-        }
-
-        // Step 1: Get transform expressing source_frame in fixed_frame at source_time
-        let source_to_fixed =
-            Self::process_get_transform(fixed_frame, source_frame, source_time, data)?;
-
-        // Step 2: Get transform expressing target_frame in fixed_frame at target_time
-        let target_to_fixed =
-            Self::process_get_transform(fixed_frame, target_frame, target_time, data)?;
-
         // The two legs are deliberately resolved at different times — that
-        // is the point of the time-travel lookup — so they compose through
-        // the private time-agnostic path rather than `Mul`, whose timestamp
-        // check exists to catch *accidental* cross-time composition.
-        let result = target_to_fixed
-            .inverse()?
-            .compose_ignoring_time(source_to_fixed)?;
+        // is the point of the time-travel lookup — so they compose as bare
+        // geometry: `Transform`'s `Mul` would reject the unequal stamps, a
+        // check that exists to catch *accidental* cross-time composition.
+        let isometry = if source_frame == fixed_frame && target_frame == fixed_frame {
+            Isometry::identity()
+        } else if source_frame == fixed_frame {
+            // The answer is the target leg alone, inverted.
+            Self::resolve(fixed_frame, target_frame, target_time, data)?.inverse()?
+        } else if target_frame == fixed_frame {
+            // The answer is the source leg alone.
+            Self::resolve(fixed_frame, source_frame, source_time, data)?
+        } else {
+            let source_to_fixed = Self::resolve(fixed_frame, source_frame, source_time, data)?;
+            let target_to_fixed = Self::resolve(fixed_frame, target_frame, target_time, data)?;
+            target_to_fixed.inverse()? * source_to_fixed
+        };
 
         // The result carries the target time as per the API contract.
-        Ok(result.restamped(Stamp::At(target_time)))
+        Ok(Transform::unvalidated(
+            target_frame.into(),
+            source_frame.into(),
+            isometry.translation,
+            isometry.rotation,
+            Stamp::At(target_time),
+        ))
     }
 
-    /// Constructs a chain of transforms from a starting frame to a target
-    /// frame at a given timestamp, or `None` if the walk yields no
-    /// transforms. Diagnosing the reason is the caller's job
-    /// (`diagnose_not_found`).
+    /// Constructs a chain of hops from a starting frame to a target frame at
+    /// a given timestamp, or `None` if the walk yields no hops. Diagnosing
+    /// the reason is the caller's job (`diagnose_not_found`).
     ///
     /// A buffer lookup failing along the way ends the walk; the first such
     /// failure across all walks of one lookup is recorded in `walk_failure`.
     /// It can lie above the common ancestor, so it is reported only for
     /// disconnected endpoints, which have no connecting chain to re-sample.
-    fn get_transform_chain(
-        from: &str,
+    fn get_transform_chain<'a>(
+        from: &'a str,
         to: &str,
         timestamp: T,
-        data: &HashMap<String, Buffer<T>>,
+        data: &'a HashMap<String, Buffer<T>>,
         walk_failure: &mut Option<(String, GetError<T>)>,
-    ) -> Option<VecDeque<Transform<T>>> {
-        let mut transforms = VecDeque::new();
+    ) -> Option<Vec<Hop<'a>>> {
+        let mut hops = Vec::new();
         let mut current_frame = from;
 
         // The frame tree is acyclic by construction (cycles are rejected
@@ -1042,9 +1076,13 @@ where
             .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
         {
             match frame_buffer.get(timestamp) {
-                Ok(tf) => {
+                Ok(isometry) => {
+                    hops.push(Hop {
+                        parent,
+                        child: current_frame,
+                        isometry,
+                    });
                     current_frame = parent;
-                    transforms.push_back(tf);
                 }
                 Err(source) => {
                     if walk_failure.is_none() {
@@ -1061,21 +1099,21 @@ where
             }
         }
 
-        if transforms.is_empty() {
-            None
-        } else {
-            Some(transforms)
-        }
+        if hops.is_empty() { None } else { Some(hops) }
     }
 
-    /// Truncates two transform chains at their common parent frame to optimize the transformation computation.
+    /// Truncates two hop chains at their common parent frame to optimize the transformation computation.
+    ///
+    /// Hops are compared by child frame. A child frame has exactly one
+    /// buffer, so two hops with the same child are the same edge, sampled at
+    /// the same instant: the same hop.
     fn truncate_at_common_parent(
-        from_chain: &mut VecDeque<Transform<T>>,
-        to_chain: &mut VecDeque<Transform<T>>,
+        from_chain: &mut Vec<Hop<'_>>,
+        to_chain: &mut Vec<Hop<'_>>,
     ) {
         let mut start_idx = 0;
         for (i, j) in from_chain.iter().rev().zip(to_chain.iter().rev()) {
-            if i == j {
+            if i.child == j.child {
                 start_idx += 1;
             } else {
                 break;
@@ -1087,8 +1125,8 @@ where
         to_chain.truncate(to_chain.len() - start_idx);
     }
 
-    /// Combines the two half-chains of a lookup into the transform that
-    /// expresses `source` in `target`.
+    /// Combines the two half-chains of a lookup into the hop that expresses
+    /// `source` in `target`.
     ///
     /// Both arguments are walks *upward* from a frame toward the common
     /// ancestor, so each composes in its natural order into "that frame
@@ -1109,18 +1147,18 @@ where
     ///
     /// # Errors
     ///
-    /// * The `RegistryError` a failed transform operation converts into
-    fn combine_transforms(
-        target_chain: VecDeque<Transform<T>>,
-        source_chain: VecDeque<Transform<T>>,
-    ) -> Option<Result<Transform<T>, RegistryError<T>>> {
+    /// * The `RegistryError` a failed hop operation converts into
+    fn combine_transforms<'a>(
+        target_chain: &[Hop<'a>],
+        source_chain: &[Hop<'a>],
+    ) -> Option<Result<Hop<'a>, RegistryError<T>>> {
         let target = match Self::compose_chain(target_chain) {
             Ok(composed) => composed,
-            Err(e) => return Some(Err(e)),
+            Err(e) => return Some(Err(e.into())),
         };
         let source = match Self::compose_chain(source_chain) {
             Ok(composed) => composed,
-            Err(e) => return Some(Err(e)),
+            Err(e) => return Some(Err(e.into())),
         };
 
         match (target, source) {
@@ -1136,7 +1174,7 @@ where
         }
     }
 
-    /// Composes a chain walked upward from a frame into the single transform
+    /// Composes a chain walked upward from a frame into the single hop
     /// expressing that frame in the chain's topmost parent, or `None` for an
     /// empty chain.
     ///
@@ -1145,20 +1183,14 @@ where
     ///
     /// # Errors
     ///
-    /// * The `RegistryError` a failed composition converts into
-    fn compose_chain(
-        chain: VecDeque<Transform<T>>
-    ) -> Result<Option<Transform<T>>, RegistryError<T>> {
-        let mut iter = chain.into_iter();
-        let Some(mut composed) = iter.next() else {
+    /// * The `TransformError` a failed composition reports
+    fn compose_chain<'a>(chain: &[Hop<'a>]) -> Result<Option<Hop<'a>>, TransformError> {
+        let Some((first, rest)) = chain.split_first() else {
             return Ok(None);
         };
-
-        for transform in iter {
-            composed = (transform * composed)?;
-        }
-
-        Ok(Some(composed))
+        rest.iter()
+            .try_fold(*first, |composed, &hop| hop * composed)
+            .map(Some)
     }
 }
 

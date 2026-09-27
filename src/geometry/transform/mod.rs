@@ -8,9 +8,11 @@ use alloc::string::String;
 use approx::{AbsDiffEq, RelativeEq};
 use core::ops::Mul;
 pub use error::TransformError;
+pub(crate) use isometry::Isometry;
 pub use traits::{Localized, Transformable};
 
 mod error;
+mod isometry;
 mod traits;
 
 /// The accepted deviation of a rotation's norm from 1, applied by
@@ -251,6 +253,15 @@ where
         &self.child
     }
 
+    /// The numbers without the frames and stamp, for the arithmetic that
+    /// [`Isometry`] carries out on the transform's behalf.
+    pub(crate) fn isometry(&self) -> Isometry {
+        Isometry {
+            translation: self.translation,
+            rotation: self.rotation,
+        }
+    }
+
     /// Checks that the transform is usable for composition and lookup.
     ///
     /// A valid transform has finite translation and rotation components and a
@@ -390,34 +401,16 @@ where
             });
         }
 
-        from.clone()
-            .interpolate_to(to.translation, to.rotation, from_time, to_time, timestamp)
-    }
-
-    /// Interpolates geometry after the caller has checked frames, dynamic
-    /// stamps, and the requested range. The buffer stores those invariants
-    /// once per edge, so it can use the same arithmetic without rebuilding
-    /// a second transform and allocating its frame names.
-    pub(crate) fn interpolate_to(
-        mut self,
-        translation: Vector3,
-        rotation: Quaternion,
-        from_time: T,
-        to_time: T,
-        timestamp: T,
-    ) -> Result<Self, TransformError> {
-        let range = to_time.duration_since(from_time)?;
-        if range.is_zero() {
-            return Ok(self);
-        }
-
-        let diff = timestamp.duration_since(from_time)?;
-        let ratio = diff.as_secs_f64() / range.as_secs_f64();
-
-        self.translation = (1.0 - ratio) * self.translation + ratio * translation;
-        self.rotation = self.rotation.slerp(rotation, ratio);
-        self.timestamp = Stamp::At(timestamp);
-        Ok(self)
+        let isometry = from
+            .isometry()
+            .interpolate(to.isometry(), from_time, to_time, timestamp)?;
+        Ok(Self::unvalidated(
+            from.parent.clone(),
+            from.child.clone(),
+            isometry.translation,
+            isometry.rotation,
+            Stamp::At(timestamp),
+        ))
     }
 
     /// Computes the inverse of the transform: the same relationship read the
@@ -467,68 +460,45 @@ where
     /// assert_eq!(result.rotation(), Quaternion::identity());
     /// ```
     pub fn inverse(&self) -> Result<Self, TransformError> {
-        let q = self.rotation.normalize()?;
-        let inverse_rotation = q.conjugate();
-        let inverse_translation = -1.0 * (inverse_rotation.rotate_vector(self.translation));
-
-        if !inverse_translation.x.is_finite()
-            || !inverse_translation.y.is_finite()
-            || !inverse_translation.z.is_finite()
-        {
-            return Err(TransformError::NonFiniteValues);
-        }
-
+        let isometry = self.isometry().inverse()?;
         Ok(Self::unvalidated(
             self.child.clone(),
             self.parent.clone(),
-            inverse_translation,
-            inverse_rotation,
+            isometry.translation,
+            isometry.rotation,
             self.timestamp,
         ))
     }
+}
 
-    /// Replaces the stamp, for the registry's re-stamping of a resolved
-    /// chain: a lookup answers for the *requested* instant, whatever mix of
-    /// static and dynamic edges produced the answer.
-    #[must_use]
-    pub(crate) fn restamped(
-        mut self,
-        timestamp: Stamp<T>,
-    ) -> Self {
-        self.timestamp = timestamp;
-        self
+/// The frame rule of composition, shared by `Transform`'s `*` and the
+/// registry's lookup: `t_a_b * t_b_c` composes only when the left-hand child
+/// is the right-hand parent, and never onto the right-hand child itself.
+///
+/// # Errors
+///
+/// Returns [`TransformError::SameFrameMultiplication`] when the child frames
+/// match, and [`TransformError::IncompatibleFrames`] unless
+/// `lhs_child == rhs_parent`.
+pub(crate) fn ensure_composable(
+    lhs_child: &str,
+    rhs_parent: &str,
+    rhs_child: &str,
+) -> Result<(), TransformError> {
+    if lhs_child == rhs_child {
+        return Err(TransformError::SameFrameMultiplication {
+            frame: rhs_child.into(),
+        });
     }
 
-    /// Composes without the timestamp-agreement check, for callers that
-    /// deliberately combine transforms resolved at different times (the
-    /// time-travel lookup). Frame compatibility is still enforced. The
-    /// result carries `self`'s timestamp; the caller re-stamps it.
-    pub(crate) fn compose_ignoring_time(
-        self,
-        rhs: Transform<T>,
-    ) -> Result<Transform<T>, TransformError> {
-        if self.child == rhs.child {
-            return Err(TransformError::SameFrameMultiplication { frame: rhs.child });
-        }
-
-        if self.child != rhs.parent {
-            return Err(TransformError::IncompatibleFrames {
-                expected: self.child,
-                found: rhs.parent,
-            });
-        }
-
-        let rotation = self.rotation * rhs.rotation;
-        let translation = self.rotation.rotate_vector(rhs.translation) + self.translation;
-
-        Ok(Self::unvalidated(
-            self.parent,
-            rhs.child,
-            translation,
-            rotation,
-            self.timestamp,
-        ))
+    if lhs_child != rhs_parent {
+        return Err(TransformError::IncompatibleFrames {
+            expected: lhs_child.into(),
+            found: rhs_parent.into(),
+        });
     }
+
+    Ok(())
 }
 
 impl<T> Mul for Transform<T>
@@ -567,9 +537,16 @@ where
             }
         };
 
-        let mut result = self.compose_ignoring_time(rhs)?;
-        result.timestamp = timestamp;
-        Ok(result)
+        ensure_composable(&self.child, &rhs.parent, &rhs.child)?;
+
+        let isometry = self.isometry() * rhs.isometry();
+        Ok(Self::unvalidated(
+            self.parent,
+            rhs.child,
+            isometry.translation,
+            isometry.rotation,
+            timestamp,
+        ))
     }
 }
 

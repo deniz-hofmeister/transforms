@@ -1,9 +1,12 @@
 #[cfg(test)]
 mod registry_tests {
+    use super::super::Hop;
     use crate::{
         Registry, Transformable,
-        errors::RegistryError,
-        geometry::{Point, Quaternion, Transform, UNIT_NORM_TOLERANCE, Vector3},
+        errors::{RegistryError, TransformError},
+        geometry::{
+            Point, Quaternion, Transform, UNIT_NORM_TOLERANCE, Vector3, transform::Isometry,
+        },
         time::{Stamp, Timestamp},
     };
     use approx::assert_abs_diff_eq;
@@ -416,17 +419,54 @@ mod registry_tests {
 
         // Both walks climb through "b" to "a"; the shared "a -> b" hop is
         // dropped, leaving one hop on each side.
-        Registry::truncate_at_common_parent(&mut target, &mut source);
+        Registry::<Timestamp>::truncate_at_common_parent(&mut target, &mut source);
         assert_eq!(target.len(), 1);
         assert_eq!(source.len(), 1);
 
-        let result = Registry::combine_transforms(target, source)
+        let result = Registry::<Timestamp>::combine_transforms(&target, &source)
             .expect("chains are non-empty")
             .expect("combining the truncated chains must succeed");
 
-        assert_eq!(result.parent(), "d");
-        assert_eq!(result.child(), "c");
-        assert_eq!(result.translation(), Vector3::new(-1.0, 0.0, 0.0));
+        assert_eq!(result.parent, "d");
+        assert_eq!(result.child, "c");
+        assert_eq!(result.isometry.translation, Vector3::new(-1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn hops_follow_the_frame_rule_of_transform_composition() {
+        // A walk only builds hops that meet, so no lookup reaches these
+        // errors. Hops carry borrowed names instead of owned ones, and the
+        // rule must not be lost with the ownership: composing hops that do
+        // not meet would label geometry with frames it does not relate.
+        let hop = |parent, child| Hop {
+            parent,
+            child,
+            isometry: Isometry::identity(),
+        };
+
+        let result = hop("a", "b") * hop("c", "d");
+        assert!(
+            matches!(
+                &result,
+                Err(TransformError::IncompatibleFrames { expected, found })
+                    if expected == "b" && found == "c"
+            ),
+            "expected IncompatibleFrames, got {:?}",
+            result.map(|hop| (hop.parent, hop.child))
+        );
+
+        let result = hop("a", "b") * hop("b", "b");
+        assert!(
+            matches!(
+                &result,
+                Err(TransformError::SameFrameMultiplication { frame }) if frame == "b"
+            ),
+            "expected SameFrameMultiplication, got {:?}",
+            result.map(|hop| (hop.parent, hop.child))
+        );
+
+        let composed = (hop("a", "b") * hop("b", "c")).unwrap();
+        assert_eq!((composed.parent, composed.child), ("a", "c"));
     }
 
     #[test]
@@ -470,18 +510,18 @@ mod registry_tests {
         assert_eq!(target.len(), 4);
         assert_eq!(source.len(), 4);
 
-        Registry::truncate_at_common_parent(&mut target, &mut source);
+        Registry::<Timestamp>::truncate_at_common_parent(&mut target, &mut source);
         assert_eq!(target.len(), 1);
         assert_eq!(source.len(), 1);
 
-        let result = Registry::combine_transforms(target, source)
+        let result = Registry::<Timestamp>::combine_transforms(&target, &source)
             .expect("chains are non-empty")
             .expect("combining the truncated chains must succeed");
 
-        assert_eq!(result.parent(), "e");
-        assert_eq!(result.child(), "f");
+        assert_eq!(result.parent, "e");
+        assert_eq!(result.child, "f");
         // "e" sits at x=1 under "d", "f" at y=2: "f" expressed in "e".
-        assert_eq!(result.translation(), Vector3::new(-1.0, 2.0, 0.0));
+        assert_eq!(result.isometry.translation, Vector3::new(-1.0, 2.0, 0.0));
     }
 
     #[test]
