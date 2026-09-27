@@ -6,7 +6,7 @@ mod buffer_tests {
             buffer::{Coverage, GetError, InsertError},
         },
         errors::TransformError,
-        geometry::{Quaternion, Transform, Vector3},
+        geometry::{Quaternion, Transform, Vector3, transform::Isometry},
         time::{Stamp, Timestamp},
     };
     use core::time::Duration;
@@ -87,7 +87,7 @@ mod buffer_tests {
         let mut r = buffer.get(t);
 
         assert!(r.is_ok(), "expected transform, got {r:?}");
-        assert_eq!(r.unwrap(), transform);
+        assert_eq!(r.unwrap(), transform.isometry());
 
         r = buffer.get((t + Duration::from_secs(1)).unwrap());
         assert!(r.is_err(), "expected no transform, got {r:?}");
@@ -165,11 +165,11 @@ mod buffer_tests {
         let mut r = buffer.get(Timestamp::from_nanos(1_000_000_000));
 
         assert!(r.is_ok(), "expected transform, got {r:?}");
-        assert_eq!(r.unwrap(), transform);
+        assert_eq!(r.unwrap(), transform.isometry());
 
         r = buffer.get(Timestamp::zero());
         assert!(r.is_ok(), "expected transform, got {r:?}");
-        assert_eq!(r.unwrap(), transform);
+        assert_eq!(r.unwrap(), transform.isometry());
     }
 
     #[test]
@@ -185,14 +185,14 @@ mod buffer_tests {
             frames_transform("map", "base", Vector3::new(9.0, 9.0, 9.0), Stamp::Static);
         buffer.insert(recalibrated).unwrap();
 
-        assert_eq!(buffer.get(Timestamp::zero()).unwrap().translation().x, 9.0);
+        assert_eq!(buffer.get(Timestamp::zero()).unwrap().translation.x, 9.0);
         // The replacement is served at every instant, so the original is
         // stored nowhere: a static buffer holds one transform, not a history.
         assert_eq!(
             buffer
                 .get(Timestamp::from_nanos(9_000_000_000))
                 .unwrap()
-                .translation()
+                .translation
                 .x,
             9.0
         );
@@ -215,13 +215,12 @@ mod buffer_tests {
         // included.
         for i in 0..3u64 {
             let t = Timestamp::from_nanos(i * 1_000_000_000);
-            assert_eq!(buffer.get(t).unwrap().timestamp(), Stamp::At(t));
+            assert_eq!(buffer.get(t).unwrap(), create_transform(t).isometry());
         }
 
         // Interpolation across t = 0 works like any other span.
         let midpoint = Timestamp::from_nanos(500_000_000);
-        let interpolated = buffer.get(midpoint).unwrap();
-        assert_eq!(interpolated.timestamp(), Stamp::At(midpoint));
+        assert!(buffer.get(midpoint).is_ok());
     }
 
     #[test]
@@ -273,12 +272,11 @@ mod buffer_tests {
     }
 
     fn assert_sample(
-        (timestamp, sample): (&Timestamp, &crate::core::buffer::Sample),
+        (timestamp, sample): (&Timestamp, &Isometry),
         expected: &Transform,
     ) {
         assert_eq!(Stamp::At(*timestamp), expected.timestamp());
-        assert_eq!(sample.translation, expected.translation());
-        assert_eq!(sample.rotation, expected.rotation());
+        assert_eq!(*sample, expected.isometry());
     }
 
     #[test]
@@ -424,7 +422,7 @@ mod buffer_tests {
         ));
 
         // The static transform is still served after the rejected insert.
-        assert_eq!(buffer.get(t_dynamic).unwrap(), static_tf);
+        assert_eq!(buffer.get(t_dynamic).unwrap(), static_tf.isometry());
 
         // A dynamic buffer rejects static transforms.
         let mut buffer = Buffer::dynamic();
@@ -436,7 +434,7 @@ mod buffer_tests {
         ));
 
         // The dynamic transform is still served after the rejected insert.
-        assert_eq!(buffer.get(t_dynamic).unwrap(), dynamic_tf);
+        assert_eq!(buffer.get(t_dynamic).unwrap(), dynamic_tf.isometry());
     }
 
     #[test]
@@ -508,7 +506,7 @@ mod buffer_tests {
 
         assert_eq!(
             buffer.get(Timestamp::from_nanos(9_000_000_000)).unwrap(),
-            static_tf,
+            static_tf.isometry(),
             "static transforms must survive manual cleanup"
         );
     }
@@ -609,7 +607,7 @@ mod buffer_tests {
         // The original static transform must be untouched and retrievable.
         assert_eq!(
             buffer.get(Timestamp::from_nanos(1_000_000_000)).unwrap(),
-            original,
+            original.isometry(),
             "the pinned child's static transform must survive the rejected insert"
         );
     }
@@ -634,9 +632,7 @@ mod buffer_tests {
         ));
 
         // Interpolation over the pinned child's samples must keep working.
-        let result = buffer.get(t2).unwrap();
-        assert_eq!(result.child(), "base");
-        assert_eq!(result.timestamp(), Stamp::At(t2));
+        assert_eq!(buffer.get(t2).unwrap(), create_transform(t2).isometry());
     }
 
     #[test]
@@ -676,7 +672,7 @@ mod buffer_tests {
         buffer.insert(transform_with_x(t, 1.0)).unwrap();
         // Same timestamp, different payload: Ok, silently replaces.
         buffer.insert(transform_with_x(t, 2.0)).unwrap();
-        assert_eq!(buffer.get(t).unwrap().translation().x, 2.0);
+        assert_eq!(buffer.get(t).unwrap().translation.x, 2.0);
     }
 
     #[test]
@@ -692,7 +688,7 @@ mod buffer_tests {
         let mut buffer = Buffer::dynamic_with_max_age(Duration::ZERO);
         buffer.insert(transform_with_x(t2, 2.0)).unwrap();
         buffer.insert(transform_with_x(t1, 1.0)).unwrap();
-        assert_eq!(buffer.get(t2).unwrap().translation().x, 2.0);
+        assert_eq!(buffer.get(t2).unwrap().translation.x, 2.0);
         assert!(buffer.get(t1).is_err(), "older insert must be evicted");
     }
 
@@ -713,7 +709,7 @@ mod buffer_tests {
 
         // threshold = (t0 + max_age) - max_age = t0; eviction keeps
         // k >= threshold, so the sample exactly max_age old survives.
-        assert_eq!(buffer.get(t0).unwrap().translation().x, 1.0);
+        assert_eq!(buffer.get(t0).unwrap().translation.x, 1.0);
     }
 
     #[test]
@@ -733,6 +729,6 @@ mod buffer_tests {
             buffer.get(t0).is_err(),
             "sample older than max_age must be evicted"
         );
-        assert_eq!(buffer.get(t_past).unwrap().translation().x, 2.0);
+        assert_eq!(buffer.get(t_past).unwrap().translation.x, 2.0);
     }
 }

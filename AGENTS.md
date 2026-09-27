@@ -67,13 +67,17 @@ altitude. To place a proposed capability:
 
 - `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
   frame name, plus chain resolution between arbitrary frames.
-- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Sample>`
+- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Isometry>`
   holding dynamic geometry, with frames pinned once per buffer and timestamps
   in map keys; a static buffer holds one transform. Only
   `Registry` reaches it; it is not part of the public API.
 - `geometry` — `Transform` (translation + rotation + timestamp + parent/child
   frames), `Vector3`, `Quaternion`, and `Point` as the reference implementation
-  of the `Transformable`/`Localized` traits.
+  of the `Transformable`/`Localized` traits. All transform arithmetic —
+  composition, inversion, interpolation — lives once, on the crate-private
+  `Isometry` (translation + rotation); `Transform` checks frames and stamps
+  and delegates, and a lookup composes isometries along its walk with
+  borrowed frame names, materializing one `Transform` for the answer.
 - `time` — the `TimePoint` trait (`Copy + Ord + Debug` plus `duration_since`,
   `checked_sub`, `as_seconds_lossy` — nothing the core does not call) and the
   default `Timestamp` (u64 nanoseconds, ~584 years);
@@ -158,7 +162,9 @@ would produce) a silent wrong answer:
   for the duration of any query.
 - A lookup must return a transform whose `parent`/`child` match the requested
   frames exactly; a chain that resolves only partway must return an error,
-  never a partial result — `UnknownFrame` for a frame that exists nowhere,
+  never a partial result, and that error is decided on the frames before
+  any geometry is composed — a numeric failure on the partial chain must
+  not mask it — `UnknownFrame` for a frame that exists nowhere,
   `Disconnected` for two known frames no chain connects, and `NotFoundAt`
   for a known frame that cannot serve the requested time — carrying that
   frame, the `requested: T` instant, and `covered: Option<(T, T)>`, which
