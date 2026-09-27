@@ -180,7 +180,9 @@ where
     /// disconnection; see the error variants for payloads.
     ///
     /// Geometry or time operations can fail with [`RegistryError::TransformError`]
-    /// or [`RegistryError::NonFiniteValues`]. The result is not re-validated:
+    /// or [`RegistryError::NonFiniteValues`], but only on a chain that connects
+    /// the two frames: a lookup that cannot connect them reports why, whatever
+    /// the magnitudes on the part it walked. The result is not re-validated:
     /// inversion rejects an infinite translation, but a lookup toward an ancestor
     /// inverts nothing and can return an overflow as `Ok`. Call
     /// [`Transform::validate`] if inputs can reach such magnitudes.
@@ -898,81 +900,36 @@ where
             |chain: &[Hop<'_>], goal: &str| chain.last().is_some_and(|hop| hop.parent == goal);
 
         let mut walk_failure = None;
-        let target_chain =
+        let mut target_chain =
             Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
-
-        let result = match target_chain {
-            // `source` is an ancestor of `target`: the target-side chain
-            // spans the whole path, no source-side walk is needed.
-            Some(target_chain) if reached(&target_chain, source) => {
-                Self::combine_transforms(&target_chain, &[])
+        let mut source_chain = Vec::new();
+        // A target-side chain that reaches `source` spans the whole path:
+        // `source` is an ancestor of `target`, and no source-side walk is
+        // needed.
+        if !reached(&target_chain, source) {
+            source_chain =
+                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure);
+            // `target` is an ancestor of `source`: the source-side chain
+            // spans the whole path by itself, and the target-side walk only
+            // climbed away from it.
+            if reached(&source_chain, target) {
+                target_chain.clear();
             }
-            target_chain => match (
-                target_chain,
-                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure),
-            ) {
-                // `target` is an ancestor of `source`: the source-side chain
-                // spans the whole path by itself.
-                (_, Some(source_chain)) if reached(&source_chain, target) => {
-                    Self::combine_transforms(&[], &source_chain)
-                }
-                // Both chains ran to the root: drop the shared suffix above
-                // the common parent and combine the remainders.
-                (Some(mut target_chain), Some(mut source_chain)) => {
-                    Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
-                    // The two walks must meet at a common parent; otherwise
-                    // they stopped in different subtrees — an unknown frame,
-                    // a mid-chain timestamp gap, or disconnected trees — and
-                    // no transform exists at this time. Diagnose the failure
-                    // instead of letting the junction fail composition with
-                    // a misleading IncompatibleFrames.
-                    let connected = match (target_chain.last(), source_chain.last()) {
-                        (Some(target_top), Some(source_top)) => {
-                            target_top.parent == source_top.parent
-                        }
-                        _ => false,
-                    };
-                    if connected {
-                        Self::combine_transforms(&target_chain, &source_chain)
-                    } else {
-                        Some(Err(Self::diagnose_not_found(
-                            target,
-                            source,
-                            timestamp,
-                            data,
-                            &mut walk_failure,
-                        )))
-                    }
-                }
-                (Some(target_chain), None) => Self::combine_transforms(&target_chain, &[]),
-                (None, Some(source_chain)) => Self::combine_transforms(&[], &source_chain),
-                (None, None) => Some(Err(Self::diagnose_not_found(
-                    target,
-                    source,
-                    timestamp,
-                    data,
-                    &mut walk_failure,
-                ))),
-            },
         }
-        // Both walks empty without a recorded failure cannot happen today
-        // (every call site passes at least one non-empty chain), but if it
-        // ever does, it is a failed lookup and diagnosed as such.
-        .unwrap_or_else(|| {
-            Err(Self::diagnose_not_found(
-                target,
-                source,
-                timestamp,
-                data,
-                &mut walk_failure,
-            ))
-        })?;
+        // Where both walks ran on toward the root, drop the shared suffix
+        // above the common parent.
+        Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
 
-        // A chain can resolve without ever reaching the requested frame, for
-        // example when `source` does not exist in the tree and the walk
-        // stopped at the root instead. Verify the combined hop answers the
-        // exact question asked; otherwise report it as not found.
-        if result.parent != target || result.child != source {
+        // The halves answer the question only if they meet: each climbs from
+        // its endpoint (an empty half stays at it) to the same frame.
+        // Otherwise the walks stopped in different places — an unknown
+        // frame, a gap on the chain, or disconnected trees — and no
+        // transform exists at this time. That is decided on the frames alone,
+        // before any geometry is composed: a numeric failure in a chain that
+        // does not answer the question must not mask why it does not.
+        let target_top = target_chain.last().map_or(target, |hop| hop.parent);
+        let source_top = source_chain.last().map_or(source, |hop| hop.parent);
+        if target_top != source_top {
             return Err(Self::diagnose_not_found(
                 target,
                 source,
@@ -982,7 +939,12 @@ where
             ));
         }
 
-        Ok(result.isometry)
+        match Self::combine_transforms(&target_chain, &source_chain) {
+            Some(combined) => combined.map(|hop| hop.isometry),
+            // Two empty halves that meet start at the same frame: `target`
+            // is `source`, whose answer is the identity.
+            None => Ok(Isometry::identity()),
+        }
     }
 
     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
@@ -1050,8 +1012,8 @@ where
     }
 
     /// Constructs a chain of hops from a starting frame to a target frame at
-    /// a given timestamp, or `None` if the walk yields no hops. Diagnosing
-    /// the reason is the caller's job (`diagnose_not_found`).
+    /// a given timestamp; empty if the walk yields no hops. Diagnosing the
+    /// reason is the caller's job (`diagnose_not_found`).
     ///
     /// A buffer lookup failing along the way ends the walk; the first such
     /// failure across all walks of one lookup is recorded in `walk_failure`.
@@ -1063,7 +1025,7 @@ where
         timestamp: T,
         data: &'a HashMap<String, Buffer<T>>,
         walk_failure: &mut Option<(String, GetError<T>)>,
-    ) -> Option<Vec<Hop<'a>>> {
+    ) -> Vec<Hop<'a>> {
         let mut hops = Vec::new();
         let mut current_frame = from;
 
@@ -1099,7 +1061,7 @@ where
             }
         }
 
-        if hops.is_empty() { None } else { Some(hops) }
+        hops
     }
 
     /// Truncates two hop chains at their common parent frame to optimize the transformation computation.
@@ -1141,9 +1103,8 @@ where
     /// half and inverts nothing, so a single-hop lookup at a stored timestamp
     /// returns that stored transform bit for bit.
     ///
-    /// Returns `None` when both chains are empty — there is nothing to
-    /// combine, and the caller reports the lookup failure through
-    /// `diagnose_not_found`.
+    /// Returns `None` when both chains are empty: there is nothing to
+    /// combine. The caller has checked that the two halves meet.
     ///
     /// # Errors
     ///

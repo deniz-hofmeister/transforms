@@ -69,6 +69,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. Disconnected endpoints keep the documented precedence of a sampling
   failure over `Disconnected`. The new guarantee is documented on
   `NotFoundAt`.
+- A lookup between frames no chain connects could report
+  `RegistryError::NonFiniteValues` instead of `UnknownFrame`,
+  `Disconnected` or `NotFoundAt`. When the walk from `target` stopped short
+  of `source`, the partial chain was composed and inverted before the
+  lookup checked whether it answered the question, and over hops of
+  extreme magnitude that inversion overflowed first — so the variant
+  depended on argument order: `get_transform("b", "missing", t)` reported
+  an overflow where `get_transform("missing", "b", t)` reported the
+  unknown frame. The lookup now checks that the two halves of the walk
+  meet before it composes any geometry. Successful lookups are unchanged;
+  `NonFiniteValues` still arises from a connecting chain whose inversion
+  overflows.
 
 ## [2.1.3] - 2026-09-19
 

@@ -162,7 +162,9 @@ would produce) a silent wrong answer:
   for the duration of any query.
 - A lookup must return a transform whose `parent`/`child` match the requested
   frames exactly; a chain that resolves only partway must return an error,
-  never a partial result — `UnknownFrame` for a frame that exists nowhere,
+  never a partial result, and that error is decided on the frames before
+  any geometry is composed — a numeric failure on the partial chain must
+  not mask it — `UnknownFrame` for a frame that exists nowhere,
   `Disconnected` for two known frames no chain connects, and `NotFoundAt`
   for a known frame that cannot serve the requested time — carrying that
   frame, the `requested: T` instant, and `covered: Option<(T, T)>`, which

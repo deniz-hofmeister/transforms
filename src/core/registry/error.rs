@@ -36,7 +36,8 @@ where
     /// caught on the same boundary as [`NonUnitRotation`](Self::NonUnitRotation)
     /// — and, unlike that one, also reachable from a lookup: finite hops can
     /// compose to an infinite translation, which the inversion of the target
-    /// half rejects. A lookup that inverts nothing — the documented
+    /// half rejects. Only a chain that connects the requested frames gets
+    /// that far; a lookup that cannot connect them reports why instead. A lookup that inverts nothing — the documented
     /// ancestor-ward direction — does not check, and returns that
     /// translation as `Ok`; see
     /// [`Registry::get_transform`](crate::Registry::get_transform).

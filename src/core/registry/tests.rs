@@ -406,16 +406,12 @@ mod registry_tests {
         registry.add_transform(t_b_d).unwrap();
 
         let mut walk_failure = None;
-        let target_chain =
+        let mut target =
             Registry::get_transform_chain("d", "a", t, &registry.data, &mut walk_failure);
-        let source_chain =
+        let mut source =
             Registry::get_transform_chain("c", "a", t, &registry.data, &mut walk_failure);
-
-        assert!(target_chain.is_some());
-        assert!(source_chain.is_some());
-
-        let mut target = target_chain.unwrap();
-        let mut source = source_chain.unwrap();
+        assert_eq!(target.len(), 2);
+        assert_eq!(source.len(), 2);
 
         // Both walks climb through "b" to "a"; the shared "a -> b" hop is
         // dropped, leaving one hop on each side.
@@ -504,9 +500,9 @@ mod registry_tests {
 
         let mut walk_failure = None;
         let mut target =
-            Registry::get_transform_chain("e", "a", t, &registry.data, &mut walk_failure).unwrap();
+            Registry::get_transform_chain("e", "a", t, &registry.data, &mut walk_failure);
         let mut source =
-            Registry::get_transform_chain("f", "a", t, &registry.data, &mut walk_failure).unwrap();
+            Registry::get_transform_chain("f", "a", t, &registry.data, &mut walk_failure);
         assert_eq!(target.len(), 4);
         assert_eq!(source.len(), 4);
 
@@ -2216,6 +2212,60 @@ mod registry_tests {
         assert_eq!(
             ancestor_ward.translation(),
             Vector3::new(f64::INFINITY, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn a_lookup_that_cannot_connect_its_frames_reports_why_not_an_overflow() {
+        // Regression test: a target-side walk that stopped short of `source`
+        // was composed and inverted before the lookup checked whether it
+        // answered the question at all. Over hops of extreme magnitude that
+        // inversion failed first, so a lookup between frames no chain
+        // connects reported `NonFiniteValues` in place of the documented
+        // diagnosis — and which of the two arrived depended on the argument
+        // order. A caller told "numeric overflow" goes looking at data
+        // magnitudes, not at a missing frame or a stalled stream.
+        let t1 = Timestamp::from_nanos(1_000_000_000);
+        let t2 = Timestamp::from_nanos(2_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("root", "a", Stamp::At(t1), 1.0))
+            .unwrap();
+        registry
+            .add_transform(translated("a", "b", Stamp::Static, 1.0e308))
+            .unwrap();
+        registry
+            .add_transform(translated("b", "c", Stamp::Static, 1.0e308))
+            .unwrap();
+        registry
+            .add_transform(translated("island", "x", Stamp::Static, 1.0))
+            .unwrap();
+
+        // An unknown endpoint, in both argument orders.
+        for (target, source) in [("c", "missing"), ("missing", "c")] {
+            let result = registry.get_transform(target, source, t1);
+            assert!(
+                matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "missing"),
+                "expected UnknownFrame(missing) for ({target}, {source}), got {result:?}"
+            );
+        }
+
+        // A known root of another tree.
+        let result = registry.get_transform("c", "island", t1);
+        assert!(
+            matches!(result, Err(RegistryError::Disconnected { .. })),
+            "expected Disconnected, got {result:?}"
+        );
+
+        // A gap on the connecting chain: the walk from "c" stops at "a",
+        // whose only sample is at t1.
+        let result = registry.get_transform("c", "root", t2);
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::NotFoundAt { frame, covered: Some(_), .. }) if frame == "a"
+            ),
+            "expected NotFoundAt at a, got {result:?}"
         );
     }
 

@@ -433,6 +433,62 @@ proptest! {
     }
 
     #[test]
+    fn a_failed_lookup_is_diagnosed_the_same_whatever_the_geometry(
+        // The random tree of the property above, plus a disconnected island
+        // and a frame that exists nowhere. It is built twice: with unit
+        // translations, where no chain can overflow and every error is a
+        // diagnosis, and with translations whose sum over two hops
+        // overflows. A partial chain's geometry must not change the
+        // diagnosis — it answers nothing.
+        edges in proptest::collection::vec((0_usize..100, 0_u64..100, 0_u64..100), 1..8),
+        picks in (0_usize..100, 0_usize..100),
+        requested in 0_u64..200,
+    ) {
+        let build = |x: f64| {
+            let mut registry = Registry::new();
+            for (i, (parent, start, span)) in edges.iter().enumerate() {
+                for nanos in [*start, start + span] {
+                    let transform = Transform::new(
+                        &format!("f{}", parent % (i + 1)),
+                        &format!("f{}", i + 1),
+                        Vector3::new(x, 0.0, 0.0),
+                        Quaternion::identity(),
+                        Stamp::At(Timestamp::from_nanos(nanos)),
+                    )
+                    .unwrap();
+                    registry.add_transform(transform).unwrap();
+                }
+            }
+            let island = Transform::static_between(
+                "island",
+                "g",
+                Vector3::new(x, 0.0, 0.0),
+                Quaternion::identity(),
+            )
+            .unwrap();
+            registry.add_transform(island).unwrap();
+            registry
+        };
+        let (unit, extreme) = (build(1.0), build(1.0e308));
+
+        let mut frames: Vec<String> = (0..=edges.len()).map(|i| format!("f{i}")).collect();
+        frames.extend(["island".into(), "g".into(), "missing".into()]);
+        let (a, b) = (&frames[picks.0 % frames.len()], &frames[picks.1 % frames.len()]);
+        let requested = Timestamp::from_nanos(requested);
+
+        if let Err(diagnosis) = unit.get_transform(a, b, requested) {
+            let result = extreme.get_transform(a, b, requested);
+            prop_assert_eq!(
+                format!("{result:?}"),
+                format!("{:?}", Err::<(), _>(diagnosis)),
+                "the lookup ({}, {}) must fail the same way over extreme geometry",
+                a,
+                b
+            );
+        }
+    }
+
+    #[test]
     fn random_inserts_and_re_parents_keep_the_tree_walkable(
         // Each op is (re-parent?, parent frame, child frame, instant). Most
         // of the re-parents are rejected — an unknown frame, a root, an
