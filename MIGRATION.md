@@ -27,6 +27,10 @@ apply the changes below. The current API is documented on
 - Since 2.2.0, a `NotFoundAt` between connected frames names an edge the
   connecting chain crosses. Earlier releases could name a failing edge above
   the common ancestor, which the lookup never needed.
+- Since 2.2.0, a lookup between frames no chain connects reports
+  `UnknownFrame`, `Disconnected` or `NotFoundAt` even when the part of the
+  tree it walked overflows. Earlier releases could report `NonFiniteValues`
+  there, depending on the argument order.
 
 ## Coming from 1.x
 

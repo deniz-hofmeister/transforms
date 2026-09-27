@@ -165,7 +165,9 @@ measurements and reproduction commands. Run `cargo bench` for benchmarks.
 
 2.2.0 adds `Registry::reparent_frame`, atomic re-parenting at the price of the
 moved frame's stored history, with the `NoParentToReplace` and
-`ParentUnchanged` error variants. 2.1.3 reduced dynamic-history memory use and
+`ParentUnchanged` error variants. Its lookups allocate frame names once per
+result instead of per hop, name a failing edge on the connecting chain, and
+report why frames cannot be connected instead of a numeric overflow. 2.1.3 reduced dynamic-history memory use and
 lookup allocations, and shortened and corrected the documentation, changing no
 public API, serialization, or numerical behavior. See the
 [changelog](CHANGELOG.md) for earlier releases.
