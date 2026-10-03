@@ -41,6 +41,33 @@ jobs:
       - name: Run the verification gate
         run: tests/test_all.sh
 
+  # The AI disclosure rule (AGENTS.md, "Commits and disclosure"), checked on
+  # every new commit by the same script that runs as the local commit-msg
+  # hook. No agent environment exists here, so only AI marks in a message
+  # hold it to the rule; the local hooks are what catch an unmarked one.
+  commits:
+    name: commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check AI disclosure trailers
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A new branch or a force push leaves no usable base: check HEAD alone.
+          range="$BASE..$HEAD"
+          git cat-file -e "$BASE^{commit}" 2>/dev/null || range="-1 $HEAD"
+          for commit in $(git rev-list $range); do
+            git log -1 --format=%B "$commit" > "$RUNNER_TEMP/message"
+            .githooks/commit-msg "$RUNNER_TEMP/message" || {
+              echo "::error::commit $commit fails the AI disclosure rule"
+              exit 1
+            }
+          done
+
   formatting:
     name: formatting
     runs-on: ubuntu-latest

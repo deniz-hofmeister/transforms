@@ -1,0 +1,113 @@
+#!/bin/sh
+# Pre-command hook for AI agent harnesses (AGENTS.md, "Commits and
+# disclosure"), wired in .claude/settings.json, .codex/config.toml and
+# .cursor/hooks.json. Usage: agent-guard <Claude|Codex|Cursor>, with the
+# harness's hook input on stdin. It blocks:
+#
+# - any command that changes core.hooksPath, other than enabling .githooks;
+# - a git commit while .githooks is not enabled, or one that skips it
+#   (--no-verify, -n);
+# - a git commit whose command line lacks `Assisted-by: <Agent>:<model>`
+#   naming the running model, or that names another model for this agent;
+# - a git commit adding Signed-off-by.
+#
+# The running model comes from the harness, never from configuration: Codex
+# and Cursor pass it in the hook input, Claude Code records it in the session
+# transcript. .githooks/commit-msg checks the final message whichever agent
+# commits; this hook adds what only the harness knows. The input is matched
+# as raw JSON text, so plain sh, grep and sed are all it needs.
+agent=$1
+input=$(cat)
+
+allow() {
+    [ "$agent" = Cursor ] && printf '{"permission":"allow"}\n'
+    exit 0
+}
+
+block() {
+    reason="blocked by .githooks/agent-guard: $1 (see AGENTS.md, \"Commits and disclosure\")"
+    if [ "$agent" = Cursor ]; then
+        # Cursor reads its verdict from JSON on stdout.
+        json=
+        while IFS= read -r line; do
+            json="${json:+$json\\n}$line"
+        done <<EOF
+$(printf '%s\n' "$reason" | sed 's/\\/\\\\/g; s/"/\\"/g')
+EOF
+        printf '{"permission":"deny","user_message":"%s","agent_message":"%s"}\n' "$json" "$json"
+        exit 0
+    fi
+    printf '%s\n' "$reason" >&2
+    exit 2
+}
+
+has() { printf '%s' "$input" | grep -Eq -e "$1"; }
+
+# First "name":"value" string field in the input; escaped quotes inside the
+# command text never match, so this finds the harness's own fields.
+field() {
+    printf '%s' "$input" | grep -o "\"$1\":\"[^\"]*\"" | head -n 1 |
+        sed "s/^\"$1\":\"//; s/\"\$//"
+}
+
+case $agent in
+    Claude | Codex | Cursor) ;;
+    *) block "unknown agent '$agent'; expected Claude, Codex or Cursor" ;;
+esac
+
+# core.hooksPath: reading it, or setting it to .githooks, are the only uses.
+# Only `config ... core.hooksPath [value]` and `-c core.hooksPath=value` count,
+# so prose that mentions the setting in a commit message does not.
+value='([^[:space:];&|"\\`]|\\.)'
+uses="config([[:space:]]+(set|unset|--?[[:alnum:]-]+))*[[:space:]]+core\\.hookspath([[:space:]]+$value+)?|-c[[:space:]]+core\\.hookspath=$value*"
+allowed='config([[:space:]]+(set|--get|--global|--local|--worktree))*[[:space:]]+core\.hookspath([[:space:]]+\.githooks)?|-c[[:space:]]+core\.hookspath=\.githooks'
+printf '%s' "$input" | grep -oiE "$uses" | sed 's/\\"//g; s/["'"'"']//g' |
+    grep -viqxE "$allowed" &&
+    block "core.hooksPath may only be set to .githooks: \`git config core.hooksPath .githooks\`"
+
+# Not a commit: nothing more to check. `commit-tree` and the like do not match.
+has '(^|[^[:alnum:]_-])git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)*[[:space:]]+commit([^[:alnum:]_-]|$)' || allow
+
+[ "$(git config --get core.hooksPath)" = .githooks ] ||
+    block "the commit hooks are not enabled; run \`git config core.hooksPath .githooks\` first"
+
+# The commit's own options, up to the first line break or chained command;
+# `head -n` elsewhere in a pipeline is not `git commit -n`.
+options=$(printf '%s' "$input" |
+    sed -n 's/.*git\([[:space:]]\{1,\}-[cC][[:space:]]\{1,\}[^[:space:]]\{1,\}\)*[[:space:]]\{1,\}commit\(.*\)/\2/p' |
+    sed 's/\\n.*//; s/&&.*//; s/||.*//; s/;.*//; s/|.*//')
+if has '(^|[[:space:]])--no-verify([[:space:]"]|$)' ||
+    printf '%s' "$options" | grep -Eq '(^|[[:space:]])-[[:alpha:]]*n[[:alpha:]]*([[:space:]"]|$)'; then
+    block "a commit must not skip the commit hooks"
+fi
+if has '(^|[[:space:]])--signoff([[:space:]"]|$)|(\\n|["'"'"'])Signed-off-by:' ||
+    printf '%s' "$options" | grep -Eq '(^|[[:space:]])-[[:alpha:]]*s[[:alpha:]]*([[:space:]"]|$)'; then
+    block "an AI agent must never add Signed-off-by; only humans certify a contribution's origin"
+fi
+
+case $agent in
+    Claude)
+        transcript=$(field transcript_path)
+        [ -r "$transcript" ] || block "the session transcript is unreadable, so the running model is unknown"
+        model=$(grep -o '"model":"claude-[^"]*"' "$transcript" | tail -n 1 |
+            sed 's/^"model":"//; s/"$//')
+        ;;
+    Codex) model=$(field model) ;;
+    Cursor)
+        model=$(field model_id)
+        [ -n "$model" ] || model=$(field model)
+        ;;
+esac
+[ -n "$model" ] || block "the running model is unknown to the hook; retry the commit"
+printf '%s' "$model" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9._/+@-]*' ||
+    block "the running model '$model' is not a valid trailer value; ask the maintainer"
+trailer="Assisted-by: $agent:$model"
+
+printf '%s' "$input" | grep -Fq "$trailer" ||
+    block "the commit message must be given on the command line (-m or a heredoc) and end with the trailer line
+  $trailer"
+printf '%s' "$input" | grep -o "Assisted-by: $agent:[A-Za-z0-9._/+@-]*" | grep -vqFx "$trailer" &&
+    block "the message names a model other than the running one; keep only
+  $trailer"
+
+allow

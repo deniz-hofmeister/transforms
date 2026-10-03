@@ -368,12 +368,28 @@ when relevant. Documentation drift is a bug.
   Assisted-by: <AgentName>:<model-version>
   ```
 
-  for example `Assisted-by: Claude:claude-fable-5`. This is assistance, not
-  authorship: an AI agent must never add `Signed-off-by:` (only humans can
-  certify the origin of a contribution). Harness-added trailers may coexist,
-  but `Assisted-by:` must be present. The human maintainer reviews and takes
-  responsibility for every merged line; see the "AI-Assisted Development"
-  section of the README.
+  for example `Assisted-by: Claude:claude-fable-5`. The model is the exact
+  model ID you are running as — never one copied from this file, an earlier
+  commit, or a config. This is assistance, not authorship: an AI agent must
+  never add `Signed-off-by:` (only humans can certify the origin of a
+  contribution). Harness-added trailers may coexist, but `Assisted-by:` must
+  be present. The human maintainer reviews and takes responsibility for every
+  merged line; see the "AI-Assisted Development" section of the README.
+- The rule is enforced, not requested. Enable the repository's hooks once
+  per clone with `git config core.hooksPath .githooks`. `.githooks/commit-msg`
+  checks the final message of every commit an AI agent makes (detected from
+  the environment variables agents set) or that carries an AI mark: it needs
+  a well-formed `Assisted-by:` trailer, and an agent's commit must not carry
+  `Signed-off-by:`. CI runs the same script on every new commit. In Claude
+  Code, Codex, and Cursor, `.githooks/agent-guard` also runs before every
+  shell command (wired in `.claude/settings.json`, `.codex/config.toml`, and
+  `.cursor/hooks.json`): it blocks a commit unless its command line carries
+  the trailer naming the running model, which it reads from the harness, and
+  blocks commits while the hooks are disabled, `--no-verify`, and any other
+  change to `core.hooksPath`. Give the message with `-m` or a heredoc; a
+  message the guard cannot see (`-F`, `--amend --no-edit`) is blocked. Never
+  disable, edit, or route around these hooks unless the maintainer explicitly
+  asks.
 
 ## When in doubt
 
