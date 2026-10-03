@@ -7,6 +7,7 @@ invariants, and the verification gate. Read it before writing code;
 
 ## Workflow
 
+- Enable the commit hooks once per clone: `git config core.hooksPath .githooks`.
 - Branch names: `bugfix/<topic>`, `feature/<topic>`, `docs/<topic>`
   (kebab-case).
 - Commit messages: imperative summary line, then a body explaining *why* the

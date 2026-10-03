@@ -1,0 +1,57 @@
+#!/bin/sh
+# git commit-msg hook and CI check for the AI disclosure rule (AGENTS.md,
+# "Commits and disclosure"). Enable it once per clone:
+#
+#   git config core.hooksPath .githooks
+#
+# A commit is held to the rule when an AI agent is committing, detected from
+# the environment variables agents set, or when its message carries an AI
+# mark. Such a commit needs a well-formed `Assisted-by: <Agent>:<model>`
+# trailer, and an agent committing must not add Signed-off-by. A human's own
+# unmarked commit passes untouched. CI runs this script on every commit it
+# checks; no agent environment exists there, so only the marks count — and a
+# human's Signed-off-by on an assisted commit is legitimate.
+#
+# Usage: commit-msg <message-file>
+
+# The message as git will store it: no comment lines, nothing below scissors.
+msg=$(sed -e '/^# -\{24\} >8 -\{24\}$/,$d' -e '/^#/d' "$1") || exit 1
+
+# Variables agents set in the shells they run commands in. Vars a human's
+# editor terminal also carries (CURSOR_TRACE_ID) are deliberately absent.
+agent=
+for var in AI_AGENT CLAUDECODE CLAUDE_CODE CODEX_THREAD_ID CODEX_SANDBOX \
+    CODEX_CI CURSOR_AGENT GEMINI_CLI COPILOT_MODEL OPENCODE_CLIENT \
+    AUGMENT_AGENT ANTIGRAVITY_AGENT; do
+    eval "value=\${$var-}"
+    if [ -n "$value" ]; then
+        agent=$var
+        break
+    fi
+done
+[ "${CURSOR_EXTENSION_HOST_ROLE-}" = agent-exec ] && agent=CURSOR_EXTENSION_HOST_ROLE
+
+marks='^assisted-by:|^co-authored-by:.*(anthropic|openai|cursor|copilot|gemini|claude|codex)|generated with \[?claude code'
+if [ -z "$agent" ] && ! printf '%s\n' "$msg" | grep -Eiq "$marks"; then
+    exit 0
+fi
+
+fail() {
+    printf 'commit-msg: %s (see AGENTS.md, "Commits and disclosure")\n' "$1" >&2
+    exit 1
+}
+
+why=${agent:+"an AI agent is committing (\$$agent is set)"}
+why=${why:-"the message carries an AI mark"}
+
+trailer='^Assisted-by: [A-Za-z][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._/+@-]*([[:space:]].*)?$'
+printf '%s\n' "$msg" | grep -Eq "$trailer" ||
+    fail "$why, so the message needs an \`Assisted-by: <Agent>:<model>\` trailer"
+printf '%s\n' "$msg" | grep -Ei '^assisted-by:' | grep -Evq "$trailer" &&
+    fail "malformed Assisted-by trailer; the form is \`Assisted-by: <Agent>:<model>\`"
+
+if [ -n "$agent" ] && printf '%s\n' "$msg" | grep -Eiq '^signed-off-by:'; then
+    fail "an AI agent must never add Signed-off-by; only humans certify a contribution's origin"
+fi
+
+exit 0

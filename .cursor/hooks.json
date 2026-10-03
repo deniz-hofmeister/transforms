@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".githooks/agent-guard Cursor",
+        "failClosed": true
+      }
+    ]
+  }
+}
