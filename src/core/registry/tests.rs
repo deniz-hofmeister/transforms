@@ -3732,4 +3732,56 @@ mod registry_tests {
             "expected the moved frame to still be static, got {result:?}"
         );
     }
+    #[test]
+    fn a_failed_batch_does_not_leave_edges_or_evictions_behind() {
+        let mut registry = Registry::with_max_age(Duration::from_nanos(10));
+        let sample = |parent, child, ns, x| {
+            Transform::new(
+                parent,
+                child,
+                Vector3::new(x, 0.0, 0.0),
+                Quaternion::identity(),
+                Stamp::At(Timestamp::from_nanos(ns)),
+            )
+            .unwrap()
+        };
+        registry
+            .add_transform(sample("map", "base", 1, 1.0))
+            .unwrap();
+        let result = registry.add_transforms([
+            sample("map", "base", 100, 2.0),
+            sample("base", "camera", 100, 3.0),
+            sample("camera", "map", 100, 4.0),
+        ]);
+        assert!(matches!(result, Err(RegistryError::CycleDetected)));
+        assert_abs_diff_eq!(
+            registry
+                .get_transform("map", "base", Timestamp::from_nanos(1))
+                .unwrap()
+                .translation()
+                .x,
+            1.0,
+            epsilon = 1e-12
+        );
+        assert!(
+            registry
+                .get_transform("base", "camera", Timestamp::from_nanos(100))
+                .is_err()
+        );
+        registry
+            .add_transforms([
+                sample("map", "base", 2, 2.0),
+                sample("base", "camera", 2, 3.0),
+            ])
+            .unwrap();
+        assert_abs_diff_eq!(
+            registry
+                .get_transform("map", "camera", Timestamp::from_nanos(2))
+                .unwrap()
+                .translation()
+                .x,
+            5.0,
+            epsilon = 1e-12
+        );
+    }
 }

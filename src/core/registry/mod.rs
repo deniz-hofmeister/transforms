@@ -159,6 +159,25 @@ where
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
+    /// Inserts a batch atomically. An invalid transform leaves the registry unchanged.
+    ///
+    /// # Errors
+    /// Returns the first error from [`Registry::add_transform`].
+    pub fn add_transforms(
+        &mut self,
+        transforms: impl IntoIterator<Item = Transform<T>>,
+    ) -> Result<(), RegistryError<T>> {
+        let mut next = Self {
+            data: self.data.clone(),
+            max_age: self.max_age,
+        };
+        for transform in transforms {
+            next.add_transform(transform)?;
+        }
+        *self = next;
+        Ok(())
+    }
+
     /// Maps `source`-frame coordinates into `target` at `timestamp`.
     ///
     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
