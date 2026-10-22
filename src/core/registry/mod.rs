@@ -91,7 +91,7 @@ impl<'a> Mul for Hop<'a> {
 /// `Registry<T>` is `Send` and `Sync` when `T` is. An external `RwLock` permits
 /// concurrent readers; writers need exclusive access, and readers may wait for
 /// writers. Keep dependent queries under one guard.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Registry<T = Timestamp>
 where
     T: TimePoint,
@@ -157,6 +157,22 @@ where
         t: Transform<T>,
     ) -> Result<(), RegistryError<T>> {
         Self::process_add_transform(t, &mut self.data, self.max_age)
+    }
+
+    /// Inserts a batch atomically. An invalid transform leaves the registry unchanged.
+    ///
+    /// # Errors
+    /// Returns the first error from [`Registry::add_transform`].
+    pub fn add_transforms(
+        &mut self,
+        transforms: impl IntoIterator<Item = Transform<T>>,
+    ) -> Result<(), RegistryError<T>> {
+        let mut next = self.clone();
+        for transform in transforms {
+            next.add_transform(transform)?;
+        }
+        *self = next;
+        Ok(())
     }
 
     /// Maps `source`-frame coordinates into `target` at `timestamp`.

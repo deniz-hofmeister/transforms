@@ -44,6 +44,7 @@ type NearestTransforms<'a, T> = (Option<(&'a T, &'a Isometry)>, Option<(&'a T, &
 /// than `max_age` relative to the latest inserted timestamp are removed
 /// automatically on insert. A buffer created with [`Buffer::dynamic`] never
 /// expires entries; use [`Buffer::remove_before`] for manual cleanup.
+#[derive(Clone)]
 pub(crate) struct Buffer<T = Timestamp>
 where
     T: TimePoint,
@@ -118,6 +119,7 @@ where
 /// a time series of dynamic samples. Keeping the kind structural — instead
 /// of a flag re-derived from the stored data — makes it impossible for a
 /// buffer to change kind when it is emptied and refilled.
+#[derive(Clone)]
 enum Kind<T>
 where
     T: TimePoint,
