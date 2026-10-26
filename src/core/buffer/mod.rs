@@ -291,24 +291,7 @@ where
         &mut self,
         transform: Transform<T>,
     ) -> Result<(), InsertError> {
-        transform.validate().map_err(InsertError::Invalid)?;
-
-        if transform.parent() == transform.child() {
-            return Err(InsertError::SelfReferentialFrame);
-        }
-        if let Some(parent) = &self.parent {
-            if parent != transform.parent() {
-                return Err(InsertError::ReparentingNotSupported(parent.clone()));
-            }
-        }
-        if let Some(child) = &self.child {
-            if child != transform.child() {
-                return Err(InsertError::ChildFrameMismatch {
-                    pinned: child.clone(),
-                    found: transform.child().into(),
-                });
-            }
-        }
+        self.check(&transform)?;
 
         // Captured before the transform is moved into storage; applied only
         // after the insert is accepted, so a rejected transform cannot pin
@@ -337,6 +320,8 @@ where
                 data.insert(timestamp, transform.isometry());
                 remove_expired(data, *latest_timestamp, *max_age);
             }
+            // Already refused by `check`; repeated rather than assumed, so
+            // a broken check fails loudly instead of dropping the transform.
             _ => return Err(InsertError::StaticDynamicConflict),
         }
 
@@ -346,6 +331,48 @@ where
         }
 
         Ok(())
+    }
+
+    /// Runs the checks of [`Buffer::insert`], in the same order, without
+    /// storing anything.
+    ///
+    /// None of the checks reads the stored samples, and once the first
+    /// insert has pinned the frames, no insert changes the pins or the kind
+    /// they compare against. A transform this accepts for a pinned buffer
+    /// is therefore accepted by [`Buffer::insert`] for as long as the
+    /// buffer exists, whatever is inserted in between — which is what lets
+    /// `Registry::add_transforms` check a whole batch before storing any of
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Buffer::insert`].
+    pub fn check(
+        &self,
+        transform: &Transform<T>,
+    ) -> Result<(), InsertError> {
+        transform.validate().map_err(InsertError::Invalid)?;
+
+        if transform.parent() == transform.child() {
+            return Err(InsertError::SelfReferentialFrame);
+        }
+        if let Some(parent) = &self.parent {
+            if parent != transform.parent() {
+                return Err(InsertError::ReparentingNotSupported(parent.clone()));
+            }
+        }
+        if let Some(child) = &self.child {
+            if child != transform.child() {
+                return Err(InsertError::ChildFrameMismatch {
+                    pinned: child.clone(),
+                    found: transform.child().into(),
+                });
+            }
+        }
+        match (&self.kind, transform.timestamp()) {
+            (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
+            _ => Err(InsertError::StaticDynamicConflict),
+        }
     }
 
     /// Retrieves the edge's geometry at the specified timestamp.

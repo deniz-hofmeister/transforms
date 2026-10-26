@@ -3732,4 +3732,192 @@ mod registry_tests {
             "expected the moved frame to still be static, got {result:?}"
         );
     }
+
+    #[test]
+    fn a_batch_can_hang_frames_from_a_frame_it_creates() {
+        let t = Stamp::At(Timestamp::from_nanos(1));
+        let mut registry = Registry::new();
+        registry
+            .add_transforms([
+                translated("map", "base", t, 1.0),
+                translated("base", "lidar", t, 2.0),
+            ])
+            .unwrap();
+
+        let transform = registry
+            .get_transform("map", "lidar", Timestamp::from_nanos(1))
+            .unwrap();
+        assert_eq!(transform.translation(), Vector3::new(3.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn a_failed_batch_leaves_no_edge_or_eviction_behind() {
+        let (t1, t100) = (Timestamp::from_nanos(1), Timestamp::from_nanos(100));
+        let mut registry = Registry::with_max_age(Duration::from_nanos(10));
+        registry
+            .add_transform(translated("map", "base", Stamp::At(t1), 1.0))
+            .unwrap();
+
+        // The first transform alone would evict the sample at t1; the
+        // third closes a cycle through the frame the second creates.
+        let result = registry.add_transforms([
+            translated("map", "base", Stamp::At(t100), 2.0),
+            translated("base", "camera", Stamp::At(t100), 3.0),
+            translated("camera", "map", Stamp::At(t100), 4.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::CycleDetected)),
+            "expected CycleDetected, got {result:?}"
+        );
+
+        assert_eq!(
+            registry
+                .get_transform("map", "base", t1)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+        let result = registry.get_transform("map", "base", t100);
+        assert!(
+            matches!(result, Err(RegistryError::NotFoundAt { .. })),
+            "the batch's sample must not be stored, got {result:?}"
+        );
+        let result = registry.get_transform("base", "camera", t100);
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "camera"),
+            "the batch's new frame must not be stored, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn a_batch_rejects_a_second_parent_for_a_frame_it_creates() {
+        let t = Stamp::At(Timestamp::from_nanos(1));
+        let mut registry = Registry::new();
+        let result = registry.add_transforms([
+            translated("map", "base", t, 1.0),
+            translated("odom", "base", t, 1.0),
+        ]);
+        assert!(
+            matches!(
+                &result,
+                Err(RegistryError::ReparentingNotSupported { current_parent }) if current_parent == "map"
+            ),
+            "expected ReparentingNotSupported naming map, got {result:?}"
+        );
+        assert!(
+            registry
+                .get_transform("map", "base", Timestamp::from_nanos(1))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_batch_rejects_mixing_kinds_for_a_frame_it_creates() {
+        let mut registry = Registry::new();
+        let result = registry.add_transforms([
+            translated("map", "base", Stamp::Static, 1.0),
+            translated("map", "base", Stamp::At(Timestamp::from_nanos(1)), 1.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "expected StaticDynamicConflict, got {result:?}"
+        );
+        assert!(
+            registry
+                .get_transform("map", "base", Timestamp::from_nanos(1))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_batch_rejects_a_kind_conflict_with_a_stored_frame() {
+        let t = Timestamp::from_nanos(1);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "base", Stamp::Static, 1.0))
+            .unwrap();
+
+        let result = registry.add_transforms([
+            translated("base", "lidar", Stamp::At(t), 2.0),
+            translated("map", "base", Stamp::At(t), 5.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::StaticDynamicConflict)),
+            "expected StaticDynamicConflict, got {result:?}"
+        );
+        assert!(registry.get_transform("base", "lidar", t).is_err());
+        assert_eq!(
+            registry
+                .get_transform("map", "base", t)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn a_batch_reports_the_first_rejection_in_order() {
+        let t = Stamp::At(Timestamp::from_nanos(1));
+        // Unusable numbers; the constructors refuse them, so the
+        // crate-internal escape hatch builds the transform.
+        let non_finite = Transform::unvalidated(
+            "map".into(),
+            "base".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            t,
+        );
+        let mut registry = Registry::new();
+        let result = registry.add_transforms([
+            translated("map", "odom", t, 1.0),
+            non_finite,
+            translated("odom", "odom", t, 1.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::NonFiniteValues)),
+            "expected the earlier NonFiniteValues, got {result:?}"
+        );
+        assert!(
+            registry
+                .get_transform("map", "odom", Timestamp::from_nanos(1))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_batch_keeps_the_last_of_repeated_samples() {
+        let t = Timestamp::from_nanos(1);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "base", Stamp::At(t), 1.0))
+            .unwrap();
+
+        registry
+            .add_transforms([
+                translated("map", "base", Stamp::At(t), 2.0),
+                translated("map", "base", Stamp::At(t), 3.0),
+                translated("base", "lidar", Stamp::Static, 4.0),
+                translated("base", "lidar", Stamp::Static, 5.0),
+            ])
+            .unwrap();
+
+        assert_eq!(
+            registry
+                .get_transform("map", "lidar", t)
+                .unwrap()
+                .translation(),
+            Vector3::new(8.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn an_empty_batch_changes_nothing() {
+        let mut registry: Registry = Registry::new();
+        registry.add_transforms([]).unwrap();
+        let result = registry.get_transform("map", "base", Timestamp::from_nanos(1));
+        assert!(
+            matches!(result, Err(RegistryError::UnknownFrame(_))),
+            "expected an empty registry, got {result:?}"
+        );
+    }
 }

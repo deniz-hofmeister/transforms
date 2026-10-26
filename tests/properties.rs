@@ -101,6 +101,69 @@ fn same_rotation(
     (rotation_dot(a, b).abs() - 1.0).abs() < EPSILON
 }
 
+/// One insert for the batch property: (parent, child, static?, instant,
+/// translation, overflowed?) over frames `f0..f6`. Self-references, second
+/// parents, kind conflicts and cycles all arise from the random frames.
+type Insert = (usize, usize, bool, u64, i32, bool);
+
+fn inserts() -> impl Strategy<Value = Insert> {
+    (
+        0..FRAMES,
+        0..FRAMES,
+        prop::bool::weighted(0.25),
+        0_u64..8,
+        -8_i32..8,
+        prop::bool::weighted(0.05),
+    )
+}
+
+/// Builds an [`Insert`]. An overflowed one is composed from two valid
+/// halves into an infinite translation: derived, so nothing re-validates
+/// it before insertion refuses it with `NonFiniteValues`.
+fn build((parent, child, fixed, nanos, x, overflowed): Insert) -> Transform {
+    let stamp = if fixed {
+        Stamp::Static
+    } else {
+        Stamp::At(Timestamp::from_nanos(nanos))
+    };
+    let edge = |parent: &str, child: &str, x: f64| {
+        Transform::new(
+            parent,
+            child,
+            Vector3::new(x, 0.0, 0.0),
+            Quaternion::identity(),
+            stamp,
+        )
+        .unwrap()
+    };
+    let (parent, child) = (format!("f{parent}"), format!("f{child}"));
+    if overflowed {
+        (edge(&parent, "via", f64::MAX) * edge("via", &child, f64::MAX)).unwrap()
+    } else {
+        edge(&parent, &child, f64::from(x))
+    }
+}
+
+/// What a caller can observe of a registry over frames `f0..f6`: every
+/// pair's newest common instant and its lookups at instants 0 through 8.
+fn observable(registry: &Registry) -> Vec<String> {
+    let mut seen = Vec::new();
+    for target in 0..FRAMES {
+        for source in 0..FRAMES {
+            let (target, source) = (format!("f{target}"), format!("f{source}"));
+            seen.push(format!(
+                "{:?}",
+                registry.latest_common_time(&target, &source)
+            ));
+            for nanos in 0..9 {
+                let lookup = registry.get_transform(&target, &source, Timestamp::from_nanos(nanos));
+                seen.push(format!("{lookup:?}"));
+            }
+        }
+    }
+    seen
+}
+
 proptest! {
     #![proptest_config(ProptestConfig { cases: 256, ..ProptestConfig::default() })]
 
@@ -570,6 +633,37 @@ proptest! {
                     Err(_) => {}
                 }
             }
+        }
+    }
+
+    #[test]
+    fn add_transforms_matches_the_add_transform_loop_or_changes_nothing(
+        max_age in prop::option::of(0_u64..4),
+        seed in prop::collection::vec(inserts(), 0..10),
+        batch in prop::collection::vec(inserts(), 0..7),
+    ) {
+        let fresh = || {
+            max_age.map_or_else(Registry::new, |age| {
+                Registry::with_max_age(core::time::Duration::from_nanos(age))
+            })
+        };
+        let (mut looped, mut batched) = (fresh(), fresh());
+        for &insert in &seed {
+            // Rejections are part of the setup, not under test.
+            let _ = looped.add_transform(build(insert));
+            let _ = batched.add_transform(build(insert));
+        }
+        let before = observable(&batched);
+
+        let expected = batch.iter().try_for_each(|&insert| looped.add_transform(build(insert)));
+        let result = batched.add_transforms(batch.iter().map(|&insert| build(insert)));
+
+        // Errors compare by Debug: `RegistryError` is not `PartialEq`.
+        prop_assert_eq!(format!("{result:?}"), format!("{expected:?}"));
+        if result.is_ok() {
+            prop_assert_eq!(observable(&batched), observable(&looped));
+        } else {
+            prop_assert_eq!(observable(&batched), before);
         }
     }
 
