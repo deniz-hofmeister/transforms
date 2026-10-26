@@ -1,0 +1,212 @@
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index fbfb99c..c376c64 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -290,6 +290,19 @@ where
+     pub fn insert(
+         &mut self,
+         transform: Transform<T>,
++    ) -> Result<(), InsertError> {
++        self.check(&transform)?;
++        self.commit(transform);
++        Ok(())
++    }
++
++    /// Runs every check [`Buffer::insert`] runs, without storing anything.
++    /// A transform that passes is accepted by [`Buffer::commit`] on this
++    /// buffer for as long as its pins and kind stand — and no insert
++    /// changes either once set.
++    pub fn check(
++        &self,
++        transform: &Transform<T>,
+     ) -> Result<(), InsertError> {
+         transform.validate().map_err(InsertError::Invalid)?;
+ 
+@@ -309,14 +322,22 @@ where
+                 });
+             }
+         }
++        match (&self.kind, transform.timestamp()) {
++            (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
++            _ => Err(InsertError::StaticDynamicConflict),
++        }
++    }
+ 
+-        // Captured before the transform is moved into storage; applied only
+-        // after the insert is accepted, so a rejected transform cannot pin
+-        // frames for a buffer that never stored it.
+-        let pin = self
+-            .parent
+-            .is_none()
+-            .then(|| (transform.parent().into(), transform.child().into()));
++    /// Stores a transform that passed [`Buffer::check`], pinning the frames
++    /// on the first insert and evicting expired samples. Cannot fail.
++    pub fn commit(
++        &mut self,
++        transform: Transform<T>,
++    ) {
++        if self.parent.is_none() {
++            self.parent = Some(transform.parent().into());
++            self.child = Some(transform.child().into());
++        }
+ 
+         match (&mut self.kind, transform.timestamp()) {
+             (Kind::Static(slot), Stamp::Static) => {
+@@ -337,15 +358,9 @@ where
+                 data.insert(timestamp, transform.isometry());
+                 remove_expired(data, *latest_timestamp, *max_age);
+             }
+-            _ => return Err(InsertError::StaticDynamicConflict),
++            // Excluded by `check`.
++            _ => {}
+         }
+-
+-        if let Some((parent, child)) = pin {
+-            self.parent = Some(parent);
+-            self.child = Some(child);
+-        }
+-
+-        Ok(())
+     }
+ 
+     /// Retrieves the edge's geometry at the specified timestamp.
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 65d6f5c..2373e17 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -159,6 +159,50 @@ where
+         Self::process_add_transform(t, &mut self.data, self.max_age)
+     }
+ 
++    /// Inserts a batch of transforms all-or-nothing.
++    ///
++    /// # Errors
++    ///
++    /// The first error [`Registry::add_transform`] would report inserting the
++    /// batch in order; the registry is then unchanged.
++    pub fn add_transforms(
++        &mut self,
++        transforms: impl IntoIterator<Item = Transform<T>>,
++    ) -> Result<(), RegistryError<T>> {
++        // Inserts never change an existing buffer's pins or kind, so its
++        // checks hold for the whole batch; new frames are built aside.
++        let mut existing = Vec::new();
++        let mut staged: HashMap<String, Buffer<T>> = HashMap::new();
++        for t in transforms {
++            if let Some(buffer) = self.data.get(t.child()) {
++                buffer.check(&t)?;
++                existing.push(t);
++            } else if let Some(buffer) = staged.get_mut(t.child()) {
++                buffer.insert(t)?;
++            } else {
++                if Self::creates_cycle(t.child(), t.parent(), |frame| {
++                    self.data
++                        .get(frame)
++                        .or_else(|| staged.get(frame))
++                        .and_then(Buffer::parent)
++                }) {
++                    return Err(RegistryError::CycleDetected);
++                }
++                let mut buffer = Self::new_buffer(&t, self.max_age);
++                let child: String = t.child().into();
++                buffer.insert(t)?;
++                staged.insert(child, buffer);
++            }
++        }
++        for t in existing {
++            if let Some(buffer) = self.data.get_mut(t.child()) {
++                buffer.commit(t);
++            }
++        }
++        self.data.extend(staged);
++        Ok(())
++    }
++
+     /// Maps `source`-frame coordinates into `target` at `timestamp`.
+     ///
+     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+@@ -669,7 +713,9 @@ where
+         // out-edge without first arriving at the frame itself — exactly the
+         // case that reports the cycle — so the pre-commit tree gives the
+         // same answer as the post-commit one would.
+-        if Self::creates_cycle(t.child(), t.parent(), &self.data) {
++        if Self::creates_cycle(t.child(), t.parent(), |frame| {
++            self.data.get(frame).and_then(Buffer::parent)
++        }) {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -700,7 +746,11 @@ where
+         // A new child->parent relationship changes the tree topology; reject
+         // it if it would close a cycle. (Existing buffers have their parent
+         // pinned, so occupied inserts cannot.)
+-        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
++        if !data.contains_key(t.child())
++            && Self::creates_cycle(t.child(), t.parent(), |frame| {
++                data.get(frame).and_then(Buffer::parent)
++            })
++        {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -712,17 +762,25 @@ where
+         // failed insert cannot leave an empty, parentless frame behind —
+         // which would bypass the cycle check on a later insert of the same
+         // child frame. The transform's stamp declares the buffer's kind.
+-        let mut buffer = match (t.timestamp(), max_age) {
+-            (Stamp::Static, _) => Buffer::static_edge(),
+-            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+-            (Stamp::At(_), None) => Buffer::dynamic(),
+-        };
++        let mut buffer = Self::new_buffer(&t, max_age);
+         let child: String = t.child().into();
+         buffer.insert(t)?;
+         data.insert(child, buffer);
+         Ok(())
+     }
+ 
++    /// An empty buffer of the kind `t`'s stamp declares.
++    fn new_buffer(
++        t: &Transform<T>,
++        max_age: Option<Duration>,
++    ) -> Buffer<T> {
++        match (t.timestamp(), max_age) {
++            (Stamp::Static, _) => Buffer::static_edge(),
++            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
++            (Stamp::At(_), None) => Buffer::dynamic(),
++        }
++    }
++
+     /// Returns `true` if adding the relationship `child -> parent` would
+     /// create a cycle in the frame tree.
+     ///
+@@ -732,22 +790,17 @@ where
+     /// a new frame, `reparent_frame` for a replaced edge — occupied inserts
+     /// cannot change a pinned parent, and `remove_frame` only deletes
+     /// edges, so the map is acyclic at every instant.
+-    fn creates_cycle(
++    fn creates_cycle<'a>(
+         child: &str,
+-        parent: &str,
+-        data: &HashMap<String, Buffer<T>>,
++        parent: &'a str,
++        parent_of: impl Fn(&str) -> Option<&'a str>,
+     ) -> bool {
+         let mut current = parent;
+-        while let Some(buffer) = data.get(current) {
+-            match buffer.parent() {
+-                Some(next) => {
+-                    if next == child {
+-                        return true;
+-                    }
+-                    current = next;
+-                }
+-                None => return false,
++        while let Some(next) = parent_of(current) {
++            if next == child {
++                return true;
+             }
++            current = next;
+         }
+         false
+     }

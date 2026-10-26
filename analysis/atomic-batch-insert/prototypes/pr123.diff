@@ -1,0 +1,130 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 967e8d9..80b59ea 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
++## Unreleased
++
++### Added
++
++- `Registry::add_transforms`: insert a batch atomically. Any failed insertion
++  preserves the original topology and history, including samples that an
++  earlier insertion in the batch would have evicted.
++
+ ## [2.2.0] - 2026-09-27
+ 
+ ### Added
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index fbfb99c..8540ee8 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -44,6 +44,7 @@ type NearestTransforms<'a, T> = (Option<(&'a T, &'a Isometry)>, Option<(&'a T, &
+ /// than `max_age` relative to the latest inserted timestamp are removed
+ /// automatically on insert. A buffer created with [`Buffer::dynamic`] never
+ /// expires entries; use [`Buffer::remove_before`] for manual cleanup.
++#[derive(Clone)]
+ pub(crate) struct Buffer<T = Timestamp>
+ where
+     T: TimePoint,
+@@ -118,6 +119,7 @@ where
+ /// a time series of dynamic samples. Keeping the kind structural — instead
+ /// of a flag re-derived from the stored data — makes it impossible for a
+ /// buffer to change kind when it is emptied and refilled.
++#[derive(Clone)]
+ enum Kind<T>
+ where
+     T: TimePoint,
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 65d6f5c..2d3fcbd 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -159,6 +159,25 @@ where
+         Self::process_add_transform(t, &mut self.data, self.max_age)
+     }
+ 
++    /// Inserts a batch atomically. An invalid transform leaves the registry unchanged.
++    ///
++    /// # Errors
++    /// Returns the first error from [`Registry::add_transform`].
++    pub fn add_transforms(
++        &mut self,
++        transforms: impl IntoIterator<Item = Transform<T>>,
++    ) -> Result<(), RegistryError<T>> {
++        let mut next = Self {
++            data: self.data.clone(),
++            max_age: self.max_age,
++        };
++        for transform in transforms {
++            next.add_transform(transform)?;
++        }
++        *self = next;
++        Ok(())
++    }
++
+     /// Maps `source`-frame coordinates into `target` at `timestamp`.
+     ///
+     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+diff --git a/src/core/registry/tests.rs b/src/core/registry/tests.rs
+index 5a0f14a..008813d 100644
+--- a/src/core/registry/tests.rs
++++ b/src/core/registry/tests.rs
+@@ -3732,4 +3732,56 @@ mod registry_tests {
+             "expected the moved frame to still be static, got {result:?}"
+         );
+     }
++    #[test]
++    fn a_failed_batch_does_not_leave_edges_or_evictions_behind() {
++        let mut registry = Registry::with_max_age(Duration::from_nanos(10));
++        let sample = |parent, child, ns, x| {
++            Transform::new(
++                parent,
++                child,
++                Vector3::new(x, 0.0, 0.0),
++                Quaternion::identity(),
++                Stamp::At(Timestamp::from_nanos(ns)),
++            )
++            .unwrap()
++        };
++        registry
++            .add_transform(sample("map", "base", 1, 1.0))
++            .unwrap();
++        let result = registry.add_transforms([
++            sample("map", "base", 100, 2.0),
++            sample("base", "camera", 100, 3.0),
++            sample("camera", "map", 100, 4.0),
++        ]);
++        assert!(matches!(result, Err(RegistryError::CycleDetected)));
++        assert_abs_diff_eq!(
++            registry
++                .get_transform("map", "base", Timestamp::from_nanos(1))
++                .unwrap()
++                .translation()
++                .x,
++            1.0,
++            epsilon = 1e-12
++        );
++        assert!(
++            registry
++                .get_transform("base", "camera", Timestamp::from_nanos(100))
++                .is_err()
++        );
++        registry
++            .add_transforms([
++                sample("map", "base", 2, 2.0),
++                sample("base", "camera", 2, 3.0),
++            ])
++            .unwrap();
++        assert_abs_diff_eq!(
++            registry
++                .get_transform("map", "camera", Timestamp::from_nanos(2))
++                .unwrap()
++                .translation()
++                .x,
++            5.0,
++            epsilon = 1e-12
++        );
++    }
+ }

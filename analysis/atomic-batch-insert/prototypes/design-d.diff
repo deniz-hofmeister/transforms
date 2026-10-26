@@ -1,0 +1,375 @@
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index fbfb99c..054752a 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -234,6 +234,13 @@ where
+         self.parent.as_deref()
+     }
+ 
++    /// Whether this buffer holds one static transform rather than a time
++    /// series.
++    #[must_use]
++    pub fn is_static(&self) -> bool {
++        matches!(self.kind, Kind::Static(_))
++    }
++
+     /// The span of instants this buffer can serve: every instant for a
+     /// static buffer holding its transform, the stored range (inclusive)
+     /// for a dynamic buffer, and [`Coverage::Empty`] for a buffer holding
+diff --git a/src/core/mod.rs b/src/core/mod.rs
+index 7de65a5..3dc489c 100644
+--- a/src/core/mod.rs
++++ b/src/core/mod.rs
+@@ -4,4 +4,4 @@ pub(crate) mod buffer;
+ pub(crate) mod registry;
+ 
+ pub(crate) use buffer::Buffer;
+-pub use registry::{Registry, RegistryError};
++pub use registry::{FrameKind, Registry, RegistryError};
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 65d6f5c..856fe72 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -20,6 +20,18 @@ use core::{ops::Mul, time::Duration};
+ 
+ mod error;
+ 
++/// Whether a child frame stores one static transform or a time series.
++///
++/// Fixed by the frame's first insert; see [`Registry::frame_kind`].
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++#[non_exhaustive]
++pub enum FrameKind {
++    /// One transform valid for all time.
++    Static,
++    /// Samples keyed by timestamp.
++    Dynamic,
++}
++
+ /// Edges of the frame tree, each keyed by its child frame, in walk order.
+ type Edges<'a, T> = Vec<(&'a str, &'a Buffer<T>)>;
+ 
+@@ -159,6 +171,40 @@ where
+         Self::process_add_transform(t, &mut self.data, self.max_age)
+     }
+ 
++    /// Returns the parent pinned by `frame`'s first insert.
++    ///
++    /// `None` if `frame` has never been a child: it is a root or unknown, and
++    /// the two are not distinguished. The answer is a snapshot; it stays valid
++    /// only while the caller holds exclusive access, since
++    /// [`Registry::remove_frame`] and [`Registry::reparent_frame`] change it.
++    #[must_use]
++    pub fn parent(
++        &self,
++        frame: &str,
++    ) -> Option<&str> {
++        self.data.get(frame).and_then(Buffer::parent)
++    }
++
++    /// Returns whether `frame` stores a static or a dynamic transform series.
++    ///
++    /// `None` if `frame` has never been a child. The kind is fixed by the first
++    /// insert and survives [`Registry::remove_transforms_before`] and
++    /// [`Registry::reparent_frame`]. The answer is a snapshot, as for
++    /// [`Registry::parent`].
++    #[must_use]
++    pub fn frame_kind(
++        &self,
++        frame: &str,
++    ) -> Option<FrameKind> {
++        self.data.get(frame).map(|buffer| {
++            if buffer.is_static() {
++                FrameKind::Static
++            } else {
++                FrameKind::Dynamic
++            }
++        })
++    }
++
+     /// Maps `source`-frame coordinates into `target` at `timestamp`.
+     ///
+     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+diff --git a/src/lib.rs b/src/lib.rs
+index b4a84cb..a695d37 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -113,7 +113,7 @@ mod core;
+ pub mod errors;
+ pub mod geometry;
+ pub mod time;
+-pub use core::Registry;
++pub use core::{FrameKind, Registry};
+ pub use geometry::{Localized, Transform, Transformable};
+ 
+ // Compile the README examples in every feature combination.
+diff --git a/tests/batch_validator.rs b/tests/batch_validator.rs
+new file mode 100644
+index 0000000..0b34111
+--- /dev/null
++++ b/tests/batch_validator.rs
+@@ -0,0 +1,264 @@
++//! A DimOS-style caller-side all-or-nothing batch built only on the public
++//! introspection queries (`Registry::parent`, `Registry::frame_kind`) and
++//! `Transform::validate`, checked against the `add_transform` loop it
++//! pre-validates for.
++
++use core::time::Duration;
++use proptest::prelude::*;
++use std::collections::HashMap;
++use transforms::{
++    FrameKind, Registry,
++    errors::RegistryError,
++    geometry::{Quaternion, Transform, Vector3},
++    time::{Stamp, Timestamp},
++};
++
++/// Returns the error the `add_transform` loop would hit first, without
++/// mutating `registry`.
++///
++/// Frames the batch itself introduces are tracked in `staged`: a later
++/// transform sees them exactly as the loop would after applying the earlier
++/// ones.
++fn validate_batch(
++    registry: &Registry,
++    batch: &[Transform<Timestamp>],
++) -> Result<(), RegistryError> {
++    let mut staged: HashMap<&str, (&str, FrameKind)> = HashMap::new();
++    let parent_of = |staged: &HashMap<&str, (&str, FrameKind)>, frame: &str| -> Option<String> {
++        staged
++            .get(frame)
++            .map(|&(parent, _)| parent.to_string())
++            .or_else(|| registry.parent(frame).map(str::to_string))
++    };
++    for t in batch {
++        let is_static = t.timestamp() == Stamp::Static;
++        let kind = if is_static {
++            FrameKind::Static
++        } else {
++            FrameKind::Dynamic
++        };
++        let existing = staged
++            .get(t.child())
++            .map(|&(parent, kind)| (parent.to_string(), kind))
++            .or_else(|| {
++                registry
++                    .parent(t.child())
++                    .zip(registry.frame_kind(t.child()))
++                    .map(|(parent, kind)| (parent.to_string(), kind))
++            });
++        if let Some((parent, existing_kind)) = existing {
++            t.validate()?;
++            if t.parent() == t.child() {
++                return Err(RegistryError::SelfReferentialFrame);
++            }
++            if parent != t.parent() {
++                return Err(RegistryError::ReparentingNotSupported {
++                    current_parent: parent,
++                });
++            }
++            if existing_kind != kind {
++                return Err(RegistryError::StaticDynamicConflict);
++            }
++        } else {
++            let mut current = t.parent().to_string();
++            while let Some(next) = parent_of(&staged, &current) {
++                if next == t.child() {
++                    return Err(RegistryError::CycleDetected);
++                }
++                current = next;
++            }
++            // The loop checks the cycle before the buffer validates.
++            t.validate()?;
++            if t.parent() == t.child() {
++                return Err(RegistryError::SelfReferentialFrame);
++            }
++            staged.insert(t.child(), (t.parent(), kind));
++        }
++    }
++    Ok(())
++}
++
++/// Validates, then applies: the caller-side all-or-nothing batch.
++fn apply_batch(
++    registry: &mut Registry,
++    batch: Vec<Transform<Timestamp>>,
++) -> Result<(), RegistryError> {
++    validate_batch(registry, &batch)?;
++    for t in batch {
++        registry.add_transform(t)?;
++    }
++    Ok(())
++}
++
++const FRAMES: [&str; 5] = ["a", "b", "c", "d", "e"];
++
++#[derive(Debug, Clone)]
++struct Op {
++    parent: usize,
++    child: usize,
++    stat: bool,
++    ns: u64,
++    x: f64,
++    bad: bool,
++}
++
++fn op() -> impl Strategy<Value = Op> {
++    (
++        0..5usize,
++        0..5usize,
++        prop::bool::weighted(0.25),
++        0..8u64,
++        -10.0..10.0f64,
++        prop::bool::weighted(0.05),
++    )
++        .prop_map(|(parent, child, stat, ns, x, bad)| Op {
++            parent,
++            child,
++            stat,
++            ns,
++            x,
++            bad,
++        })
++}
++
++fn stamp(o: &Op) -> Stamp<Timestamp> {
++    if o.stat {
++        Stamp::Static
++    } else {
++        Stamp::At(Timestamp::from_nanos(o.ns))
++    }
++}
++
++fn build(o: &Op) -> Transform<Timestamp> {
++    Transform::new(
++        FRAMES[o.parent],
++        FRAMES[o.child],
++        Vector3::new(o.x, 0.0, 0.0),
++        Quaternion::identity(),
++        stamp(o),
++    )
++    .unwrap()
++}
++
++/// A derived transform whose translation overflowed to infinity: not
++/// re-validated by composition, so only `validate` catches it.
++fn build_overflowed(o: &Op) -> Transform<Timestamp> {
++    let a = Transform::new(
++        FRAMES[o.parent],
++        "via",
++        Vector3::new(1.7e308, 0.0, 0.0),
++        Quaternion::identity(),
++        stamp(o),
++    )
++    .unwrap();
++    let b = Transform::new(
++        "via",
++        FRAMES[o.child],
++        Vector3::new(1.7e308, 0.0, 0.0),
++        Quaternion::identity(),
++        stamp(o),
++    )
++    .unwrap();
++    (a * b).unwrap()
++}
++
++fn make(o: &Op) -> Transform<Timestamp> {
++    if o.bad { build_overflowed(o) } else { build(o) }
++}
++
++fn snapshot(r: &Registry) -> Vec<String> {
++    let mut out = Vec::new();
++    for a in FRAMES {
++        out.push(format!("{:?} {:?}", r.parent(a), r.frame_kind(a)));
++        for b in FRAMES {
++            out.push(format!("{:?}", r.latest_common_time(a, b)));
++            for ns in 0..9 {
++                out.push(format!(
++                    "{:?}",
++                    r.get_transform(a, b, Timestamp::from_nanos(ns))
++                ));
++            }
++        }
++    }
++    out
++}
++
++fn fresh(max_age: Option<u64>) -> Registry {
++    match max_age {
++        Some(n) => Registry::with_max_age(Duration::from_nanos(n)),
++        None => Registry::new(),
++    }
++}
++
++struct Outcome {
++    /// The `add_transform` loop's first error.
++    expected: Result<(), RegistryError>,
++    /// The validator-gated batch's result.
++    got: Result<(), RegistryError>,
++    looped: Registry,
++    gated: Registry,
++    /// Snapshot of the gated registry before the batch.
++    before: Vec<String>,
++}
++
++/// Runs the plain loop on one registry and the validator-gated batch on another.
++fn run(
++    max_age: Option<u64>,
++    seed: &[Op],
++    batch: &[Op],
++) -> Outcome {
++    let mut looped = fresh(max_age);
++    let mut gated = fresh(max_age);
++    for o in seed.iter().filter(|o| !o.bad) {
++        let _ = looped.add_transform(build(o));
++        let _ = gated.add_transform(build(o));
++    }
++    let before = snapshot(&gated);
++    let mut expected = Ok(());
++    for o in batch {
++        if let Err(e) = looped.add_transform(make(o)) {
++            expected = Err(e);
++            break;
++        }
++    }
++    let got = apply_batch(&mut gated, batch.iter().map(make).collect());
++    Outcome {
++        expected,
++        got,
++        looped,
++        gated,
++        before,
++    }
++}
++
++proptest! {
++    #![proptest_config(ProptestConfig::with_cases(20_000))]
++
++    /// Never a partial application, and the same accept/reject decision as
++    /// the loop's all-or-nothing semantics.
++    #[test]
++    fn gated_batch_never_partially_applies(
++        max_age in prop::option::of(0..4u64),
++        seed in prop::collection::vec(op(), 0..10),
++        batch in prop::collection::vec(op(), 0..7),
++    ) {
++        let o = run(max_age, &seed, &batch);
++        prop_assert_eq!(o.got.is_ok(), o.expected.is_ok());
++        if o.got.is_ok() {
++            prop_assert_eq!(snapshot(&o.gated), snapshot(&o.looped));
++        } else {
++            prop_assert_eq!(snapshot(&o.gated), o.before);
++        }
++    }
++
++    /// The gated batch also reports the loop's first error.
++    #[test]
++    fn gated_batch_reports_the_loops_first_error(
++        max_age in prop::option::of(0..4u64),
++        seed in prop::collection::vec(op(), 0..10),
++        batch in prop::collection::vec(op(), 0..7),
++    ) {
++        let o = run(max_age, &seed, &batch);
++        prop_assert_eq!(format!("{:?}", o.got), format!("{:?}", o.expected));
++    }
++}
