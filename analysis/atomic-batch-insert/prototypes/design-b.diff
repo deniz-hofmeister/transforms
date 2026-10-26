@@ -1,0 +1,562 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 967e8d9..7f565b7 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
++## [Unreleased]
++
++### Added
++
++- `Registry::transaction()` and `Transaction`: stage inserts, then apply
++  them together with `commit` or discard them by dropping. Each
++  `Transaction::add_transform` runs the checks `Registry::add_transform`
++  would run against the registry plus what is already staged, and a
++  rejected transform is not staged, so the caller attributes errors per
++  item and chooses the policy: `?` and drop for all-or-nothing, or
++  ignore the error to skip the item. The accepted sequence commits to
++  exactly the state of the `add_transform` loop.
++
+ ## [2.2.0] - 2026-09-27
+ 
+ ### Added
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index fbfb99c..c376c64 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -290,6 +290,19 @@ where
+     pub fn insert(
+         &mut self,
+         transform: Transform<T>,
++    ) -> Result<(), InsertError> {
++        self.check(&transform)?;
++        self.commit(transform);
++        Ok(())
++    }
++
++    /// Runs every check [`Buffer::insert`] runs, without storing anything.
++    /// A transform that passes is accepted by [`Buffer::commit`] on this
++    /// buffer for as long as its pins and kind stand — and no insert
++    /// changes either once set.
++    pub fn check(
++        &self,
++        transform: &Transform<T>,
+     ) -> Result<(), InsertError> {
+         transform.validate().map_err(InsertError::Invalid)?;
+ 
+@@ -309,14 +322,22 @@ where
+                 });
+             }
+         }
++        match (&self.kind, transform.timestamp()) {
++            (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
++            _ => Err(InsertError::StaticDynamicConflict),
++        }
++    }
+ 
+-        // Captured before the transform is moved into storage; applied only
+-        // after the insert is accepted, so a rejected transform cannot pin
+-        // frames for a buffer that never stored it.
+-        let pin = self
+-            .parent
+-            .is_none()
+-            .then(|| (transform.parent().into(), transform.child().into()));
++    /// Stores a transform that passed [`Buffer::check`], pinning the frames
++    /// on the first insert and evicting expired samples. Cannot fail.
++    pub fn commit(
++        &mut self,
++        transform: Transform<T>,
++    ) {
++        if self.parent.is_none() {
++            self.parent = Some(transform.parent().into());
++            self.child = Some(transform.child().into());
++        }
+ 
+         match (&mut self.kind, transform.timestamp()) {
+             (Kind::Static(slot), Stamp::Static) => {
+@@ -337,15 +358,9 @@ where
+                 data.insert(timestamp, transform.isometry());
+                 remove_expired(data, *latest_timestamp, *max_age);
+             }
+-            _ => return Err(InsertError::StaticDynamicConflict),
++            // Excluded by `check`.
++            _ => {}
+         }
+-
+-        if let Some((parent, child)) = pin {
+-            self.parent = Some(parent);
+-            self.child = Some(child);
+-        }
+-
+-        Ok(())
+     }
+ 
+     /// Retrieves the edge's geometry at the specified timestamp.
+diff --git a/src/core/mod.rs b/src/core/mod.rs
+index 7de65a5..b31173c 100644
+--- a/src/core/mod.rs
++++ b/src/core/mod.rs
+@@ -4,4 +4,4 @@ pub(crate) mod buffer;
+ pub(crate) mod registry;
+ 
+ pub(crate) use buffer::Buffer;
+-pub use registry::{Registry, RegistryError};
++pub use registry::{Registry, RegistryError, Transaction};
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 65d6f5c..4417d7a 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -15,10 +15,12 @@ use crate::{
+ use alloc::{string::String, vec::Vec};
+ pub use error::RegistryError;
+ use hashbrown::HashMap;
++pub use transaction::Transaction;
+ 
+ use core::{ops::Mul, time::Duration};
+ 
+ mod error;
++mod transaction;
+ 
+ /// Edges of the frame tree, each keyed by its child frame, in walk order.
+ type Edges<'a, T> = Vec<(&'a str, &'a Buffer<T>)>;
+@@ -159,6 +161,20 @@ where
+         Self::process_add_transform(t, &mut self.data, self.max_age)
+     }
+ 
++    /// Opens a [`Transaction`] that stages inserts and applies them together.
++    ///
++    /// Nothing reaches the registry until [`Transaction::commit`]; dropping the
++    /// transaction discards what it staged. Use it where several transforms
++    /// arrive as one message and a rejected one must either abort the message
++    /// or be skipped on its own.
++    pub fn transaction(&mut self) -> Transaction<'_, T> {
++        Transaction {
++            registry: self,
++            existing: Vec::new(),
++            staged: HashMap::new(),
++        }
++    }
++
+     /// Maps `source`-frame coordinates into `target` at `timestamp`.
+     ///
+     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+@@ -669,7 +685,9 @@ where
+         // out-edge without first arriving at the frame itself — exactly the
+         // case that reports the cycle — so the pre-commit tree gives the
+         // same answer as the post-commit one would.
+-        if Self::creates_cycle(t.child(), t.parent(), &self.data) {
++        if Self::creates_cycle(t.child(), t.parent(), |frame| {
++            self.data.get(frame).and_then(Buffer::parent)
++        }) {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -700,7 +718,11 @@ where
+         // A new child->parent relationship changes the tree topology; reject
+         // it if it would close a cycle. (Existing buffers have their parent
+         // pinned, so occupied inserts cannot.)
+-        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
++        if !data.contains_key(t.child())
++            && Self::creates_cycle(t.child(), t.parent(), |frame| {
++                data.get(frame).and_then(Buffer::parent)
++            })
++        {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -712,17 +734,25 @@ where
+         // failed insert cannot leave an empty, parentless frame behind —
+         // which would bypass the cycle check on a later insert of the same
+         // child frame. The transform's stamp declares the buffer's kind.
+-        let mut buffer = match (t.timestamp(), max_age) {
+-            (Stamp::Static, _) => Buffer::static_edge(),
+-            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+-            (Stamp::At(_), None) => Buffer::dynamic(),
+-        };
++        let mut buffer = Self::new_buffer(&t, max_age);
+         let child: String = t.child().into();
+         buffer.insert(t)?;
+         data.insert(child, buffer);
+         Ok(())
+     }
+ 
++    /// An empty buffer of the kind `t`'s stamp declares.
++    fn new_buffer(
++        t: &Transform<T>,
++        max_age: Option<Duration>,
++    ) -> Buffer<T> {
++        match (t.timestamp(), max_age) {
++            (Stamp::Static, _) => Buffer::static_edge(),
++            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
++            (Stamp::At(_), None) => Buffer::dynamic(),
++        }
++    }
++
+     /// Returns `true` if adding the relationship `child -> parent` would
+     /// create a cycle in the frame tree.
+     ///
+@@ -732,22 +762,17 @@ where
+     /// a new frame, `reparent_frame` for a replaced edge — occupied inserts
+     /// cannot change a pinned parent, and `remove_frame` only deletes
+     /// edges, so the map is acyclic at every instant.
+-    fn creates_cycle(
++    fn creates_cycle<'a>(
+         child: &str,
+-        parent: &str,
+-        data: &HashMap<String, Buffer<T>>,
++        parent: &'a str,
++        parent_of: impl Fn(&str) -> Option<&'a str>,
+     ) -> bool {
+         let mut current = parent;
+-        while let Some(buffer) = data.get(current) {
+-            match buffer.parent() {
+-                Some(next) => {
+-                    if next == child {
+-                        return true;
+-                    }
+-                    current = next;
+-                }
+-                None => return false,
++        while let Some(next) = parent_of(current) {
++            if next == child {
++                return true;
+             }
++            current = next;
+         }
+         false
+     }
+diff --git a/src/core/registry/transaction.rs b/src/core/registry/transaction.rs
+new file mode 100644
+index 0000000..2c632e8
+--- /dev/null
++++ b/src/core/registry/transaction.rs
+@@ -0,0 +1,150 @@
++//! Staged, all-or-nothing inserts into a [`Registry`].
++
++use super::{Registry, RegistryError};
++use crate::{core::Buffer, geometry::Transform, time::TimePoint};
++use alloc::{string::String, vec::Vec};
++use hashbrown::HashMap;
++
++/// A set of inserts staged against a [`Registry`] and applied together.
++///
++/// [`Transaction::add_transform`] runs every check
++/// [`Registry::add_transform`] runs — against the registry as it stands plus
++/// whatever this transaction already staged — and stages the transform only
++/// if they all pass. A rejected transform is not staged and the transaction
++/// stays usable, so the caller picks the policy per item: `?` aborts, and
++/// dropping the transaction then leaves the registry untouched; ignoring the
++/// error skips that item and keeps the rest. [`Transaction::commit`] applies
++/// everything staged and cannot fail.
++///
++/// The transaction borrows the registry mutably for its whole life, so no
++/// frame can be added, removed or reparented behind its back: what passed
++/// the checks at staging time still passes at commit time. Staging a
++/// transform changes no lookup result until the commit.
++///
++/// Committing gives exactly the state that calling
++/// [`Registry::add_transform`] on the accepted transforms, in order, would
++/// have — including `max_age` eviction.
++///
++/// # Examples
++///
++/// All-or-nothing: the first rejection aborts and nothing is applied.
++///
++/// ```
++/// use transforms::{
++///     Registry,
++///     geometry::{Quaternion, Transform, Vector3},
++///     time::{Stamp, Timestamp},
++/// };
++///
++/// let at = Timestamp::zero();
++/// let tf = |parent: &str, child: &str| {
++///     Transform::new(
++///         parent,
++///         child,
++///         Vector3::zero(),
++///         Quaternion::identity(),
++///         Stamp::At(at),
++///     )
++///     .unwrap()
++/// };
++///
++/// let mut registry = Registry::new();
++/// let mut tx = registry.transaction();
++/// let result = (|| {
++///     tx.add_transform(tf("map", "odom"))?;
++///     tx.add_transform(tf("odom", "map"))?; // closes a cycle
++///     tx.add_transform(tf("odom", "base"))
++/// })();
++/// assert!(result.is_err());
++/// drop(tx);
++/// assert!(registry.get_transform("map", "odom", at).is_err()); // nothing applied
++/// ```
++///
++/// Skip bad items: a rejected transform is left out, the rest is applied.
++///
++/// ```
++/// # use transforms::{Registry, geometry::{Quaternion, Transform, Vector3}, time::{Stamp, Timestamp}};
++/// # let at = Timestamp::zero();
++/// # let tf = |parent: &str, child: &str| {
++/// #     Transform::new(parent, child, Vector3::zero(), Quaternion::identity(), Stamp::At(at)).unwrap()
++/// # };
++/// let mut registry = Registry::new();
++/// let mut tx = registry.transaction();
++/// let mut rejected = 0;
++/// for t in [tf("map", "odom"), tf("odom", "map"), tf("odom", "base")] {
++///     if tx.add_transform(t).is_err() {
++///         rejected += 1;
++///     }
++/// }
++/// tx.commit();
++/// assert_eq!(rejected, 1);
++/// assert!(registry.get_transform("map", "base", at).is_ok());
++/// ```
++#[derive(Debug)]
++#[must_use = "a transaction changes nothing until it is committed"]
++pub struct Transaction<'a, T>
++where
++    T: TimePoint,
++{
++    pub(super) registry: &'a mut Registry<T>,
++    /// Accepted transforms for frames the registry already holds, in order.
++    /// Inserts never change an existing buffer's parent or kind, so the
++    /// check that accepted each one holds until the commit.
++    pub(super) existing: Vec<Transform<T>>,
++    /// Frames created by this transaction, as real buffers that already hold
++    /// their accepted transforms.
++    pub(super) staged: HashMap<String, Buffer<T>>,
++}
++
++impl<T> Transaction<'_, T>
++where
++    T: TimePoint,
++{
++    /// Stages a transform after the checks [`Registry::add_transform`] runs.
++    ///
++    /// A rejected transform is not staged. The error is the one
++    /// [`Registry::add_transform`] would report for it at this point of the
++    /// sequence, and it does not name the transform that caused it: attribute
++    /// it by calling this once per transform.
++    ///
++    /// # Errors
++    ///
++    /// The same as [`Registry::add_transform`].
++    pub fn add_transform(
++        &mut self,
++        t: Transform<T>,
++    ) -> Result<(), RegistryError<T>> {
++        if let Some(buffer) = self.registry.data.get(t.child()) {
++            buffer.check(&t)?;
++            self.existing.push(t);
++        } else if let Some(buffer) = self.staged.get_mut(t.child()) {
++            buffer.insert(t)?;
++        } else {
++            let data = &self.registry.data;
++            let staged = &self.staged;
++            if Registry::<T>::creates_cycle(t.child(), t.parent(), |frame| {
++                data.get(frame)
++                    .or_else(|| staged.get(frame))
++                    .and_then(Buffer::parent)
++            }) {
++                return Err(RegistryError::CycleDetected);
++            }
++            let mut buffer = Registry::new_buffer(&t, self.registry.max_age);
++            let child: String = t.child().into();
++            buffer.insert(t)?;
++            self.staged.insert(child, buffer);
++        }
++        Ok(())
++    }
++
++    /// Applies everything staged. Cannot fail: every transform was checked
++    /// when it was staged.
++    pub fn commit(self) {
++        for t in self.existing {
++            if let Some(buffer) = self.registry.data.get_mut(t.child()) {
++                buffer.commit(t);
++            }
++        }
++        self.registry.data.extend(self.staged);
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index b4a84cb..c4986e5 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -113,7 +113,7 @@ mod core;
+ pub mod errors;
+ pub mod geometry;
+ pub mod time;
+-pub use core::Registry;
++pub use core::{Registry, Transaction};
+ pub use geometry::{Localized, Transform, Transformable};
+ 
+ // Compile the README examples in every feature combination.
+diff --git a/tests/properties.rs b/tests/properties.rs
+index c2aa6c4..6fe2860 100644
+--- a/tests/properties.rs
++++ b/tests/properties.rs
+@@ -675,3 +675,159 @@ proptest! {
+         }
+     }
+ }
++
++/// Frames for the transaction properties: few enough that random batches
++/// collide on parents, kinds and cycles constantly.
++const TX_FRAMES: [&str; 5] = ["a", "b", "c", "d", "e"];
++
++/// One batch item: an edge between two of [`TX_FRAMES`], static or stamped.
++/// `overflowing` builds the edge as the composition of two huge translations
++/// instead — a derived transform that no constructor validated, which only
++/// the insert check rejects.
++#[derive(Debug, Clone)]
++struct TxOp {
++    parent: usize,
++    child: usize,
++    is_static: bool,
++    nanos: u64,
++    x: f64,
++    overflowing: bool,
++}
++
++fn tx_ops() -> impl Strategy<Value = TxOp> {
++    (
++        0..TX_FRAMES.len(),
++        0..TX_FRAMES.len(),
++        prop::bool::weighted(0.25),
++        0_u64..8,
++        -10.0..10.0_f64,
++        prop::bool::weighted(0.05),
++    )
++        .prop_map(|(parent, child, is_static, nanos, x, overflowing)| TxOp {
++            parent,
++            child,
++            is_static,
++            nanos,
++            x,
++            overflowing,
++        })
++}
++
++fn tx_transform(op: &TxOp) -> Transform {
++    let stamp = if op.is_static {
++        Stamp::Static
++    } else {
++        Stamp::At(Timestamp::from_nanos(op.nanos))
++    };
++    let (parent, child) = (TX_FRAMES[op.parent], TX_FRAMES[op.child]);
++    if op.overflowing {
++        let huge = Vector3::new(1.7e308, 0.0, 0.0);
++        let up = Transform::new(parent, "via", huge, Quaternion::identity(), stamp).unwrap();
++        let down = Transform::new("via", child, huge, Quaternion::identity(), stamp).unwrap();
++        (up * down).unwrap()
++    } else {
++        Transform::new(
++            parent,
++            child,
++            Vector3::new(op.x, 0.0, 0.0),
++            Quaternion::identity(),
++            stamp,
++        )
++        .unwrap()
++    }
++}
++
++/// Everything observable about a registry through lookups, as comparable text.
++fn tx_snapshot(registry: &Registry) -> Vec<String> {
++    let mut out = Vec::new();
++    for a in TX_FRAMES {
++        for b in TX_FRAMES {
++            out.push(format!("{:?}", registry.latest_common_time(a, b)));
++            for nanos in 0..9 {
++                out.push(format!(
++                    "{:?}",
++                    registry.get_transform(a, b, Timestamp::from_nanos(nanos))
++                ));
++            }
++        }
++    }
++    out
++}
++
++fn tx_registry(
++    max_age: Option<u64>,
++    seed: &[TxOp],
++) -> Registry {
++    let mut registry = max_age.map_or_else(Registry::new, |nanos| {
++        Registry::with_max_age(core::time::Duration::from_nanos(nanos))
++    });
++    for op in seed.iter().filter(|op| !op.overflowing) {
++        let _ = registry.add_transform(tx_transform(op));
++    }
++    registry
++}
++
++proptest! {
++    #![proptest_config(ProptestConfig { cases: 4096, ..ProptestConfig::default() })]
++
++    /// With `?` semantics a transaction is the `add_transform` loop made
++    /// atomic: the same first error, an untouched registry when it aborts,
++    /// and the loop's exact state when it commits.
++    #[test]
++    fn transaction_with_question_mark_semantics_equals_the_add_transform_loop(
++        max_age in prop::option::of(0_u64..4),
++        seed in prop::collection::vec(tx_ops(), 0..10),
++        batch in prop::collection::vec(tx_ops(), 0..7),
++    ) {
++        let mut looped = tx_registry(max_age, &seed);
++        let mut transacted = tx_registry(max_age, &seed);
++        let before = tx_snapshot(&transacted);
++
++        let mut expected = Ok(());
++        for op in &batch {
++            if let Err(error) = looped.add_transform(tx_transform(op)) {
++                expected = Err(error);
++                break;
++            }
++        }
++
++        let mut tx = transacted.transaction();
++        let got = batch.iter().try_for_each(|op| tx.add_transform(tx_transform(op)));
++        prop_assert_eq!(format!("{got:?}"), format!("{expected:?}"));
++        if got.is_ok() {
++            tx.commit();
++            prop_assert_eq!(tx_snapshot(&transacted), tx_snapshot(&looped));
++        } else {
++            drop(tx);
++            prop_assert_eq!(tx_snapshot(&transacted), before);
++        }
++    }
++
++    /// Skipping rejected items, a transaction equals the loop that ignores
++    /// errors: every item gets the loop's verdict, and the commit leaves the
++    /// loop's state.
++    #[test]
++    fn transaction_skipping_rejected_items_equals_the_loop_that_ignores_errors(
++        max_age in prop::option::of(0_u64..4),
++        seed in prop::collection::vec(tx_ops(), 0..10),
++        batch in prop::collection::vec(tx_ops(), 0..7),
++    ) {
++        let mut looped = tx_registry(max_age, &seed);
++        let mut transacted = tx_registry(max_age, &seed);
++
++        let expected: Vec<String> = batch
++            .iter()
++            .map(|op| format!("{:?}", looped.add_transform(tx_transform(op))))
++            .collect();
++
++        let mut tx = transacted.transaction();
++        let got: Vec<String> = batch
++            .iter()
++            .map(|op| format!("{:?}", tx.add_transform(tx_transform(op))))
++            .collect();
++        tx.commit();
++
++        prop_assert_eq!(got, expected);
++        prop_assert_eq!(tx_snapshot(&transacted), tx_snapshot(&looped));
++    }
++}

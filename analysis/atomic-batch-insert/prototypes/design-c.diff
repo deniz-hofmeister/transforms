@@ -1,0 +1,515 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 967e8d9..51459b1 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
++## [Unreleased]
++
++### Added
++
++- `Registry::check_transforms(&batch)`: read-only dry run returning the
++  first error `add_transform` would report inserting the batch in order.
++  Under one `&mut`/write guard, check-then-add cannot fail midway; across
++  two guards it can (documented).
++
+ ## [2.2.0] - 2026-09-27
+ 
+ ### Added
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index fbfb99c..fdb5593 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -290,6 +290,19 @@ where
+     pub fn insert(
+         &mut self,
+         transform: Transform<T>,
++    ) -> Result<(), InsertError> {
++        self.check(&transform)?;
++        self.commit(transform);
++        Ok(())
++    }
++
++    /// Runs every check [`Buffer::insert`] runs, without storing anything.
++    /// A transform that passes is accepted by [`Buffer::commit`] on this
++    /// buffer for as long as its pins and kind stand — and no insert
++    /// changes either once set.
++    pub fn check(
++        &self,
++        transform: &Transform<T>,
+     ) -> Result<(), InsertError> {
+         transform.validate().map_err(InsertError::Invalid)?;
+ 
+@@ -309,14 +322,31 @@ where
+                 });
+             }
+         }
++        match (&self.kind, transform.timestamp()) {
++            (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
++            _ => Err(InsertError::StaticDynamicConflict),
++        }
++    }
+ 
+-        // Captured before the transform is moved into storage; applied only
+-        // after the insert is accepted, so a rejected transform cannot pin
+-        // frames for a buffer that never stored it.
+-        let pin = self
+-            .parent
+-            .is_none()
+-            .then(|| (transform.parent().into(), transform.child().into()));
++    /// Pins the parent and child frames on the first call; later calls
++    /// leave them alone. Stores nothing.
++    pub fn pin(
++        &mut self,
++        transform: &Transform<T>,
++    ) {
++        if self.parent.is_none() {
++            self.parent = Some(transform.parent().into());
++            self.child = Some(transform.child().into());
++        }
++    }
++
++    /// Stores a transform that passed [`Buffer::check`], pinning the frames
++    /// on the first insert and evicting expired samples. Cannot fail.
++    pub fn commit(
++        &mut self,
++        transform: Transform<T>,
++    ) {
++        self.pin(&transform);
+ 
+         match (&mut self.kind, transform.timestamp()) {
+             (Kind::Static(slot), Stamp::Static) => {
+@@ -337,15 +367,9 @@ where
+                 data.insert(timestamp, transform.isometry());
+                 remove_expired(data, *latest_timestamp, *max_age);
+             }
+-            _ => return Err(InsertError::StaticDynamicConflict),
++            // Excluded by `check`.
++            _ => {}
+         }
+-
+-        if let Some((parent, child)) = pin {
+-            self.parent = Some(parent);
+-            self.child = Some(child);
+-        }
+-
+-        Ok(())
+     }
+ 
+     /// Retrieves the edge's geometry at the specified timestamp.
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 65d6f5c..2c2c43e 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -159,6 +159,94 @@ where
+         Self::process_add_transform(t, &mut self.data, self.max_age)
+     }
+ 
++    /// Reports the first error [`Registry::add_transform`] would return if
++    /// `transforms` were inserted in order, without changing the registry.
++    ///
++    /// Earlier items count: a later item may fail because an earlier one
++    /// pinned a frame's parent or kind, or closed the cycle it would close.
++    /// When this returns `Ok`, adding the same items in the same order, with
++    /// no other change to the registry in between, cannot fail. Holding
++    /// `&mut Registry` (or a write guard) across the check and the adds is
++    /// what provides that; a check under one guard and the adds under another
++    /// proves nothing about the second, and a writer in between can make an
++    /// add fail after earlier ones were applied.
++    ///
++    /// The error carries no position: it is the error of the first failing
++    /// item, not a name for it.
++    ///
++    /// # Errors
++    ///
++    /// The same variants, in the same order of precedence, as
++    /// [`Registry::add_transform`].
++    ///
++    /// # Examples
++    ///
++    /// ```
++    /// use transforms::{
++    ///     Registry,
++    ///     geometry::{Quaternion, Transform, Vector3},
++    ///     time::{Stamp, Timestamp},
++    /// };
++    ///
++    /// let stamp = Stamp::At(Timestamp::zero());
++    /// let make = |parent, child| {
++    ///     Transform::new(
++    ///         parent,
++    ///         child,
++    ///         Vector3::zero(),
++    ///         Quaternion::identity(),
++    ///         stamp,
++    ///     )
++    ///     .unwrap()
++    /// };
++    /// let mut registry = Registry::new();
++    ///
++    /// let batch = [make("map", "odom"), make("odom", "base")];
++    /// registry.check_transforms(&batch).unwrap();
++    /// for t in batch {
++    ///     registry.add_transform(t).unwrap();
++    /// }
++    ///
++    /// // Closing the loop fails the check; nothing was inserted.
++    /// let cyclic = [make("base", "map")];
++    /// assert!(registry.check_transforms(&cyclic).is_err());
++    /// ```
++    pub fn check_transforms<'a>(
++        &self,
++        transforms: impl IntoIterator<Item = &'a Transform<T>>,
++    ) -> Result<(), RegistryError<T>>
++    where
++        T: 'a,
++    {
++        // Inserts never change an existing buffer's pins or kind, so each
++        // existing frame is checked against the registry as it stands. New
++        // frames are staged as empty buffers holding only their pins and
++        // kind: enough for later items to be checked against them and for
++        // the cycle walk to cross them, with no sample stored.
++        let mut staged: HashMap<&str, Buffer<T>> = HashMap::new();
++        for t in transforms {
++            if let Some(buffer) = self.data.get(t.child()) {
++                buffer.check(t)?;
++            } else if let Some(buffer) = staged.get(t.child()) {
++                buffer.check(t)?;
++            } else {
++                if Self::creates_cycle(t.child(), t.parent(), |frame| {
++                    self.data
++                        .get(frame)
++                        .or_else(|| staged.get(frame))
++                        .and_then(Buffer::parent)
++                }) {
++                    return Err(RegistryError::CycleDetected);
++                }
++                let mut buffer = Self::new_buffer(t, self.max_age);
++                buffer.check(t)?;
++                buffer.pin(t);
++                staged.insert(t.child(), buffer);
++            }
++        }
++        Ok(())
++    }
++
+     /// Maps `source`-frame coordinates into `target` at `timestamp`.
+     ///
+     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
+@@ -669,7 +757,9 @@ where
+         // out-edge without first arriving at the frame itself — exactly the
+         // case that reports the cycle — so the pre-commit tree gives the
+         // same answer as the post-commit one would.
+-        if Self::creates_cycle(t.child(), t.parent(), &self.data) {
++        if Self::creates_cycle(t.child(), t.parent(), |frame| {
++            self.data.get(frame).and_then(Buffer::parent)
++        }) {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -700,7 +790,11 @@ where
+         // A new child->parent relationship changes the tree topology; reject
+         // it if it would close a cycle. (Existing buffers have their parent
+         // pinned, so occupied inserts cannot.)
+-        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
++        if !data.contains_key(t.child())
++            && Self::creates_cycle(t.child(), t.parent(), |frame| {
++                data.get(frame).and_then(Buffer::parent)
++            })
++        {
+             return Err(RegistryError::CycleDetected);
+         }
+ 
+@@ -712,17 +806,25 @@ where
+         // failed insert cannot leave an empty, parentless frame behind —
+         // which would bypass the cycle check on a later insert of the same
+         // child frame. The transform's stamp declares the buffer's kind.
+-        let mut buffer = match (t.timestamp(), max_age) {
+-            (Stamp::Static, _) => Buffer::static_edge(),
+-            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+-            (Stamp::At(_), None) => Buffer::dynamic(),
+-        };
++        let mut buffer = Self::new_buffer(&t, max_age);
+         let child: String = t.child().into();
+         buffer.insert(t)?;
+         data.insert(child, buffer);
+         Ok(())
+     }
+ 
++    /// An empty buffer of the kind `t`'s stamp declares.
++    fn new_buffer(
++        t: &Transform<T>,
++        max_age: Option<Duration>,
++    ) -> Buffer<T> {
++        match (t.timestamp(), max_age) {
++            (Stamp::Static, _) => Buffer::static_edge(),
++            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
++            (Stamp::At(_), None) => Buffer::dynamic(),
++        }
++    }
++
+     /// Returns `true` if adding the relationship `child -> parent` would
+     /// create a cycle in the frame tree.
+     ///
+@@ -732,22 +834,17 @@ where
+     /// a new frame, `reparent_frame` for a replaced edge — occupied inserts
+     /// cannot change a pinned parent, and `remove_frame` only deletes
+     /// edges, so the map is acyclic at every instant.
+-    fn creates_cycle(
++    fn creates_cycle<'a>(
+         child: &str,
+-        parent: &str,
+-        data: &HashMap<String, Buffer<T>>,
++        parent: &'a str,
++        parent_of: impl Fn(&str) -> Option<&'a str>,
+     ) -> bool {
+         let mut current = parent;
+-        while let Some(buffer) = data.get(current) {
+-            match buffer.parent() {
+-                Some(next) => {
+-                    if next == child {
+-                        return true;
+-                    }
+-                    current = next;
+-                }
+-                None => return false,
++        while let Some(next) = parent_of(current) {
++            if next == child {
++                return true;
+             }
++            current = next;
+         }
+         false
+     }
+diff --git a/src/core/registry/tests.rs b/src/core/registry/tests.rs
+index 5a0f14a..6170181 100644
+--- a/src/core/registry/tests.rs
++++ b/src/core/registry/tests.rs
+@@ -3732,4 +3732,94 @@ mod registry_tests {
+             "expected the moved frame to still be static, got {result:?}"
+         );
+     }
++
++    #[test]
++    fn check_transforms_passes_a_batch_whose_later_items_depend_on_earlier_ones() {
++        let registry = Registry::new();
++        let t = Stamp::At(Timestamp::from_nanos(1));
++        let batch = [
++            translated("a", "b", t, 1.0),
++            translated("b", "c", t, 1.0),
++            translated("b", "c", t, 2.0),
++        ];
++        registry.check_transforms(&batch).unwrap();
++        assert!(matches!(
++            registry.get_transform("a", "b", Timestamp::from_nanos(1)),
++            Err(RegistryError::UnknownFrame(_))
++        ));
++    }
++
++    #[test]
++    fn check_transforms_sees_cycles_closed_by_earlier_batch_items() {
++        let registry = Registry::new();
++        let t = Stamp::At(Timestamp::from_nanos(1));
++        let batch = [
++            translated("a", "b", t, 1.0),
++            translated("b", "c", t, 1.0),
++            translated("c", "a", t, 1.0),
++        ];
++        assert!(matches!(
++            registry.check_transforms(&batch),
++            Err(RegistryError::CycleDetected)
++        ));
++    }
++
++    #[test]
++    fn check_transforms_sees_kind_pinned_by_earlier_batch_items() {
++        let registry = Registry::new();
++        let batch = [
++            translated("a", "b", Stamp::Static, 1.0),
++            translated("a", "b", Stamp::At(Timestamp::from_nanos(1)), 1.0),
++        ];
++        assert!(matches!(
++            registry.check_transforms(&batch),
++            Err(RegistryError::StaticDynamicConflict)
++        ));
++    }
++
++    #[test]
++    fn check_then_add_under_separate_guards_can_apply_a_batch_partially() {
++        // The check is a snapshot. A writer that lands between it and the
++        // adds invalidates it, and the add loop then fails after earlier
++        // items were applied: the all-or-nothing promise exists only while
++        // one `&mut` borrow (one write guard) spans both steps.
++        let mut registry = Registry::new();
++        let t = Stamp::At(Timestamp::from_nanos(1));
++        let batch = [translated("a", "b", t, 1.0), translated("c", "d", t, 1.0)];
++        registry.check_transforms(&batch).unwrap();
++
++        // Interleaved writer: pins "d" to a different parent.
++        registry
++            .add_transform(translated("x", "d", t, 5.0))
++            .unwrap();
++
++        let result: Result<(), _> = batch
++            .iter()
++            .cloned()
++            .try_for_each(|t| registry.add_transform(t));
++        assert!(matches!(
++            result,
++            Err(RegistryError::ReparentingNotSupported { .. })
++        ));
++        // "a -> b" was applied although the batch as a whole failed.
++        registry
++            .get_transform("a", "b", Timestamp::from_nanos(1))
++            .unwrap();
++    }
++
++    #[test]
++    fn check_then_add_under_one_borrow_never_applies_a_batch_partially() {
++        let mut registry = Registry::new();
++        let t = Stamp::At(Timestamp::from_nanos(1));
++        let batch = [translated("a", "b", t, 1.0), translated("b", "a", t, 1.0)];
++        // The check rejects, so the adds are never started.
++        assert!(registry.check_transforms(&batch).is_err());
++        assert!(
++            registry
++                .get_transform("a", "b", Timestamp::from_nanos(1))
++                .is_err()
++        );
++        registry.check_transforms(&batch[..1]).unwrap();
++        registry.add_transform(batch[0].clone()).unwrap();
++    }
+ }
+diff --git a/tests/properties.proptest-regressions b/tests/properties.proptest-regressions
+new file mode 100644
+index 0000000..7b96244
+--- /dev/null
++++ b/tests/properties.proptest-regressions
+@@ -0,0 +1,7 @@
++# Seeds for failure cases proptest has generated in the past. It is
++# automatically read and these particular cases re-run before any
++# novel cases are generated.
++#
++# It is recommended to check this file in to source control so that
++# everyone who runs the test benefits from these saved cases.
++cc 713f0ac4cfeec97aa6770d67246491db43e744366dbe8bdff679d3571fcaa658 # shrinks to max_age = None, seed = [BatchOp { parent: 1, child: 4, is_static: false, nanos: 0, overflowed: false }], batch = [BatchOp { parent: 4, child: 0, is_static: false, nanos: 0, overflowed: false }, BatchOp { parent: 0, child: 1, is_static: false, nanos: 0, overflowed: false }]
+diff --git a/tests/properties.rs b/tests/properties.rs
+index c2aa6c4..3484b53 100644
+--- a/tests/properties.rs
++++ b/tests/properties.rs
+@@ -675,3 +675,113 @@ proptest! {
+         }
+     }
+ }
++
++/// Frames for the batch-check property: few enough that random batches
++/// collide on pins, kinds and cycles constantly.
++const BATCH_FRAMES: [&str; 5] = ["a", "b", "c", "d", "e"];
++
++/// One random insert: frames, kind, timestamp, and whether the value is a
++/// derived transform whose translation overflowed (rejected on insert, not
++/// by its constructor).
++#[derive(Debug, Clone)]
++struct BatchOp {
++    parent: usize,
++    child: usize,
++    is_static: bool,
++    nanos: u64,
++    overflowed: bool,
++}
++
++fn batch_ops() -> impl Strategy<Value = BatchOp> {
++    (
++        0..BATCH_FRAMES.len(),
++        0..BATCH_FRAMES.len(),
++        prop::bool::weighted(0.25),
++        0..8_u64,
++        prop::bool::weighted(0.05),
++    )
++        .prop_map(|(parent, child, is_static, nanos, overflowed)| BatchOp {
++            parent,
++            child,
++            is_static,
++            nanos,
++            overflowed,
++        })
++}
++
++/// Builds the op's transform; `None` where the constructor refuses it
++/// (parent equals child).
++fn batch_transform(op: &BatchOp) -> Option<Transform> {
++    let stamp = if op.is_static {
++        Stamp::Static
++    } else {
++        Stamp::At(Timestamp::from_nanos(op.nanos))
++    };
++    let (parent, child) = (BATCH_FRAMES[op.parent], BATCH_FRAMES[op.child]);
++    if op.overflowed {
++        let half = Vector3::new(1.7e308, 0.0, 0.0);
++        let first = Transform::new(parent, "via", half, Quaternion::identity(), stamp).ok()?;
++        let second = Transform::new("via", child, half, Quaternion::identity(), stamp).ok()?;
++        return (first * second).ok();
++    }
++    Transform::new(
++        parent,
++        child,
++        Vector3::new(1.0, 0.0, 0.0),
++        Quaternion::identity(),
++        stamp,
++    )
++    .ok()
++}
++
++/// Everything observable about a registry over the fixture frames.
++fn batch_snapshot(registry: &Registry) -> Vec<String> {
++    let mut out = Vec::new();
++    for a in BATCH_FRAMES {
++        for b in BATCH_FRAMES {
++            out.push(format!("{:?}", registry.latest_common_time(a, b)));
++            for nanos in 0..9 {
++                let at = Timestamp::from_nanos(nanos);
++                out.push(format!("{:?}", registry.get_transform(a, b, at)));
++            }
++        }
++    }
++    out
++}
++
++proptest! {
++    #![proptest_config(ProptestConfig::with_cases(5_000))]
++
++    /// `check_transforms` agrees with the `add_transform` loop it predicts:
++    /// same first error, never mutating, and when it passes the loop cannot
++    /// fail.
++    #[test]
++    fn check_transforms_predicts_the_add_transform_loop(
++        max_age in prop::option::of(0..4_u64),
++        seed in prop::collection::vec(batch_ops(), 0..10),
++        batch in prop::collection::vec(batch_ops(), 0..7),
++    ) {
++        let new_registry = || match max_age {
++            Some(nanos) => Registry::with_max_age(core::time::Duration::from_nanos(nanos)),
++            None => Registry::new(),
++        };
++        let mut registry = new_registry();
++        for transform in seed.iter().filter(|op| !op.overflowed).filter_map(batch_transform) {
++            let _ = registry.add_transform(transform);
++        }
++        let batch: Vec<Transform> = batch.iter().filter_map(batch_transform).collect();
++
++        let before = batch_snapshot(&registry);
++        let checked = registry.check_transforms(&batch);
++        prop_assert_eq!(batch_snapshot(&registry), before);
++
++        let mut looped = Ok(());
++        for transform in batch {
++            if let Err(error) = registry.add_transform(transform) {
++                looped = Err(error);
++                break;
++            }
++        }
++        prop_assert_eq!(format!("{checked:?}"), format!("{looped:?}"));
++    }
++}
