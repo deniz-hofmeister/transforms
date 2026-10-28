@@ -21,14 +21,14 @@ Requires Rust 1.85 or later.
 
 ```toml
 [dependencies]
-transforms = "2.2.0"
+transforms = "2.3.0"
 ```
 
 For `no_std`, disable default features and provide a heap allocator:
 
 ```toml
 [dependencies]
-transforms = { version = "2.2.0", default-features = false }
+transforms = { version = "2.3.0", default-features = false }
 ```
 
 | Feature | Default | Effect |
@@ -166,13 +166,13 @@ measurements and reproduction commands. Run `cargo bench` for benchmarks.
 
 ## What's new
 
-2.2.0 adds `Registry::reparent_frame`, atomic re-parenting at the price of the
-moved frame's stored history, with the `NoParentToReplace` and
-`ParentUnchanged` error variants. Its lookups allocate frame names once per
-result instead of per hop, name a failing edge on the connecting chain, and
-report why frames cannot be connected instead of a numeric overflow. 2.1.3 reduced dynamic-history memory use and
-lookup allocations, and shortened and corrected the documentation, changing no
-public API, serialization, or numerical behavior. See the
+2.3.0 adds `Registry::add_transforms`, which inserts a batch all-or-nothing:
+one rejected transform leaves the registry unchanged. 2.2.0 added
+`Registry::reparent_frame`, atomic re-parenting at the price of the moved
+frame's stored history, with the `NoParentToReplace` and `ParentUnchanged`
+error variants; its lookups allocate frame names once per result instead of
+per hop, name a failing edge on the connecting chain, and report why frames
+cannot be connected instead of a numeric overflow. See the
 [changelog](CHANGELOG.md) for earlier releases.
 
 ## Examples

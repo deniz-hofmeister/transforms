@@ -1,4 +1,4 @@
-# Migrating to 2.2
+# Migrating to 2.3
 
 From 2.0.0, no API migration is required. From 1.x or a 2.0 pre-release,
 apply the changes below. The current API is documented on
@@ -31,6 +31,11 @@ apply the changes below. The current API is documented on
   `UnknownFrame`, `Disconnected` or `NotFoundAt` even when the part of the
   tree it walked overflows. Earlier releases could report `NonFiniteValues`
   there, depending on the argument order.
+- Since 2.3.0, `Registry::add_transforms(transforms)` inserts a batch
+  all-or-nothing: on error the registry is unchanged and the error is the
+  first one `add_transform` would report. It replaces hand-written rollback
+  around an `add_transform` loop; keep the loop to store the valid
+  transforms of a batch.
 
 ## Coming from 1.x
 
