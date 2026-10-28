@@ -731,4 +731,34 @@ mod buffer_tests {
         );
         assert_eq!(buffer.get(t_past).unwrap().translation.x, 2.0);
     }
+
+    #[test]
+    fn check_stores_nothing_and_agrees_with_insert() {
+        let t = Timestamp::from_nanos(1);
+        let seeded = || {
+            let mut buffer = Buffer::dynamic();
+            buffer.insert(create_transform(t)).unwrap();
+            buffer
+        };
+        let buffer = seeded();
+
+        for candidate in [
+            create_transform(Timestamp::from_nanos(2)),
+            create_static_transform(),
+            frames_transform("odom", "base", Vector3::zero(), Stamp::At(t)),
+            frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t)),
+            frames_transform("base", "base", Vector3::zero(), Stamp::At(t)),
+        ] {
+            let checked = buffer.check(&candidate);
+            let inserted = seeded().insert(candidate);
+            assert_eq!(
+                alloc::format!("{checked:?}"),
+                alloc::format!("{inserted:?}")
+            );
+        }
+        assert!(
+            matches!(buffer.coverage(), Coverage::Range { start, end } if start == t && end == t),
+            "check must not store anything"
+        );
+    }
 }

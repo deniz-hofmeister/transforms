@@ -86,6 +86,9 @@ assert_eq!(point.position, Vector3::new(3.0, 0.0, 0.0));
 - Each child has one parent and one kind (static or dynamic), set at its
   first insertion. Cycles are rejected. Re-publishing a sample at the same
   timestamp replaces it.
+- `Registry::add_transforms` inserts a batch all-or-nothing: one rejected
+  transform leaves the registry unchanged. Insert one at a time to keep the
+  valid transforms of a batch.
 - `Registry::reparent_frame` moves a child under a new parent atomically,
   dropping that child's stored history; descendants keep theirs. Use
   `remove_frame` and re-insertion to change a kind or keep history.

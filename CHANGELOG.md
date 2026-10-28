@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Registry::add_transforms(transforms)`: inserts a batch all-or-nothing.
+  On success the registry holds what `add_transform` would leave
+  inserting the batch in order; on error it is unchanged — nothing from
+  the batch is stored and no sample is evicted — and the error is the
+  first one `add_transform` would report. Every transform is checked
+  before any is stored, against the stored frames and the frames the
+  batch itself creates, so the cost is that of the equivalent
+  `add_transform` loop rather than of the stored history. One rejected
+  transform rejects the whole batch, and the error does not identify it;
+  `add_transform` remains the way to keep the valid transforms of a batch.
+
 ## [2.2.0] - 2026-09-27
 
 ### Added
@@ -641,6 +656,7 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.2.0...HEAD
 [2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
 [2.1.2]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.1...v2.1.2

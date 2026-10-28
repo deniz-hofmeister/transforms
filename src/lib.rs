@@ -15,6 +15,7 @@
 //! [`Registry::new`] retains them until manual removal.
 //! [`Registry::reparent_frame`] moves a child frame under a new parent
 //! atomically, dropping that frame's stored history.
+//! [`Registry::add_transforms`] inserts a batch all-or-nothing.
 //!
 //! Constructors and deserialization validate transforms. Derived results can
 //! accumulate rotation drift or overflow; see [`Transform::validate`] and

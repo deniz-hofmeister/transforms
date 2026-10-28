@@ -159,6 +159,104 @@ where
         Self::process_add_transform(t, &mut self.data, self.max_age)
     }
 
+    /// Inserts a batch of transforms all-or-nothing.
+    ///
+    /// On success the registry holds what [`Registry::add_transform`] would
+    /// leave inserting the transforms in order. On error it is unchanged:
+    /// nothing from the batch is stored and no sample is evicted. The
+    /// iterator is consumed before anything is stored.
+    ///
+    /// One rejected transform rejects the whole batch, including the
+    /// transforms that are valid on their own; insert one at a time with
+    /// [`Registry::add_transform`] to keep those. The error does not
+    /// identify the rejected transform.
+    ///
+    /// # Errors
+    ///
+    /// The first error [`Registry::add_transform`] would report inserting
+    /// the batch in order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     errors::RegistryError,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// let t = Timestamp::from_nanos(1);
+    /// let edge = |parent, child| {
+    ///     Transform::new(
+    ///         parent,
+    ///         child,
+    ///         Vector3::new(1.0, 0.0, 0.0),
+    ///         Quaternion::identity(),
+    ///         Stamp::At(t),
+    ///     )
+    ///     .unwrap()
+    /// };
+    /// let mut registry = Registry::new();
+    ///
+    /// // `base` enters the tree in the same batch that hangs `lidar` from it.
+    /// registry
+    ///     .add_transforms([edge("map", "base"), edge("base", "lidar")])
+    ///     .unwrap();
+    /// let transform = registry.get_transform("map", "lidar", t).unwrap();
+    /// assert_eq!(transform.translation(), Vector3::new(2.0, 0.0, 0.0));
+    ///
+    /// // The second edge closes a cycle, so the first is not stored either.
+    /// let result = registry.add_transforms([edge("lidar", "camera"), edge("camera", "map")]);
+    /// assert!(matches!(result, Err(RegistryError::CycleDetected)));
+    /// assert!(registry.get_transform("lidar", "camera", t).is_err());
+    /// ```
+    pub fn add_transforms(
+        &mut self,
+        transforms: impl IntoIterator<Item = Transform<T>>,
+    ) -> Result<(), RegistryError<T>> {
+        // Nothing is stored until every transform has passed. A frame the
+        // registry holds keeps its pins and kind through any insert, and
+        // those are all its checks compare against, so its transforms are
+        // checked against the live buffer and set aside. A frame the batch
+        // creates is built aside through the ordinary insert, so later
+        // members of the batch see its pins, and the cycle walk sees its
+        // edge.
+        let mut checked = Vec::new();
+        let mut created: HashMap<String, Buffer<T>> = HashMap::new();
+        for t in transforms {
+            if let Some(buffer) = self.data.get(t.child()) {
+                buffer.check(&t)?;
+                checked.push(t);
+            } else if let Some(buffer) = created.get_mut(t.child()) {
+                buffer.insert(t)?;
+            } else {
+                if Self::creates_cycle(t.child(), t.parent(), |frame| {
+                    self.data
+                        .get(frame)
+                        .or_else(|| created.get(frame))
+                        .and_then(Buffer::parent)
+                }) {
+                    return Err(RegistryError::CycleDetected);
+                }
+                let mut buffer = Self::empty_buffer_for(&t, self.max_age);
+                let child: String = t.child().into();
+                buffer.insert(t)?;
+                created.insert(child, buffer);
+            }
+        }
+
+        // The checks above are the ones these inserts repeat, so none fails.
+        // Storing through the ordinary path rather than an unchecked one
+        // keeps a single way into a buffer: were that ever untrue, the error
+        // surfaces instead of a transform being dropped.
+        for t in checked {
+            Self::process_add_transform(t, &mut self.data, self.max_age)?;
+        }
+        self.data.extend(created);
+        Ok(())
+    }
+
     /// Maps `source`-frame coordinates into `target` at `timestamp`.
     ///
     /// The argument order matches tf2's `lookupTransform(target, source, time)`.
@@ -669,7 +767,9 @@ where
         // out-edge without first arriving at the frame itself — exactly the
         // case that reports the cycle — so the pre-commit tree gives the
         // same answer as the post-commit one would.
-        if Self::creates_cycle(t.child(), t.parent(), &self.data) {
+        if Self::creates_cycle(t.child(), t.parent(), |frame| {
+            self.data.get(frame).and_then(Buffer::parent)
+        }) {
             return Err(RegistryError::CycleDetected);
         }
 
@@ -700,7 +800,11 @@ where
         // A new child->parent relationship changes the tree topology; reject
         // it if it would close a cycle. (Existing buffers have their parent
         // pinned, so occupied inserts cannot.)
-        if !data.contains_key(t.child()) && Self::creates_cycle(t.child(), t.parent(), data) {
+        if !data.contains_key(t.child())
+            && Self::creates_cycle(t.child(), t.parent(), |frame| {
+                data.get(frame).and_then(Buffer::parent)
+            })
+        {
             return Err(RegistryError::CycleDetected);
         }
 
@@ -712,42 +816,49 @@ where
         // failed insert cannot leave an empty, parentless frame behind —
         // which would bypass the cycle check on a later insert of the same
         // child frame. The transform's stamp declares the buffer's kind.
-        let mut buffer = match (t.timestamp(), max_age) {
-            (Stamp::Static, _) => Buffer::static_edge(),
-            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
-            (Stamp::At(_), None) => Buffer::dynamic(),
-        };
+        let mut buffer = Self::empty_buffer_for(&t, max_age);
         let child: String = t.child().into();
         buffer.insert(t)?;
         data.insert(child, buffer);
         Ok(())
     }
 
+    /// An empty buffer for `t`'s child frame, of the kind `t`'s stamp
+    /// declares, expiring under `max_age` if it is dynamic.
+    fn empty_buffer_for(
+        t: &Transform<T>,
+        max_age: Option<Duration>,
+    ) -> Buffer<T> {
+        match (t.timestamp(), max_age) {
+            (Stamp::Static, _) => Buffer::static_edge(),
+            (Stamp::At(_), Some(max_age)) => Buffer::dynamic_with_max_age(max_age),
+            (Stamp::At(_), None) => Buffer::dynamic(),
+        }
+    }
+
     /// Returns `true` if adding the relationship `child -> parent` would
-    /// create a cycle in the frame tree.
+    /// create a cycle in the frame tree whose pinned parents `parent_of`
+    /// reports.
     ///
-    /// Walks upward from `parent` through the pinned buffer parents. The walk
-    /// terminates because the existing tree is acyclic: every edge in the
-    /// map passed this check at the moment it entered — `add_transform` for
-    /// a new frame, `reparent_frame` for a replaced edge — occupied inserts
-    /// cannot change a pinned parent, and `remove_frame` only deletes
-    /// edges, so the map is acyclic at every instant.
-    fn creates_cycle(
+    /// Walks upward from `parent`. The walk terminates because the tree is
+    /// acyclic: every edge in the map passed this check at the moment it
+    /// entered — `add_transform` for a new frame, `reparent_frame` for a
+    /// replaced edge — occupied inserts cannot change a pinned parent, and
+    /// `remove_frame` only deletes edges, so the map is acyclic at every
+    /// instant. The frames `add_transforms` builds aside pass this check
+    /// against the map plus the frames built before them, so the union it
+    /// walks is acyclic too.
+    fn creates_cycle<'a>(
         child: &str,
-        parent: &str,
-        data: &HashMap<String, Buffer<T>>,
+        parent: &'a str,
+        parent_of: impl Fn(&'a str) -> Option<&'a str>,
     ) -> bool {
         let mut current = parent;
-        while let Some(buffer) = data.get(current) {
-            match buffer.parent() {
-                Some(next) => {
-                    if next == child {
-                        return true;
-                    }
-                    current = next;
-                }
-                None => return false,
+        while let Some(next) = parent_of(current) {
+            if next == child {
+                return true;
             }
+            current = next;
         }
         false
     }
