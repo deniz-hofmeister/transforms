@@ -401,20 +401,30 @@ when relevant. Documentation drift is a bug.
 
 ## Releasing
 
-Releases are cut by the maintainer. Release prep is ordinary branch work:
-it lands on master through the usual branch-and-merge flow before anything
-is tagged, and the tag goes on master — `cargo publish` then runs from the
-tagged tree. The checklist, in order:
+Releases are cut by the maintainer. Release prep is one commit made directly
+on master — no prep branch, no pull request. Pushing it bypasses the
+`master` ruleset's pull-request and status-check requirements, so the local
+gate and the CI run on that push are the only checks it gets; both must pass
+before anything is tagged. The release branch is then cut from that commit
+and never receives a commit of its own: the branch head, the tag, the
+published crate, and the GitHub release all name the commit master holds.
+The checklist, in order:
 
-- Finalize `CHANGELOG.md`: set the release date, repoint its comparison to
-  the tag, and verify `MIGRATION.md`. Both ship in the immutable crate package.
-- Confirm the `version` in `Cargo.toml` matches the release, regenerate
-  `Cargo.lock` so it records that version (any `cargo build` after the
-  bump does), and bump the version pins in the README installation
-  snippets — all committed together: `cargo publish` refuses a dirty
-  tree.
+- Finalize `CHANGELOG.md`: rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`
+  with the release date, add the `[X.Y.Z]` comparison link against the
+  previous tag, repoint `[Unreleased]` to compare from `vX.Y.Z`, and verify
+  `MIGRATION.md`. Both ship in the immutable crate package.
+- Set the `version` in `Cargo.toml`, regenerate `Cargo.lock` so it records
+  that version (any `cargo build` after the bump does), bump the version
+  pins in the README installation snippets, and update the README's
+  "What's new" to lead with the release.
+- Commit all of it together on master as
+  `Finalize the changelog and release notes for vX.Y.Z`, with a body that
+  says what the commit changed. Do not push yet. `cargo publish` refuses a
+  dirty tree, so every check below runs on that commit.
 - Run the full verification gate (`tests/test_all.sh`).
-- Run `cargo semver-checks check-release --baseline-rev <previous tag>` and
+- Run `cargo semver-checks check-release --baseline-rev <previous tag>` in
+  each of the four feature combinations the `semver` CI job runs, and
   confirm the diff is exactly the changelogged one. Against a baseline the
   release already majors over it enumerates nothing — every breaking lint is
   skipped as permitted, and the run proves only that the tooling works and
@@ -423,12 +433,19 @@ tagged tree. The checklist, in order:
   baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
-- Merge the release-prep branch to master. If the merge is not a
-  fast-forward, re-run the gate on it — the tag must point at a tree the
-  gate has seen.
-- Tag `vX.Y.Z` on the merge and push the tag.
-- `cargo publish`.
-- Create a GitHub release for the tag; mark pre-releases as such and the
-  current stable release as latest.
+- Push master and wait for every CI job on that commit to pass. If a check
+  fails, fix it on master and restart from the gate; never tag a commit CI
+  has not passed.
+- Cut `release/vX.Y.Z` from that commit and push it. Nothing is ever
+  committed to it.
+- Tag `vX.Y.Z` on the branch head as an annotated tag whose message is
+  `vX.Y.Z`, and push the tag.
+- `cargo publish` from a clean checkout of `release/vX.Y.Z`. It runs before
+  the GitHub release because it is the one step that cannot be undone: a
+  GitHub release announces the version, and must not announce one crates.io
+  does not serve.
+- Create the GitHub release for the tag, titled `vX.Y.Z`, with that
+  version's `CHANGELOG.md` section, minus its heading, as the notes; mark
+  pre-releases as such and the current stable release as latest.
 - The `semver` CI job checks against the latest published release; its
   baseline advances automatically after publication.
