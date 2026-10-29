@@ -1,14 +1,19 @@
-# transforms 2.3: design proposal
+# transforms 2.4: design proposal
 
-Date: 2026-10-03. Draft revision: 1. Baseline: master `aa29557`
-(released v2.2.0).
+Date: 2026-10-03. Draft revision: 2 (2026-10-28). Baseline: master
+`aa29557` (released v2.2.0).
 
-This document proposes the contents of a 2.3.0 minor release. It follows from
+This document proposes the contents of a 2.4.0 minor release. It follows from
 the verdict in [`analysis/v3-warrant/REPORT.md`](../v3-warrant/REPORT.md):
 no v3 now, and the reachable value ships additively. Nothing here is
 implemented. AGENTS.md applies throughout. Every part grows the public
 surface, so this document is the maintainer note that AGENTS.md requires.
 It does not authorize implementation, merge, or release.
+
+Revision 2 retargets the proposal from 2.3.0 to 2.4.0: 2.3.0 shipped
+`Registry::add_transforms` alone (`76787c2`). Parts A to C are unchanged.
+The probes in §2 ran at `aa29557` and were not re-run; the file and line
+references below point into the v2.3.0 tree.
 
 ## 1. Summary
 
@@ -48,7 +53,7 @@ Probe-verified at `aa29557`:
    or a point cloud means writing `rotation().rotate_vector(v) +
    translation()` by hand, which skips the frame and time checks. The
    `get_transform_at` rustdoc example does exactly this
-   (`src/core/registry/mod.rs:318`).
+   (`src/core/registry/mod.rs:416`).
 
 ## 3. Part A: cross-time result type
 
@@ -143,7 +148,7 @@ assert!(x.transform_point(&mut Point::new(p, q, t2, "object")).is_err());
 ### 3.5 Deprecating `get_transform_at`
 
 The proposal is
-`#[deprecated(since = "2.3.0", note = "use get_cross_time_transform, whose result keeps both instants")]`.
+`#[deprecated(since = "2.4.0", note = "use get_cross_time_transform, whose result keeps both instants")]`.
 
 - A deprecation is a lint, not a SemVer break.
 - The tests that pin the old method's behaviour keep it under test until v3.
@@ -236,7 +241,7 @@ Disjoint field borrows make this compile as written.
 ## 5. Part C: documentation corrections
 
 None of these changes behaviour. `Display` text is declared unstable
-(`README.md:114`).
+(`README.md:117`).
 
 1. **Example direction comments.** In `examples/std_minimal.rs:33,57` and
    `examples/no_std_full.rs:37,61`, comments say "transform from camera to
@@ -262,10 +267,10 @@ None of these changes behaviour. `Display` text is declared unstable
    recipe to the `Transformable` rustdoc. It should spell out the check and
    the relabel that `Point` performs.
 7. **Cross-time references follow Part A.** Point these at the new method:
-   - `README.md:101-103`;
-   - `src/lib.rs:21-22`;
+   - `README.md:104-106`;
+   - `src/lib.rs:22-23`;
    - the `Transformable` cross-time paragraph;
-   - `MIGRATION.md:181-186` (add a 2.3 note; do not rewrite 2.0 history);
+   - `MIGRATION.md:186-191` (add a 2.4 note; do not rewrite 2.0 history);
    - `examples/std_advanced.rs:105-135` and
      `examples/no_std_advanced.rs:106-135`, which then apply the result to
      a `Point` instead of printing `translation()`.
@@ -337,11 +342,11 @@ All tests run in both feature modes. The serde suites are unchanged.
 
 ## 9. Release obligations
 
-- Bump the version to 2.3.0. Add a `## [2.3.0]` CHANGELOG section and a
+- Bump the version to 2.4.0. Add a `## [2.4.0]` CHANGELOG section and a
   MIGRATION note covering the deprecation and the new types.
 - AGENTS.md:
   - mention `CrossTimeTransform` in the architecture's `geometry` line;
   - add one sentence under the correctness invariants: a cross-time result
     has its own type and is never a `Transform`.
-- Run the full gate. Run `cargo semver-checks check-release --baseline-rev v2.2.0`
+- Run the full gate. Run `cargo semver-checks check-release --baseline-rev v2.3.0`
   and confirm the result is a minor bump.

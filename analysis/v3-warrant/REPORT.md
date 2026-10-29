@@ -6,7 +6,8 @@ intuitiveness, then asks whether a breaking v3 release is warranted now.
 
 The v3 notes in `analysis/v3-proposals/` were one input, not the frame. The
 companion design for the recommended next step is
-[`analysis/v2.3-proposal/DESIGN.md`](../v2.3-proposal/DESIGN.md).
+[`analysis/v2.4-proposal/DESIGN.md`](../v2.4-proposal/DESIGN.md), written
+for 2.3 and retargeted to 2.4 after 2.3.0 shipped `add_transforms` alone.
 
 ## Method
 
@@ -201,7 +202,7 @@ skeptics rated its parts low individually.
 ## Recommendation
 
 1. **Ship 2.3 with additive changes only.**
-   [`DESIGN.md`](../v2.3-proposal/DESIGN.md) specifies three parts:
+   [`DESIGN.md`](../v2.4-proposal/DESIGN.md) specifies three parts:
    - a cross-time result type with its own checked application, and
      `get_transform_at` deprecated;
    - checked application of a transform to plain positions, which needs a
@@ -227,7 +228,7 @@ skeptics rated its parts low individually.
   scope rule puts them in the core. It does not. The rule places anything
   buildable exactly on the public API outside the core, and the
   wrong-answer-generator clause applies only when the correct version needs
-  sealed internals. They are withdrawn from the 2.3 proposal.
+  sealed internals. They are withdrawn from the 2.3 (now 2.4) proposal.
 - **`checked_add`.** An inherent `checked_add` beside the `Result`-returning
   operators would be a second spelling of one operation, not an idiom fix.
   It moves to the v3 ledger (operators → named methods).
