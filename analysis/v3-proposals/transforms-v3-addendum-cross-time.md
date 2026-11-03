@@ -20,9 +20,10 @@ implemented. The probes it cites ran at `aa29557`.
   be fixed before the v3 `Rotation`, public `Isometry`, operator and
   vocabulary decisions it depends on.
 - **2.x documents the restriction instead.** The `get_transform_at` rustdoc
-  ("Temporal metadata limitation"), the crate docs, the `Transform` and
-  `Transformable` rustdoc, the README and MIGRATION all say to keep both
-  instants and apply the geometry explicitly.
+  ("Temporal metadata limitation"), the README and MIGRATION say to keep
+  both instants and apply the geometry explicitly. The crate docs and the
+  `Transform` and `Transformable` rustdoc point to that method's
+  restrictions.
 
 ## Shape in v3
 

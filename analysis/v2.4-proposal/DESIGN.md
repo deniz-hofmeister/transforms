@@ -65,10 +65,10 @@ Probe-verified at `aa29557`:
      `cross_time_result_keeps_only_target_stamp_and_remains_insertable`.
 
    Only a type change on the method closes this, and that is a break (§3).
-   2.x already documents it everywhere it is mentioned: the
-   `get_transform_at` rustdoc ("Temporal metadata limitation"), the crate
-   docs, the `Transform` and `Transformable` rustdoc, the README and
-   MIGRATION.
+   2.x already documents it. The `get_transform_at` rustdoc ("Temporal
+   metadata limitation"), the README and MIGRATION state the restriction;
+   the crate docs and the `Transform` and `Transformable` rustdoc point to
+   it.
 3. **The hazard reaches a dependent.** `roslibrust_transforms` 0.26.0
    re-exports `get_transform_at` (`src/lib.rs:555`). Its rustdoc tells
    callers the result "converts points from `source_frame` at
@@ -101,7 +101,7 @@ beside it. It is withdrawn from 2.4:
 **What 2.x does about it instead:**
 
 - **Nothing more in the crate.** The application restrictions are already
-  documented in every place listed in §2.2. Part C item 7 of revision 2
+  stated or linked everywhere §2.2 lists. Part C item 7 of revision 2
   existed only to repoint those references at the new method, so it is
   dropped.
 - **Outreach, outside the crate.** Ask `roslibrust_transforms` to link
