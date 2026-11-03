@@ -199,8 +199,10 @@ would produce) a silent wrong answer:
   extrapolation. A `Registry` lookup that falls outside a frame's covered
   range fails with `RegistryError::NotFoundAt` carrying
   `covered: Some(range)` — no registry path produces
-  `TransformError::TimestampOutOfRange`; its only producer is
-  `Transform::interpolate`, which the buffer never calls out of range.
+  `TransformError::TimestampOutOfRange`; its only producer is the public
+  `Transform::interpolate`, which no registry path calls. The buffer
+  interpolates on the crate-private `Isometry`, only between the samples
+  that bracket the request, and that path cannot report it.
 - Error formatting goes through `TimePoint::as_seconds_lossy` and cannot fail;
   a conversion error must never mask the error being reported.
 - Buffer expiry is data-driven: entries older than
@@ -220,9 +222,12 @@ would produce) a silent wrong answer:
   norm deviates from 1 by more than `geometry::UNIT_NORM_TOLERANCE`. A
   denormalized rotation would silently corrupt every lookup it takes part in.
   The fields are private so a built transform cannot be edited back out of
-  that guarantee; the crate-internal `Transform::unvalidated` exists only for
-  values derived from already-valid ones, and every new caller of it must be
-  able to name the validated transform its inputs came from.
+  that guarantee. The crate-internal `Transform::unvalidated` skips the
+  check, so library code calls it only where the result is valid by other
+  means: assembly validated before it escapes (`Transform::new`, the
+  `Deserialize` impl), and values derived from already-valid transforms or
+  from the exact identity. Every new caller of it must be able to name that
+  source. Tests also use it for deliberately invalid transforms (see Style).
 - Values *derived* from valid transforms — `Mul`, `inverse`, `interpolate`,
   every registry lookup — are deliberately not re-validated: rotation norms
   drift a few ulps per composition, so re-checking a long chain would reject
