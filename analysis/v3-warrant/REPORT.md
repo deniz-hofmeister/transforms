@@ -163,7 +163,7 @@ skeptics rated its parts low individually.
 
 | Item | Why it breaks | Value |
 |---|---|---|
-| Remove `get_transform_at`, or make its result non-insertable | Removal, and a pinned declared behaviour (`tests/v2_compatibility.rs`) | Medium. The hazard is real, but an additive result type covers callers who migrate |
+| `get_transform_at` returns a cross-time result type that cannot be inserted ([addendum](../v3-proposals/transforms-v3-addendum-cross-time.md)) | Return type, and a pinned declared behaviour (`tests/v2_compatibility.rs`) | Medium. The hazard is real, and only the type change closes it; the additive 2.4 type was withdrawn (2026-11-03) |
 | `Rotation` newtype + translation bound; retire insert re-validation and the `From` canonicalization | Signatures, serde, a pinned contract (stored rotations become normalized) | The cleanest end state. Small user payoff: drift is ~4e-17 per composition, and `Ok(inf)` needs ~1e308 inputs |
 | `Disconnected` before `NotFoundAt` | Declared precedence (`error.rs:162`, MIGRATION) | Low to medium. It is a misleading diagnosis, not a wrong answer, and `latest_common_time` already tells the cases apart |
 | Operators → `checked_*` / `compose` | Removal of operators | Low to medium. An idiom fix |
@@ -190,7 +190,8 @@ skeptics rated its parts low individually.
 - **Timing.** A third major in about seven months costs trust, and trust is a
   feature for a crate that positions robots.
 - **Most of the value is reachable additively.** v3 would mainly buy the
-  deletion of deprecated paths.
+  deletion of deprecated paths. The cross-time fix is the exception: since
+  DESIGN.md revision 3 it is a ledger item, not a deprecation.
 - **Silent behaviour changes.** Several items compile unchanged but behave
   differently: normalized storage, the precedence flip, a bounded default.
   That is the class that nearly bit 1.x → 2.0.
@@ -202,12 +203,17 @@ skeptics rated its parts low individually.
 ## Recommendation
 
 1. **Ship 2.3 with additive changes only.**
-   [`DESIGN.md`](../v2.4-proposal/DESIGN.md) specifies three parts:
+   [`DESIGN.md`](../v2.4-proposal/DESIGN.md), as first written, specified
+   three parts:
    - a cross-time result type with its own checked application, and
      `get_transform_at` deprecated;
    - checked application of a transform to plain positions, which needs a
      maintainer scope decision;
    - documentation fixes.
+
+   Revision 3 of DESIGN.md (2026-11-03) moved the cross-time result type
+   to the v3 ledger, for the reason under "Pros of cutting v3": an
+   additive type helps only callers who migrate.
 2. **Measure.** Time lookups on M4F, M7 and M33 with `target-cpu` set and
    the FPU variant recorded, following v3-3 §6. Compare differential-trace
    hashes across the x86-64 and ARM64 runners.
