@@ -148,9 +148,12 @@ skeptics rated its parts low individually.
 ### What the dependents show
 
 - **They are thin adapters.** All three are ROS adapters: convert messages,
-  insert, look up, and turn errors into strings. None matches a
-  `RegistryError` variant, and none has comments complaining about the API.
-  Their friction is in ROS conversion, which no v3 item touches.
+  insert, look up, and turn errors into strings. Only transforms_io 0.8.0
+  matches a `RegistryError` variant (`ReparentingNotSupported`), and none
+  has comments complaining about the API. Most of their friction is in ROS
+  conversion; frame-less insert errors, which all three name by hand,
+  are now a ledger row. (Corrected 2026-11-06;
+  see [addendum](../v3-proposals/transforms-v3-addendum-dependents.md).)
 - **The 1.x → 2.0 migration was cheap and paid off.** It cost small diffs,
   the two active dependents absorbed it within weeks, and it fixed real
   silent-wrong-answer bugs in them.
@@ -163,18 +166,23 @@ skeptics rated its parts low individually.
 
 | Item | Why it breaks | Value |
 |---|---|---|
-| `get_transform_at` returns a cross-time result type that cannot be inserted ([addendum](../v3-proposals/transforms-v3-addendum-cross-time.md)) | Return type, and a pinned declared behaviour (`tests/v2_compatibility.rs`) | Medium. The hazard is real, and only the type change closes it; the additive 2.4 type was withdrawn (2026-11-03) |
+| `get_transform_at` returns a cross-time result type that cannot be inserted ([addendum](../v3-proposals/transforms-v3-addendum-cross-time.md)) | Return type, and a pinned declared behaviour (`tests/v2_compatibility.rs`) | Medium. The hazard is real, and only the type change closes it; the additive 2.4 type was withdrawn (2026-11-03). roslibrust_transforms 0.26.0 puts a misuse one call from a wrong edge on the network: its `add_transform` upserts the result over the true sample and publishes it on `/tf`. Reachable, not observed ([addendum](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06) |
 | `Rotation` newtype + translation bound; retire insert re-validation and the `From` canonicalization | Signatures, serde, a pinned contract (stored rotations become normalized) | The cleanest end state. Small user payoff: drift is ~4e-17 per composition, and `Ok(inf)` needs ~1e308 inputs |
 | `Disconnected` before `NotFoundAt` | Declared precedence (`error.rs:162`, MIGRATION) | Low to medium. It is a misleading diagnosis, not a wrong answer, and `latest_common_time` already tells the cases apart |
 | Operators → `checked_*` / `compose` | Removal of operators | Low to medium. An idiom fix |
 | One vocabulary (`target`/`source` on results, `Pose`, `ReparentingNotSupported`) | Renames | Low. Cosmetic unless result types split |
-| `TransformError<T>`, sealed `Point`, required `max_age` | Signatures and defaults | Low |
+| `TransformError<T>`, sealed `Point`, required `max_age` | Signatures and defaults | Low. Every studied user already builds with `with_max_age` (10 s in their defaults or docs), so requiring it changes none of them, and an 8 s dropout inside it is still interpolated ([addendum](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06) |
+| Insert errors name the rejected transform's frames: `SelfReferentialFrame`, `CycleDetected` and `StaticDynamicConflict` gain frame fields (and `EmptyFrameName`, if 2.4 ships it); `ReparentingNotSupported` gains its child ([addendum](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06) | Unit variants gain fields, and so does a struct variant that is not `#[non_exhaustive]`. A parallel framed set would give one condition two spellings | Low. Diagnostics, not a wrong answer. Three users write it by hand per element; `add_transforms` does not say which member failed, so dimos cannot. Not a trigger |
 | A registry generic over the scalar | Only if f32 shares the `Registry` type | None today. A concrete `f32` module would be additive |
 
 ### Pros of cutting v3
 
-- **It will never be cheaper.** There are three dependents and about 385
-  downloads a month, and the last migration was cheap for them.
+- **It will never be cheaper.** There are three dependents and about 940
+  downloads a month (942 from 2026-10-07 to 2026-11-06; about 385 when
+  this report was written). The last
+  migration was cheap for them, though the transforms maintainer wrote
+  roslibrust_transforms'. (Corrected 2026-11-06; see
+  [addendum](../v3-proposals/transforms-v3-addendum-dependents.md).)
 - **Types close hazards for every caller.** Deprecation helps only callers
   who migrate. The cross-time hole stays open for everyone else.
 - **The idiom warts go away.** The `Result`-returning operators otherwise
@@ -185,8 +193,13 @@ skeptics rated its parts low individually.
 
 ### Cons
 
-- **No demonstrated need.** No user has asked for any item, and the
-  dependents do not use the parts that would change.
+- **No demonstrated need.** No user has asked for any item. The
+  dependents do use parts that would change: roslibrust_transforms wraps
+  `get_transform_at` and re-exports `TransformError`; transforms_io 0.8.0
+  matches `ReparentingNotSupported`; transforms_io re-exports six
+  `transforms` types and pelorus_syncio five again, so each needs a
+  release to move to a major. (Corrected 2026-11-06; see
+  [addendum](../v3-proposals/transforms-v3-addendum-dependents.md).)
 - **Timing.** A third major in about seven months costs trust, and trust is a
   feature for a crate that positions robots.
 - **Most of the value is reachable additively.** v3 would mainly buy the
