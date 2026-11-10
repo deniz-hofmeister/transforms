@@ -1,0 +1,180 @@
+diff -ru a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -321,6 +321,9 @@
+         timestamp: T,
+     ) -> Result<Transform<T>, RegistryError<T>> {
+         let isometry = Self::resolve(target, source, timestamp, &self.data)?;
++        if !isometry.is_finite() {
++            return Err(RegistryError::NonFiniteValues);
++        }
+         // The result answers "where is `source` relative to `target` at the
+         // requested time", so it carries the requested timestamp — also for
+         // chains of static transforms, which are themselves stamped
+@@ -1112,6 +1115,9 @@
+             target_to_fixed.inverse()? * source_to_fixed
+         };
+ 
++        if !isometry.is_finite() {
++            return Err(RegistryError::NonFiniteValues);
++        }
+         // The result carries the target time as per the API contract.
+         Ok(Transform::unvalidated(
+             target_frame.into(),
+diff -ru a/src/geometry/transform/error.rs b/src/geometry/transform/error.rs
+--- a/src/geometry/transform/error.rs
++++ b/src/geometry/transform/error.rs
+@@ -2,7 +2,7 @@
+ 
+ use thiserror::Error;
+ 
+-use crate::errors::{QuaternionError, TimeError};
++use crate::errors::TimeError;
+ 
+ /// Error type for building, composing, interpolating, and applying
+ /// transforms.
+@@ -74,8 +74,4 @@
+     /// A timestamp operation failed.
+     #[error("timestamp error: {0}")]
+     TimestampError(#[from] TimeError),
+-
+-    /// A quaternion operation failed.
+-    #[error("quaternion error: {0}")]
+-    QuaternionError(#[from] QuaternionError),
+ }
+diff -ru a/src/geometry/transform/isometry.rs b/src/geometry/transform/isometry.rs
+--- a/src/geometry/transform/isometry.rs
++++ b/src/geometry/transform/isometry.rs
+@@ -35,17 +35,16 @@
+ 
+     /// The same relationship read the other way round.
+     ///
+-    /// The rotation is normalized first: inverting a rotation that has
+-    /// drifted off the unit sphere would scale every value the result is
+-    /// applied to.
++    /// The rotation is conjugated, which inverts it exactly as far as it
++    /// is unit: built rotations are (see `unit_rotation`), and a derived
++    /// one is off by the same factor that already scales its forward use.
+     ///
+     /// # Errors
+     ///
+-    /// Returns `TransformError::QuaternionError` if the rotation cannot be
+-    /// normalized, and `TransformError::NonFiniteValues` if the inverted
+-    /// translation is not finite.
++    /// Returns `TransformError::NonFiniteValues` if the inverted translation
++    /// is not finite.
+     pub(crate) fn inverse(self) -> Result<Self, TransformError> {
+-        let rotation = self.rotation.normalize()?.conjugate();
++        let rotation = self.rotation.conjugate();
+         let translation = -1.0 * (rotation.rotate_vector(self.translation));
+ 
+         if !translation.x.is_finite() || !translation.y.is_finite() || !translation.z.is_finite() {
+@@ -58,6 +57,20 @@
+         })
+     }
+ 
++    /// Whether all seven components are finite: the check a lookup runs
++    /// once, on its answer, since a non-finite value is absorbing through
++    /// composition and inversion.
++    pub(crate) fn is_finite(self) -> bool {
++        let (t, q) = (self.translation, self.rotation);
++        t.x.is_finite()
++            && t.y.is_finite()
++            && t.z.is_finite()
++            && q.w.is_finite()
++            && q.x.is_finite()
++            && q.y.is_finite()
++            && q.z.is_finite()
++    }
++
+     /// Interpolates at `timestamp` between `self`, holding at `from_time`,
+     /// and `to`, holding at `to_time`: linearly in translation, by slerp in
+     /// rotation. A zero span returns `self` unchanged.
+diff -ru a/src/geometry/transform/mod.rs b/src/geometry/transform/mod.rs
+--- a/src/geometry/transform/mod.rs
++++ b/src/geometry/transform/mod.rs
+@@ -29,6 +29,30 @@
+ /// lookup they take part in without any error.
+ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
+ 
++/// How far the squared norm of a rotation may sit from 1 and still be stored
++/// as given by [`Transform::new`] and the `Deserialize` impl; anything
++/// further out is scaled onto the unit sphere.
++///
++/// One normalization lands within 7 `f64::EPSILON` of 1 in this measure, so
++/// a normalized rotation is inside the band and rebuilding a built transform
++/// changes no bit.
++const UNIT_BAND: f64 = 8.0 * f64::EPSILON;
++
++/// The rotation a validated transform stores: `q` itself inside
++/// [`UNIT_BAND`], otherwise `q` scaled to unit length.
++///
++/// The caller has validated `q`, so its norm is within
++/// [`UNIT_NORM_TOLERANCE`] of 1 and the scale is finite: there is no
++/// failure to report.
++fn unit_rotation(q: Quaternion) -> Quaternion {
++    let norm_sq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
++    if (norm_sq - 1.0).abs() <= UNIT_BAND {
++        return q;
++    }
++    let scale = 1.0 / libm::sqrt(norm_sq);
++    Quaternion::from_wxyz(q.w * scale, q.x * scale, q.y * scale, q.z * scale)
++}
++
+ /// Maps child-frame coordinates into a parent frame at a given stamp.
+ ///
+ /// Positions are rotated first, then translated. [`Transform::new`] and
+@@ -149,7 +173,7 @@
+         rotation: Quaternion,
+         timestamp: Stamp<T>,
+     ) -> Result<Self, TransformError> {
+-        let transform = Self::unvalidated(
++        let mut transform = Self::unvalidated(
+             parent.into(),
+             child.into(),
+             translation,
+@@ -157,6 +181,7 @@
+             timestamp,
+         );
+         transform.validate()?;
++        transform.rotation = unit_rotation(rotation);
+         Ok(transform)
+     }
+ 
+@@ -416,15 +441,13 @@
+     /// Computes the inverse of the transform: the same relationship read the
+     /// other way round, with the frames swapped.
+     ///
+-    /// The rotation is normalized first — inverting a rotation that has
+-    /// drifted off the unit sphere would scale every value the result is
+-    /// applied to.
++    /// The rotation is conjugated, which inverts a unit rotation exactly. A
++    /// constructor-built rotation is unit; one derived through a long run of
++    /// `*` is as far off as its forward use already is.
+     ///
+     /// # Errors
+     ///
+-    /// Returns `TransformError::QuaternionError` if the rotation cannot be
+-    /// normalized, which a transform straight from a constructor cannot reach:
+-    /// its norm was checked there. `TransformError::NonFiniteValues` is
++    /// `TransformError::NonFiniteValues` is
+     /// returned if the inverted translation is not finite, and that one is
+     /// reachable from a constructor-built transform too — rotating a
+     /// translation whose components sit near `f64::MAX` overflows it — as well
+@@ -580,7 +603,7 @@
+         // The body of `Transform::new`, moving the decoded frame names instead
+         // of re-allocating them: the assembled value is validated before it
+         // escapes, so `unvalidated` never hands out an unchecked transform.
+-        let transform = Self::unvalidated(
++        let mut transform = Self::unvalidated(
+             repr.parent,
+             repr.child,
+             repr.translation,
+@@ -588,6 +611,7 @@
+             repr.timestamp,
+         );
+         transform.validate()?;
++        transform.rotation = unit_rotation(repr.rotation);
+         Ok(transform)
+     }
+ }

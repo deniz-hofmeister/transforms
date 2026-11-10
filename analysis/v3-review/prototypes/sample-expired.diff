@@ -1,0 +1,212 @@
+diff -ru a/src/core/buffer/error.rs b/src/core/buffer/error.rs
+--- a/src/core/buffer/error.rs
++++ b/src/core/buffer/error.rs
+@@ -10,7 +10,7 @@
+ /// `Registry` maps each cause onto the matching public
+ /// [`RegistryError`](crate::errors::RegistryError) variant.
+ #[derive(Debug)]
+-pub(crate) enum InsertError {
++pub(crate) enum InsertError<T> {
+     /// The transform's numbers are unusable: a non-unit rotation or a
+     /// non-finite component (see [`Transform::validate`](crate::Transform::validate)).
+     Invalid(TransformError),
+@@ -36,6 +36,17 @@
+         /// The child frame the rejected transform carries.
+         found: String,
+     },
++
++    /// The sample is older than the newest one by more than `max_age`:
++    /// storing it would evict it in the same call.
++    SampleExpired {
++        /// The rejected sample's child frame.
++        frame: String,
++        /// The rejected sample's instant.
++        stamp: T,
++        /// The instant expiry was measured from.
++        newest: T,
++    },
+ }
+ 
+ /// Why a buffer could not serve a requested timestamp.
+diff -ru a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -290,8 +290,11 @@
+     pub fn insert(
+         &mut self,
+         transform: Transform<T>,
+-    ) -> Result<(), InsertError> {
++    ) -> Result<(), InsertError<T>> {
+         self.check(&transform)?;
++        // Last, so a sample that is both expired and otherwise refused
++        // reports the other cause — the precedence `add_transforms` shares.
++        self.check_expiry(&transform, self.newest())?;
+ 
+         // Captured before the transform is moved into storage; applied only
+         // after the insert is accepted, so a rejected transform cannot pin
+@@ -350,7 +353,7 @@
+     pub fn check(
+         &self,
+         transform: &Transform<T>,
+-    ) -> Result<(), InsertError> {
++    ) -> Result<(), InsertError<T>> {
+         transform.validate().map_err(InsertError::Invalid)?;
+ 
+         if transform.parent() == transform.child() {
+@@ -375,6 +378,59 @@
+         }
+     }
+ 
++    /// The newest instant the buffer's expiry is measured from; `None` for
++    /// a static buffer or a dynamic one holding nothing.
++    #[must_use]
++    pub fn newest(&self) -> Option<T> {
++        match &self.kind {
++            Kind::Dynamic {
++                latest_timestamp, ..
++            } => *latest_timestamp,
++            Kind::Static(_) => None,
++        }
++    }
++
++    /// The one insert check that reads the stored samples, and therefore
++    /// not part of [`Buffer::check`]: refuses a dynamic sample that
++    /// [`remove_expired`] would evict in the insert that stored it, with
++    /// expiry measured from `newest`. [`Buffer::insert`] passes its own
++    /// newest sample; `Registry::add_transforms` passes the newest the
++    /// buffer will hold once the batch's earlier members are stored.
++    ///
++    /// The threshold is `remove_expired`'s own `checked_sub`, so the two
++    /// agree for every time type, and an underflowing one refuses nothing.
++    ///
++    /// # Errors
++    ///
++    /// Returns `InsertError::SampleExpired` for such a sample.
++    pub fn check_expiry(
++        &self,
++        transform: &Transform<T>,
++        newest: Option<T>,
++    ) -> Result<(), InsertError<T>> {
++        if let (
++            Kind::Dynamic {
++                max_age: Some(max_age),
++                ..
++            },
++            Stamp::At(stamp),
++            Some(newest),
++        ) = (&self.kind, transform.timestamp(), newest)
++        {
++            if newest
++                .checked_sub(*max_age)
++                .is_ok_and(|threshold| stamp < threshold)
++            {
++                return Err(InsertError::SampleExpired {
++                    frame: transform.child().into(),
++                    stamp,
++                    newest,
++                });
++            }
++        }
++        Ok(())
++    }
++
+     /// Retrieves the edge's geometry at the specified timestamp.
+     ///
+     /// Only the numbers: the frames are the buffer's pins, and the stamp is
+diff -ru a/src/core/registry/error.rs b/src/core/registry/error.rs
+--- a/src/core/registry/error.rs
++++ b/src/core/registry/error.rs
+@@ -184,6 +184,24 @@
+         covered: Option<(T, T)>,
+     },
+ 
++    /// The sample is older than the child frame's newest sample by more
++    /// than the registry's `max_age`: storing it would evict it in the same
++    /// call, so it is refused and nothing is stored.
++    #[error(
++        "sample for {frame} at {} is older than the retention window ending at {}",
++        .stamp.as_seconds_lossy(),
++        .newest.as_seconds_lossy()
++    )]
++    SampleExpired {
++        /// The rejected sample's child frame.
++        frame: String,
++        /// The rejected sample's instant.
++        stamp: T,
++        /// The instant expiry was measured from: the frame's newest stored
++        /// sample, or in a batch an earlier member of the same batch.
++        newest: T,
++    },
++
+     /// No instant is covered by every connecting edge.
+     ///
+     /// `covered: Some(range)` names an edge whose range begins after the
+@@ -230,11 +248,11 @@
+     }
+ }
+ 
+-impl<T> From<InsertError> for RegistryError<T>
++impl<T> From<InsertError<T>> for RegistryError<T>
+ where
+     T: TimePoint,
+ {
+-    fn from(error: InsertError) -> Self {
++    fn from(error: InsertError<T>) -> Self {
+         match error {
+             InsertError::Invalid(error) => error.into(),
+             InsertError::StaticDynamicConflict => Self::StaticDynamicConflict,
+@@ -254,6 +272,15 @@
+                     found,
+                 })
+             }
++            InsertError::SampleExpired {
++                frame,
++                stamp,
++                newest,
++            } => Self::SampleExpired {
++                frame,
++                stamp,
++                newest,
++            },
+         }
+     }
+ }
+diff -ru a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -224,9 +224,24 @@
+         // edge.
+         let mut checked = Vec::new();
+         let mut created: HashMap<String, Buffer<T>> = HashMap::new();
++        // Expiry is the one check that reads the stored samples, so a held
++        // frame's members are measured against the newest sample the frame
++        // will hold when the insert loop reaches them: the stored one,
++        // advanced by each accepted member. Without `max_age` nothing
++        // expires and the map stays empty.
++        let mut newest: HashMap<&str, Option<T>> = HashMap::new();
+         for t in transforms {
+-            if let Some(buffer) = self.data.get(t.child()) {
++            if let Some((child, buffer)) = self.data.get_key_value(t.child()) {
+                 buffer.check(&t)?;
++                if let (Some(_), Stamp::At(stamp)) = (self.max_age, t.timestamp()) {
++                    let newest = newest
++                        .entry(child.as_str())
++                        .or_insert_with(|| buffer.newest());
++                    buffer.check_expiry(&t, *newest)?;
++                    if newest.is_none_or(|newest| stamp > newest) {
++                        *newest = Some(stamp);
++                    }
++                }
+                 checked.push(t);
+             } else if let Some(buffer) = created.get_mut(t.child()) {
+                 buffer.insert(t)?;
+@@ -246,6 +261,9 @@
+             }
+         }
+ 
++        // Ends the scratch map's borrow of the frame names before storing.
++        drop(newest);
++
+         // The checks above are the ones these inserts repeat, so none fails.
+         // Storing through the ordinary path rather than an unchecked one
+         // keeps a single way into a buffer: were that ever untrue, the error

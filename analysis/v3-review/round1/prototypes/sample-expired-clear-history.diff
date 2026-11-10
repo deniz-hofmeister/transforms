@@ -1,0 +1,213 @@
+diff --color -ru '--exclude=tests.rs' proto-stale-orig-ref/src/core/buffer/error.rs proto-stale/src/core/buffer/error.rs
+--- proto-stale-orig-ref/src/core/buffer/error.rs	2026-11-10 12:05:22.251500181 +0100
++++ proto-stale/src/core/buffer/error.rs	2026-11-10 12:06:45.304153261 +0100
+@@ -10,7 +10,7 @@
+ /// `Registry` maps each cause onto the matching public
+ /// [`RegistryError`](crate::errors::RegistryError) variant.
+ #[derive(Debug)]
+-pub(crate) enum InsertError {
++pub(crate) enum InsertError<T> {
+     /// The transform's numbers are unusable: a non-unit rotation or a
+     /// non-finite component (see [`Transform::validate`](crate::Transform::validate)).
+     Invalid(TransformError),
+@@ -36,6 +36,17 @@
+         /// The child frame the rejected transform carries.
+         found: String,
+     },
++
++    /// The sample is older than the buffer's retention window measured from
++    /// its newest stored sample, so storing it would evict it at once.
++    SampleExpired {
++        /// The child frame.
++        frame: String,
++        /// The rejected sample's instant.
++        stamp: T,
++        /// The newest instant the buffer held.
++        newest: T,
++    },
+ }
+ 
+ /// Why a buffer could not serve a requested timestamp.
+diff --color -ru '--exclude=tests.rs' proto-stale-orig-ref/src/core/buffer/mod.rs proto-stale/src/core/buffer/mod.rs
+--- proto-stale-orig-ref/src/core/buffer/mod.rs	2026-11-10 12:05:22.251524321 +0100
++++ proto-stale/src/core/buffer/mod.rs	2026-11-10 12:06:49.942315808 +0100
+@@ -290,8 +290,8 @@
+     pub fn insert(
+         &mut self,
+         transform: Transform<T>,
+-    ) -> Result<(), InsertError> {
+-        self.check(&transform)?;
++    ) -> Result<(), InsertError<T>> {
++        self.check(&transform, None)?;
+ 
+         // Captured before the transform is moved into storage; applied only
+         // after the insert is accepted, so a rejected transform cannot pin
+@@ -350,7 +350,8 @@
+     pub fn check(
+         &self,
+         transform: &Transform<T>,
+-    ) -> Result<(), InsertError> {
++        batch_newest: Option<T>,
++    ) -> Result<(), InsertError<T>> {
+         transform.validate().map_err(InsertError::Invalid)?;
+ 
+         if transform.parent() == transform.child() {
+@@ -370,11 +371,53 @@
+             }
+         }
+         match (&self.kind, transform.timestamp()) {
+-            (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
++            (Kind::Static(_), Stamp::Static) => Ok(()),
++            (
++                Kind::Dynamic {
++                    latest_timestamp,
++                    max_age,
++                    ..
++                },
++                Stamp::At(stamp),
++            ) => {
++                // Same boundary as `remove_expired`: a sample strictly older
++                // than `newest - max_age` would be evicted by its own insert.
++                // An underflowing subtraction evicts nothing, so accepts.
++                let newest = match (*latest_timestamp, batch_newest) {
++                    (Some(a), Some(b)) => Some(a.max(b)),
++                    (a, b) => a.or(b),
++                };
++                if let (Some(max_age), Some(newest)) = (max_age, newest) {
++                    if let Ok(threshold) = newest.checked_sub(*max_age) {
++                        if stamp < threshold {
++                            return Err(InsertError::SampleExpired {
++                                frame: transform.child().into(),
++                                stamp,
++                                newest,
++                            });
++                        }
++                    }
++                }
++                Ok(())
++            }
+             _ => Err(InsertError::StaticDynamicConflict),
+         }
+     }
+ 
++    /// Drops every dynamic sample and the expiry reference; keeps pins,
++    /// kind, `max_age`, and static data.
++    pub fn clear(&mut self) {
++        if let Kind::Dynamic {
++            data,
++            latest_timestamp,
++            ..
++        } = &mut self.kind
++        {
++            data.clear();
++            *latest_timestamp = None;
++        }
++    }
++
+     /// Retrieves the edge's geometry at the specified timestamp.
+     ///
+     /// Only the numbers: the frames are the buffer's pins, and the stamp is
+diff --color -ru '--exclude=tests.rs' proto-stale-orig-ref/src/core/registry/error.rs proto-stale/src/core/registry/error.rs
+--- proto-stale-orig-ref/src/core/registry/error.rs	2026-11-10 12:05:22.251591218 +0100
++++ proto-stale/src/core/registry/error.rs	2026-11-10 12:06:45.303935028 +0100
+@@ -184,6 +184,23 @@
+         covered: Option<(T, T)>,
+     },
+ 
++    /// The sample is older than the registry's `max_age` window measured
++    /// from the frame's newest stored sample, so it would be evicted by its
++    /// own insert. Nothing is stored.
++    #[error(
++        "sample for {frame} at {} is older than the retention window before {}",
++        .stamp.as_seconds_lossy(),
++        .newest.as_seconds_lossy()
++    )]
++    SampleExpired {
++        /// The child frame.
++        frame: String,
++        /// The rejected sample's instant.
++        stamp: T,
++        /// The frame's newest stored instant.
++        newest: T,
++    },
++
+     /// No instant is covered by every connecting edge.
+     ///
+     /// `covered: Some(range)` names an edge whose range begins after the
+@@ -230,12 +247,21 @@
+     }
+ }
+ 
+-impl<T> From<InsertError> for RegistryError<T>
++impl<T> From<InsertError<T>> for RegistryError<T>
+ where
+     T: TimePoint,
+ {
+-    fn from(error: InsertError) -> Self {
++    fn from(error: InsertError<T>) -> Self {
+         match error {
++            InsertError::SampleExpired {
++                frame,
++                stamp,
++                newest,
++            } => Self::SampleExpired {
++                frame,
++                stamp,
++                newest,
++            },
+             InsertError::Invalid(error) => error.into(),
+             InsertError::StaticDynamicConflict => Self::StaticDynamicConflict,
+             InsertError::SelfReferentialFrame => Self::SelfReferentialFrame,
+diff --color -ru '--exclude=tests.rs' proto-stale-orig-ref/src/core/registry/mod.rs proto-stale/src/core/registry/mod.rs
+--- proto-stale-orig-ref/src/core/registry/mod.rs	2026-11-10 12:05:22.251624588 +0100
++++ proto-stale/src/core/registry/mod.rs	2026-11-10 12:10:27.194858270 +0100
+@@ -224,9 +224,22 @@
+         // edge.
+         let mut checked = Vec::new();
+         let mut created: HashMap<String, Buffer<T>> = HashMap::new();
++        // Running newest stamp per existing frame across this batch's
++        // earlier members: what the live buffer will hold when the loop
++        // would reach the member, which expiry checks depend on.
++        let mut newest: HashMap<String, T> = HashMap::new();
+         for t in transforms {
+             if let Some(buffer) = self.data.get(t.child()) {
+-                buffer.check(&t)?;
++                let child = t.child();
++                buffer.check(&t, newest.get(child).copied())?;
++                if let Stamp::At(stamp) = t.timestamp() {
++                    match newest.get_mut(child) {
++                        Some(n) => *n = (*n).max(stamp),
++                        None => {
++                            newest.insert(child.into(), stamp);
++                        }
++                    }
++                }
+                 checked.push(t);
+             } else if let Some(buffer) = created.get_mut(t.child()) {
+                 buffer.insert(t)?;
+@@ -591,6 +604,14 @@
+         }
+     }
+ 
++    /// Drops every dynamic sample of every frame. Pins, kinds, `max_age` and
++    /// static transforms stay; each frame's expiry reference resets.
++    pub fn clear_history(&mut self) {
++        for buffer in self.data.values_mut() {
++            buffer.clear();
++        }
++    }
++
+     /// Removes a child's incoming edge and all samples stored on that edge.
+     ///
+     /// Returns whether the child had an edge. A root known only as a parent has
+--- proto-stale-orig-ref/src/core/buffer/tests.rs	2026-11-10 12:05:22.251548717 +0100
++++ proto-stale/src/core/buffer/tests.rs	2026-11-10 12:07:07.971846441 +0100
+@@ -749,7 +749,7 @@
+             frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t)),
+             frames_transform("base", "base", Vector3::zero(), Stamp::At(t)),
+         ] {
+-            let checked = buffer.check(&candidate);
++            let checked = buffer.check(&candidate, None);
+             let inserted = seeded().insert(candidate);
+             assert_eq!(
+                 alloc::format!("{checked:?}"),

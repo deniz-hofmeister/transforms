@@ -1,0 +1,528 @@
+diff -ru a/src/core/registry/error.rs b/src/core/registry/error.rs
+--- a/src/core/registry/error.rs
++++ b/src/core/registry/error.rs
+@@ -155,12 +155,9 @@
+     /// edge's retained range; `None` means it has no samples. Changing the
+     /// requested time cannot help an empty edge until new data is inserted.
+     ///
+-    /// When the endpoints are connected, `frame` is an edge the chain between
++    /// The endpoints are connected: `frame` is an edge the chain between
+     /// them crosses, never one above their common ancestor, so its data is
+     /// data the lookup needs. Other edges on the chain may fail as well.
+-    ///
+-    /// A recorded sampling failure takes precedence over `Disconnected`, so
+-    /// this error does not establish that the endpoints are connected.
+     /// Use [`Registry::latest_common_time`](crate::Registry::latest_common_time)
+     /// to find their newest commonly covered instant.
+     #[error(
+diff -ru a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -7,7 +7,7 @@
+     },
+     errors::TransformError,
+     geometry::{
+-        Localized, Transform,
++        CrossTimeTransform, Localized, Transform,
+         transform::{Isometry, ensure_composable},
+     },
+     time::{Stamp, TimePoint, Timestamp},
+@@ -273,9 +273,9 @@
+     /// Returns [`RegistryError::UnknownFrame`] for an unknown endpoint,
+     /// [`RegistryError::NotFoundAt`] for an edge that cannot serve `timestamp`,
+     /// or [`RegistryError::Disconnected`] for known frames with no connecting
+-    /// chain. Between connected frames, the failing edge reported is one the
+-    /// chain crosses. A sampling failure takes precedence over a simultaneous
+-    /// disconnection; see the error variants for payloads.
++    /// chain, in that precedence: topology is diagnosed before sampling, so
++    /// the variant never depends on `timestamp`. The failing edge reported is
++    /// one the chain crosses; see the error variants for payloads.
+     ///
+     /// Geometry or time operations can fail with [`RegistryError::TransformError`]
+     /// or [`RegistryError::NonFiniteValues`], but only on a chain that connects
+@@ -365,22 +365,25 @@
+     /// An endpoint equal to `fixed_frame` needs no lookup for that leg. If both
+     /// endpoints equal it, the result is the identity at `target_time`.
+     ///
+-    /// # Temporal metadata limitation
+-    ///
+-    /// The result stores only `target_time`. When the times differ, retain both
+-    /// instants and apply the rotation and translation explicitly to source-time
+-    /// coordinates, labeling the output with the target frame and time.
+-    ///
+-    /// Do not apply such a result through [`Transformable`](crate::Transformable),
+-    /// compose it as a single-time transform, or insert it into a registry.
+-    /// Those operations cannot check the lost source time; insertion can overwrite
+-    /// a valid target-time sample. Serialization also loses that provenance.
+-    /// [`Transform::validate`] checks numbers only.
++    /// The result is a [`CrossTimeTransform`], not a [`Transform`]: it holds at
++    /// two instants and carries both, so it cannot be composed, inverted,
++    /// applied through [`Transformable`](crate::Transformable), serialized, or
++    /// inserted into a registry. Apply its rotation, then its translation, to
++    /// source-time coordinates, labeling the output with the target frame and
++    /// time.
+     ///
+     /// # Errors
+     ///
+     /// The same lookup and numeric failures as [`Registry::get_transform`],
+-    /// reported for either leg or their composition.
++    /// for the chain from each endpoint to `fixed_frame` at that endpoint's
++    /// time, in the same precedence across both: an unknown frame, then an
++    /// endpoint no chain connects to `fixed_frame`, then a sampling or numeric
++    /// failure, the target side first.
++    ///
++    /// [`RegistryError::NotFoundAt`] names `target_frame` and `source_frame`
++    /// as passed; its `requested` is the failing endpoint's time.
++    /// [`RegistryError::Disconnected`] keeps the endpoint in the field of its
++    /// own role and names `fixed_frame` in the other.
+     ///
+     /// # Examples
+     ///
+@@ -415,7 +418,8 @@
+     ///     .unwrap();
+     /// let position = transform.rotation().rotate_vector(Vector3::zero()) + transform.translation();
+     /// assert_eq!(position, Vector3::new(-1.0, 0.0, 0.0));
+-    /// assert_eq!(transform.timestamp(), Stamp::At(target_time));
++    /// assert_eq!(transform.target_time(), target_time);
++    /// assert_eq!(transform.source_time(), source_time);
+     /// ```
+     pub fn get_transform_at(
+         &self,
+@@ -424,7 +428,7 @@
+         source_frame: &str,
+         source_time: T,
+         fixed_frame: &str,
+-    ) -> Result<Transform<T>, RegistryError<T>> {
++    ) -> Result<CrossTimeTransform<T>, RegistryError<T>> {
+         Self::process_get_transform_at(
+             target_frame,
+             target_time,
+@@ -453,7 +457,7 @@
+     /// # Errors
+     ///
+     /// - [`RegistryError::UnknownFrame`] or [`RegistryError::Disconnected`] for
+-    ///   invalid topology. Unlike `get_transform`, this query checks topology first.
++    ///   invalid topology, with the precedence of [`Registry::get_transform`].
+     /// - [`RegistryError::NoCommonTime`] for empty or disjoint coverage.
+     /// - [`RegistryError::TransformError`] wrapping
+     ///   [`TransformError::TimestampError`] if interpolation at the newest common
+@@ -919,19 +923,17 @@
+         data.contains_key(frame) || data.values().any(|buffer| buffer.parent() == Some(frame))
+     }
+ 
+-    /// Diagnoses a failed lookup, in order of certainty: a requested frame
+-    /// that exists nowhere in the tree, then a failed edge (a known frame
+-    /// that could not serve the requested time, whether it holds data
+-    /// outside that time or no data at all), and otherwise — both frames
+-    /// known and both walks clean — the frames live in disconnected trees.
++    /// Diagnoses a failed lookup on the topology first, so the variant never
++    /// depends on the requested time: a requested frame that exists nowhere
++    /// in the tree, then two known frames no chain connects, and only then
++    /// a failed edge (a known frame that could not serve the requested
++    /// time, whether it holds data outside that time or no data at all).
+     /// The scans run only on the failure path.
+     ///
+-    /// For connected endpoints the failed edge is the first one on the
+-    /// connecting chain, target side first. The walks run toward the root
+-    /// and record the first failure they meet, which can lie above the
+-    /// common ancestor on an edge this lookup never needed. For disconnected
+-    /// endpoints no chain exists, and the recorded walk failure is reported,
+-    /// taking precedence over `Disconnected`.
++    /// The failed edge is the first one on the connecting chain, target
++    /// side first. The walks run toward the root and can fail above the
++    /// common ancestor, on an edge this lookup never needed, so their own
++    /// failures are not consulted.
+     ///
+     /// An edge that failed on *interpolation* is reported as that failure
+     /// rather than as a `NotFoundAt`: the frame does cover the requested
+@@ -941,36 +943,31 @@
+         to: &str,
+         timestamp: T,
+         data: &HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+     ) -> RegistryError<T> {
+         for frame in [from, to] {
+             if !Self::frame_exists(frame, data) {
+                 return RegistryError::UnknownFrame(frame.into());
+             }
+         }
+-        let failure = Self::connecting_chain(from, to, data)
+-            .and_then(|(target_edges, source_edges)| {
+-                target_edges
+-                    .iter()
+-                    .chain(&source_edges)
+-                    .find_map(|&(frame, buffer)| {
+-                        buffer
+-                            .get(timestamp)
+-                            .err()
+-                            .map(|error| (frame.into(), error))
+-                    })
+-            })
+-            .or_else(|| walk_failure.take());
++        let disconnected = || RegistryError::Disconnected {
++            target_frame: from.into(),
++            source_frame: to.into(),
++        };
++        let Some((target_edges, source_edges)) = Self::connecting_chain(from, to, data) else {
++            return disconnected();
++        };
++        let failure = target_edges
++            .iter()
++            .chain(&source_edges)
++            .find_map(|&(frame, buffer)| buffer.get(timestamp).err().map(|error| (frame, error)));
+         let (frame, covered) = match failure {
+-            Some((frame, GetError::NoTransformAvailable)) => (frame, None),
+-            Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
+-            Some((_, GetError::Interpolation(cause))) => return cause.into(),
+-            None => {
+-                return RegistryError::Disconnected {
+-                    target_frame: from.into(),
+-                    source_frame: to.into(),
+-                };
++            Some((frame, GetError::NoTransformAvailable)) => (frame.into(), None),
++            Some((frame, GetError::OutOfRange { start, end })) => {
++                (frame.into(), Some((start, end)))
+             }
++            Some((_, GetError::Interpolation(cause))) => return cause.into(),
++            // Unreachable: the lookup failed, so an edge of its chain did.
++            None => return disconnected(),
+         };
+         RegistryError::NotFoundAt {
+             target_frame: from.into(),
+@@ -1010,16 +1007,13 @@
+         let reached =
+             |chain: &[Hop<'_>], goal: &str| chain.last().is_some_and(|hop| hop.parent == goal);
+ 
+-        let mut walk_failure = None;
+-        let mut target_chain =
+-            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
++        let mut target_chain = Self::get_transform_chain(target, source, timestamp, data);
+         let mut source_chain = Vec::new();
+         // A target-side chain that reaches `source` spans the whole path:
+         // `source` is an ancestor of `target`, and no source-side walk is
+         // needed.
+         if !reached(&target_chain, source) {
+-            source_chain =
+-                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure);
++            source_chain = Self::get_transform_chain(source, target, timestamp, data);
+             // `target` is an ancestor of `source`: the source-side chain
+             // spans the whole path by itself, and the target-side walk only
+             // climbed away from it.
+@@ -1041,13 +1035,7 @@
+         let target_top = target_chain.last().map_or(target, |hop| hop.parent);
+         let source_top = source_chain.last().map_or(source, |hop| hop.parent);
+         if target_top != source_top {
+-            return Err(Self::diagnose_not_found(
+-                target,
+-                source,
+-                timestamp,
+-                data,
+-                &mut walk_failure,
+-            ));
++            return Err(Self::diagnose_not_found(target, source, timestamp, data));
+         }
+ 
+         match Self::combine_transforms(&target_chain, &source_chain) {
+@@ -1083,7 +1071,7 @@
+         source_time: T,
+         fixed_frame: &str,
+         data: &HashMap<String, Buffer<T>>,
+-    ) -> Result<Transform<T>, RegistryError<T>> {
++    ) -> Result<CrossTimeTransform<T>, RegistryError<T>> {
+         // Following tf2's algorithm:
+         // 1. Get transform expressing source_frame in fixed_frame at source_time
+         // 2. Get transform expressing target_frame in fixed_frame at target_time
+@@ -1098,27 +1086,63 @@
+         // is the point of the time-travel lookup — so they compose as bare
+         // geometry: `Transform`'s `Mul` would reject the unequal stamps, a
+         // check that exists to catch *accidental* cross-time composition.
+-        let isometry = if source_frame == fixed_frame && target_frame == fixed_frame {
+-            Isometry::identity()
+-        } else if source_frame == fixed_frame {
+-            // The answer is the target leg alone, inverted.
+-            Self::resolve(fixed_frame, target_frame, target_time, data)?.inverse()?
+-        } else if target_frame == fixed_frame {
+-            // The answer is the source leg alone.
+-            Self::resolve(fixed_frame, source_frame, source_time, data)?
+-        } else {
+-            let source_to_fixed = Self::resolve(fixed_frame, source_frame, source_time, data)?;
+-            let target_to_fixed = Self::resolve(fixed_frame, target_frame, target_time, data)?;
+-            target_to_fixed.inverse()? * source_to_fixed
++        //
++        // A leg reports its failure as the lookup `(fixed, endpoint)`, a
++        // pair the caller never asked for. `relabel` restores the caller's
++        // names; see `get_transform_at`'s `# Errors`.
++        let relabel = |error: RegistryError<T>, target_leg: bool| match error {
++            RegistryError::NotFoundAt {
++                frame,
++                requested,
++                covered,
++                ..
++            } => RegistryError::NotFoundAt {
++                target_frame: target_frame.into(),
++                source_frame: source_frame.into(),
++                frame,
++                requested,
++                covered,
++            },
++            RegistryError::Disconnected { .. } if target_leg => RegistryError::Disconnected {
++                target_frame: target_frame.into(),
++                source_frame: fixed_frame.into(),
++            },
++            other => other,
++        };
++        // Topology outranks sampling across both legs, as it does within
++        // one, so the variant does not depend on either time.
++        let rank = |error: &RegistryError<T>| match error {
++            RegistryError::UnknownFrame(_) => 0,
++            RegistryError::Disconnected { .. } => 1,
++            _ => 2,
++        };
++        let leg = |endpoint: &str, time: T, target_leg: bool| {
++            if endpoint == fixed_frame {
++                Ok(None)
++            } else {
++                Self::resolve(fixed_frame, endpoint, time, data)
++                    .map(Some)
++                    .map_err(|error| relabel(error, target_leg))
++            }
++        };
++        let source_to_fixed = leg(source_frame, source_time, false);
++        let target_to_fixed = leg(target_frame, target_time, true);
++        let isometry = match (target_to_fixed, source_to_fixed) {
++            (Ok(None), Ok(None)) => Isometry::identity(),
++            (Ok(None), Ok(Some(source))) => source,
++            (Ok(Some(target)), Ok(None)) => target.inverse()?,
++            (Ok(Some(target)), Ok(Some(source))) => target.inverse()? * source,
++            (Err(target), Err(source)) if rank(&source) < rank(&target) => return Err(source),
++            (Err(error), _) | (Ok(_), Err(error)) => return Err(error),
+         };
+ 
+-        // The result carries the target time as per the API contract.
+-        Ok(Transform::unvalidated(
++        Ok(CrossTimeTransform::new(
+             target_frame.into(),
++            target_time,
+             source_frame.into(),
++            source_time,
+             isometry.translation,
+             isometry.rotation,
+-            Stamp::At(target_time),
+         ))
+     }
+ 
+@@ -1126,16 +1150,14 @@
+     /// a given timestamp; empty if the walk yields no hops. Diagnosing the
+     /// reason is the caller's job (`diagnose_not_found`).
+     ///
+-    /// A buffer lookup failing along the way ends the walk; the first such
+-    /// failure across all walks of one lookup is recorded in `walk_failure`.
+-    /// It can lie above the common ancestor, so it is reported only for
+-    /// disconnected endpoints, which have no connecting chain to re-sample.
++    /// A buffer lookup failing along the way ends the walk. The failure is
++    /// not kept: it can lie above the common ancestor, so the diagnosis
++    /// re-samples the connecting chain instead.
+     fn get_transform_chain<'a>(
+         from: &'a str,
+         to: &str,
+         timestamp: T,
+         data: &'a HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+     ) -> Vec<Hop<'a>> {
+         let mut hops = Vec::new();
+         let mut current_frame = from;
+@@ -1148,22 +1170,15 @@
+             .get(current_frame)
+             .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
+         {
+-            match frame_buffer.get(timestamp) {
+-                Ok(isometry) => {
+-                    hops.push(Hop {
+-                        parent,
+-                        child: current_frame,
+-                        isometry,
+-                    });
+-                    current_frame = parent;
+-                }
+-                Err(source) => {
+-                    if walk_failure.is_none() {
+-                        *walk_failure = Some((current_frame.into(), source));
+-                    }
+-                    break;
+-                }
+-            }
++            let Ok(isometry) = frame_buffer.get(timestamp) else {
++                break;
++            };
++            hops.push(Hop {
++                parent,
++                child: current_frame,
++                isometry,
++            });
++            current_frame = parent;
+ 
+             // Reaching `to` completes the chain; walking on to the root would
+             // only add work that truncate_at_common_parent discards again.
+diff -ru a/src/geometry/mod.rs b/src/geometry/mod.rs
+--- a/src/geometry/mod.rs
++++ b/src/geometry/mod.rs
+@@ -7,5 +7,5 @@
+ 
+ pub use point::Point;
+ pub use quaternion::Quaternion;
+-pub use transform::{Localized, Transform, Transformable, UNIT_NORM_TOLERANCE};
++pub use transform::{CrossTimeTransform, Localized, Transform, Transformable, UNIT_NORM_TOLERANCE};
+ pub use vector3::Vector3;
+diff -ru a/src/geometry/transform/cross_time.rs b/src/geometry/transform/cross_time.rs
+--- a/src/geometry/transform/cross_time.rs
++++ b/src/geometry/transform/cross_time.rs
+@@ -0,0 +1,93 @@
++//! The answer of a cross-time lookup.
++
++use crate::{
++    geometry::{Quaternion, Vector3},
++    time::{TimePoint, Timestamp},
++};
++use alloc::string::String;
++
++/// Maps coordinates of the source frame at the source time into the target
++/// frame at the target time.
++///
++/// Returned by [`Registry::get_transform_at`](crate::Registry::get_transform_at)
++/// and built nowhere else. It holds at two instants, so it is deliberately
++/// not a [`Transform`](crate::geometry::Transform): it cannot be composed,
++/// inverted, serialized, or inserted into a registry, each of which would
++/// treat it as holding at one. Read the components and apply them to
++/// source-time coordinates — rotate, then translate — labeling the output
++/// with [`target_frame`](Self::target_frame) and
++/// [`target_time`](Self::target_time).
++///
++/// `==` is exact and compares both frames, both instants, and the geometry.
++#[derive(Debug, Clone, PartialEq)]
++pub struct CrossTimeTransform<T = Timestamp>
++where
++    T: TimePoint,
++{
++    target_frame: String,
++    target_time: T,
++    source_frame: String,
++    source_time: T,
++    translation: Vector3,
++    rotation: Quaternion,
++}
++
++impl<T> CrossTimeTransform<T>
++where
++    T: TimePoint,
++{
++    pub(crate) fn new(
++        target_frame: String,
++        target_time: T,
++        source_frame: String,
++        source_time: T,
++        translation: Vector3,
++        rotation: Quaternion,
++    ) -> Self {
++        Self {
++            target_frame,
++            target_time,
++            source_frame,
++            source_time,
++            translation,
++            rotation,
++        }
++    }
++
++    /// The frame the output coordinates are expressed in.
++    #[must_use]
++    pub fn target_frame(&self) -> &str {
++        &self.target_frame
++    }
++
++    /// The instant at which the output coordinates hold in the target frame.
++    #[must_use]
++    pub fn target_time(&self) -> T {
++        self.target_time
++    }
++
++    /// The frame the input coordinates are expressed in.
++    #[must_use]
++    pub fn source_frame(&self) -> &str {
++        &self.source_frame
++    }
++
++    /// The instant at which the input coordinates were expressed in the
++    /// source frame.
++    #[must_use]
++    pub fn source_time(&self) -> T {
++        self.source_time
++    }
++
++    /// The translational component, applied after the rotation.
++    #[must_use]
++    pub fn translation(&self) -> Vector3 {
++        self.translation
++    }
++
++    /// The rotational component, applied first.
++    #[must_use]
++    pub fn rotation(&self) -> Quaternion {
++        self.rotation
++    }
++}
+diff -ru a/src/geometry/transform/mod.rs b/src/geometry/transform/mod.rs
+--- a/src/geometry/transform/mod.rs
++++ b/src/geometry/transform/mod.rs
+@@ -7,10 +7,12 @@
+ use alloc::string::String;
+ use approx::{AbsDiffEq, RelativeEq};
+ use core::ops::Mul;
++pub use cross_time::CrossTimeTransform;
+ pub use error::TransformError;
+ pub(crate) use isometry::Isometry;
+ pub use traits::{Localized, Transformable};
+ 
++mod cross_time;
+ mod error;
+ mod isometry;
+ mod traits;
+@@ -46,11 +48,6 @@
+ /// Deserialization validates; serialization writes the components unchanged.
+ /// Validate a derived result before publishing it to avoid a decode failure.
+ ///
+-/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) returns
+-/// cross-time geometry with only the target stamp. Retain the source instant
+-/// and follow that method's application restrictions; numeric validation does
+-/// not check temporal provenance.
+-///
+ /// # Examples
+ ///
+ /// ```
+diff -ru a/src/geometry/transform/traits.rs b/src/geometry/transform/traits.rs
+--- a/src/geometry/transform/traits.rs
++++ b/src/geometry/transform/traits.rs
+@@ -59,11 +59,6 @@
+ /// transforms; derived results may drift or overflow. Call
+ /// [`Transform::validate`] before applying a derived result when needed.
+ ///
+-/// Cross-time results from
+-/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) must be
+-/// applied explicitly when their source and target times differ; they retain
+-/// only the target stamp.
+-///
+ /// # Examples
+ ///
+ /// ```
+diff -ru a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -19,8 +19,7 @@
+ //!
+ //! Constructors and deserialization validate transforms. Derived results can
+ //! accumulate rotation drift or overflow; see [`Transform::validate`] and
+-//! [`Transformable`] before applying or publishing them. Cross-time results
+-//! have additional restrictions documented on [`Registry::get_transform_at`].
++//! [`Transformable`] before applying or publishing them.
+ //!
+ //! # Features
+ //!
