@@ -82,7 +82,8 @@ decision.
   - `point.frame` must equal `source_frame`, or it fails with
     `IncompatibleFrames { expected: source_frame, found }`.
   - `point.timestamp` must equal `source_time`, or it fails with
-    `TimestampMismatch { lhs: point, rhs: source_time }`.
+    `TimestampMismatch { lhs, rhs }`: the point's time and `source_time`,
+    each as `f64` seconds, the payload type the variant has today.
   - There is no `Stamp::Static` exemption: both instants are explicit.
   - On error, the point is unchanged.
 - **On success**, it maps the position as `R·p + t` and the orientation as

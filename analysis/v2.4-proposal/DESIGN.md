@@ -1,6 +1,6 @@
 # transforms 2.4: design proposal
 
-Date: 2026-10-03. Draft revision: 4 (2026-11-06). Baseline: master
+Date: 2026-10-03. Draft revision: 5 (2026-11-10). Baseline: master
 `aa29557` (released v2.2.0) for the §2 probes; master `f9770d2` (released
 v2.3.0 plus docs) for the dependent evidence and Part D.
 
@@ -41,6 +41,9 @@ question: is it strictly necessary for 2.4?
   (§6). The study's v3 ledger rows and outreach items are not 2.4 work
   and stay in the index.
 - The §2 probes were not re-run. Section numbers are kept: Part D is §5a.
+
+Revision 5 adds Part C item 10 and states the f32 Non-Goal gate in §6.
+Both were checked at `698d1b8`; `src` is unchanged since v2.3.0.
 
 ## 1. Summary
 
@@ -294,6 +297,18 @@ None of these changes behaviour. `Display` text is declared unstable
    `SystemTime::now` (`:95`), which traps on `wasm32-unknown-unknown`
    (roslibrust_transforms Z10, `../dependents/probes/wasm_try_now.rs`).
    No panic is added to the docs, so AGENTS.md is unchanged.
+10. **`add_transforms` iterator consumption.** The rustdoc says "The
+    iterator is consumed before anything is stored"
+    (`src/core/registry/mod.rs:166-167`). That holds for an accepted
+    batch. A rejected batch returns from inside the loop (`:227-247`), so
+    the iterator is read only up to the first rejected transform. The
+    argument is `impl IntoIterator`, which a `&mut` iterator satisfies, so
+    a caller can observe it: the transforms after the rejected one are
+    still in their iterator. Append "A rejected batch stops reading at the
+    first rejected transform." The batch-insert record asked for this
+    wording
+    ([`DISCUSSION.md`](../atomic-batch-insert/DISCUSSION.md), "consumed up
+    to the first error"), and the shipped sentence dropped it.
 
 ## 5a. Part D: reject empty frame names
 
@@ -386,9 +401,10 @@ CHANGELOG, MIGRATION and AGENTS.md obligations in §9.
   v3 `Rotation`/bound work.
 - **Root re-exports, a prelude, an `is_retryable` helper on errors, an
   `unbounded()` alias.** Each is speculative or a second spelling.
-- **An f32 module.** It is additive and possible in a 2.x minor, but it
-  waits on the hardware measurement and on a maintainer decision about the
-  Non-Goal.
+- **An f32 module.** f32 is a Non-Goal (README, crate root, AGENTS.md), so
+  any f32 work, in any release, starts with the maintainer amending it.
+  Only after that would a concrete f32 module be additive in a 2.x minor.
+  The hardware measurement informs that decision and does not replace it.
 - **A sentence on ingesting rotations from looser sources** (dependents
   rec 12). The failure is loud: `NonUnitRotation` at construction
   (transforms_io H8, roslibrust_transforms Z5). The `UNIT_NORM_TOLERANCE`
