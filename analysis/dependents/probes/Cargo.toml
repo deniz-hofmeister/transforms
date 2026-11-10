@@ -1,0 +1,34 @@
+# Probes for analysis/dependents/. Each binary reproduces one dependent's
+# usage pattern against this checkout of transforms; none depends on the
+# dependent itself. Run with, for example:
+#   cargo run --manifest-path analysis/dependents/probes/Cargo.toml --bin transforms_io
+[package]
+name = "dependents_probes"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+transforms = { path = "../../.." }
+
+[[bin]]
+name = "dimos"
+path = "dimos.rs"
+
+[[bin]]
+name = "transforms_io"
+path = "transforms_io.rs"
+
+[[bin]]
+name = "transforms_io_verify"
+path = "transforms_io_verify.rs"
+
+[[bin]]
+name = "roslibrust_transforms"
+path = "roslibrust_transforms.rs"
+
+[[bin]]
+name = "roslibrust_transforms_verify"
+path = "roslibrust_transforms_verify.rs"
+
+[workspace]
