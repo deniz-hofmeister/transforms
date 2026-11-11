@@ -69,7 +69,7 @@
 <body>
 
 <h1>transforms v3: review and proposal</h1>
-<p class="meta">Round 2 &nbsp;·&nbsp; 2026-11-10 &nbsp;·&nbsp; Baseline: master <code>7cc2a65</code> (v2.3.0 plus docs-only commits) &nbsp;·&nbsp; Nothing is implemented. Recommendations, not decisions, except item 10, whose semantics the maintainer settled in discussion.</p>
+<p class="meta">Round 2 &nbsp;·&nbsp; 2026-11-10, amended 2026-11-11 (section 7 and its decisions) &nbsp;·&nbsp; Baseline: master <code>7cc2a65</code> (v2.3.0 plus docs-only commits) &nbsp;·&nbsp; Nothing is implemented. Recommendations, not decisions, except item 10, whose semantics the maintainer settled in discussion.</p>
 
 <div class="plain">
   <p class="label">In one paragraph</p>
@@ -83,11 +83,12 @@
   <li><span class="n">4</span><a href="#items">The eleven changes in detail</a></li>
   <li><span class="n">5</span><a href="#notin">Considered and left out</a></li>
   <li><span class="n">6</span><a href="#twox">What can ship in 2.x</a></li>
-  <li><span class="n">7</span><a href="#release">Release plan</a></li>
-  <li><span class="n">8</span><a href="#decisions">Decisions for the maintainer</a></li>
-  <li><span class="n">9</span><a href="#changes">What changed from round 1</a></li>
-  <li><span class="n">10</span><a href="#limits">Limits of this review</a></li>
-  <li><span class="n">11</span><a href="#protos">Prototypes</a></li>
+  <li><span class="n">7</span><a href="#examples">Examples in 3.0</a></li>
+  <li><span class="n">8</span><a href="#release">Release plan</a></li>
+  <li><span class="n">9</span><a href="#decisions">Decisions for the maintainer</a></li>
+  <li><span class="n">10</span><a href="#changes">What changed from round 1</a></li>
+  <li><span class="n">11</span><a href="#limits">Limits of this review</a></li>
+  <li><span class="n">12</span><a href="#protos">Prototypes</a></li>
 </ul>
 
 <!-- ───────────────────────────────────────────────────────────── -->
@@ -297,7 +298,7 @@ registry.get_transform("left", "right", t)   <span class="c">// Err(RegistryErro
   <li><strong>For.</strong> Zero call sites in seven public code bases, by three search methods. <code>Point::transform</code> reads only public accessors and validates no numbers. A 12-line outside function gave the same errors.</li>
   <li><strong>Against.</strong> The only two outsiders who posted code in the tracker used <code>Point</code> (#43, #65). Issue #43 shows its frame check catching a wrong-direction application. Private users are invisible.</li>
   <li><strong>Declared cost.</strong> For hand application, seven slips become silent for a position (swapped lookup, other instant, other frame, applied twice, three hand-math slips). A pose written as a <code>Transform</code> keeps the checks through <code>*</code>.</li>
-  <li><strong>Conditions.</strong> Move the application formulas to <code>Transform</code>'s rustdoc; re-point the SciPy golden vectors without touching their digits; rewrite the README headline; give 2.x users a removal notice (<code>#[deprecated]</code>, or changelog and README).</li>
+  <li><strong>Conditions.</strong> Move the application formulas to <code>Transform</code>'s rustdoc; re-point the SciPy golden vectors without touching their digits; rewrite the README headline and the examples that use <code>Point</code> (two today; one, <code>basic</code>, if the 2.x examples restructure lands first); give 2.x users a removal notice (<code>#[deprecated]</code>, or changelog and README).</li>
   <li><strong>Not taken.</strong> Keeping <code>Point</code> and <code>Transformable</code> (−79 lines instead of −369): <code>Point</code> would need hardening, and it cannot apply a cross-time result correctly. Three critics rule for deletion; the deletions prototype and the demand critic are more cautious.</li>
 </ul>
 </div>
@@ -407,6 +408,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 <h2 id="twox"><span class="n">6</span>What can ship in 2.x</h2>
 <ul>
   <li>The 2.4 proposal: empty frame names and the documentation corrections. Reword its Part C item 5, whose recovery advice has the same holes as round 1's.</li>
+  <li>The examples work (2.4 Part E), as separate documentation changes and not a release obligation: examples that assert their results, then optionally four task-named files and an <code>ingest</code> example. <code>Point</code> stays in the 2.x examples until decision 3 is taken.</li>
   <li>The removal notice for the Point family, and the <code>TimePoint</code> diagnostic attribute.</li>
   <li>Docs: <code>Display</code> of time-carrying errors is lossy; cross-time errors may name the fixed frame; the <code>latest_common_time</code> example panics on an all-static chain; <code>f64</code> runs in software on every gate target by default.</li>
   <li>Two doc recipes adapters get wrong today: a "latest" lookup, and a checked ROS time conversion.</li>
@@ -415,7 +417,42 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 </ul>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="release"><span class="n">7</span>Release plan</h2>
+<h2 id="examples"><span class="n">7</span>Examples in 3.0</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>The library's six example programs only print what they compute, so the automated checks pass even when an example produces a wrong answer. They are also sorted by a build option instead of by task, and none shows how to feed the library from a stream of messages, which is where the projects that use it made their mistakes. The 2.4 proposal now describes four replacement examples that check their own results. This section, added a day after the review, shows what the same four look like on the proposed 3.0, and what was learned by applying all the 3.0 changes together for the first time.</p>
+</div>
+
+<div class="tech">
+<p class="label">Technically</p>
+<p><strong>Recommendation.</strong> Restructure in 2.x, then port in 3.0. How much ships in 2.x is the 2.4 proposal's D9 to D13: asserts only (E1), also four task-named files (E2), also <code>ingest</code> (E3). None of it is a 2.4 release obligation.</p>
+<table>
+  <tr><th style="width:15%">Example</th><th style="width:37%">2.4 form</th><th style="width:40%">3.0 form</th><th>Item</th></tr>
+  <tr><td><code>basic</code></td><td>Applies through <code>Point::transform</code>; the library checks frame and instant</td><td>Applies by hand in a helper that asserts <code>child()</code> and the stamp. The checks are the caller's own</td><td>7</td></tr>
+  <tr><td><code>cross_time</code></td><td>The result is a <code>Transform</code> stamped with the target time; a comment says not to insert it</td><td>The result is a <code>CrossTimeTransform</code>. The labels and translation are asserted, and the three misuses are named with their compile errors</td><td>1, 5</td></tr>
+  <tr><td><code>ingest</code></td><td>A late insert returns <code>Ok</code>, so there is no arm for it; <code>NotFoundAt</code> can hide a disconnected pair</td><td>A <code>SampleExpired</code> arm with recovery by cause; <code>Disconnected</code> no longer depends on the instant</td><td>10, 5</td></tr>
+  <tr><td><code>shared_latest</code></td><td><code>latest_common_time</code> then <code>get_transform</code> under one read guard</td><td>Needs no change: the 2.4 file runs unchanged on the stack</td><td>none</td></tr>
+</table>
+<ul>
+  <li><strong><code>basic</code>.</strong> Its helper must mirror the application recipe that item 7 moves to <code>Transform</code>'s rustdoc. <code>deletions.diff</code> deletes the contract's only home and adds it nowhere.</li>
+  <li><strong><code>cross_time</code>.</strong> Apply through the accessors; never rebuild a <code>Transform</code> from them. <code>add_transform(x)</code>, <code>x * y</code> and <code>x.inverse()</code> no longer compile (E0308, E0369, E0599).</li>
+  <li><strong><code>ingest</code>.</strong> <code>SampleExpired</code> is not reset detection. A plausible <code>newest</code> means a late sample: drop it. A <code>newest</code> ahead of the bridge's clock is the bad stamp: <code>remove_frame</code>, rebuild the sample, insert again. A clock step is still detected by the bridge and cleared with <code>remove_transforms_before</code> at one nanosecond past the newest stored stamp.</li>
+  <li><strong>A visible cost of item 10.</strong> The error does not return the sample, so the recovery converts the message twice.</li>
+  <li><strong>Open.</strong> The recovery relies on expiry being the last insert check, which item 10 keeps internal and the contract draft publishes (decision 15). Recovery or a guard on future stamps (decision 14). The 3.0 set is 841 lines against 576 for 2.4 and 657 today; <code>ingest</code> is 482 and should be cut.</li>
+</ul>
+<p><strong>What the stack showed.</strong> The four recommended library diffs were applied together for the first time (<code>stacked-library.diff</code>, 14 files, +416/−793).</p>
+<ul>
+  <li>Each diff applies cleanly alone, not together: one hunk of the cross-time diff and seven of the deletions needed hand merges. No semantic conflict was found.</li>
+  <li><code>deletions.diff</code> leaves an empty <code>point/mod.rs</code> and an orphaned <code>point/tests.rs</code>. <code>sample-expired.diff</code> is behind its contract draft (no <code>#[non_exhaustive]</code>, different <code>Display</code> text).</li>
+  <li>Only the <code>TransformError::QuaternionError</code> variant goes in item 3; the type stays public.</li>
+  <li>Confirmed against 2.3.0: a late insert turns from <code>Ok</code> into <code>SampleExpired</code>; a disconnected pair at an uncovered instant from <code>NotFoundAt</code> into <code>Disconnected</code>; an unknown cross-time target from <code>NotFoundAt</code> into <code>UnknownFrame</code>. On 2.3.0, re-inserting a cross-time result moved a stored pose from x = 1 to x = −4.</li>
+  <li><strong>Verified:</strong> the stacked library builds in all four feature combinations and for <code>thumbv7em</code>; the four examples pass clippy and run in all four. <strong>Not verified:</strong> the gate, <code>cargo test</code> (the existing tests do not compile on library-only diffs), stable clippy, MSRV 1.85, the other bare-metal targets.</li>
+</ul>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="release"><span class="n">8</span>Release plan</h2>
 <ul>
   <li><strong>Order.</strong> 2.4, then the 3.0 prototype on a branch through the full gate, then one <code>3.0.0-rc</code> built against transforms_io and roslibrust_transforms, then the release.</li>
   <li><strong>Warrant.</strong> Item 10 cannot ship in a minor, so a 3.0 is a given. It is not urgent.</li>
@@ -427,7 +464,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 </ul>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="decisions"><span class="n">8</span>Decisions for the maintainer</h2>
+<h2 id="decisions"><span class="n">9</span>Decisions for the maintainer</h2>
 <table>
   <tr><th style="width:4%">#</th><th style="width:52%">Question</th><th>Recommendation</th></tr>
   <tr><td>1</td><td><code>inverse</code>: conjugate, keep normalizing and delete the variant, or status quo?</td><td>Keep normalizing. Changed from round 1</td></tr>
@@ -442,10 +479,13 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <tr><td>10</td><td>Dev-dependency on 2.3 for a differential harness?</td><td>Maintainer's call</td></tr>
   <tr><td>11</td><td>Round 1's policy sentence on what a minor may change</td><td>Still open</td></tr>
   <tr><td>12</td><td>Item 10</td><td>Decided (D1–D6)</td></tr>
+  <tr><td>13</td><td>Examples in 2.x: asserts only, also the four task-named files, also <code>ingest</code>, or wait for 3.0?</td><td>Asserts now; the rest is 2.4's D10 and D12. Port whatever ships</td></tr>
+  <tr><td>14</td><td>3.0 <code>ingest</code>: show the <code>remove_frame</code> recovery, or a guard that refuses stamps ahead of the clock?</td><td>No firm recommendation</td></tr>
+  <tr><td>15</td><td>Publish "expiry is the last insert check"?</td><td>Open. If not, the example must not state it</td></tr>
 </table>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="changes"><span class="n">9</span>What changed from round 1</h2>
+<h2 id="changes"><span class="n">10</span>What changed from round 1</h2>
 <table class="long">
   <tr><th style="width:22%">Topic</th><th style="width:36%">Round 1</th><th>Round 2</th></tr>
   <tr><td><code>inverse</code></td><td>Conjugate; 28% of lookups change bits; 10–13% faster</td><td>Keep normalizing. 46.5% change bits under the conjugate; one test becomes flaky; one <code>Err</code> becomes <code>Ok</code></td></tr>
@@ -469,9 +509,9 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 <p>Round 1 was right against round 2's own draft on three points: <code>f64</code> runs in software on every gate target by default, the condition on the resolver rewrite, and the remedy for the <code>interpolate</code> test reference. Round 1's item 10 prototype was correct on atomicity and check order.</p>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="limits"><span class="n">10</span>Limits of this review</h2>
+<h2 id="limits"><span class="n">11</span>Limits of this review</h2>
 <ul>
-  <li>The full gate (<code>tests/test_all.sh</code>) ran on no prototype. Prototypes ran <code>cargo test</code> in both feature modes, most with <code>serde</code>, plus clippy and fmt on the library.</li>
+  <li>The full gate (<code>tests/test_all.sh</code>) ran on no prototype. Prototypes ran <code>cargo test</code> in both feature modes, most with <code>serde</code>, plus clippy and fmt on the library. The stacked diff builds, but <code>cargo test</code> does not compile on it.</li>
   <li>Nothing was measured on hardware. Embedded figures come from QEMU. Host timings were taken on a shared machine; differences under about 3 ns are noise.</li>
   <li>Only roslibrust_transforms was type-checked against a prototype. Other downstream counts are from reading sources.</li>
   <li><code>libm::sqrt</code> correct rounding is tested, not proven.</li>
@@ -481,8 +521,8 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 </ul>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="protos"><span class="n">11</span>Prototypes</h2>
-<p>Library-only diffs against <code>7cc2a65</code> in <code>prototypes/</code>; each applies cleanly. They are evidence, not patches.</p>
+<h2 id="protos"><span class="n">12</span>Prototypes</h2>
+<p>Library-only diffs against <code>7cc2a65</code> in <code>prototypes/</code>; each applies cleanly on its own, and together they need the hand merges of section 7. They are evidence, not patches.</p>
 <table class="long">
   <tr><th style="width:44%">File</th><th style="width:24%">Content</th><th style="width:11%">Lines</th><th>Existing tests that fail</th></tr>
   <tr><td><code>sample-expired.diff</code></td><td>Item 10</td><td class="num">+118/−6</td><td>3, pins of the old contract</td></tr>
@@ -492,6 +532,8 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <tr><td><code>cross-time-type-and-precedence.diff</code></td><td>Items 1 and 5</td><td class="num">+214/−118</td><td>1; 12 lines stop compiling</td></tr>
   <tr><td><code>precedence-only.diff</code></td><td>Item 5 alone</td><td class="num">+41/−66</td><td>1</td></tr>
   <tr><td><code>deletions.diff</code></td><td>Items 7, 8, 9, 11</td><td class="num">+29/−546</td><td>4 flip (item 11)</td></tr>
+  <tr><td><code>stacked-library.diff</code></td><td>The four recommended diffs together</td><td class="num">+416/−793</td><td><code>cargo test</code> does not compile</td></tr>
+  <tr><td><code>examples/</code></td><td>The four examples on the stack</td><td class="num">841</td><td>n/a</td></tr>
 </table>
 
 </body>

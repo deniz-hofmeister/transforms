@@ -1,8 +1,9 @@
 # transforms 2.4: design proposal
 
-Date: 2026-10-03. Draft revision: 5 (2026-11-10). Baseline: master
+Date: 2026-10-03. Draft revision: 6 (2026-11-11). Baseline: master
 `aa29557` (released v2.2.0) for the §2 probes; master `f9770d2` (released
-v2.3.0 plus docs) for the dependent evidence and Part D.
+v2.3.0 plus docs) for the dependent evidence and Part D; master `7cc2a65`
+for Part E.
 
 This document proposes the contents of a 2.4.0 minor release. It follows from
 the verdict in [`analysis/v3-warrant/REPORT.md`](../v3-warrant/REPORT.md):
@@ -45,6 +46,15 @@ question: is it strictly necessary for 2.4?
 Revision 5 adds Part C item 10 and states the f32 Non-Goal gate in §6.
 Both were checked at `698d1b8`; `src` is unchanged since v2.3.0.
 
+Revision 6 adds Part E, the examples (§5b), with decisions D9 to D16. It
+was prototyped at `7cc2a65`; `src` is unchanged since v2.3.0. Under the
+revision 4 question no piece is a 2.4 release obligation: examples are
+not packaged, and none of this depends on the release. Part E is
+recorded here because it edits the gate, the dev-dependency list and
+AGENTS.md, depends on Part D and Part C item 5, and meets an open v3
+decision. Its recommendations are for separate documentation changes, on
+their own merit.
+
 ## 1. Summary
 
 | Part | What | Public surface | Status |
@@ -53,6 +63,7 @@ Both were checked at `698d1b8`; `src` is unchanged since v2.3.0.
 | B | Checked application of a transform to plain positions | 1 method | Needs a scope decision (§4.1) |
 | C | Documentation corrections | none | Proposed |
 | D | Reject empty frame names at insert | 1 variant | Decided 2026-11-06: non-breaking; site open (§5a, D6) |
+| E | Examples that assert, organised by task | none | Not a release obligation; four separable changes, recommended on merit (§5b) |
 
 Everything is additive under SemVer. No signature, trait bound, or public
 path changes. Part D adds one variant to the `#[non_exhaustive]`
@@ -233,7 +244,10 @@ Disjoint field borrows make this compile as written.
 None of these changes behaviour. `Display` text is declared unstable
 (`README.md:117`).
 
-1. **Example direction comments.** In `examples/std_minimal.rs:33,57` and
+1. **Example direction comments.** Superseded if Part E's E2 lands in the
+   same release: those files are replaced, and the wording and names
+   below become requirements on `basic.rs` (§5b). Do one or the other,
+   never both. In `examples/std_minimal.rs:33,57` and
    `examples/no_std_full.rs:37,61`, comments say "transform from camera to
    base" above `Transform::new("base", "camera", …)` and "transform from
    base to map" above `Transform::new("map", "base", …)`. Rewrite them as
@@ -382,6 +396,230 @@ One README clause under conventions (`README.md:108-112`): "Registry
 insertion also rejects an empty frame name." Tests are in §7, and the
 CHANGELOG, MIGRATION and AGENTS.md obligations in §9.
 
+## 5b. Part E: examples that assert, organised by task
+
+Examples are not public surface and are not in the published package
+(`Cargo.toml:19-26` lists `/src`, the manifest, README, CHANGELOG,
+MIGRATION and LICENSE). Nothing here touches SemVer. References are to
+`7cc2a65`.
+
+**What is wrong today.**
+
+- **The gate cannot fail on a wrong example result.** No example asserts
+  a value; expected answers live in comments. Eight failures (six
+  lookups, two applications) are logged, not raised: `std_minimal.rs:80,83`, `no_std_minimal.rs:47,54`,
+  `no_std_full.rs:91,101,104`, `std_full.rs:97`. In `std_full` the insert
+  `.unwrap()` (`:69`) runs in a spawned task whose handle is only aborted
+  (`:104-105`), so a panic there never reaches the exit code (by reading,
+  not run). The gate's example step (`tests/test_all.sh:37-42`)
+  therefore checks that six programs do not panic on the main thread. It
+  claims no more than that they run; the gap is in what a reader assumes
+  it proves.
+- **No example names `RegistryError`** (grep: zero hits). Three of
+  four users carry errors as strings, and all four have error-blind waits
+  ([`../dependents/README.md`](../dependents/README.md#hand-rolled-around-the-crate)).
+- **No example shows the ingest side.** Checked time conversion, a
+  decision per insert error and clock-jump handling are where the
+  adapters went wrong (H4, H6, H7, Z2, Z3, Z6 in the dependent reports).
+- **The files are organised by feature flag.** The API is the same in
+  both modes, so the split teaches nothing. By `diff`, `std_advanced` and
+  `no_std_advanced` differ in 14 lines, and `std_minimal` and
+  `no_std_full` in 50; `no_std_minimal` and `std_full` have no twin. The
+  `no_std_*` files are hosted programs that log through `std`, so they do
+  not show bare-metal use; the thumb builds and
+  `cargo test --no-default-features` do.
+- **The names say nothing.** `minimal`, `full` and `advanced` need the
+  README table to be understood, and `no_std_full.rs:1` claims "the
+  complete functionality", which it does not show.
+
+**The revision 4 question, piece by piece.** No piece is strictly
+necessary for 2.4, so by revision 4's rule none is release content. The
+last column is the case for doing it anyway, as a documentation change.
+
+| Piece | What | Case on merit |
+|---|---|---|
+| E1 | Every example asserts its results, so a wrong value fails the gate | Strong. The gate's example step can fail only on a main-thread panic |
+| E2 | Task-named files that run in both feature modes replace the six | Moderate. A deletion and a clearer index, with no hazard behind it |
+| E3 | A new `ingest` example | Moderate. It rests on the same dependent findings as Part C items 5 and 8. Whether an example changes what adapters do is untested: transforms_io ignored `latest_common_time` with `std_full` available |
+| E4 | Drop `log` and `env_logger` from `[dev-dependencies]` | Follows from E1 and E2 |
+
+Each piece is one purpose and so one change. None rides with Part D.
+
+### E1. Examples fail on a wrong result
+
+Replace every logged outcome with an asserted one: `assert_eq!` for exact
+values, `approx::assert_abs_diff_eq!` for computed ones, and a `match`
+that panics on the unexpected arm for expected errors. The async example
+joins its tasks instead of aborting them. This can be done in the
+existing six files without renaming anything; E2 makes it cheaper by
+leaving four files to convert.
+
+### E2. Four task-named, feature-agnostic examples
+
+| New file | Replaces | Shows |
+|---|---|---|
+| `basic.rs` | `std_minimal`, `no_std_minimal`, `no_std_full` | Insert, a static edge, an interpolated lookup, checked application through `Point`, the opposite direction, and the no-extrapolation error with its `covered` range |
+| `shared_latest.rs` | `std_full` | A tokio writer and reader on one `RwLock`; `latest_common_time` then `get_transform` under one read guard, with the `Stamp::Static` arm served by a lookup, never `.at().unwrap()` (Part C item 4) |
+| `cross_time.rs` | `std_advanced`, `no_std_advanced` | `get_transform_at` on the conveyor case, with the warning not to re-insert the result |
+| `ingest.rs` | new (E3) | A message loop |
+
+- **One file, both modes.** Every example uses fixed
+  `Timestamp::from_nanos` stamps and no `cfg`-gated `main`, so the same
+  file runs with and without the library's `std` feature. No example
+  needs that feature; `shared_latest` needs tokio, a dev-dependency in
+  both modes. The six `[[example]]` blocks with their `required-features`
+  go, and cargo discovers the files.
+- **Runs.** Six runs become eight: four examples in two modes. Without
+  E3 it is three files and six runs. The gate is edited, not weakened,
+  and the CI `examples` job must be edited with it.
+- **Manual cleanup leaves with the `no_std_*` files.** Today
+  `remove_transforms_before` is shown in `no_std_minimal.rs:58`,
+  `no_std_full.rs:110` and `no_std_advanced.rs:134`. After E2 only
+  `ingest` shows it, so without E3 no example does.
+- **`Timestamp::now()` leaves the examples.** It stays covered by
+  `now_returns_a_positive_wall_clock_time` and
+  `try_now_returns_the_current_time_without_panicking`
+  (`src/time/timestamp/tests.rs:47,54`).
+- **`Point` stays demonstrated.** In 2.x `Point::transform` is the
+  checked way to apply a transform, and §2.1 records hand-written
+  `rotate_vector(v) + translation()` as the route that skips the frame
+  and time checks. `basic` therefore leads with the registry and applies
+  through `Point` after its first lookup. Removing `Point` from the examples would
+  pre-empt the v3 decision on it
+  ([v3 review, item 7](../v3-review/REPORT.md#7-delete-point-transformable-localized-get_transform_for)).
+  The README's compiled snippet (`README.md:41-68`) also keeps it. If
+  the v3 review's removal notice for the Point family ships in 2.4, it
+  goes in the changelog and README, not in the example.
+- **Names.** `basic` uses the `t_a_b` names and the "camera expressed in
+  base (parent base, child camera)" wording of Part C item 1.
+
+### E3. The `ingest` example
+
+A bridge loop over a plain struct (`sec: i32`, `nanosec: u32`, two frame
+names, translation, rotation, a static flag) with one comment mapping it
+to a middleware message. No middleware crate is added. The message
+sequence is a fixed in-file fixture, and each message is asserted against
+its expected outcome.
+
+What it shows, and the evidence for each:
+
+| Step | Shown | Evidence |
+|---|---|---|
+| Stamp | `sec < 0` and `nanosec >= 1e9` are refused, never clamped | H6, Z6 (negative seconds); `transforms_io.md:159` (`nanosec >= 1e9` carries into seconds) |
+| Frame names | An empty name is refused through `RegistryError::EmptyFrameName` (under D6's recommended site; the `validate` site would raise it at construction) | Part D; H5, Z1 |
+| Insert | Per-element `add_transform`, so a refused message costs only itself | "Do not steer bridges to `add_transforms`" ([`../dependents/README.md`](../dependents/README.md#do-not)) |
+| Insert errors | One `match`, one stated decision per variant (below) | H3, H4, Z2, Z11; three of four users stringify |
+| Clock jump | The bridge compares each stamp with the newest it stored and clears with `remove_transforms_before` | H7, Z3, dimos Hazard 1; Part C item 5 |
+| Lookup errors | `UnknownFrame`, `Disconnected`, `NotFoundAt` with `covered: Some` and with `covered: None`, told apart | Z7; error-blind waits in all four users |
+
+The decision per insert error. Each is the adapter's policy, stated as
+such; the crate has no `is_retryable`, on purpose (§6).
+
+| Variant | Decision shown | Source |
+|---|---|---|
+| `NonFiniteValues`, `NonUnitRotation` | Drop and report. No repair | `error.rs:26-44` says where they are caught; "no repair" is the example's policy, and normalizing within a stated bound is left to outreach (§6) |
+| `SelfReferentialFrame`, `CycleDetected` | Drop and report | No guidance found in the rustdoc or the study beyond the tree rule |
+| `EmptyFrameName` | Drop and report | §5a. Not in the prototype, which predates Part D |
+| `ReparentingNotSupported` | Drop, name both parents, surface it. Never call `reparent_frame` from the handler | "Do not resolve this error mechanically" (`error.rs:63-66`) |
+| `StaticDynamicConflict` | Drop and surface it. Never `remove_frame` from the handler | Part C item 8 |
+| any other | Reported as unexpected; no fixture message expects it, so one fails the per-message assert | `#[non_exhaustive]` |
+
+What the example must not teach:
+
+- **That errors detect a clock jump.** In 2.x an insert the window evicts
+  returns `Ok`, so the bridge has to track its own newest stamp. The
+  threshold that separates a jump from a late sample is the adapter's
+  assumption, and the example says so.
+- **That the clear is safe to apply mechanically.** One valid-looking
+  message with a stale stamp wipes every dynamic frame. The jump
+  reference in the prototype is global, not per publisher, and the check
+  runs before the insert, so a message that triggers the clear and is
+  then refused has still cleared. The example states these limits.
+- **A cutoff "past every stored sample" without the strictness.**
+  `remove_transforms_before` is strict, so the cutoff is one nanosecond
+  past the newest stored stamp. Part C item 5's sentence needs the same
+  correction
+  ([`sample-expired-contract.md` (f)](../v3-review/sample-expired-contract.md)).
+- **That `NotFoundAt` always means "wait".** In 2.x it takes precedence
+  over `Disconnected` (`error.rs:162-163`), so a pair no chain connects
+  can report it. The prototype's `Disconnected` case needed a static
+  second tree for that reason.
+- **A wait loop, normalization, or stripping a leading `/`.** The study
+  keeps the first two out of the core because they are exact outside,
+  and calls `/`-stripping a silent guess. The example leaves all three
+  out so that it carries no policy beyond the ones it states. The
+  "latest" lookup lives in `shared_latest`, once.
+
+**Order.** E3 lands after Part D and after Part C item 5 is reworded
+(D16), so
+it matches `EmptyFrameName` by name and repeats no wrong sentence. Before
+Part D the example needs its own `is_empty()` check, which is the copy
+the variant removes.
+
+### E4. Dev-dependencies
+
+With asserts and `println!`, nothing uses `log` or `env_logger` (no hits
+in `src`, `tests` or `benches`). Removing them drops 20 packages from
+`Cargo.lock`. It needs two AGENTS.md edits: the dev-dependency list
+(`AGENTS.md:93`) and the Style sentence "logging belongs in `examples/`"
+(`:307-308`), which would then describe examples that do not log. `tokio`
+stays for `shared_latest`; if that example moved to `std::sync::RwLock`
+and threads, as the v3 prototype did for determinism, `tokio` and its
+mention at `AGENTS.md:93` would go too (D13).
+
+### Prototype
+
+In [`prototypes/examples/`](prototypes/examples/), with the manifest,
+README, gate and CI edits and the first AGENTS.md edit (`:93`) in
+[`prototypes/examples-manifest-gate-readme.diff`](prototypes/examples-manifest-gate-readme.diff).
+The Style sentence edit and `Cargo.lock` are not in the diff. Written
+against 2.3.0, so `ingest.rs` carries the pre-Part-D `is_empty()` check
+and has no `EmptyFrameName` arm. It is one combined change, E1 to E4
+together. No piece was built alone, and asserts in the six existing
+files (E1 without E2) were not written.
+
+| File | Lines |
+|---|---|
+| `basic.rs` | 94 |
+| `ingest.rs` | 301 |
+| `shared_latest.rs` | 110 |
+| `cross_time.rs` | 71 |
+
+576 lines replace 657. `ingest.rs` is over half of the total.
+
+- **Verified in a scratch clone at `7cc2a65`:** `cargo fmt --check`;
+  nightly clippy in all four feature combinations and stable clippy in
+  both `std` modes, with no new `#[allow]`; `cargo check --examples` on
+  1.85 in both modes; every example in both modes; and
+  `tests/test_all.sh` to `GATE PASSED`. All of it ran on the files as
+  committed here, as one combined change.
+- **Break test.** Changing one expected value in `basic` makes the run
+  exit 101 in both modes. The other three examples were not break-tested.
+- **Not verified:** the CI workflow edit (not executed); the Part D form
+  of `ingest` (no implementation exists); `shared_latest` under load (its
+  assertions do not depend on timing, and it passed four runs); how
+  crates.io resolves the README's relative example links for the already
+  published 2.3.0 page after a rename.
+
+### Not proposed
+
+- **A prose integration guide.** `latest_common_time` is documented
+  (`README.md:100-103`) and shown in `std_full`, and transforms_io still
+  left it unused across seven releases. The same doubt applies to an
+  example. The difference is drift: prose rots silently, and an asserted
+  example fails the gate.
+- **Recipes as `tests/` files.** They gate well and teach badly: nobody
+  looks there, and they would duplicate the examples.
+- **A long doctest for the loop.** Doctests ship and show on docs.rs, so
+  they are the right home for the two short recipes the v3 review lists
+  for 2.x (a "latest" lookup, a checked ROS time conversion). The style
+  rule that doc examples use `.unwrap()` does not fit a match by variant.
+- **Outreach alone.** It fixes the two adapters and nothing for the next
+  one. It stays worth doing, and the `ingest` example is what such a pull
+  request would cite.
+- **An example as a substitute for any Part C item.** Rustdoc is what
+  ships and what is normative. Items 2, 4, 5 and 8 stay required.
+
 ## 6. Considered and not proposed
 
 - **A cross-time result type beside `get_transform_at`** (revision 2's
@@ -461,6 +699,11 @@ Part B:
 All tests run in both feature modes. The serde suites are unchanged:
 under D6's recommended site, decoding still accepts `""`.
 
+Part E adds no test file. The examples are the check: each asserts its
+results and runs in both feature modes in the gate (§5b). The acceptance
+test for E1 is the break test, per example: one wrong expected value
+must make it exit non-zero.
+
 ## 8. Open decisions for the maintainer
 
 | ID | Decision | Recommendation |
@@ -473,6 +716,14 @@ under D6's recommended site, decoding still accepts `""`.
 | D6 | Enforcement site: the insert boundary (`Buffer::check`, flat `RegistryError::EmptyFrameName`) or `Transform::validate` (`TransformError::EmptyFrameName`) | The insert boundary. The hazard is registry-only, the sibling self-reference rule lives there, and decoding is untouched (§5a). The ruling covers rejection, not the site |
 | D7 | Payload: unit, or name the empty side | Unit, as `SelfReferentialFrame` is. Frame fields on insert errors are a v3 ledger candidate for all of them at once (now a [ledger row](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06), since adding one to a shipped variant is a break |
 | D8 | A property test for the rule | No: the check is a string comparison and §7 covers every insert path. If wanted, map one name of the `f0..f6` alphabet in `tests/properties.rs` (`:123-165`) to `""` |
+| D9 | E1: make every example fail on a wrong result | Yes, as its own change, independent of the release. Not prototyped alone |
+| D10 | E2: task-named files run in both modes; delete the six; `Timestamp::now()` and, without E3, `remove_transforms_before` leave the examples; edit the gate and the CI job together | Maintainer's call; recommended, as its own change. The gate edit needs sign-off: six runs become eight with E3, six without |
+| D11 | Remove `Point` from the examples in 2.x | No. `basic` leads with the registry and applies through `Point`. Revisit with the v3 decision on the Point family; a removal notice, if taken, goes in the changelog and README |
+| D12 | E3: the `ingest` example in 2.x | Maintainer's call; recommended, last: after Part D and the reworded Part C item 5 (D16). Otherwise it waits for 3.0 |
+| D13 | E4: drop `log` and `env_logger`; `tokio` or threads for `shared_latest` | Drop the two if D9 and D10 pass, with both AGENTS.md edits. `tokio` is the maintainer's call: roslibrust_transforms uses `tokio::sync::RwLock` (the other users' lock types were not checked); threads are deterministic and would remove one more dev-dependency |
+| D14 | Part C item 1 | Superseded if and only if D10 lands in the same release |
+| D15 | Rename `std_full` to `shared_latest` and `std_advanced` to `cross_time` | With D10. The released CHANGELOG entries that name the old files stay as written. The effect on the published 2.3.0 README links is unverified |
+| D16 | Reword Part C item 5's recovery sentence ("a cutoff past every stored sample") | Yes, from [`sample-expired-contract.md` (f)](../v3-review/sample-expired-contract.md): the cutoff is strict, and a jump larger than `max_age` has a tail. Item 5 is unchanged in this revision |
 
 ## 9. Release obligations
 
@@ -493,6 +744,16 @@ under D6's recommended site, decoding still accepts `""`.
   insert. The identity, flat-error and validation bullets stay true under
   D6's recommended site; the `validate` site would also edit the
   validation list and the identity clause. Parts B and C need none.
+- Part E, for whichever of its pieces ship: one CHANGELOG line; the
+  README "Examples" table and run commands (`README.md:178-195`);
+  `tests/test_all.sh:37-42` and `.github/workflows/tests.yml:176-187`,
+  edited together; the `[[example]]` blocks (`Cargo.toml:60-88`). E4 also
+  edits `[dev-dependencies]`, `Cargo.lock` and AGENTS.md (`:93`,
+  `:307-308`), flagged to the maintainer. No MIGRATION entry: no API
+  changes. Analysis documents that name the old files
+  (`../v3-proposals/transforms-v3-addendum-cross-time.md:123`,
+  `../v3-warrant/REPORT.md:113-114`) or count them
+  (`../v2-feasibility/REPORT.md:142`) are historical and stay.
 - Run the full gate. Run `cargo semver-checks check-release --baseline-rev v2.3.0`
   and confirm the result matches the declared bump. A variant added to a
   `#[non_exhaustive]` enum is no breaking lint; the `Ok` → `Err`

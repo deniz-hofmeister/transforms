@@ -1,0 +1,158 @@
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+index 44cea8d..d2543e1 100644
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -173,18 +173,16 @@ jobs:
+       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30
+         with:
+           toolchain: stable
+-      - name: Run example std_minimal
+-        run: cargo run --example std_minimal
+-      - name: Run example std_full
+-        run: cargo run --example std_full
+-      - name: Run example std_advanced
+-        run: cargo run --example std_advanced
+-      - name: Run example no_std_minimal
+-        run: cargo run --example no_std_minimal --no-default-features
+-      - name: Run example no_std_full
+-        run: cargo run --example no_std_full --no-default-features
+-      - name: Run example no_std_advanced
+-        run: cargo run --example no_std_advanced --no-default-features
++      - name: Run examples (std)
++        run: |
++          for example in basic ingest shared_latest cross_time; do
++            cargo run --example "$example"
++          done
++      - name: Run examples (no_std)
++        run: |
++          for example in basic ingest shared_latest cross_time; do
++            cargo run --example "$example" --no-default-features
++          done
+ 
+   benches:
+     name: benches
+diff --git a/AGENTS.md b/AGENTS.md
+index 50c4022..a894370 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -90,7 +90,7 @@ altitude. To place a proposed capability:
+   the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, `libm`
+   (all float math, in every feature mode), and the optional, default-off `serde`
+   are the entire runtime dependency list. (The `[dev-dependencies]` —
+-  `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
++  `tokio` for the async example, `criterion`
+   for benches, `proptest` for property tests, `serde_json` for serde
+   roundtrips, `postcard` for the frozen serde wire-format bytes — are
+   expected and do not contradict this.)
+diff --git a/Cargo.toml b/Cargo.toml
+index 3e514ac..f854dc7 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -40,11 +40,9 @@ libm = { version = "0.2.16", default-features = false }
+ serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"], optional = true }
+ 
+ [dev-dependencies]
+-env_logger = "0.11.11"
+ proptest = "1.11.0"
+ serde_json = "1.0.151"
+ postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
+-log = "0.4.34"
+ # Held at 0.7: criterion 0.8 declares rust-version 1.86, above this crate's
+ # MSRV of 1.85, and its rolling last-three-stables policy can raise that in
+ # any 0.8.x patch — dependabot is told to ignore 0.8 (.github/dependabot.yml).
+@@ -57,36 +55,6 @@ criterion = { version = "0.7.0", default-features = false, features = [
+ ] }
+ tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+ 
+-[[example]]
+-name = "no_std_minimal"
+-path = "examples/no_std_minimal.rs"
+-required-features = []
+-
+-[[example]]
+-name = "no_std_full"
+-path = "examples/no_std_full.rs"
+-required-features = []
+-
+-[[example]]
+-name = "std_minimal"
+-path = "examples/std_minimal.rs"
+-required-features = ["std"]
+-
+-[[example]]
+-name = "std_full"
+-path = "examples/std_full.rs"
+-required-features = ["std"]
+-
+-[[example]]
+-name = "std_advanced"
+-path = "examples/std_advanced.rs"
+-required-features = ["std"]
+-
+-[[example]]
+-name = "no_std_advanced"
+-path = "examples/no_std_advanced.rs"
+-required-features = []
+-
+ [[bench]]
+ name = "benchmarks"
+ harness = false
+diff --git a/README.md b/README.md
+index 55a1558..f91d55d 100644
+--- a/README.md
++++ b/README.md
+@@ -177,21 +177,20 @@ cannot be connected instead of a numeric overflow. See the
+ 
+ ## Examples
+ 
+-All examples are hosted programs. The `no_std_*` examples disable this
+-library's `std` feature; their executable and logging still use `std`.
++Each example asserts its results and runs unchanged with and without the
++library's `std` feature. They are hosted programs; the bare-metal builds
++are checked separately.
+ 
+-| Example | Demonstrates |
++| Example | Task |
+ |---|---|
+-| [std_minimal](examples/std_minimal.rs) | Point transformation and interpolation |
+-| [std_full](examples/std_full.rs) | Tokio readers and a writer sharing an `RwLock` |
+-| [std_advanced](examples/std_advanced.rs) | Coordinates expressed between different instants |
+-| [no_std_minimal](examples/no_std_minimal.rs) | Insertion and lookup without the library's `std` feature |
+-| [no_std_full](examples/no_std_full.rs) | Point transformation, interpolation, and manual cleanup |
+-| [no_std_advanced](examples/no_std_advanced.rs) | Cross-time lookup and manual cleanup |
++| [basic](examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result |
++| [ingest](examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
++| [shared_latest](examples/shared_latest.rs) | Tokio writer and reader sharing an `RwLock`; look up the newest servable instant |
++| [cross_time](examples/cross_time.rs) | Coordinates expressed between different instants |
+ 
+ ```sh
+-cargo run --example std_full
+-cargo run --example no_std_minimal --no-default-features
++cargo run --example ingest
++cargo run --example ingest --no-default-features
+ ```
+ 
+ ## Non-Goals
+diff --git a/tests/test_all.sh b/tests/test_all.sh
+index 973b60d..04cc95d 100755
+--- a/tests/test_all.sh
++++ b/tests/test_all.sh
+@@ -34,12 +34,12 @@ cargo fmt --check
+ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+ # The docs.rs configuration (all features, docsrs cfg) must build too.
+ RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features
+-cargo run --example no_std_minimal --no-default-features
+-cargo run --example no_std_full --no-default-features
+-cargo run --example no_std_advanced --no-default-features
+-cargo run --example std_minimal
+-cargo run --example std_full
+-cargo run --example std_advanced
++# Every example asserts its results and is feature-agnostic: each runs in
++# both modes, and a wrong value fails here.
++for example in basic ingest shared_latest cross_time; do
++    cargo run --example "$example"
++    cargo run --example "$example" --no-default-features
++done
+ cargo bench --no-default-features -- --test
+ cargo bench -- --test
+ cargo build --no-default-features --target thumbv7em-none-eabihf

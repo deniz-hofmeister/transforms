@@ -1,6 +1,9 @@
 # transforms v3: review and proposal, round 2
 
-Date: 2026-11-10. Baseline: master `7cc2a65` (released v2.3.0 plus docs-only
+Date: 2026-11-10. Amended 2026-11-11: [Examples in 3.0](#examples-in-30),
+one condition of item 7, one bullet under "Ships in 2.x", decisions 13 to
+15 and two Prototypes rows. The PDF and `report-source.html` carry the
+amendment in summary form. Baseline: master `7cc2a65` (released v2.3.0 plus docs-only
 commits). Nothing here is implemented. Everything is a recommendation,
 except [item 10](#10-an-insert-the-window-discards-is-an-error), whose
 semantics the maintainer settled in discussion the same day.
@@ -38,12 +41,14 @@ dependent study in [`analysis/dependents/`](../dependents/README.md) and the
 - **The size is unchanged:** one new public type and one new error
   variant, while the deletions alone take the public surface from 104
   named items to 87. The four prototypes together are roughly +420/−680
-  library lines.
+  library lines; stacked and cleaned of the files the deletions orphan,
+  +416/−793 ([Examples in 3.0](#examples-in-30)).
 - **Known compile cost downstream:** one return type, one re-export and
   three test lines in roslibrust_transforms; one match arm in transforms_io
   if the optional rename is taken; nothing in dimos, pelorus or whirl_tf.
   The real cost is behavioural and is almost all item 10.
-- **Four questions are open and are the maintainer's:** the Point family's
+- **Four questions are open and are the maintainer's** (three more, on
+  the examples, were added on 2026-11-11 as decisions 13 to 15): the Point family's
   removal path, frame fields on insert errors, where rotations are
   normalized, and whether the finiteness check is a 2.x fix. See
   [Decisions](#decisions-for-the-maintainer).
@@ -76,7 +81,7 @@ affected.
 |---|---|---|---|
 | 1 | `get_transform_at` returns `CrossTimeTransform` | loud | Kept; error payload rule added |
 | 2 | Rotations normalized where built | silent, wire | Kept; bound now proven conditionally |
-| 3 | `inverse` keeps normalizing; `QuaternionError` deleted | loud | **Changed** (round 1: conjugate) |
+| 3 | `inverse` keeps normalizing; the `TransformError::QuaternionError` variant deleted | loud | **Changed** (round 1: conjugate) |
 | 4 | Lookups never return a non-finite value | silent | Kept |
 | 5 | `Disconnected` before `NotFoundAt` | silent | Kept; two error classes, not one |
 | 6 | Error shapes | loud | Kept; frame fields reopened |
@@ -207,7 +212,7 @@ after the existing tolerance check.
   composition, a scale-invariant `rotate_vector`, a public `Rotation`
   newtype, a tighter tolerance, a Newton step per composition.
 
-### 3. `inverse` keeps normalizing, and `QuaternionError` goes
+### 3. `inverse` keeps normalizing, and the `QuaternionError` variant goes
 
 Round 1 proposed the conjugate. Round 2 reverses that.
 
@@ -357,7 +362,9 @@ Round 1 proposed the conjugate. Round 2 reverses that.
     formulas with the same literal digits, never regenerated. The layer
     then pins `rotate_vector`, the quaternion product and lookup
     direction, and no longer a crate application path.
-  - Rewrite `README.md:44-68` and two examples.
+  - Rewrite `README.md:44-68` and two examples (one, `basic.rs`, if the
+    2.4 examples restructure lands first; see
+    [Examples in 3.0](#examples-in-30)).
   - Give 2.x users notice. Either `#[deprecated]` with a feedback link, a
     cut-off date and an adoption threshold (about 17 in-repo files need
     `#[allow(deprecated)]`, which needs maintainer sign-off), or a removal
@@ -610,6 +617,10 @@ None of these needs a break.
   omits the tail of a jump larger than `max_age` (906 inserts all `Ok`, 6
   stored). Corrected sentences are in
   [`sample-expired-contract.md`](sample-expired-contract.md).
+- The examples work (2.4 Part E), as separate documentation changes and
+  not a release obligation: examples that assert, then optionally four
+  task-named files and an `ingest` example. `Point` stays in the 2.x
+  examples until decision 3 is taken.
 - The removal notice for the Point family (item 7).
 - The `TimePoint` diagnostic attribute (stable since Rust 1.78 from
   memory; built on nightly only here).
@@ -629,6 +640,161 @@ None of these needs a break.
   reordered quaternion is not caught.
 - Internal: delete the `latest_timestamp` field (always the map's last
   key); drop `Buffer.child` and `InsertError::ChildFrameMismatch`.
+
+## Examples in 3.0
+
+Added 2026-11-11, after the two review rounds, by four agents on
+`claude-fable-5-2` at low effort (two prototypes, an evidence pass, a
+scope critic) and three checkers. The 2.x half is Part E of the
+[2.4 proposal](../v2.4-proposal/DESIGN.md#5b-part-e-examples-that-assert-organised-by-task):
+four task-named examples (`basic`, `shared_latest`, `cross_time`,
+`ingest`) that assert their results and run in both feature modes. This
+section is what those four look like on the proposed 3.0, written and run
+against the stacked prototypes.
+
+**Recommendation.** Restructure in 2.x, then port in 3.0. How much of
+Part E ships in 2.x is the 2.4 proposal's D9 to D13: asserts only (E1),
+also the four task-named files (E2), also `ingest` (E3). None of it is a
+2.4 release obligation.
+
+- **For.** The gate hole (no example can fail on a wrong value) closes
+  now, and the dependents are on 2.x. That argument supports E1 alone;
+  E2 and E3 rest on their own merit.
+- **Against.** `basic` and `cross_time` are rewritten twice, and
+  `ingest` too if E3 ships in 2.x. The 2.4 `basic` and `cross_time` do
+  not compile on the stack; the 2.4 `ingest` and `shared_latest` do.
+- **A migration record, if the port is an edit.** If the 3.0 files are
+  made by editing the 2.4 files, their diff is an asserted record of the
+  migration. The prototypes here were written independently, with
+  different fixtures, so their diff is a rewrite. Examples are not in
+  the published package, so MIGRATION would have to link the repository.
+- **Effect on item 7.** Its condition "rewrite `README.md:44-68` and two
+  examples" becomes "rewrite `README.md:44-68` and `basic.rs`".
+
+**What changes in kind, not only in names.**
+
+| Example | 2.4 form | 3.0 form | Item |
+|---|---|---|---|
+| `basic` | Applies through `Point::transform`; the library checks frame and instant | Applies by hand in a helper that asserts `tf.child()` and the stamp, then `rotation().rotate_vector(p) + translation()`. The checks are the caller's own | 7 |
+| `cross_time` | The result is a `Transform` stamped with the target time; a comment says not to insert it | The result is a `CrossTimeTransform`. The four label accessors and `translation()` are asserted (`rotation()` is used but every fixture rotation is the identity), and the three misuses are named with their compile errors | 1, 5 |
+| `ingest` | A late insert returns `Ok`, so there is no arm for it; `NotFoundAt` can hide a disconnected pair | A `SampleExpired` arm with recovery by cause; `Disconnected` no longer depends on the instant, so the lookup `match` can say what each variant asks of the caller | 10, 5 |
+| `shared_latest` | `latest_common_time` then `get_transform` under one read guard | Needs no change: the 2.4 file builds and runs unchanged on the stack. The prototype here is a threads variant (see below) | none |
+
+**Requirements on each 3.0 example.**
+
+- **`basic`: one normative source for application.** The example's helper
+  must mirror the recipe on `Transform`'s rustdoc that item 7's first
+  condition asks for; a doctest is the form that cannot drift. `deletions.diff` deletes `traits.rs`, the contract's only
+  home, and adds it nowhere, so on the stack the contract (`R p + t`,
+  `R * q` for an orientation, rotation only for a free vector) exists
+  only in the example's own comment. The helper is ten lines as formatted,
+  three of them body; the formula is one.
+- **`cross_time`: apply through the accessors, never rebuild.** The
+  example asserts `source_frame()` and `source_time()` before applying.
+  It names, in a comment, what no longer compiles: `add_transform(x)`
+  (E0308), `x * y` (E0369) and `x.inverse()` (E0599). It must not build a
+  `Transform` from the accessors, which would reopen the hole item 1
+  closes.
+- **`ingest`: `SampleExpired` is not reset detection (D6).** The arm
+  separates two causes with the bridge's own clock:
+  - `newest` is plausible: the sample is late. Drop and count. Resetting
+    the frame here would let one straggler wipe a healthy history.
+  - `newest` is ahead of the clock: that stored stamp is the bad one.
+    `remove_frame`, rebuild the sample from the message and insert again.
+  A clock that stepped back is detected by the bridge, not by the error,
+  as in 2.x, and cleared with `remove_transforms_before` at one
+  nanosecond past the newest stored stamp. The two prototypes detect it
+  differently, and should be made the same: the 3.0 one compares a clock
+  reading carried with each message, the 2.4 one compares each stamp with
+  the newest stored one against a threshold. A step smaller than the window raises no
+  error, so an example that waits for `SampleExpired` would miss it.
+- **`ingest`: the rebuild is a visible cost of item 10.** `add_transform`
+  consumes the sample and the error does not return it, so the recovery
+  converts the message a second time. The contract's route A says the
+  same.
+- **`ingest`: one ordering fact is relied on, and that is open.** The
+  `match` arms imply no order. The `remove_frame` recovery does: its
+  comment says expiry is the last insert check, so a sample that reports
+  `SampleExpired` already has the frame's parent and kind. Item 10 keeps
+  the check order internal, while the contract draft's rustdoc publishes
+  exactly this fact. Either it is published, or the example handles a
+  failed re-insert without stating why it cannot happen (decision 15).
+- **`ingest`: empty names.** The 3.0 example matches `EmptyFrameName`
+  (2.4 Part D). The prototype has neither the arm nor a check, because
+  the stack is built on `7cc2a65`, without Part D.
+- **`ingest`: no `latest` helper.** The prototype wraps
+  `latest_common_time` and `get_transform` in one; the 2.4 design keeps
+  that lookup in `shared_latest` only. Remove it from the 3.0 file.
+- **Struct patterns use `..`,** so the examples survive
+  `#[non_exhaustive]` on the struct variants (item 6). If the frame
+  fields are taken, the conflict arms print the error's `frame` instead
+  of a name kept from the message. For a per-element loop that only makes
+  `Display` self-sufficient; the real gain is for `add_transforms`
+  callers.
+
+**Open for the example, not settled here.**
+
+- **Guard or recover.** A bridge with a clock can refuse a stamp ahead of
+  it before inserting, which makes the `remove_frame` route unreachable.
+  The prototype shows the recovery and calls the guard "the better guard
+  where it applies" in a comment. The recovery is what the item 10
+  contract documents; the example bridge does have the clock in hand. A guard is
+  wrong for a bridge whose stamps are not on its own clock (simulation
+  time).
+- **Threads or tokio.** The prototype's `shared_latest` uses
+  `std::sync::RwLock` and threads for determinism (four readers assert
+  every answer; 10 of 10 runs passed). The 2.4 form uses tokio. The two
+  should not differ; the choice is 2.4's D13. With threads, `tokio`
+  leaves the dev-dependencies.
+- **Length.** The 3.0 set is 841 lines against 576 for 2.4 and 657 today
+  (830 with the 2.4 `shared_latest`). `ingest.rs` is 482 of them. It
+  should be cut before it ships; the fixture and the counters are the
+  bulk.
+
+**What the stack showed.** All four round 2 library diffs were applied
+together for the first time
+([`stacked-library.diff`](prototypes/stacked-library.diff), 14 files,
++416/−793).
+
+- **"Each applies cleanly" holds alone, not together.** `sample-expired`
+  and `normalize-finite-check-inverse-b` stack cleanly. One hunk of
+  `cross-time-type-and-precedence` meets item 4's exit check in the
+  cross-time resolve and was merged by hand, keeping both. Seven hunks of
+  `deletions` reject: six against lines the cross-time diff changed
+  (including the whole-file deletion of `traits.rs`), one against the
+  import line `normalize-finite-check-inverse-b` changed. No
+  semantic conflict was found.
+- **`deletions.diff` leaves debris:** a zero-byte
+  `src/geometry/point/mod.rs` and an untouched, orphaned
+  `point/tests.rs`. On the stack two doc links to `Transformable`, added
+  by the cross-time diff, also survive, because the hunks that remove
+  them reject. The stack removes all of these.
+- **`sample-expired.diff` is behind its contract draft:** no
+  `#[non_exhaustive]` on the variant, a different `Display` text, and a
+  three-line rustdoc.
+- **Item 1:** the prototype already derives `Clone` and `PartialEq` on
+  `CrossTimeTransform`, which the item text calls optional and later.
+- **Item 3:** the heading and the summary row said `QuaternionError`
+  goes. Only the `TransformError::QuaternionError` variant goes; the type
+  stays public, because `Quaternion::normalize` returns it. Both are
+  corrected above.
+- **Behaviour confirmed on the stack, against 2.3.0:**
+  - a late insert under a 10 s window: `Ok(())` becomes `SampleExpired`;
+  - a disconnected pair at an uncovered instant: `NotFoundAt` becomes
+    `Disconnected`;
+  - `get_transform_at` with an unknown target: `NotFoundAt` naming the
+    source leg becomes `UnknownFrame`;
+  - on 2.3.0, re-inserting a cross-time result moved a stored pose from
+    x = 1 to x = −4.
+
+**Verified.** The stacked library builds in all four feature
+combinations and for `thumbv7em-none-eabihf`. The four examples build,
+pass clippy with `-D warnings` and run with identical output in all four
+combinations. **Not verified:** the gate (the existing tests do not
+compile on the stack, as expected of library-only diffs), `cargo test`,
+`cargo doc`, the README doctest, stable clippy, MSRV 1.85, `thumbv6m`,
+`thumbv8m.main` and RISC-V. Items 2, 3, 4, 8, 9 and 11 are in the stack
+but no example exercises them.
 
 ## Release plan
 
@@ -686,6 +852,9 @@ None of these needs a break.
 | 10 | Dev-dependency on `transforms` 2.3 for a differential harness? | Maintainer's call; otherwise outside the crate |
 | 11 | The policy sentence from round 1 (what a minor may change) | Still open; unchanged |
 | 12 | Item 10 | Decided 2026-11-10 (D1-D6) |
+| 13 | Examples in 2.x: asserts only (E1), also the four task-named files (E2), also `ingest` (E3), or wait for 3.0? | E1 now; E2 and E3 are 2.4's D10 and D12. Port whatever ships ([Examples in 3.0](#examples-in-30)) |
+| 14 | The 3.0 `ingest` example: show the `remove_frame` recovery, or a guard that refuses stamps ahead of the bridge's clock? | No firm recommendation. The recovery is what the contract documents; the guard is simpler where stamps are on the bridge's clock |
+| 15 | Publish "expiry is the last insert check"? The `remove_frame` recovery and the contract draft rely on it; item 10 keeps the order internal | Open. If not published, the example must not state it |
 
 ## Changes from round 1
 
@@ -738,10 +907,12 @@ Added by round 2:
 
 ## Limits
 
-- `tests/test_all.sh` ran on no prototype. Prototypes ran `cargo test` in
-  default and no-default-features modes, most with `serde`; clippy and
-  fmt on the library; one `thumbv6m` build for items 2-4. No stable
-  clippy, MSRV 1.85 or RISC-V build.
+- `tests/test_all.sh` ran on no prototype. The single-item prototypes
+  ran `cargo test` in default and no-default-features modes, most with
+  `serde`; clippy and fmt on the library; one `thumbv6m` build for items
+  2-4. No stable clippy, MSRV 1.85 or RISC-V build. The stacked diff
+  builds but `cargo test` does not compile on it; its limits and those of
+  the examples are under [Examples in 3.0](#examples-in-30).
 - No measurement on hardware. Embedded instruction counts come from QEMU
   in the lens review and were not re-run. Host timings were taken on a
   shared machine; differences under about 3 ns are noise.
@@ -762,9 +933,12 @@ Added by round 2:
 
 ## Prototypes
 
-Library-only diffs against `7cc2a65`; each applies cleanly. They are
+Library-only diffs against `7cc2a65`; each applies cleanly on its own.
+Together they need the hand merges listed under
+[Examples in 3.0](#examples-in-30). They are
 evidence, not patches: none is gate-clean and none updates docs or
-existing tests. Round 1's are in [`round1/prototypes/`](round1/prototypes/).
+existing tests (the stack deletes one orphaned unit-test file and two
+dead doc links). Round 1's are in [`round1/prototypes/`](round1/prototypes/).
 
 | File | Content | Lines | Existing tests that fail |
 |---|---|---|---|
@@ -775,3 +949,5 @@ existing tests. Round 1's are in [`round1/prototypes/`](round1/prototypes/).
 | [`cross-time-type-and-precedence.diff`](prototypes/cross-time-type-and-precedence.diff) | Items 1 and 5 with the cross-leg error rule | +214/−118 | 1; 12 lines in 5 tests stop compiling |
 | [`precedence-only.diff`](prototypes/precedence-only.diff) | Item 5 alone | +41/−66 | 1 |
 | [`deletions.diff`](prototypes/deletions.diff) | Items 7, 8, 9 and 11 | +29/−546 | 4 flip (item 11); the rest are deleted with their subjects |
+| [`stacked-library.diff`](prototypes/stacked-library.diff) | The four recommended diffs applied together, hand-merged (added 2026-11-11) | +416/−793 | `cargo test` does not compile |
+| [`examples/`](prototypes/examples/) | The four examples on the stack: `basic`, `shared_latest`, `cross_time`, `ingest` (added 2026-11-11) | 841 | n/a |
