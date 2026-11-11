@@ -1,0 +1,182 @@
+diff '--color=never' -ru a/src/core/registry/mod.rs proto-geometry/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs	2026-10-28 16:40:55.131431584 +0100
++++ proto-geometry/src/core/registry/mod.rs	2026-11-10 12:06:43.434235478 +0100
+@@ -320,7 +320,7 @@
+         source: &str,
+         timestamp: T,
+     ) -> Result<Transform<T>, RegistryError<T>> {
+-        let isometry = Self::resolve(target, source, timestamp, &self.data)?;
++        let isometry = Self::resolve(target, source, timestamp, &self.data)?.ensure_finite()?;
+         // The result answers "where is `source` relative to `target` at the
+         // requested time", so it carries the requested timestamp — also for
+         // chains of static transforms, which are themselves stamped
+@@ -1112,6 +1112,7 @@
+             target_to_fixed.inverse()? * source_to_fixed
+         };
+ 
++        let isometry = isometry.ensure_finite()?;
+         // The result carries the target time as per the API contract.
+         Ok(Transform::unvalidated(
+             target_frame.into(),
+diff '--color=never' -ru a/src/geometry/transform/error.rs proto-geometry/src/geometry/transform/error.rs
+--- a/src/geometry/transform/error.rs	2026-10-26 11:31:14.552865788 +0100
++++ proto-geometry/src/geometry/transform/error.rs	2026-11-10 12:06:43.433650685 +0100
+@@ -2,7 +2,7 @@
+ 
+ use thiserror::Error;
+ 
+-use crate::errors::{QuaternionError, TimeError};
++use crate::errors::TimeError;
+ 
+ /// Error type for building, composing, interpolating, and applying
+ /// transforms.
+@@ -75,7 +75,4 @@
+     #[error("timestamp error: {0}")]
+     TimestampError(#[from] TimeError),
+ 
+-    /// A quaternion operation failed.
+-    #[error("quaternion error: {0}")]
+-    QuaternionError(#[from] QuaternionError),
+ }
+diff '--color=never' -ru a/src/geometry/transform/isometry.rs proto-geometry/src/geometry/transform/isometry.rs
+--- a/src/geometry/transform/isometry.rs	2026-10-26 11:31:14.552865788 +0100
++++ proto-geometry/src/geometry/transform/isometry.rs	2026-11-10 12:06:43.433514192 +0100
+@@ -33,29 +33,43 @@
+         }
+     }
+ 
+-    /// The same relationship read the other way round.
+-    ///
+-    /// The rotation is normalized first: inverting a rotation that has
+-    /// drifted off the unit sphere would scale every value the result is
+-    /// applied to.
++    /// The same relationship read the other way round: the conjugate
++    /// rotation, which is its inverse because rotations are unit where they
++    /// are built.
+     ///
+     /// # Errors
+     ///
+-    /// Returns `TransformError::QuaternionError` if the rotation cannot be
+-    /// normalized, and `TransformError::NonFiniteValues` if the inverted
++    /// Returns `TransformError::NonFiniteValues` if the inverted
+     /// translation is not finite.
+     pub(crate) fn inverse(self) -> Result<Self, TransformError> {
+-        let rotation = self.rotation.normalize()?.conjugate();
++        let rotation = self.rotation.conjugate();
+         let translation = -1.0 * (rotation.rotate_vector(self.translation));
+-
+-        if !translation.x.is_finite() || !translation.y.is_finite() || !translation.z.is_finite() {
+-            return Err(TransformError::NonFiniteValues);
+-        }
+-
+-        Ok(Self {
++        Self {
+             translation,
+             rotation,
+-        })
++        }
++        .ensure_finite()
++    }
++
++    /// Returns `self` if every component is finite.
++    ///
++    /// # Errors
++    ///
++    /// Returns `TransformError::NonFiniteValues` otherwise.
++    pub(crate) fn ensure_finite(self) -> Result<Self, TransformError> {
++        let (t, q) = (self.translation, self.rotation);
++        if t.x.is_finite()
++            && t.y.is_finite()
++            && t.z.is_finite()
++            && q.w.is_finite()
++            && q.x.is_finite()
++            && q.y.is_finite()
++            && q.z.is_finite()
++        {
++            Ok(self)
++        } else {
++            Err(TransformError::NonFiniteValues)
++        }
+     }
+ 
+     /// Interpolates at `timestamp` between `self`, holding at `from_time`,
+diff '--color=never' -ru a/src/geometry/transform/mod.rs proto-geometry/src/geometry/transform/mod.rs
+--- a/src/geometry/transform/mod.rs	2026-10-26 11:31:14.552865788 +0100
++++ proto-geometry/src/geometry/transform/mod.rs	2026-11-10 12:11:01.557480019 +0100
+@@ -29,6 +29,9 @@
+ /// lookup they take part in without any error.
+ pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
+ 
++/// Squared-norm dead band inside which a validated rotation is stored as given.
++const UNIT_BAND: f64 = 8.0 * f64::EPSILON;
++
+ /// Maps child-frame coordinates into a parent frame at a given stamp.
+ ///
+ /// Positions are rotated first, then translated. [`Transform::new`] and
+@@ -157,7 +160,7 @@
+             timestamp,
+         );
+         transform.validate()?;
+-        Ok(transform)
++        Ok(transform.unitized())
+     }
+ 
+     /// Builds a validated static transform between two frames: valid for all
+@@ -219,6 +222,19 @@
+         }
+     }
+ 
++    /// Normalizes the rotation unless its squared norm is already within a
++    /// few ulps of 1 (the dead band: `normalize` output always lands inside
++    /// it, so this is idempotent). The caller has validated, so `normalize`
++    /// cannot fail.
++    fn unitized(mut self) -> Self {
++        let q = self.rotation;
++        let norm_sq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
++        if (norm_sq - 1.0).abs() > UNIT_BAND {
++            self.rotation = q.normalize().unwrap_or(q);
++        }
++        self
++    }
++
+     /// The translational component: where the child frame's origin sits in
+     /// the parent frame.
+     #[must_use]
+@@ -416,16 +432,12 @@
+     /// Computes the inverse of the transform: the same relationship read the
+     /// other way round, with the frames swapped.
+     ///
+-    /// The rotation is normalized first — inverting a rotation that has
+-    /// drifted off the unit sphere would scale every value the result is
+-    /// applied to.
++    /// The rotation is conjugated, which inverts it because rotations are
++    /// unit where they are built.
+     ///
+     /// # Errors
+     ///
+-    /// Returns `TransformError::QuaternionError` if the rotation cannot be
+-    /// normalized, which a transform straight from a constructor cannot reach:
+-    /// its norm was checked there. `TransformError::NonFiniteValues` is
+-    /// returned if the inverted translation is not finite, and that one is
++    /// `TransformError::NonFiniteValues` is returned if the inverted translation is not finite, and that one is
+     /// reachable from a constructor-built transform too — rotating a
+     /// translation whose components sit near `f64::MAX` overflows it — as well
+     /// as from one composed out of extreme-magnitude operands, which `*` does
+@@ -539,7 +551,7 @@
+ 
+         ensure_composable(&self.child, &rhs.parent, &rhs.child)?;
+ 
+-        let isometry = self.isometry() * rhs.isometry();
++        let isometry = (self.isometry() * rhs.isometry()).ensure_finite()?;
+         Ok(Self::unvalidated(
+             self.parent,
+             rhs.child,
+@@ -588,7 +600,7 @@
+             repr.timestamp,
+         );
+         transform.validate()?;
+-        Ok(transform)
++        Ok(transform.unitized())
+     }
+ }
+ 

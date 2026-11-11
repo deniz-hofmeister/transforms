@@ -1,0 +1,489 @@
+diff '--color=never' -ru -x tests.rs a/src/core/registry/error.rs src/core/registry/error.rs
+--- a/src/core/registry/error.rs	2026-10-26 11:31:14.551865786 +0100
++++ src/core/registry/error.rs	2026-11-10 12:06:39.958277823 +0100
+@@ -159,9 +159,8 @@
+     /// them crosses, never one above their common ancestor, so its data is
+     /// data the lookup needs. Other edges on the chain may fail as well.
+     ///
+-    /// A recorded sampling failure takes precedence over `Disconnected`, so
+-    /// this error does not establish that the endpoints are connected.
+-    /// Use [`Registry::latest_common_time`](crate::Registry::latest_common_time)
++    /// This error is only reported between connected endpoints:
++    /// `Disconnected` takes precedence. Use [`Registry::latest_common_time`](crate::Registry::latest_common_time)
+     /// to find their newest commonly covered instant.
+     #[error(
+         "transform from {source_frame} into {target_frame} at {} not found ({frame} {})",
+diff '--color=never' -ru -x tests.rs a/src/core/registry/mod.rs src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs	2026-10-28 16:40:55.131431584 +0100
++++ src/core/registry/mod.rs	2026-11-10 12:06:45.620334106 +0100
+@@ -6,17 +6,14 @@
+         buffer::{Coverage, GetError},
+     },
+     errors::TransformError,
+-    geometry::{
+-        Localized, Transform,
+-        transform::{Isometry, ensure_composable},
+-    },
++    geometry::{Localized, Transform, transform::Isometry},
+     time::{Stamp, TimePoint, Timestamp},
+ };
+ use alloc::{string::String, vec::Vec};
+ pub use error::RegistryError;
+ use hashbrown::HashMap;
+ 
+-use core::{ops::Mul, time::Duration};
++use core::time::Duration;
+ 
+ mod error;
+ 
+@@ -27,57 +24,6 @@
+ /// the walk ends on.
+ type Ancestry<'a, T> = (Edges<'a, T>, &'a str);
+ 
+-/// A lookup's working form of a transform: one edge sampled at the
+-/// requested instant, or a run of such edges composed into one, with
+-/// `isometry` expressing `child` in `parent`.
+-///
+-/// The frame names borrow the registry's own keys and pins, and there is no
+-/// stamp — every hop of a lookup holds at the requested instant, which the
+-/// materialized result carries. A walk therefore allocates no frame name
+-/// per hop; the lookup allocates names once, for the `Transform` it returns.
+-#[derive(Clone, Copy)]
+-struct Hop<'a> {
+-    parent: &'a str,
+-    child: &'a str,
+-    isometry: Isometry,
+-}
+-
+-impl Hop<'_> {
+-    /// The same relationship read the other way round, with the frames
+-    /// swapped.
+-    ///
+-    /// # Errors
+-    ///
+-    /// The `TransformError` of [`Isometry::inverse`].
+-    fn inverse(self) -> Result<Self, TransformError> {
+-        Ok(Hop {
+-            parent: self.child,
+-            child: self.parent,
+-            isometry: self.isometry.inverse()?,
+-        })
+-    }
+-}
+-
+-impl<'a> Mul for Hop<'a> {
+-    type Output = Result<Hop<'a>, TransformError>;
+-
+-    /// Composes two hops: `t_a_b * t_b_c` yields `t_a_c`, under the same
+-    /// frame rule as `Transform`'s `*`. A walk only builds hops that meet,
+-    /// so the check never fails on a chain; it keeps a hop from answering
+-    /// for frames its geometry does not relate if that ever stops holding.
+-    fn mul(
+-        self,
+-        rhs: Hop<'a>,
+-    ) -> Self::Output {
+-        ensure_composable(self.child, rhs.parent, rhs.child)?;
+-        Ok(Hop {
+-            parent: self.parent,
+-            child: rhs.child,
+-            isometry: self.isometry * rhs.isometry,
+-        })
+-    }
+-}
+-
+ /// A frame tree with timestamped transform history.
+ ///
+ /// Lookups interpolate between samples and compose the connecting transforms.
+@@ -274,8 +220,9 @@
+     /// [`RegistryError::NotFoundAt`] for an edge that cannot serve `timestamp`,
+     /// or [`RegistryError::Disconnected`] for known frames with no connecting
+     /// chain. Between connected frames, the failing edge reported is one the
+-    /// chain crosses. A sampling failure takes precedence over a simultaneous
+-    /// disconnection; see the error variants for payloads.
++    /// chain crosses. Topology is decided before any sampling:
++    /// `UnknownFrame`, then `Disconnected`, then `NotFoundAt`; see the error
++    /// variants for payloads.
+     ///
+     /// Geometry or time operations can fail with [`RegistryError::TransformError`]
+     /// or [`RegistryError::NonFiniteValues`], but only on a chain that connects
+@@ -453,7 +400,7 @@
+     /// # Errors
+     ///
+     /// - [`RegistryError::UnknownFrame`] or [`RegistryError::Disconnected`] for
+-    ///   invalid topology. Unlike `get_transform`, this query checks topology first.
++    ///   invalid topology, in the same order as `get_transform`.
+     /// - [`RegistryError::NoCommonTime`] for empty or disjoint coverage.
+     /// - [`RegistryError::TransformError`] wrapping
+     ///   [`TransformError::TimestampError`] if interpolation at the newest common
+@@ -510,18 +457,7 @@
+         // their coverage must not constrain the answer.
+         let Some((target_edges, source_edges)) = Self::connecting_chain(target, source, &self.data)
+         else {
+-            // The walks ended in different trees: an unknown frame, or two
+-            // known but disconnected ones — the same diagnosis order as a
+-            // failed lookup.
+-            for frame in [target, source] {
+-                if !Self::frame_exists(frame, &self.data) {
+-                    return Err(RegistryError::UnknownFrame(frame.into()));
+-                }
+-            }
+-            return Err(RegistryError::Disconnected {
+-                target_frame: target.into(),
+-                source_frame: source.into(),
+-            });
++            return Err(Self::topology_error(target, source, &self.data));
+         };
+         let chain = target_edges.iter().chain(&source_edges);
+ 
+@@ -919,63 +855,48 @@
+         data.contains_key(frame) || data.values().any(|buffer| buffer.parent() == Some(frame))
+     }
+ 
+-    /// Diagnoses a failed lookup, in order of certainty: a requested frame
+-    /// that exists nowhere in the tree, then a failed edge (a known frame
+-    /// that could not serve the requested time, whether it holds data
+-    /// outside that time or no data at all), and otherwise — both frames
+-    /// known and both walks clean — the frames live in disconnected trees.
+-    /// The scans run only on the failure path.
+-    ///
+-    /// For connected endpoints the failed edge is the first one on the
+-    /// connecting chain, target side first. The walks run toward the root
+-    /// and record the first failure they meet, which can lie above the
+-    /// common ancestor on an edge this lookup never needed. For disconnected
+-    /// endpoints no chain exists, and the recorded walk failure is reported,
+-    /// taking precedence over `Disconnected`.
+-    ///
+-    /// An edge that failed on *interpolation* is reported as that failure
+-    /// rather than as a `NotFoundAt`: the frame does cover the requested
+-    /// time, so neither `covered` shape would describe it.
+-    fn diagnose_not_found(
+-        from: &str,
+-        to: &str,
+-        timestamp: T,
++    /// The error for two frames no chain connects: a requested frame that
++    /// exists nowhere in the tree, otherwise two known frames in different
++    /// trees. Decided on the frames alone, before any sample is taken. The
++    /// scans run only on the failure path.
++    fn topology_error(
++        target: &str,
++        source: &str,
+         data: &HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+     ) -> RegistryError<T> {
+-        for frame in [from, to] {
++        for frame in [target, source] {
+             if !Self::frame_exists(frame, data) {
+                 return RegistryError::UnknownFrame(frame.into());
+             }
+         }
+-        let failure = Self::connecting_chain(from, to, data)
+-            .and_then(|(target_edges, source_edges)| {
+-                target_edges
+-                    .iter()
+-                    .chain(&source_edges)
+-                    .find_map(|&(frame, buffer)| {
+-                        buffer
+-                            .get(timestamp)
+-                            .err()
+-                            .map(|error| (frame.into(), error))
+-                    })
+-            })
+-            .or_else(|| walk_failure.take());
+-        let (frame, covered) = match failure {
+-            Some((frame, GetError::NoTransformAvailable)) => (frame, None),
+-            Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
+-            Some((_, GetError::Interpolation(cause))) => return cause.into(),
+-            None => {
+-                return RegistryError::Disconnected {
+-                    target_frame: from.into(),
+-                    source_frame: to.into(),
+-                };
+-            }
++        RegistryError::Disconnected {
++            target_frame: target.into(),
++            source_frame: source.into(),
++        }
++    }
++
++    /// The error for a connecting edge that could not serve `timestamp`:
++    /// `NotFoundAt` naming that edge's child frame, whether it holds data
++    /// outside that time (`covered: Some`) or none (`None`). An edge that
++    /// failed on *interpolation* is reported as that failure rather than as
++    /// a `NotFoundAt`: the frame does cover the requested time, so neither
++    /// `covered` shape would describe it.
++    fn edge_error(
++        target: &str,
++        source: &str,
++        frame: &str,
++        timestamp: T,
++        error: GetError<T>,
++    ) -> RegistryError<T> {
++        let covered = match error {
++            GetError::NoTransformAvailable => None,
++            GetError::OutOfRange { start, end } => Some((start, end)),
++            GetError::Interpolation(cause) => return cause.into(),
+         };
+         RegistryError::NotFoundAt {
+-            target_frame: from.into(),
+-            source_frame: to.into(),
+-            frame,
++            target_frame: target.into(),
++            source_frame: source.into(),
++            frame: frame.into(),
+             requested: timestamp,
+             covered,
+         }
+@@ -985,13 +906,23 @@
+     /// `timestamp`. The caller materializes the answer, with the requested
+     /// frames and stamp, as the one `Transform` the lookup allocates.
+     ///
++    /// Topology first: the connecting chain is found on frame names alone,
++    /// then only its edges are sampled, target side first, and the first one
++    /// that cannot serve `timestamp` is reported. Each half is composed in
++    /// the direction the walk produced it ("that frame expressed in the
++    /// common ancestor"), and only the target half is inverted: at most one
++    /// inversion per lookup, none for a lookup toward an ancestor, so a
++    /// single-hop lookup at a stored timestamp returns the stored transform
++    /// bit for bit. Composition is infallible, so every failure to serve the
++    /// instant is decided before the one fallible step, the inversion.
++    ///
+     /// # Errors
+     ///
+     /// * `RegistryError::UnknownFrame` - If a requested frame exists nowhere in the tree
+-    /// * `RegistryError::NotFoundAt` - If the lookup failed at a frame that exists but could not
++    /// * `RegistryError::Disconnected` - If both frames exist but no chain connects them
++    /// * `RegistryError::NotFoundAt` - If an edge of the connecting chain exists but could not
+     ///   serve the requested time, either because the request falls outside the data it holds or
+     ///   because it holds none
+-    /// * `RegistryError::Disconnected` - If both frames exist but no chain connects them
+     /// * `RegistryError::NonFiniteValues` or `RegistryError::TransformError` - If an operation on
+     ///   the resolved chain failed
+     fn resolve(
+@@ -1006,56 +937,28 @@
+         if target == source {
+             return Ok(Isometry::identity());
+         }
+-
+-        let reached =
+-            |chain: &[Hop<'_>], goal: &str| chain.last().is_some_and(|hop| hop.parent == goal);
+-
+-        let mut walk_failure = None;
+-        let mut target_chain =
+-            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
+-        let mut source_chain = Vec::new();
+-        // A target-side chain that reaches `source` spans the whole path:
+-        // `source` is an ancestor of `target`, and no source-side walk is
+-        // needed.
+-        if !reached(&target_chain, source) {
+-            source_chain =
+-                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure);
+-            // `target` is an ancestor of `source`: the source-side chain
+-            // spans the whole path by itself, and the target-side walk only
+-            // climbed away from it.
+-            if reached(&source_chain, target) {
+-                target_chain.clear();
++        let Some((target_edges, source_edges)) = Self::connecting_chain(target, source, data)
++        else {
++            return Err(Self::topology_error(target, source, data));
++        };
++        let half = |edges: &[(&str, &Buffer<T>)]| -> Result<Option<Isometry>, RegistryError<T>> {
++            let mut composed: Option<Isometry> = None;
++            for &(frame, buffer) in edges {
++                let isometry = buffer
++                    .get(timestamp)
++                    .map_err(|error| Self::edge_error(target, source, frame, timestamp, error))?;
++                composed = Some(composed.map_or(isometry, |below| isometry * below));
+             }
+-        }
+-        // Where both walks ran on toward the root, drop the shared suffix
+-        // above the common parent.
+-        Self::truncate_at_common_parent(&mut target_chain, &mut source_chain);
+-
+-        // The halves answer the question only if they meet: each climbs from
+-        // its endpoint (an empty half stays at it) to the same frame.
+-        // Otherwise the walks stopped in different places — an unknown
+-        // frame, a gap on the chain, or disconnected trees — and no
+-        // transform exists at this time. That is decided on the frames alone,
+-        // before any geometry is composed: a numeric failure in a chain that
+-        // does not answer the question must not mask why it does not.
+-        let target_top = target_chain.last().map_or(target, |hop| hop.parent);
+-        let source_top = source_chain.last().map_or(source, |hop| hop.parent);
+-        if target_top != source_top {
+-            return Err(Self::diagnose_not_found(
+-                target,
+-                source,
+-                timestamp,
+-                data,
+-                &mut walk_failure,
+-            ));
+-        }
+-
+-        match Self::combine_transforms(&target_chain, &source_chain) {
+-            Some(combined) => combined.map(|hop| hop.isometry),
+-            // Two empty halves that meet start at the same frame: `target`
+-            // is `source`, whose answer is the identity.
+-            None => Ok(Isometry::identity()),
+-        }
++            Ok(composed)
++        };
++        let target_half = half(&target_edges)?;
++        let source_half = half(&source_edges)?;
++        Ok(match (target_half, source_half) {
++            (None, None) => Isometry::identity(),
++            (Some(target), None) => target.inverse()?,
++            (None, Some(source)) => source,
++            (Some(target), Some(source)) => target.inverse()? * source,
++        })
+     }
+ 
+     /// Retrieves a transform between two frames at different timestamps using a fixed frame.
+@@ -1121,149 +1024,6 @@
+             Stamp::At(target_time),
+         ))
+     }
+-
+-    /// Constructs a chain of hops from a starting frame to a target frame at
+-    /// a given timestamp; empty if the walk yields no hops. Diagnosing the
+-    /// reason is the caller's job (`diagnose_not_found`).
+-    ///
+-    /// A buffer lookup failing along the way ends the walk; the first such
+-    /// failure across all walks of one lookup is recorded in `walk_failure`.
+-    /// It can lie above the common ancestor, so it is reported only for
+-    /// disconnected endpoints, which have no connecting chain to re-sample.
+-    fn get_transform_chain<'a>(
+-        from: &'a str,
+-        to: &str,
+-        timestamp: T,
+-        data: &'a HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+-    ) -> Vec<Hop<'a>> {
+-        let mut hops = Vec::new();
+-        let mut current_frame = from;
+-
+-        // The frame tree is acyclic by construction (cycles are rejected
+-        // whenever an edge enters the map — at insertion and at
+-        // re-parenting), so the walk visits every frame at most once and
+-        // terminates at a root.
+-        while let Some((frame_buffer, parent)) = data
+-            .get(current_frame)
+-            .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
+-        {
+-            match frame_buffer.get(timestamp) {
+-                Ok(isometry) => {
+-                    hops.push(Hop {
+-                        parent,
+-                        child: current_frame,
+-                        isometry,
+-                    });
+-                    current_frame = parent;
+-                }
+-                Err(source) => {
+-                    if walk_failure.is_none() {
+-                        *walk_failure = Some((current_frame.into(), source));
+-                    }
+-                    break;
+-                }
+-            }
+-
+-            // Reaching `to` completes the chain; walking on to the root would
+-            // only add work that truncate_at_common_parent discards again.
+-            if current_frame == to {
+-                break;
+-            }
+-        }
+-
+-        hops
+-    }
+-
+-    /// Truncates two hop chains at their common parent frame to optimize the transformation computation.
+-    ///
+-    /// Hops are compared by child frame. A child frame has exactly one
+-    /// buffer, so two hops with the same child are the same edge, sampled at
+-    /// the same instant: the same hop.
+-    fn truncate_at_common_parent(
+-        from_chain: &mut Vec<Hop<'_>>,
+-        to_chain: &mut Vec<Hop<'_>>,
+-    ) {
+-        let mut start_idx = 0;
+-        for (i, j) in from_chain.iter().rev().zip(to_chain.iter().rev()) {
+-            if i.child == j.child {
+-                start_idx += 1;
+-            } else {
+-                break;
+-            }
+-        }
+-
+-        // Truncate the chains at the common parent frame
+-        from_chain.truncate(from_chain.len() - start_idx);
+-        to_chain.truncate(to_chain.len() - start_idx);
+-    }
+-
+-    /// Combines the two half-chains of a lookup into the hop that expresses
+-    /// `source` in `target`.
+-    ///
+-    /// Both arguments are walks *upward* from a frame toward the common
+-    /// ancestor, so each composes in its natural order into "that frame
+-    /// expressed in the ancestor" without a single inversion. Only the target
+-    /// half is then inverted, giving
+-    /// `t_target_common * t_common_source = t_target_source`: at most one
+-    /// inversion per lookup, against one per hop plus one at the end for the
+-    /// pass this replaced, which reversed and inverted the source half
+-    /// element by element and inverted the combined result again. A lookup
+-    /// toward an ancestor (the documented direction,
+-    /// `get_transform("map", "lidar", t)`) resolves entirely from the source
+-    /// half and inverts nothing, so a single-hop lookup at a stored timestamp
+-    /// returns that stored transform bit for bit.
+-    ///
+-    /// Returns `None` when both chains are empty: there is nothing to
+-    /// combine. The caller has checked that the two halves meet.
+-    ///
+-    /// # Errors
+-    ///
+-    /// * The `RegistryError` a failed hop operation converts into
+-    fn combine_transforms<'a>(
+-        target_chain: &[Hop<'a>],
+-        source_chain: &[Hop<'a>],
+-    ) -> Option<Result<Hop<'a>, RegistryError<T>>> {
+-        let target = match Self::compose_chain(target_chain) {
+-            Ok(composed) => composed,
+-            Err(e) => return Some(Err(e.into())),
+-        };
+-        let source = match Self::compose_chain(source_chain) {
+-            Ok(composed) => composed,
+-            Err(e) => return Some(Err(e.into())),
+-        };
+-
+-        match (target, source) {
+-            (None, None) => None,
+-            (Some(target), None) => Some(target.inverse().map_err(Into::into)),
+-            (None, Some(source)) => Some(Ok(source)),
+-            (Some(target), Some(source)) => Some(
+-                target
+-                    .inverse()
+-                    .and_then(|inverted| inverted * source)
+-                    .map_err(Into::into),
+-            ),
+-        }
+-    }
+-
+-    /// Composes a chain walked upward from a frame into the single hop
+-    /// expressing that frame in the chain's topmost parent, or `None` for an
+-    /// empty chain.
+-    ///
+-    /// Each element's child is the previous element's parent, so folding from
+-    /// the front composes them in the order the walk produced them.
+-    ///
+-    /// # Errors
+-    ///
+-    /// * The `TransformError` a failed composition reports
+-    fn compose_chain<'a>(chain: &[Hop<'a>]) -> Result<Option<Hop<'a>>, TransformError> {
+-        let Some((first, rest)) = chain.split_first() else {
+-            return Ok(None);
+-        };
+-        rest.iter()
+-            .try_fold(*first, |composed, &hop| hop * composed)
+-            .map(Some)
+-    }
+ }
+ 
+ impl<T> Default for Registry<T>

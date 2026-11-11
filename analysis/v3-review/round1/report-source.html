@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>transforms v3: review and proposal</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-left  { content: "transforms v3: review and proposal"; font: 7.5pt "Noto Sans", sans-serif; color: #7a828a; }
+    @bottom-right { content: counter(page) " / " counter(pages); font: 7.5pt "Noto Sans", sans-serif; color: #7a828a; }
+  }
+  @page :first { @bottom-left { content: ""; } }
+
+  :root { --ink:#1c2227; --muted:#5d666e; --rule:#d9dee2; --accent:#0b5c6b; --plain:#eef6f7; --code:#f5f6f8; }
+  * { box-sizing: border-box; }
+  html { font: 9.6pt/1.45 "Noto Sans", "DejaVu Sans", sans-serif; color: var(--ink); }
+  body { margin: 0; }
+
+  h1 { font-size: 23pt; line-height: 1.15; margin: 0 0 4pt; letter-spacing: -0.2pt; }
+  .meta { color: var(--muted); font-size: 8.8pt; margin: 0 0 14pt; padding-bottom: 10pt; border-bottom: 1.2pt solid var(--ink); }
+  h2 { font-size: 14.5pt; margin: 17pt 0 6pt; padding-bottom: 3pt; border-bottom: 0.8pt solid var(--rule); break-after: avoid; }
+  h2 .n { color: var(--accent); margin-right: 5pt; }
+  h3 { font-size: 11.2pt; margin: 15pt 0 5pt; break-after: avoid; }
+  h3 .n { display: inline-block; min-width: 17pt; height: 17pt; line-height: 17pt; text-align: center; margin-right: 6pt;
+          background: var(--accent); color: #fff; border-radius: 9pt; font-size: 9pt; }
+  h4 { font-size: 9.6pt; margin: 10pt 0 3pt; break-after: avoid; }
+  p { margin: 0 0 6pt; }
+  ul, ol { margin: 0 0 6pt; padding-left: 15pt; }
+  li { margin-bottom: 2.4pt; }
+  a { color: var(--accent); text-decoration: none; }
+  strong { font-weight: 600; }
+
+  code { font: 8.4pt "DejaVu Sans Mono", "Liberation Mono", monospace; background: var(--code); padding: 0.4pt 2.4pt; border-radius: 2pt; }
+  pre { font: 7.9pt/1.42 "DejaVu Sans Mono", "Liberation Mono", monospace; background: var(--code); border: 0.6pt solid var(--rule);
+        border-radius: 3pt; padding: 6pt 8pt; margin: 4pt 0 7pt; white-space: pre-wrap; break-inside: avoid; }
+  pre code { background: none; padding: 0; font: inherit; }
+  pre .c { color: #77808a; }
+  pre .del { background: #fbe6e6; display: inline-block; width: 100%; }
+  pre .add { background: #e4f4e7; display: inline-block; width: 100%; }
+
+  .plain { background: var(--plain); border-left: 3pt solid var(--accent); padding: 6pt 9pt 2pt; margin: 4pt 0 7pt; break-inside: avoid; }
+  .label { font-size: 7.2pt; font-weight: 600; letter-spacing: 0.7pt; text-transform: uppercase; color: var(--accent); margin: 0 0 2pt; }
+  .label { break-after: avoid; }
+  .tech > .label { color: var(--muted); margin-top: 7pt; }
+  .lede { font-size: 10.6pt; }
+
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt; font-size: 8.6pt; }
+  th { text-align: left; font-weight: 600; font-size: 7.6pt; letter-spacing: 0.4pt; text-transform: uppercase; color: var(--muted);
+       border-bottom: 0.9pt solid var(--ink); padding: 3pt 6pt 3pt 0; vertical-align: bottom; }
+  td { border-bottom: 0.5pt solid var(--rule); padding: 3.6pt 6pt 3.6pt 0; vertical-align: top; }
+  tr { break-inside: avoid; }
+  table { break-inside: avoid; }
+  table.long { break-inside: auto; }
+  td code { font-size: 7.7pt; }
+  .num { white-space: nowrap; }
+  .tag { display: inline-block; font-size: 7pt; font-weight: 600; padding: 0.3pt 4pt; border-radius: 2pt; letter-spacing: 0.3pt; }
+  .loud { background: #e3ecf9; color: #214a8a; }
+  .silent { background: #fbecd5; color: #8a5200; }
+  .wire { background: #ece4f6; color: #5a3391; }
+
+  .toc { columns: 2; column-gap: 18pt; font-size: 8.9pt; padding: 0; margin: 4pt 0 0; list-style: none; }
+  .toc li { margin-bottom: 1.8pt; }
+  .toc .n { color: var(--accent); display: inline-block; width: 14pt; font-weight: 600; }
+  .keep { break-inside: avoid; }
+  .small { font-size: 8.4pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>transforms v3: review and proposal</h1>
+<p class="meta">2026-11-10 &nbsp;·&nbsp; Baseline: master <code>7cc2a65</code> (v2.3.0 plus docs-only commits) &nbsp;·&nbsp; Nothing is implemented. Recommendations, not decisions, except item 10 (decided on review).</p>
+
+<div class="plain">
+  <p class="label">In one paragraph</p>
+  <p class="lede">The existing v3 notes identify the right dangers but propose fixes that are bigger than the dangers. This review proposes a smaller 3.0: three behaviour fixes that only a major version can make, one clearer error diagnosis, one new insert error, three small error-shape repairs and four deletions. It adds one public type and one error variant, and removes more than it adds. It is worth doing after 2.4 and is not urgent, because no known user has hit any of the problems it fixes.</p>
+</div>
+
+<ul class="toc">
+  <li><span class="n">1</span><a href="#bg">Background in one minute</a></li>
+  <li><span class="n">2</span><a href="#method">How the review was done</a></li>
+  <li><span class="n">3</span><a href="#glance">The proposed 3.0 at a glance</a></li>
+  <li><span class="n">4</span><a href="#items">The ten changes in detail</a></li>
+  <li><span class="n">5</span><a href="#notin">Considered and left out</a></li>
+  <li><span class="n">6</span><a href="#twox">What can ship in 2.x</a></li>
+  <li><span class="n">7</span><a href="#release">Release plan</a></li>
+  <li><span class="n">8</span><a href="#decisions">Decisions for the maintainer</a></li>
+  <li><span class="n">9</span><a href="#corrections">Corrections to earlier documents</a></li>
+  <li><span class="n">10</span><a href="#limits">Limits of this review</a></li>
+  <li><span class="n">11</span><a href="#protos">Prototypes</a></li>
+</ul>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="bg"><span class="n">1</span>Background in one minute</h2>
+
+<table>
+  <tr><th style="width:19%">Term</th><th>Meaning</th></tr>
+  <tr><td><strong>Frame</strong></td><td>A named point of view, such as <code>map</code>, <code>base</code> or <code>camera</code>. A coordinate means something only relative to a frame.</td></tr>
+  <tr><td><strong>Transform</strong></td><td>The recipe for converting coordinates from one frame to another at one instant: a shift (translation) plus a turn (rotation).</td></tr>
+  <tr><td><strong>Quaternion</strong></td><td>Four numbers that encode the turn. It is a pure turn only when its length (norm) is exactly 1. Otherwise it also stretches or shrinks.</td></tr>
+  <tr><td><strong>Registry</strong></td><td>The library's store of transforms over time, arranged as a tree of frames. Each link in the tree is a <em>hop</em>.</td></tr>
+  <tr><td><strong>Lookup</strong></td><td>Asking "how do I convert from frame A to frame B at time t?". The registry chains the hops between A and B and interpolates between stored samples.</td></tr>
+  <tr><td><strong>Silent wrong answer</strong></td><td>A result that looks valid and is not. The repository ranks this as worse than an error or a crash. Every item below is judged against it first.</td></tr>
+</table>
+
+<p>The repository's scope rule: a capability belongs in the core only if callers cannot build it correctly on the public API, or if the version they would build is a source of wrong answers.</p>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="method"><span class="n">2</span>How the review was done</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Ten reviewers each examined the design from one angle and ran experiments against the real code. A second, independent reviewer then tried to disprove each finding. A draft proposal was attacked by five critics, and its three most contested changes were built as throwaway prototypes and run against the existing tests.</p>
+</div>
+
+<div class="tech">
+<p class="label">Technically</p>
+<p>The request listed six lenses. Four were added before starting, because the six left them uncovered.</p>
+<p><strong>Requested (6):</strong> performance; safety; ergonomics; error handling and feedback; fixes and improvements over v2; current users and their integration.</p>
+<table>
+  <tr><th style="width:36%">Added lens</th><th>Why</th></tr>
+  <tr><td>Embedded targets, scalar type, determinism</td><td>The crate claims <code>no_std</code> parity on four bare-metal targets</td></tr>
+  <tr><td>Time, topology and lifecycle safety</td><td>Split from geometry: the dependent study puts the reachable silent answers there</td></tr>
+  <tr><td>Prior art</td><td>Web research on tf2 and peer crates</td></tr>
+  <tr><td>Migration, wire format, release strategy</td><td>Includes coherence of the v3 documents with each other</td></tr>
+</table>
+<ul>
+  <li><strong>Round 1:</strong> one reviewer plus one skeptic per lens (20 agents). Statuses reported here are the skeptics'.</li>
+  <li><strong>Round 2:</strong> five critics (minimalism, alternative designs, dependent cost from real sources, demand search on GitHub, consistency against code and <code>AGENTS.md</code>) and three prototypes (8 agents).</li>
+  <li><strong>Baseline measured on host x86-64:</strong> a lookup takes 60–300 ns over 1–4 hops, an insert about 115 ns, and a stored sample occupies 122 bytes of live memory.</li>
+</ul>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="glance"><span class="n">3</span>The proposed 3.0 at a glance</h2>
+
+<p><span class="tag loud">LOUD</span> means the compiler reports it. <span class="tag silent">SILENT</span> means code compiles and behaves differently, so it must be listed in the migration guide. <span class="tag wire">WIRE</span> means serialized data is affected.</p>
+
+<table class="long">
+  <tr><th style="width:4%">#</th><th style="width:33%">Change</th><th style="width:15%">Kind</th><th>Who notices</th></tr>
+  <tr><td>1</td><td><code>get_transform_at</code> returns a cross-time type</td><td><span class="tag loud">LOUD</span></td><td>roslibrust_transforms: one public signature, three test lines</td></tr>
+  <tr><td>2</td><td>Rotations normalized at construction</td><td><span class="tag silent">SILENT</span> <span class="tag wire">WIRE</span></td><td>Near-unit rotations read back normalized; results change by up to parts per million</td></tr>
+  <tr><td>3</td><td><code>inverse</code> is the conjugate</td><td><span class="tag silent">SILENT</span> <span class="tag loud">LOUD</span></td><td>Last-bit changes; one error variant removed</td></tr>
+  <tr><td>4</td><td>Lookups never return a non-finite value</td><td><span class="tag silent">SILENT</span></td><td><code>Ok(inf)</code> becomes <code>Err(NonFiniteValues)</code></td></tr>
+  <tr><td>5</td><td><code>Disconnected</code> reported before <code>NotFoundAt</code></td><td><span class="tag silent">SILENT</span></td><td>Callers that retry on <code>NotFoundAt</code>; no studied user matches a lookup variant</td></tr>
+  <tr><td>6</td><td>Error-shape repairs</td><td><span class="tag loud">LOUD</span></td><td>Patterns need <code>..</code>; the optional rename touches one match arm in transforms_io</td></tr>
+  <tr><td>7</td><td>Delete <code>Point</code>, <code>Transformable</code>, <code>Localized</code>, <code>get_transform_for</code></td><td><span class="tag loud">LOUD</span> <span class="tag wire">WIRE</span></td><td>No published dependent found; <code>Point</code> payloads stop decoding</td></tr>
+  <tr><td>8</td><td>Delete <code>Transform::interpolate</code></td><td><span class="tag loud">LOUD</span></td><td>No user found</td></tr>
+  <tr><td>9</td><td>Delete <code>Timestamp::as_seconds</code></td><td><span class="tag loud">LOUD</span></td><td>No user found</td></tr>
+  <tr><td>10</td><td>An insert the history window discards returns <code>SampleExpired</code></td><td><span class="tag silent">SILENT</span></td><td>Every adapter that sets <code>max_age</code>; a dimos batch fails as a whole</td></tr>
+</table>
+
+<p><strong>Left alone:</strong> <code>Stamp</code> and its serde tags, the flat <code>RegistryError</code>, the strict tree and <code>reparent_frame</code>, <code>remove_frame</code>, no extrapolation, <code>libm</code> everywhere, <code>BTreeMap</code> history, <code>latest_common_time</code>, <code>Registry::new</code> and <code>with_max_age</code>, the operators, the Non-Goals, MSRV 1.85 and edition 2024. No type name, module path or constructor name changes, because they are re-exported down a chain (transforms_io, then pelorus_syncio).</p>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="items"><span class="n">4</span>The ten changes in detail</h2>
+
+<!-- 1 -->
+<h3><span class="n">1</span>A separate type for cross-time answers</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>"Where is the object the camera saw half a second ago, relative to where the gripper is now?" That answer spans two instants. Today the library returns it in the same container as an ordinary single-instant transform, labelled with only one of the two times. Nothing stops a program from storing it back as if it were a measurement. The proposal gives it its own container that can be read, and cannot be stored or combined.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// 2.3: a Transform stamped with target_time only</span>
+let tf = registry.get_transform_at("target", t2, "source", t1, "world")?;
+receiver.add_transform(tf)?;      <span class="c">// Ok: a two-instant answer is now a sample at t2</span>
+
+<span class="c">// 3.0: geometry::CrossTimeTransform&lt;T&gt;, same method name and argument order</span>
+let x = registry.get_transform_at("target", t2, "source", t1, "world")?;
+x.target_frame();  x.target_time();
+x.source_frame();  x.source_time();
+x.translation();   x.rotation();  <span class="c">// Vector3, Quaternion</span>
+receiver.add_transform(x);        <span class="c">// does not compile</span></code></pre>
+<ul>
+  <li><strong>Shape.</strong> Private fields; derives <code>Debug</code>, <code>Clone</code>, <code>PartialEq</code>. No <code>Mul</code>, <code>inverse</code>, serde, conversion into <code>Transform</code>, <code>fixed_frame</code> field or apply method.</li>
+  <li><strong>What it closes.</strong> Accidental insertion and composition. It does not stop deliberate forging through <code>Transform::new</code>, which is no worse than forging any sample.</li>
+  <li><strong>Why accessors.</strong> Every studied user converts results into its own math types.</li>
+  <li><strong>Why not delete the method.</strong> A rebuild on the 2.3 public API was bit-identical on 7 of 9 cases, failed with <code>SameFrameMultiplication</code> when an endpoint equals the fixed frame, and needed one leg restamped through <code>Transform::new</code>, which defeats the equal-stamp guard. That is a wrong-answer generator, so the scope rule keeps it in the core.</li>
+  <li><strong>Open detail.</strong> A leg error can put the caller's target in a <code>source_frame</code> field (<code>src/core/registry/mod.rs:1101-1113</code>). Decide the payload when the type is built.</li>
+</ul>
+</div>
+
+<!-- 2 -->
+<h3><span class="n">2</span>Rotations are made unit where they are built</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>A rotation is stored as four numbers whose combined length should be exactly 1. If the length is slightly more than 1, the rotation also enlarges whatever it turns. The library accepts rotations up to one millionth off and stores them as given, so each link in a chain stretches the result a little, and reading the chain backwards does not undo the stretch. The proposal rescales every rotation to length 1 at the moment a transform is created.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// Accepted today (tolerance 1e-6) and stored as given:</span>
+let q  = Quaternion::from_wxyz(1.000_000_9, 0.0, 0.0, 0.0);
+let tf = Transform::new("a", "b", Vector3::zero(), q, Stamp::At(t))?;
+<span class="c">// rotate_vector computes q·v·q*, which scales v by |q|² = 1 + 1.8e-6</span></code></pre>
+<table>
+  <tr><th style="width:55%">Measured effect of edge-of-band rotations</th><th>Scale error</th></tr>
+  <tr><td>One hop</td><td class="num">+1.8e-6</td></tr>
+  <tr><td>Four hops</td><td class="num">+7.2e-6</td></tr>
+  <tr><td>Random forest of such edges, relative error on translations</td><td class="num">up to 2.6e-5 (2.6 mm at 100 m)</td></tr>
+  <tr><td>For comparison: floating-point drift per composition</td><td class="num">4e-17</td></tr>
+</table>
+<p>The hazard is the accepted band, not drift. Quaternions from <code>f32</code> sources sit about 1e-8 to 1e-7 off unit norm (arithmetic, not measured on data), so most ROS traffic is stored unnormalized today. Forward lookups scale and inverse lookups normalize, so a round trip does not return its input.</p>
+<pre><code><span class="c">// Prototype: called by Transform::new, static_between and Deserialize, after validate()</span>
+const UNIT_BAND: f64 = 8.0 * f64::EPSILON;
+
+fn unitized(mut self) -> Self {
+    let q = self.rotation;
+    let norm_sq = q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z;
+    if (norm_sq - 1.0).abs() > UNIT_BAND {
+        self.rotation = q.normalize().unwrap_or(q);
+    }
+    self
+}</code></pre>
+<ul>
+  <li><strong>Why the dead band.</strong> Normalizing is not idempotent in floating point: a second pass changes bits in 15.6% of already-unit inputs (1e7 samples). Leaving values alone inside <code>8 × EPSILON</code> makes rebuilding a built value a fixed point. The observed maximum after one normalization was 4 EPS over 3e7 samples; the first-order bound of about 7 EPS is unproven.</li>
+  <li><strong>Alternatives probed and rejected.</strong> Normalizing only inside composition leaves single hops at +1.8e-6. A scale-invariant <code>rotate_vector</code> leaves composed rotations at +3.6e-6, past the insert tolerance. A public <code>Rotation</code> newtype closes the same paths and breaks every construction site. A tighter tolerance rejects <code>f32</code>-sourced data.</li>
+  <li><strong>Declared silent change.</strong> For in-band inputs, <code>tf.rotation()</code> no longer equals the quaternion passed in, and round-trip bytes change. For exactly normalized inputs, 28% of lookups in the forest probe changed last bits (from item 3). A single-hop lookup at a stored stamp still returns the stored transform bit for bit.</li>
+  <li><strong>Not included.</strong> A Newton correction per composition. Lookup chains drift about 1.8e-15 at depth 20, and a user loop over <code>*</code> needs about 2e10 compositions to reach the insert tolerance.</li>
+</ul>
+</div>
+
+<!-- 3 -->
+<h3><span class="n">3</span><code>inverse</code> becomes the conjugate</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Reading a transform backwards requires undoing its rotation. For a rotation of length exactly 1, undoing it means flipping three signs. Today the library first rescales the rotation as a precaution, which costs a square root and can fail. Once item 2 guarantees length 1, the precaution has nothing left to guard.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// src/geometry/transform/isometry.rs</span>
+<span class="del">- let rotation = self.rotation.normalize()?.conjugate();</span>
+<span class="add">+ let rotation = self.rotation.conjugate();</span></code></pre>
+<ul>
+  <li>Removes <code>TransformError::QuaternionError</code>. <code>Transform::inverse</code> stays fallible with <code>NonFiniteValues</code>.</li>
+  <li>An inverting one-hop lookup was 10–13% faster in the prototype (host).</li>
+  <li>Retires the <code>AGENTS.md</code> sentence "anything that inverts a rotation must normalize first".</li>
+  <li><strong>Residual.</strong> <code>Buffer::insert</code> validates and does not normalize. A derived transform that a caller drifted to within 1e-6 and re-published is inverted with up to 2e-6 relative error.</li>
+</ul>
+</div>
+
+<!-- 4 -->
+<h3><span class="n">4</span>No lookup returns a non-finite value</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>With extreme numbers, arithmetic overflows to "infinity". Today some lookups return an answer containing infinity and mark it as success. A controller that receives "infinity metres, OK" is worse off than one that receives an error. The proposal checks the answer once, just before it is returned.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// 2.3: overflow while composing a chain</span>
+registry.get_transform("left", "right", t)   <span class="c">// Ok(Transform { translation: inf, .. })</span>
+<span class="c">// 3.0</span>
+registry.get_transform("left", "right", t)   <span class="c">// Err(RegistryError::NonFiniteValues)</span>
+
+<span class="c">// Prototype: one check at the exit of get_transform and get_transform_at</span>
+let isometry = Self::resolve(target, source, timestamp, &amp;self.data)?.ensure_finite()?;</code></pre>
+<ul>
+  <li>The documentation names only ancestor-ward lookups. Probes show sibling lookups return <code>Ok(inf)</code> in both directions, and <code>get_transform_at</code> has no check at all.</li>
+  <li>Non-finite values are sticky through the arithmetic, so one exit check is exact. Its cost was within timing noise.</li>
+  <li><strong>Not on <code>*</code>.</strong> A check there closes no lookup hazard, and the tests deliberately create infinite transforms through <code>*</code> to exercise the insert check.</li>
+  <li>Replaces the notes' translation bound <code>B = 1e100</code>, which needs a constant, narrows decoding and adds a second rule for <code>Point</code>.</li>
+  <li>This is the one item a maintainer ruling could move to 2.x as a bug fix.</li>
+</ul>
+</div>
+
+<!-- 5 -->
+<h3><span class="n">5</span><code>Disconnected</code> is reported before <code>NotFoundAt</code></h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>A lookup can fail because the two frames are not connected at all, or because they are connected and no data covers the requested moment. The second reason invites waiting for more data. The first does not. Today, for two unconnected frames, the library can report the second reason, so a program that waits will wait forever.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// Two trees with no link:   map → base      rig → camera</span>
+registry.get_transform("base", "camera", t)
+<span class="c">// 2.3, when a hop misses t:</span>
+<span class="c">//   Err(NotFoundAt { frame, requested: t, covered: Some((start, end)), .. })</span>
+<span class="c">// 3.0:</span>
+<span class="c">//   Err(Disconnected { target_frame: "base", source_frame: "camera" })</span></code></pre>
+<ul>
+  <li>Precedence becomes <code>UnknownFrame &gt; Disconnected &gt; NotFoundAt</code>. <code>latest_common_time</code> already decides this way.</li>
+  <li><strong>Minimal change:</strong> delete the <code>.or_else(|| walk_failure.take())</code> fallback in <code>diagnose_not_found</code> (<code>src/core/registry/mod.rs:963</code>).</li>
+  <li><strong>Declared silent change.</strong> A caller that retries on <code>NotFoundAt</code> stops on a disconnected pair. The flip also applies to the legs of <code>get_transform_at</code>.</li>
+</ul>
+<h4>The resolver rewrite is separate and optional</h4>
+<p>A clean topology-first resolver deletes about 240 library lines and is bit-identical on values over more than 1M comparisons. Its only behavioural difference is the error flip above. Its performance on host is mixed:</p>
+<table>
+  <tr><th style="width:58%">Case</th><th>Against 2.3</th></tr>
+  <tr><td>Interpolated lookup that skips a long shared trunk</td><td>up to 3.7× faster</td></tr>
+  <tr><td>Interpolated lookup into an inner ancestor</td><td>1.2–1.8× faster</td></tr>
+  <tr><td>Exact-stamp root-ward chain</td><td>14–17% faster</td></tr>
+  <tr><td>Interpolated root-ward chain, 4–64 hops</td><td>9–17% slower</td></tr>
+  <tr><td>Exact-stamp lookup into an inner ancestor near a deep leaf</td><td>1.4× slower</td></tr>
+  <tr><td>Allocations per lookup</td><td>count unchanged; bytes down 55–73%</td></tr>
+</table>
+<p>Take it only as a deletion, and only if a variant recovers the root-ward cost. A 2.x fast path with a fallback is rejected: two resolvers can diverge.</p>
+</div>
+
+<!-- 6 -->
+<h3><span class="n">6</span>Error shapes</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Errors are structured records. Three small repairs: let those records gain fields later without breaking users' code, stop one error from printing two timestamps that look identical when they differ, and optionally give one error a name that matches what it means today.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// (a) Struct variants become #[non_exhaustive]: a field can be added in a minor</span>
+#[non_exhaustive]
+Disconnected { target_frame: String, source_frame: String },
+<span class="c">// downstream patterns then need `..`:</span>
+RegistryError::Disconnected { target_frame, source_frame, .. } => { /* … */ }
+
+<span class="c">// (b) TimestampMismatch loses its payload</span>
+<span class="c">//     the f64 seconds print as equal for stamps 1 ns apart at epoch scale</span>
+<span class="del">- TimestampMismatch { lhs: f64, rhs: f64 },</span>
+<span class="add">+ TimestampMismatch,</span>
+
+<span class="c">// (c) Optional rename</span>
+<span class="del">- ReparentingNotSupported { .. }</span>
+<span class="add">+ ParentMismatch { .. }</span></code></pre>
+<ul>
+  <li><strong>(a)</strong> applies to <code>Disconnected</code>, <code>NotFoundAt</code>, <code>NoCommonTime</code> and the parent-pin variant in <code>RegistryError</code>, and to <code>IncompatibleFrames</code> and <code>SameFrameMultiplication</code> in <code>TransformError</code>. Tuple and unit variants stay frozen.</li>
+  <li><strong>(b)</strong> After items 7 and 8 the only producer is <code>*</code>, whose caller holds both operands. This replaces the notes' <code>TransformError&lt;T&gt;</code>, which adds a type parameter for one variant and breaks roslibrust's public conversion trait.</li>
+  <li><strong>(c)</strong> "Not supported" misleads now that <code>reparent_frame</code> exists, and the variant's rustdoc defers the rename to 3.0. It is the one known break in transforms_io (<code>mt_pubsub_backend.rs:342</code>). Cosmetic; it carries no weight in the case for 3.0.</li>
+</ul>
+</div>
+
+<!-- 7 -->
+<h3><span class="n">7</span>Delete <code>Point</code>, <code>Transformable</code>, <code>Localized</code>, <code>get_transform_for</code></h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>The library ships a helper that bundles a position with a frame label and can have a transform applied to it. No user of it was found. It does not check its own inputs, so an invalid position passes through as success. Its name is misleading, because it also carries an orientation. Applying a transform by hand is one line, so the helper is removed.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// 2.3</span>
+let tf = registry.get_transform_for(&amp;point, "base")?;
+point.transform(&amp;tf)?;
+
+<span class="c">// 3.0: rotate first, then translate</span>
+let tf = registry.get_transform("base", "sensor", t)?;
+let p_base = tf.rotation().rotate_vector(p_sensor) + tf.translation();</code></pre>
+<ul>
+  <li><strong>Evidence.</strong> No published dependent calls them (grep of six users' sources; GitHub code search found none, which is weak evidence). A NaN position or a zero quaternion goes through <code>Point::transform</code> as <code>Ok</code>. It allocates a <code>String</code> per element. Each trait has one implementor.</li>
+  <li><strong>Demand that exists.</strong> Three people used <code>Point</code> in 0.3.x and 1.x issues (#43, #45, #65/#66), and #76 wanted a helper. The same threads show <code>Point</code> confusing its users.</li>
+  <li><strong>Coupling.</strong> With no library-side apply, users rotate by hand. Item 2 is what makes that safe.</li>
+  <li><strong>Obligations.</strong> Rewrite the README headline example, re-point <code>tests/golden_vectors.rs</code> and <code>tests/properties.rs:205</code> without touching the expected numbers. <code>Point</code>'s pinned wire format stops decoding.</li>
+  <li><strong>Dissent.</strong> The geometry lens would harden <code>Point</code> instead (private fields, fallible constructor). That adds surface for a type no dependent uses.</li>
+</ul>
+</div>
+
+<!-- 8 -->
+<h3><span class="n">8</span>Delete <code>Transform::interpolate</code></h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Interpolation estimates a pose between two measurements. The registry does this internally. There is also a public function for doing it by hand, which the registry never calls and no user was found calling. It is the only source of three error cases, which disappear with it.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code>Transform::interpolate(&amp;from, &amp;to, timestamp)   <span class="c">// removed</span></code></pre>
+<ul>
+  <li>The buffer interpolates on the crate-private <code>Isometry</code>. This function is the only producer of <code>StaticInterpolation</code>, <code>TimestampOutOfRange</code> and the <code>"a -> b"</code> string form of <code>IncompatibleFrames</code>.</li>
+  <li>It can be rebuilt on the public <code>Quaternion::slerp</code> plus a linear blend (not probed).</li>
+  <li><code>tests/properties.rs:751</code> uses it as the oracle for registry interpolation and needs an in-test reference instead.</li>
+</ul>
+</div>
+
+<!-- 9 -->
+<h3><span class="n">9</span>Delete <code>Timestamp::as_seconds</code></h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>This function converts a nanosecond count to seconds and refuses whenever precision would be lost. Precision is lost for any time later than 104 days after 1970, so it fails on every real clock reading. A sibling function that converts anyway, and says so in its name, stays.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code>Timestamp::now().as_seconds()         <span class="c">// Err(AccuracyLoss) above 2^53 ns ≈ 104 days: removed</span>
+Timestamp::now().as_seconds_lossy()   <span class="c">// f64: stays</span></code></pre>
+<ul>
+  <li><code>TimeError::AccuracyLoss</code> stays. A custom clock uses it, and <code>tests/time_traits.rs:277,317-329</code> pin that path.</li>
+</ul>
+</div>
+
+<!-- 10 -->
+<h3><span class="n">10</span>An insert the history window discards is an error</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>A registry can be told to keep only the last N seconds of history. If one measurement arrives stamped far in the future, from a glitch or a clock jump, the registry treats that as "now" and discards everything older. From then on every normal measurement counts as too old and is thrown away, while the library reports success each time. The proposal makes the library say so: a measurement that would be discarded on arrival is rejected with an error that names the frame. A batch of measurements is accepted or rejected as a whole.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code><span class="c">// at(s): a sample of map → base stamped s seconds</span>
+let mut r = Registry::with_max_age(Duration::from_secs(10));
+r.add_transform(at(100))?;         <span class="c">// stored</span>
+r.add_transform(at(1_000_000))?;   <span class="c">// glitch: accepted, evicts everything older</span>
+r.add_transform(at(101))           <span class="c">// 2.3: Ok(()), stored and evicted at once</span>
+                                   <span class="c">// 3.0: Err(SampleExpired { frame: "base", stamp, newest })</span>
+
+<span class="c">// Batches equal the insert loop, so order inside a batch matters (fresh registry each):</span>
+r.add_transforms([at(50), at(100)])   <span class="c">// Ok: 50 is stored, then evicted by 100</span>
+r.add_transforms([at(100), at(50)])   <span class="c">// Err(SampleExpired): nothing is stored</span></code></pre>
+<p class="small">Added on maintainer review, 2026-11-10. Three lenses had ranked this the most serious silent defect outside the ledger; the stress test turned the fix down. Its reasons are kept below as accepted costs.</p>
+<ul>
+  <li><strong>Boundary.</strong> The eviction boundary: a sample exactly at newest minus <code>max_age</code> is accepted, a strictly older one is rejected, before any mutation. A registry without <code>max_age</code> never reports it. Static frames are unaffected, and the <code>reparent_frame</code> seed is exempt because it replaces the history.</li>
+  <li><strong>Batches fail as a whole</strong> (maintainer decision). <code>add_transforms</code> stays atomic. Each member is checked against the frame's running newest stamp, which includes earlier members of the same batch.</li>
+  <li><strong>Alternative considered: check against the batch's newest stamp.</strong> That rule rejects <code>[at(50), at(100)]</code> too. It is independent of order, and it refuses a batch that carries a future-stamped glitch after a normal sample, which the loop rule accepts. It was not taken because the batch would stop equalling the loop: the <code>add_transforms</code> rustdoc promises the state and the first error of inserting in order, and a property test (<code>tests/properties.rs:640</code>) pins it. Both stay unchanged under the loop rule.</li>
+  <li><strong>Why an error.</strong> The crate never consults a wall clock, so it cannot tell a future-stamped glitch from new data and cannot refuse the poison itself. Reporting is the only thing the core can do, and <code>Ok(())</code> for a sample that is not stored is a false return value. <code>newest</code> lets a caller that has a clock tell a late sample from a poisoned edge. The check is buildable outside for one insert, but a batch needs the running-newest logic, which is the copy that goes wrong.</li>
+  <li><strong>What it does not do.</strong> The poison insert is still accepted; the error fires on the next normal insert. A jump smaller than <code>max_age</code> still interleaves two epochs silently, so the docs must not call this reset detection. Lookups do not change: one driven by <code>latest_common_time</code> keeps serving the frozen pose, and one at a real stamp already fails with <code>NotFoundAt</code>.</li>
+</ul>
+<h4>Costs accepted</h4>
+<ul>
+  <li>Routine late arrival beyond <code>max_age</code> becomes <code>Err</code>, which aborts an insert loop that uses <code>?</code>.</li>
+  <li>One expired member rejects a whole TF message in dimos (PR #4722, open), where 2.3 stores the rest. After a poisoned frame, healthy frames in the same message stop updating until the caller filters by the <code>frame</code> in the error and retries.</li>
+  <li>transforms_io and roslibrust_transforms log per rejected transform and expose no reset call, so they log once per message.</li>
+  <li>The error does not carry the rejected transform. A caller that wants to retry clones before the call.</li>
+  <li><code>Buffer::check</code> reads stored state. Its rustdoc invariant (<code>src/core/buffer/mod.rs:343</code>) no longer holds as written.</li>
+  <li>This reverses the dependents addendum, which voted 0 of 3 against an <code>Expired</code> error.</li>
+</ul>
+<h4>Recovery and compatibility</h4>
+<ul>
+  <li><strong>Recovery needs no new API.</strong> <code>remove_transforms_before</code> past the newest sample drains the buffer and resets its expiry reference; it is registry-wide. Two <code>reparent_frame</code> calls clear one frame.</li>
+  <li><strong>Compatibility.</strong> <code>RegistryError</code> is <code>#[non_exhaustive]</code>, so nothing stops compiling. It is 3.0 only: the <code>with_max_age</code> rustdoc describes eviction on insert, and three tests pin the old contract.</li>
+  <li><strong>Prototype.</strong> +106/−9 library lines including <code>clear_history</code>; the batch equals the insert loop, including the first error and unchanged state on error (proptest, 2000 cases).</li>
+</ul>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="notin"><span class="n">5</span>Considered and left out</h2>
+
+<p>Each row is an item from the v3 notes or ledger, or an idea raised during this review.</p>
+
+<table class="long">
+  <tr><th style="width:21%">Idea</th><th style="width:33%">In plain terms</th><th>Why it is left out</th></tr>
+  <tr><td>Public <code>Rotation</code> and <code>Isometry</code> types</td><td>A dedicated "guaranteed length-1 rotation" type, enforced by the compiler.</td><td>Items 2–4 close the same hazards with no new type. About 17 construction sites in dependents would break (count not re-verified).</td></tr>
+  <tr><td>Translation bound <code>B</code></td><td>Refuse any distance above a huge fixed limit, so sums cannot overflow.</td><td>Item 4 is exact and needs no constant. <code>B</code> narrows decoding.</td></tr>
+  <tr><td>Newton renormalization</td><td>Nudge the rotation back to length 1 after every multiplication.</td><td>Not needed for lookups. Changes bits on 28% of identity compositions and diverges for norms above √3.</td></tr>
+  <tr><td><code>Resolved</code> result type</td><td>A new container for every lookup answer that says "target" and "source".</td><td>A second type that closes nothing. Only the cross-time type needs those words.</td></tr>
+  <tr><td>Operators to named methods</td><td>Replace <code>a * b</code> with <code>a.checked_mul(b)</code>, since the operators return <code>Result</code>.</td><td>Closes no hazard. About 60 sites in this repository and four roslibrust doctests. <em>Dissent:</em> the ergonomics lens calls the operators the least idiomatic part of the API.</td></tr>
+  <tr><td>Frame names on insert errors</td><td>Make every "insert rejected" error say which frame it was.</td><td>A single-insert caller holds the transform. Only <code>add_transforms</code> is blind, and its one user is an unmerged PR.</td></tr>
+  <tr><td><code>TransformError&lt;T&gt;</code></td><td>Carry exact timestamps in geometry errors.</td><td>Replaced by the unit <code>TimestampMismatch</code> (item 6).</td></tr>
+  <tr><td><code>TransformError</code> arm to <code>Time(TimeError)</code></td><td>Narrow one catch-all error arm.</td><td>Total only once registry composition is infallible, which needs the resolver rewrite. <code>tests/time_traits.rs:317</code> pins the current arm.</td></tr>
+  <tr><td>Required <code>max_age</code></td><td>Force every user to say how much history to keep.</td><td>Bounds memory only: an 8 s dropout is still interpolated inside a 10 s window. Every studied user already passes <code>with_max_age</code>. Document 122 B per sample instead.</td></tr>
+  <tr><td><code>clear_history</code></td><td>One call that empties the stored history after a clock reset.</td><td>Additive, so not a v3 item. Recovery is buildable today (item 10). A registry-wide empty clear is not buildable for a generic time type when a sample sits at the type's maximum. Revisit on a request.</td></tr>
+  <tr><td>Maximum interpolation gap</td><td>Refuse to estimate between two measurements that are too far apart.</td><td>Additive, so never a v3 item. No design and no request. A time bound also misses the exact hazard, which is more than 180° between adjacent samples.</td></tr>
+  <tr><td><code>f32</code> or a scalar parameter</td><td>Let small chips use cheaper, less precise numbers.</td><td>A Non-Goal. Staying <code>f64</code> with no scalar parameter keeps a concrete <code>f32</code> module additive later.</td></tr>
+  <tr><td><code>FrameId</code>, interning</td><td>Replace frame-name strings with numeric handles for speed.</td><td>Hashing is 8–16% of a hop. <code>Arc</code> does not build on thumbv6m or riscv32imc.</td></tr>
+  <tr><td><code>get_latest</code>, <code>can_transform</code>, bulk lookups, caches, typed frames</td><td>Convenience shortcuts familiar from tf2.</td><td>Buildable on the public API, or a new source of wrong answers.</td></tr>
+  <tr><td>Self-edge and empty-name checks in <code>Transform::new</code></td><td>Reject nonsensical frame names earlier.</td><td><code>get_transform(x, x)</code> returns an <code>(x, x)</code> identity that must stay constructible. Both checks stay at insert.</td></tr>
+  <tr><td>Euler and axis-angle constructors; <code>mint</code>, <code>nalgebra</code>, <code>glam</code> features</td><td>More ways to write a rotation; bridges to other math libraries.</td><td>Buildable outside. No dependent builds quaternions from angles.</td></tr>
+  <tr><td>Removing <code>approx</code> or <code>thiserror</code></td><td>Fewer dependencies.</td><td>Unrelated to v3. approx 0.6 has been at rc2 since 2026-02-05; decide when it is stable.</td></tr>
+</table>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="twox"><span class="n">6</span>What can ship in 2.x</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>These fixes break nobody's code, so they need not wait for a major version. Most are documentation.</p>
+</div>
+<ul>
+  <li>Reject empty frame names, and the documentation corrections. Both are already in the 2.4 proposal.</li>
+  <li>Document the silent drop of expired inserts, with the recovery recipe from item 10. 2.x keeps the drop; item 10 replaces it in 3.0.</li>
+  <li>One sentence for the embedded claim: <code>f64</code> runs in software on every gate target unless a Cortex-M7 with a double-precision FPU is built with <code>target-cpu=cortex-m7</code> (assembly probe: 36 <code>__aeabi_dmul</code> calls by default, none with the flag).</li>
+  <li>The <code>latest_common_time</code> example unwraps <code>.at()</code>, which panics when copied onto an all-static chain. Show the <code>match</code>.</li>
+  <li>A rustdoc recipe for "can waiting fix this error", worded as likely and not certain: a late backfill can make an older instant servable.</li>
+  <li>Internal cleanup: drop <code>Buffer.child</code>, <code>InsertError::ChildFrameMismatch</code> and its unreachable <code>From</code> arm; store an <code>Isometry</code> in the static slot.</li>
+  <li><code>#[deprecated]</code> on <code>Point</code>, <code>Transformable</code>, <code>Localized</code> and <code>get_transform_for</code>, linking to a discussion, as the one cheap way to hear from users nobody found. <strong>Needs sign-off:</strong> the gate runs clippy with <code>-D warnings</code>, so in-repo uses need <code>#[allow(deprecated)]</code>.</li>
+</ul>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="release"><span class="n">7</span>Release plan</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Ship 2.4 first. Build 3.0 on a branch and pass the full test gate. Publish one release candidate and compile a real dependent against it. Then release. Old serialized transforms keep loading. Five of the ten changes alter behaviour without a compiler error, so the migration guide must list them by name.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<ul>
+  <li><strong>Order.</strong> 2.4, then the 3.0 prototype through <code>tests/test_all.sh</code>, then one <code>3.0.0-rc</code> built against transforms_io, then the release.</li>
+  <li><strong>Case for yes.</strong> Item 2 changes values for most real traffic. That only gets more expensive to change as users arrive. The warrant report's two triggers do not hold up: the hardware trigger contradicts v3-3 §6, and the deprecation trigger cannot fire under the 2026-11-03 stance.</li>
+  <li><strong>Wire.</strong> Postcard layouts and JSON names stay frozen, and 3.0 reads every 2.x <code>Transform</code> payload. Near-unit rotations are normalized on decode, and <code>Point</code> payloads stop decoding. Bit-exact JSON round trips need <code>serde_json</code>'s <code>float_roundtrip</code> feature regardless of this change (its default parser is off by one ulp on 10.5% of random values).</li>
+  <li><strong><code>tests/v2_compatibility.rs</code>.</strong> Three of nine tests flip: disconnected precedence (item 5), the rotation half of the exact-sample test (item 2), and the insertable cross-time result (item 1).</li>
+  <li><strong>Other pinned tests that flip.</strong> <code>an_overflowing_lookup_reports_the_flat_variant_only_where_it_inverts</code>, <code>inverse_renormalizes_a_rotation_that_drifted_off_the_unit_sphere</code> and <code>add_transform_rejects_a_republished_chain_that_left_validity</code>. Item 10 flips <code>out_of_order_insert_does_not_regress_latest_timestamp</code>, <code>zero_max_age_out_of_order_insert_is_ok_but_immediately_evicted</code> and <code>dynamic_history_matches_a_reference_map_after_upserts_expiry_and_cleanup</code>. Golden vectors, slerp bit pins, frozen postcard bytes and all 36 doctests passed unchanged on the item 2–4 prototype.</li>
+  <li><strong>Acceptance.</strong> Add a dual-version differential harness (2.3 beside 3.0 with an allow-list of intended flips) and a corpus of 2.3-encoded blobs decoded by 3.0. <code>cargo semver-checks</code> cannot see the silent rows.</li>
+  <li><strong><code>MIGRATION.md</code>.</strong> One row per item, tagged loud, silent or wire. Silent: items 2, 3, 4, 5 and 10.</li>
+  <li><strong><code>AGENTS.md</code>.</strong> Six invariant bullets need rewording, and the <code>Point</code> mentions in Architecture and Style go.</li>
+</ul>
+<h4>A policy sentence to decide</h4>
+<p>An earlier ruling let a minor release reject empty names, while the warrant report warns against silent behaviour changes in minors. One rule would classify every row:</p>
+<div class="plain"><p>A minor may reject an input class the docs never promised to accept, when accepting it produced a wrong answer. A minor never changes the value returned for an accepted input, or a declared error precedence.</p></div>
+<p>This relaxes the API-stability section of <code>AGENTS.md</code>, so it is the maintainer's to adopt.</p>
+</div>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="decisions"><span class="n">8</span>Decisions for the maintainer</h2>
+
+<table>
+  <tr><th style="width:4%">#</th><th style="width:50%">Question</th><th>Recommendation</th></tr>
+  <tr><td>1</td><td>Cut a 3.0 of this size after 2.4?</td><td>Yes, not urgently</td></tr>
+  <tr><td>2</td><td>Delete <code>Point</code> and the two traits, or harden <code>Point</code>?</td><td>Delete; deprecate in 2.x first <strong>(sign-off: <code>#[allow(deprecated)]</code> in the repo)</strong></td></tr>
+  <tr><td>3</td><td>Normalize at construction with an <code>8 × EPSILON</code> band?</td><td>Yes, with a proof or a pinned property test for the band</td></tr>
+  <tr><td>4</td><td>Lookup finiteness check: 3.0, or a 2.x bug fix?</td><td>3.0, unless ruled a bug fix like the empty-name case <strong>(sign-off)</strong></td></tr>
+  <tr><td>5</td><td>Resolver rewrite after the precedence flip?</td><td>Only as a deletion that does not slow root-ward lookups</td></tr>
+  <tr><td>6</td><td>Rename <code>ReparentingNotSupported</code>?</td><td>Optional; take it only if 3.0 happens</td></tr>
+  <tr><td>7</td><td>Keep the operators?</td><td>Yes</td></tr>
+  <tr><td>8</td><td>Add an error for expired inserts?</td><td><strong>Decided 2026-11-10: yes</strong>, in 3.0 (item 10); a batch fails as a whole. The review had recommended no.</td></tr>
+  <tr><td>9</td><td>Adopt the policy sentence on minors?</td><td>Yes <strong>(sign-off: changes <code>AGENTS.md</code>)</strong></td></tr>
+</table>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="corrections"><span class="n">9</span>Corrections to earlier documents</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Statements in earlier analysis documents that this review found wrong or imprecise. None is applied; each was confirmed by an experiment or by reading the code.</p>
+</div>
+<table class="long">
+  <tr><th style="width:27%">Document</th><th>Correction</th></tr>
+  <tr><td>v3-3, finding 2 and §1</td><td><code>Ok(inf)</code> is not ancestor-ward only; sibling lookups and <code>get_transform_at</code> return it too. "Stored normalized" glosses over non-idempotent normalization.</td></tr>
+  <tr><td>v3-3, finding 10</td><td>The missing <code>alloc::sync</code> also affects riscv32imc, a CI target.</td></tr>
+  <tr><td>v3-3, §2</td><td>"target/source for anything a query returns" implies a new return type for <code>get_transform</code>, which conflicts with its own §7.</td></tr>
+  <tr><td>Warrant report, <code>Rotation</code> row</td><td>"Small user payoff" rests on drift. The accepted tolerance band is the effect.</td></tr>
+  <tr><td>Warrant report, triggers</td><td>See section 7: neither trigger can fire as written.</td></tr>
+  <tr><td>Warrant report, ergonomics item 3</td><td>The example comments "transform from camera to base" read consistently as mapping camera coordinates into base. That is a vocabulary difference, not drift.</td></tr>
+  <tr><td>Dependents README</td><td>"Per-edge clock-reset detection needs access the API does not expose" is wrong: a single-hop <code>latest_common_time</code> returns the edge's newest stamp.</td></tr>
+  <tr><td>Dependents study, dimos</td><td>PR #4722 was rebased on 2026-11-09; its head is <code>fc941c1</code>, not <code>92936a7</code>. It is still open.</td></tr>
+  <tr><td>Cross-time addendum</td><td>"An additive type helps only callers who migrate" is overstated: <code>#[deprecated]</code> warns every direct caller. Only transitive users are unprotected.</td></tr>
+  <tr><td>v3-2 and the perf notes</td><td>Live memory is 122 B per sample, not the 64 B payload: sequentially appended B-tree nodes stay about half full.</td></tr>
+</table>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<h2 id="limits"><span class="n">10</span>Limits of this review</h2>
+
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>What was not checked, so that no claim above is read as stronger than its evidence.</p>
+</div>
+<ul>
+  <li><strong>No hardware.</strong> Nothing ran on a microcontroller or under QEMU. All timings are host x86-64. thumbv6m and thumbv8m are not installed locally.</li>
+  <li><strong>No gate run.</strong> <code>tests/test_all.sh</code> ran on no prototype. They ran <code>cargo test</code> with default and no default features; the item 2–4 prototype also ran with <code>serde</code>.</li>
+  <li><strong>No dependent compiled.</strong> Compile-error counts come from grep against this proposal's text.</li>
+  <li><strong>Dead band unproven.</strong> The <code>8 × EPSILON</code> width is empirical, and <code>libm::sqrt</code> was not checked on soft-float targets.</li>
+  <li><strong>Prior art unverified.</strong> Claims about tf2, sguaba, cu-transform and schiebung come from one web pass. No decision rests on them.</li>
+  <li><strong>Private users are invisible.</strong> crates.io lists three reverse dependencies.</li>
+  <li><strong>Not covered by any lens:</strong> lock contention under <code>RwLock</code>, allocator failure on small-RAM parts, and <code>SystemTime</code> as the time type in benchmarks.</li>
+</ul>
+
+<!-- ───────────────────────────────────────────────────────────── -->
+<div class="keep">
+<h2 id="protos"><span class="n">11</span>Prototypes</h2>
+
+<p>Library-only diffs against <code>7cc2a65</code>, in <code>analysis/v3-review/prototypes/</code>. They are evidence, not patches: none is gate-clean, and none updates docs or tests.</p>
+<table>
+  <tr><th style="width:40%">File</th><th style="width:27%">Content</th><th style="width:11%">Lines</th><th>Existing tests that fail</th></tr>
+  <tr><td><code>a2-normalize-conjugate-finite-gate.diff</code></td><td>Items 2–4, plus a check on <code>*</code> that is not proposed</td><td class="num">+51 / −28</td><td>5, all intended; one from the <code>*</code> check</td></tr>
+  <tr><td><code>a4-topology-first-resolver.diff</code></td><td>Resolver rewrite of item 5</td><td class="num">+75 / −300</td><td>1, the precedence pin</td></tr>
+  <tr><td><code>sample-expired-clear-history.diff</code></td><td>Item 10, plus <code>clear_history</code>, which is not proposed</td><td class="num">+106 / −9</td><td>3, pins of the old contract</td></tr>
+</table>
+<p class="small">Full review text with file and line references: <code>analysis/v3-review/REPORT.md</code>.</p>
+</div>
+
+</body>
+</html>

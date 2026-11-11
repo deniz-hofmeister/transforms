@@ -1,0 +1,172 @@
+diff -ru a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -919,19 +919,17 @@
+         data.contains_key(frame) || data.values().any(|buffer| buffer.parent() == Some(frame))
+     }
+ 
+-    /// Diagnoses a failed lookup, in order of certainty: a requested frame
+-    /// that exists nowhere in the tree, then a failed edge (a known frame
+-    /// that could not serve the requested time, whether it holds data
+-    /// outside that time or no data at all), and otherwise — both frames
+-    /// known and both walks clean — the frames live in disconnected trees.
++    /// Diagnoses a failed lookup on the topology first, so the variant never
++    /// depends on the requested time: a requested frame that exists nowhere
++    /// in the tree, then two known frames no chain connects, and only then
++    /// a failed edge (a known frame that could not serve the requested
++    /// time, whether it holds data outside that time or no data at all).
+     /// The scans run only on the failure path.
+     ///
+-    /// For connected endpoints the failed edge is the first one on the
+-    /// connecting chain, target side first. The walks run toward the root
+-    /// and record the first failure they meet, which can lie above the
+-    /// common ancestor on an edge this lookup never needed. For disconnected
+-    /// endpoints no chain exists, and the recorded walk failure is reported,
+-    /// taking precedence over `Disconnected`.
++    /// The failed edge is the first one on the connecting chain, target
++    /// side first. The walks run toward the root and can fail above the
++    /// common ancestor, on an edge this lookup never needed, so their own
++    /// failures are not consulted.
+     ///
+     /// An edge that failed on *interpolation* is reported as that failure
+     /// rather than as a `NotFoundAt`: the frame does cover the requested
+@@ -941,36 +939,31 @@
+         to: &str,
+         timestamp: T,
+         data: &HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+     ) -> RegistryError<T> {
+         for frame in [from, to] {
+             if !Self::frame_exists(frame, data) {
+                 return RegistryError::UnknownFrame(frame.into());
+             }
+         }
+-        let failure = Self::connecting_chain(from, to, data)
+-            .and_then(|(target_edges, source_edges)| {
+-                target_edges
+-                    .iter()
+-                    .chain(&source_edges)
+-                    .find_map(|&(frame, buffer)| {
+-                        buffer
+-                            .get(timestamp)
+-                            .err()
+-                            .map(|error| (frame.into(), error))
+-                    })
+-            })
+-            .or_else(|| walk_failure.take());
++        let disconnected = || RegistryError::Disconnected {
++            target_frame: from.into(),
++            source_frame: to.into(),
++        };
++        let Some((target_edges, source_edges)) = Self::connecting_chain(from, to, data) else {
++            return disconnected();
++        };
++        let failure = target_edges
++            .iter()
++            .chain(&source_edges)
++            .find_map(|&(frame, buffer)| buffer.get(timestamp).err().map(|error| (frame, error)));
+         let (frame, covered) = match failure {
+-            Some((frame, GetError::NoTransformAvailable)) => (frame, None),
+-            Some((frame, GetError::OutOfRange { start, end })) => (frame, Some((start, end))),
+-            Some((_, GetError::Interpolation(cause))) => return cause.into(),
+-            None => {
+-                return RegistryError::Disconnected {
+-                    target_frame: from.into(),
+-                    source_frame: to.into(),
+-                };
++            Some((frame, GetError::NoTransformAvailable)) => (frame.into(), None),
++            Some((frame, GetError::OutOfRange { start, end })) => {
++                (frame.into(), Some((start, end)))
+             }
++            Some((_, GetError::Interpolation(cause))) => return cause.into(),
++            // Unreachable: the lookup failed, so an edge of its chain did.
++            None => return disconnected(),
+         };
+         RegistryError::NotFoundAt {
+             target_frame: from.into(),
+@@ -1010,16 +1003,13 @@
+         let reached =
+             |chain: &[Hop<'_>], goal: &str| chain.last().is_some_and(|hop| hop.parent == goal);
+ 
+-        let mut walk_failure = None;
+-        let mut target_chain =
+-            Self::get_transform_chain(target, source, timestamp, data, &mut walk_failure);
++        let mut target_chain = Self::get_transform_chain(target, source, timestamp, data);
+         let mut source_chain = Vec::new();
+         // A target-side chain that reaches `source` spans the whole path:
+         // `source` is an ancestor of `target`, and no source-side walk is
+         // needed.
+         if !reached(&target_chain, source) {
+-            source_chain =
+-                Self::get_transform_chain(source, target, timestamp, data, &mut walk_failure);
++            source_chain = Self::get_transform_chain(source, target, timestamp, data);
+             // `target` is an ancestor of `source`: the source-side chain
+             // spans the whole path by itself, and the target-side walk only
+             // climbed away from it.
+@@ -1041,13 +1031,7 @@
+         let target_top = target_chain.last().map_or(target, |hop| hop.parent);
+         let source_top = source_chain.last().map_or(source, |hop| hop.parent);
+         if target_top != source_top {
+-            return Err(Self::diagnose_not_found(
+-                target,
+-                source,
+-                timestamp,
+-                data,
+-                &mut walk_failure,
+-            ));
++            return Err(Self::diagnose_not_found(target, source, timestamp, data));
+         }
+ 
+         match Self::combine_transforms(&target_chain, &source_chain) {
+@@ -1126,16 +1110,14 @@
+     /// a given timestamp; empty if the walk yields no hops. Diagnosing the
+     /// reason is the caller's job (`diagnose_not_found`).
+     ///
+-    /// A buffer lookup failing along the way ends the walk; the first such
+-    /// failure across all walks of one lookup is recorded in `walk_failure`.
+-    /// It can lie above the common ancestor, so it is reported only for
+-    /// disconnected endpoints, which have no connecting chain to re-sample.
++    /// A buffer lookup failing along the way ends the walk. The failure is
++    /// not kept: it can lie above the common ancestor, so the diagnosis
++    /// re-samples the connecting chain instead.
+     fn get_transform_chain<'a>(
+         from: &'a str,
+         to: &str,
+         timestamp: T,
+         data: &'a HashMap<String, Buffer<T>>,
+-        walk_failure: &mut Option<(String, GetError<T>)>,
+     ) -> Vec<Hop<'a>> {
+         let mut hops = Vec::new();
+         let mut current_frame = from;
+@@ -1148,22 +1130,15 @@
+             .get(current_frame)
+             .and_then(|buffer| buffer.parent().map(|parent| (buffer, parent)))
+         {
+-            match frame_buffer.get(timestamp) {
+-                Ok(isometry) => {
+-                    hops.push(Hop {
+-                        parent,
+-                        child: current_frame,
+-                        isometry,
+-                    });
+-                    current_frame = parent;
+-                }
+-                Err(source) => {
+-                    if walk_failure.is_none() {
+-                        *walk_failure = Some((current_frame.into(), source));
+-                    }
+-                    break;
+-                }
+-            }
++            let Ok(isometry) = frame_buffer.get(timestamp) else {
++                break;
++            };
++            hops.push(Hop {
++                parent,
++                child: current_frame,
++                isometry,
++            });
++            current_frame = parent;
+ 
+             // Reaching `to` completes the chain; walking on to the root would
+             // only add work that truncate_at_common_parent discards again.

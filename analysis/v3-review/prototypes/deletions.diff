@@ -1,0 +1,774 @@
+diff -ru a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -436,7 +436,7 @@
+         timestamp: T,
+     ) -> Result<(), TimeError> {
+         if let (Some((start, _)), Some((end, _))) = self.get_nearest(&timestamp) {
+-            // Match Transform::interpolate: an exact sample needs only the
++            // Match Isometry::interpolate: an exact sample needs only the
+             // zero span; otherwise both the interval and offset must fit.
+             if !end.duration_since(*start)?.is_zero() {
+                 timestamp.duration_since(*start)?;
+diff -ru a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -7,7 +7,7 @@
+     },
+     errors::TransformError,
+     geometry::{
+-        Localized, Transform,
++        Transform,
+         transform::{Isometry, ensure_composable},
+     },
+     time::{Stamp, TimePoint, Timestamp},
+@@ -69,7 +69,7 @@
+         self,
+         rhs: Hop<'a>,
+     ) -> Self::Output {
+-        ensure_composable(self.child, rhs.parent, rhs.child)?;
++        ensure_composable(self.child, rhs.parent)?;
+         Ok(Hop {
+             parent: self.parent,
+             child: rhs.child,
+@@ -334,26 +334,6 @@
+         ))
+     }
+ 
+-    /// Resolves a transform using `value`'s frame and timestamp.
+-    ///
+-    /// Equivalent to `get_transform(target_frame, value.frame(), value.timestamp())`.
+-    /// This does not modify `value`; apply the result separately through
+-    /// [`Transformable`](crate::Transformable).
+-    ///
+-    /// # Errors
+-    ///
+-    /// The same as [`Registry::get_transform`].
+-    pub fn get_transform_for<U>(
+-        &self,
+-        value: &U,
+-        target_frame: &str,
+-    ) -> Result<Transform<T>, RegistryError<T>>
+-    where
+-        U: Localized<T>,
+-    {
+-        self.get_transform(target_frame, value.frame(), value.timestamp())
+-    }
+-
+     /// Maps source-time coordinates into the target frame at another time.
+     ///
+     /// This is tf2-style "time travel": a historical position is re-expressed in
+@@ -371,8 +351,8 @@
+     /// instants and apply the rotation and translation explicitly to source-time
+     /// coordinates, labeling the output with the target frame and time.
+     ///
+-    /// Do not apply such a result through [`Transformable`](crate::Transformable),
+-    /// compose it as a single-time transform, or insert it into a registry.
++    /// Do not compose such a result as a single-time transform or insert it
++    /// into a registry.
+     /// Those operations cannot check the lost source time; insertion can overwrite
+     /// a valid target-time sample. Serialization also loses that provenance.
+     /// [`Transform::validate`] checks numbers only.
+@@ -1001,8 +981,7 @@
+         data: &HashMap<String, Buffer<T>>,
+     ) -> Result<Isometry, RegistryError<T>> {
+         // A frame relative to itself is the identity, regardless of whether
+-        // the frame is known: the answer holds either way, and it keeps
+-        // same-frame queries consistent with `get_transform_for`.
++        // the frame is known: the answer holds either way.
+         if target == source {
+             return Ok(Isometry::identity());
+         }
+diff -ru a/src/geometry/mod.rs b/src/geometry/mod.rs
+--- a/src/geometry/mod.rs
++++ b/src/geometry/mod.rs
+@@ -1,11 +1,9 @@
+-//! Geometric primitives: transforms, vectors, quaternions, and an example transformable Point type.
++//! Geometric primitives: transforms, vectors, and quaternions.
+ 
+-pub(crate) mod point;
+ pub(crate) mod quaternion;
+ pub(crate) mod transform;
+ pub(crate) mod vector3;
+ 
+-pub use point::Point;
+ pub use quaternion::Quaternion;
+-pub use transform::{Localized, Transform, Transformable, UNIT_NORM_TOLERANCE};
++pub use transform::{Transform, UNIT_NORM_TOLERANCE};
+ pub use vector3::Vector3;
+diff -ru a/src/geometry/point/mod.rs b/src/geometry/point/mod.rs
+--- a/src/geometry/point/mod.rs
++++ b/src/geometry/point/mod.rs
+@@ -1,204 +0,0 @@
+-//! A point in 3D space with position, orientation, timestamp, and reference frame.
+-
+-use crate::{
+-    Localized, Transform, Transformable,
+-    errors::TransformError,
+-    geometry::{Quaternion, Vector3},
+-    time::{Stamp, TimePoint, Timestamp},
+-};
+-
+-use alloc::string::String;
+-use approx::{AbsDiffEq, RelativeEq};
+-
+-/// An observation with position, orientation, timestamp, and reference frame.
+-///
+-/// Fields are public and unvalidated. This is the reference implementation of
+-/// [`Transformable`] and [`Localized`]. With `serde`, it implements `Serialize`
+-/// and `Deserialize` without numeric validation.
+-///
+-/// # Examples
+-///
+-/// ```
+-/// use transforms::{
+-///     geometry::{Point, Quaternion, Vector3},
+-///     time::Timestamp,
+-/// };
+-///
+-/// let point: Point = Point::new(
+-///     Vector3::new(1.0, 2.0, 3.0),
+-///     Quaternion::identity(),
+-///     Timestamp::zero(),
+-///     "a",
+-/// );
+-///
+-/// assert_eq!(point.position.x, 1.0);
+-/// assert_eq!(point.orientation.w, 1.0);
+-/// ```
+-#[derive(Debug, Clone, PartialEq)]
+-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+-#[non_exhaustive]
+-pub struct Point<T = Timestamp>
+-where
+-    T: TimePoint,
+-{
+-    /// The 3D position of the point.
+-    pub position: Vector3,
+-    /// The orientation of the point.
+-    pub orientation: Quaternion,
+-    /// The time at which the point was recorded.
+-    pub timestamp: T,
+-    /// The reference frame the point's data is relative to.
+-    pub frame: String,
+-}
+-
+-impl<T> Point<T>
+-where
+-    T: TimePoint,
+-{
+-    /// Builds a point observed in `frame` at `timestamp`.
+-    ///
+-    /// # Examples
+-    ///
+-    /// ```
+-    /// use transforms::{
+-    ///     geometry::{Point, Quaternion, Vector3},
+-    ///     time::Timestamp,
+-    /// };
+-    ///
+-    /// let point: Point = Point::new(
+-    ///     Vector3::new(1.0, 0.0, 0.0),
+-    ///     Quaternion::identity(),
+-    ///     Timestamp::zero(),
+-    ///     "camera",
+-    /// );
+-    ///
+-    /// assert_eq!(point.frame, "camera");
+-    /// ```
+-    #[must_use]
+-    pub fn new(
+-        position: Vector3,
+-        orientation: Quaternion,
+-        timestamp: T,
+-        frame: &str,
+-    ) -> Self {
+-        Self {
+-            position,
+-            orientation,
+-            timestamp,
+-            frame: frame.into(),
+-        }
+-    }
+-}
+-
+-impl<T> Transformable<T> for Point<T>
+-where
+-    T: TimePoint,
+-{
+-    /// Applies a transformation to the `Point`, updating its position, orientation, and frame.
+-    ///
+-    /// Checks frames and timestamps only. See [`Transformable`]'s numeric
+-    /// precondition and cross-time restrictions.
+-    ///
+-    /// # Errors
+-    ///
+-    /// Returns a [`TransformError`] if the point's frame does not match the transform's child
+-    /// frame, or if the timestamps do not match. Static transforms (carrying
+-    /// `Stamp::Static`, e.g. built with `Transform::static_between`) are
+-    /// valid for all time and apply to a point of any timestamp.
+-    fn transform(
+-        &mut self,
+-        transform: &Transform<T>,
+-    ) -> Result<(), TransformError> {
+-        if self.frame != transform.child() {
+-            return Err(TransformError::IncompatibleFrames {
+-                expected: transform.child().into(),
+-                found: self.frame.clone(),
+-            });
+-        }
+-        match transform.timestamp() {
+-            // A static transform is valid for all time and applies to a
+-            // point of any timestamp.
+-            Stamp::Static => {}
+-            Stamp::At(t) if t == self.timestamp => {}
+-            Stamp::At(t) => {
+-                return Err(TransformError::TimestampMismatch {
+-                    lhs: self.timestamp.as_seconds_lossy(),
+-                    rhs: t.as_seconds_lossy(),
+-                });
+-            }
+-        }
+-        self.position = transform.rotation().rotate_vector(self.position) + transform.translation();
+-        self.orientation = transform.rotation() * self.orientation;
+-        // Reuse the frame's existing allocation instead of minting a String
+-        // for every transformed point.
+-        self.frame.clear();
+-        self.frame.push_str(transform.parent());
+-        Ok(())
+-    }
+-}
+-
+-impl<T> Localized<T> for Point<T>
+-where
+-    T: TimePoint,
+-{
+-    fn frame(&self) -> &str {
+-        &self.frame
+-    }
+-
+-    fn timestamp(&self) -> T {
+-        self.timestamp
+-    }
+-}
+-
+-impl<T> AbsDiffEq for Point<T>
+-where
+-    T: TimePoint,
+-{
+-    type Epsilon = f64;
+-
+-    fn default_epsilon() -> Self::Epsilon {
+-        f64::EPSILON
+-    }
+-
+-    /// Compares position and orientation within `epsilon`; frame and
+-    /// timestamp must match exactly.
+-    fn abs_diff_eq(
+-        &self,
+-        other: &Self,
+-        epsilon: Self::Epsilon,
+-    ) -> bool {
+-        self.position.abs_diff_eq(&other.position, epsilon)
+-            && self.orientation.abs_diff_eq(&other.orientation, epsilon)
+-            && self.timestamp == other.timestamp
+-            && self.frame == other.frame
+-    }
+-}
+-
+-impl<T> RelativeEq for Point<T>
+-where
+-    T: TimePoint,
+-{
+-    fn default_max_relative() -> Self::Epsilon {
+-        f64::EPSILON
+-    }
+-
+-    /// Compares position and orientation with relative tolerance; frame and
+-    /// timestamp must match exactly.
+-    fn relative_eq(
+-        &self,
+-        other: &Self,
+-        epsilon: Self::Epsilon,
+-        max_relative: Self::Epsilon,
+-    ) -> bool {
+-        self.position
+-            .relative_eq(&other.position, epsilon, max_relative)
+-            && self
+-                .orientation
+-                .relative_eq(&other.orientation, epsilon, max_relative)
+-            && self.timestamp == other.timestamp
+-            && self.frame == other.frame
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests;
+diff -ru a/src/geometry/transform/error.rs b/src/geometry/transform/error.rs
+--- a/src/geometry/transform/error.rs
++++ b/src/geometry/transform/error.rs
+@@ -4,8 +4,7 @@
+ 
+ use crate::errors::{QuaternionError, TimeError};
+ 
+-/// Error type for building, composing, interpolating, and applying
+-/// transforms.
++/// Error type for building, composing, and inverting transforms.
+ ///
+ /// Pure geometry and time: a failure of a [`Registry`](crate::Registry) call
+ /// is a [`RegistryError`](crate::errors::RegistryError) instead, which flattens
+@@ -22,9 +21,7 @@
+     #[error("transform contains non-finite values")]
+     NonFiniteValues,
+ 
+-    /// Two timestamps that must agree do not (given in seconds): composed
+-    /// transforms with differing timestamps, swapped interpolation endpoints,
+-    /// or applying a transform to a value from another time.
++    /// Composed transforms carry differing timestamps (given in seconds).
+     #[error("transform timestamps do not match (lhs: {lhs}, rhs: {rhs})")]
+     TimestampMismatch {
+         /// The left-hand timestamp, in seconds.
+@@ -33,36 +30,7 @@
+         rhs: f64,
+     },
+ 
+-    /// A static transform was used as an interpolation endpoint. A static
+-    /// transform is valid for all time — there is nothing to interpolate.
+-    #[error("static transforms cannot be interpolation endpoints")]
+-    StaticInterpolation,
+-
+-    /// The requested timestamp lies outside the covered time range (all
+-    /// values in seconds). There is no extrapolation. `requested > end`
+-    /// means the request is merely too new (latency); `requested < start`
+-    /// means the data is stale or missing.
+-    #[error("requested timestamp {requested} is outside the covered range [{start}, {end}]")]
+-    TimestampOutOfRange {
+-        /// The requested timestamp, in seconds.
+-        requested: f64,
+-        /// The start of the covered range, in seconds.
+-        start: f64,
+-        /// The end of the covered range, in seconds.
+-        end: f64,
+-    },
+-
+-    /// Both transforms describe the same child frame.
+-    #[error("cannot multiply transforms that both describe child frame {frame}")]
+-    SameFrameMultiplication {
+-        /// The child frame described by both operands.
+-        frame: String,
+-    },
+-
+-    /// The frames do not match the pairing the operation requires: a
+-    /// composition whose left-hand child is not the right-hand parent,
+-    /// interpolation endpoints describing different frame pairs, or a value
+-    /// whose frame is not the transform's child.
++    /// A composition whose left-hand child is not the right-hand parent.
+     #[error("frames do not have a parent-child relationship (expected {expected}, found {found})")]
+     IncompatibleFrames {
+         /// The frame (or frame pair) the operation required.
+diff -ru a/src/geometry/transform/mod.rs b/src/geometry/transform/mod.rs
+--- a/src/geometry/transform/mod.rs
++++ b/src/geometry/transform/mod.rs
+@@ -1,4 +1,4 @@
+-//! Rigid-body transforms between coordinate frames, with composition, inversion, and interpolation.
++//! Rigid-body transforms between coordinate frames, with composition and inversion.
+ 
+ use crate::{
+     geometry::{Quaternion, Vector3},
+@@ -9,11 +9,9 @@
+ use core::ops::Mul;
+ pub use error::TransformError;
+ pub(crate) use isometry::Isometry;
+-pub use traits::{Localized, Transformable};
+ 
+ mod error;
+ mod isometry;
+-mod traits;
+ 
+ /// The accepted deviation of a rotation's norm from 1, applied by
+ /// [`Transform::validate`].
+@@ -36,9 +34,9 @@
+ /// outside [`UNIT_NORM_TOLERANCE`]. Fields are private; use the accessors to
+ /// read components and a constructor to change them.
+ ///
+-/// Derived transforms (composition, interpolation, inversion, and registry
+-/// lookups) are not re-validated. Rotation norms can drift beyond the tolerance
+-/// and translations can overflow. Use [`validate`](Self::validate) when needed;
++/// Derived transforms (composition, inversion, and registry lookups) are not
++/// re-validated. Rotation norms can drift beyond the tolerance and
++/// translations can overflow. Use [`validate`](Self::validate) when needed;
+ /// [`Registry::add_transform`](crate::Registry::add_transform) always validates
+ /// before storage.
+ ///
+@@ -200,7 +198,7 @@
+     /// Assembles components without validation.
+     ///
+     /// For the registry's identity and for values derived from already
+-    /// validated transforms — interpolation, inversion, composition — where
++    /// validated transforms — inversion, composition — where
+     /// re-validating would reject legitimate norm drift. Every caller must
+     /// be able to name the validated transform its inputs came from.
+     pub(crate) fn unvalidated(
+@@ -267,10 +265,8 @@
+     /// A valid transform has finite translation and rotation components and a
+     /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of `1.0`. The
+     /// constructors run this, so a transform built through them passes;
+-    /// results of `*`, [`inverse`](Self::inverse) and
+-    /// [`interpolate`](Self::interpolate) are not re-checked, and neither is
+-    /// a transform a third-party [`Transformable`] implementation receives
+-    /// from elsewhere — call this when that provenance matters.
++    /// results of `*` and [`inverse`](Self::inverse) are not re-checked — call
++    /// this when that provenance matters.
+     ///
+     /// # Errors
+     ///
+@@ -321,98 +317,6 @@
+         Ok(())
+     }
+ 
+-    /// Interpolates between two transforms at a given timestamp.
+-    ///
+-    /// Returns a new `Transform` that is the interpolation between `from` and `to`
+-    /// at the specified `timestamp`. If both endpoints share a timestamp, a
+-    /// clone of `from` is returned.
+-    ///
+-    /// # Errors
+-    ///
+-    /// Returns `TransformError::StaticInterpolation` if either endpoint is
+-    /// `Stamp::Static` — a static transform is valid for all time, so it is
+-    /// never an interpolation endpoint.
+-    ///
+-    /// Returns `TransformError::TimestampOutOfRange` if the timestamp is
+-    /// outside the range of `from` and `to` (there is no extrapolation),
+-    /// `TransformError::TimestampMismatch` if the endpoints are swapped, and
+-    /// `TransformError::IncompatibleFrames` if the frames do not match.
+-    ///
+-    /// Returns `TransformError::TimestampError` if a time span needed for
+-    /// the interpolation — between the endpoints, or from `from` to the
+-    /// requested timestamp — is too large to represent as a `Duration`.
+-    ///
+-    /// # Examples
+-    ///
+-    /// ```
+-    /// use transforms::{
+-    ///     geometry::{Quaternion, Transform, Vector3},
+-    ///     time::{Stamp, Timestamp},
+-    /// };
+-    ///
+-    /// let from: Transform = Transform::new(
+-    ///     "a",
+-    ///     "b",
+-    ///     Vector3::zero(),
+-    ///     Quaternion::identity(),
+-    ///     Stamp::At(Timestamp::zero()),
+-    /// )
+-    /// .unwrap();
+-    /// let to: Transform = Transform::new(
+-    ///     "a",
+-    ///     "b",
+-    ///     Vector3::new(2.0, 2.0, 2.0),
+-    ///     Quaternion::identity(),
+-    ///     Stamp::At(Timestamp::from_nanos(2_000_000_000)),
+-    /// )
+-    /// .unwrap();
+-    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+-    ///
+-    /// let interpolated = Transform::interpolate(&from, &to, timestamp).unwrap();
+-    ///
+-    /// assert_eq!(interpolated.translation(), Vector3::new(1.0, 1.0, 1.0));
+-    /// assert_eq!(interpolated.timestamp(), Stamp::At(timestamp));
+-    /// ```
+-    pub fn interpolate(
+-        from: &Transform<T>,
+-        to: &Transform<T>,
+-        timestamp: T,
+-    ) -> Result<Transform<T>, TransformError> {
+-        let (Stamp::At(from_time), Stamp::At(to_time)) = (from.timestamp, to.timestamp) else {
+-            return Err(TransformError::StaticInterpolation);
+-        };
+-        if from_time > to_time {
+-            return Err(TransformError::TimestampMismatch {
+-                lhs: from_time.as_seconds_lossy(),
+-                rhs: to_time.as_seconds_lossy(),
+-            });
+-        }
+-        if timestamp < from_time || timestamp > to_time {
+-            return Err(TransformError::TimestampOutOfRange {
+-                requested: timestamp.as_seconds_lossy(),
+-                start: from_time.as_seconds_lossy(),
+-                end: to_time.as_seconds_lossy(),
+-            });
+-        }
+-        if from.child != to.child || from.parent != to.parent {
+-            return Err(TransformError::IncompatibleFrames {
+-                expected: alloc::format!("{} -> {}", from.parent, from.child),
+-                found: alloc::format!("{} -> {}", to.parent, to.child),
+-            });
+-        }
+-
+-        let isometry = from
+-            .isometry()
+-            .interpolate(to.isometry(), from_time, to_time, timestamp)?;
+-        Ok(Self::unvalidated(
+-            from.parent.clone(),
+-            from.child.clone(),
+-            isometry.translation,
+-            isometry.rotation,
+-            Stamp::At(timestamp),
+-        ))
+-    }
+-
+     /// Computes the inverse of the transform: the same relationship read the
+     /// other way round, with the frames swapped.
+     ///
+@@ -473,24 +377,16 @@
+ 
+ /// The frame rule of composition, shared by `Transform`'s `*` and the
+ /// registry's lookup: `t_a_b * t_b_c` composes only when the left-hand child
+-/// is the right-hand parent, and never onto the right-hand child itself.
++/// is the right-hand parent.
+ ///
+ /// # Errors
+ ///
+-/// Returns [`TransformError::SameFrameMultiplication`] when the child frames
+-/// match, and [`TransformError::IncompatibleFrames`] unless
++/// Returns [`TransformError::IncompatibleFrames`] unless
+ /// `lhs_child == rhs_parent`.
+ pub(crate) fn ensure_composable(
+     lhs_child: &str,
+     rhs_parent: &str,
+-    rhs_child: &str,
+ ) -> Result<(), TransformError> {
+-    if lhs_child == rhs_child {
+-        return Err(TransformError::SameFrameMultiplication {
+-            frame: rhs_child.into(),
+-        });
+-    }
+-
+     if lhs_child != rhs_parent {
+         return Err(TransformError::IncompatibleFrames {
+             expected: lhs_child.into(),
+@@ -514,10 +410,9 @@
+     /// # Errors
+     ///
+     /// Returns [`TransformError::TimestampMismatch`] for unequal timestamps,
+-    /// unless either operand is static; [`TransformError::IncompatibleFrames`]
+-    /// unless `self.child() == rhs.parent()`; and
+-    /// [`TransformError::SameFrameMultiplication`] when the child frames match.
+-    /// The last restriction also rejects a right-hand identity transform.
++    /// unless either operand is static, and
++    /// [`TransformError::IncompatibleFrames`] unless
++    /// `self.child() == rhs.parent()`.
+     #[inline]
+     fn mul(
+         self,
+@@ -537,7 +432,7 @@
+             }
+         };
+ 
+-        ensure_composable(&self.child, &rhs.parent, &rhs.child)?;
++        ensure_composable(&self.child, &rhs.parent)?;
+ 
+         let isometry = self.isometry() * rhs.isometry();
+         Ok(Self::unvalidated(
+diff -ru a/src/geometry/transform/traits.rs b/src/geometry/transform/traits.rs
+--- a/src/geometry/transform/traits.rs
++++ b/src/geometry/transform/traits.rs
+@@ -1,114 +0,0 @@
+-//! Traits for locating values in a frame and applying transforms to them.
+-
+-use crate::{
+-    geometry::transform::{Transform, TransformError},
+-    time::{TimePoint, Timestamp},
+-};
+-
+-/// A trait for types that are localized in a specific coordinate frame at a specific time.
+-///
+-/// This trait provides frame and timestamp introspection, enabling automatic transform
+-/// lookup via [`Registry::get_transform_for`](crate::Registry::get_transform_for).
+-///
+-/// Separate from [`Transformable`] so that types without frame/timestamp metadata
+-/// can still implement `Transformable` independently.
+-///
+-/// # Examples
+-///
+-/// ```
+-/// use transforms::{
+-///     Localized,
+-///     geometry::{Point, Quaternion, Vector3},
+-///     time::Timestamp,
+-/// };
+-///
+-/// let point: Point = Point::new(
+-///     Vector3::new(1.0, 0.0, 0.0),
+-///     Quaternion::identity(),
+-///     Timestamp::zero(),
+-///     "camera",
+-/// );
+-///
+-/// assert_eq!(point.frame(), "camera");
+-/// ```
+-pub trait Localized<T = Timestamp>
+-where
+-    T: TimePoint,
+-{
+-    /// Returns the object's current frame identifier.
+-    fn frame(&self) -> &str;
+-
+-    /// Returns the object's timestamp.
+-    fn timestamp(&self) -> T;
+-}
+-
+-/// Applies a rigid-body transform to a value in place.
+-///
+-/// # Contract
+-///
+-/// For a transform `tf`, positions become
+-/// `tf.rotation().rotate_vector(position) + tf.translation()` and orientations
+-/// become `tf.rotation() * orientation`. Free vectors take only the rotation.
+-/// When present, the value's frame becomes `tf.parent()` and its timestamp is
+-/// preserved. [`Point`](crate::geometry::Point) is the reference implementation.
+-///
+-/// # Preconditions
+-///
+-/// The caller supplies numerically valid geometry. Implementations check frames
+-/// and timestamps, without re-validating numbers. Constructors validate
+-/// transforms; derived results may drift or overflow. Call
+-/// [`Transform::validate`] before applying a derived result when needed.
+-///
+-/// Cross-time results from
+-/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) must be
+-/// applied explicitly when their source and target times differ; they retain
+-/// only the target stamp.
+-///
+-/// # Examples
+-///
+-/// ```
+-/// use transforms::{
+-///     geometry::{Point, Quaternion, Transform, Transformable, Vector3},
+-///     time::{Stamp, Timestamp},
+-/// };
+-///
+-/// let mut point: Point = Point::new(
+-///     Vector3::new(1.0, 0.0, 0.0),
+-///     Quaternion::identity(),
+-///     Timestamp::zero(),
+-///     "camera",
+-/// );
+-///
+-/// let transform: Transform = Transform::new(
+-///     "base",
+-///     "camera",
+-///     Vector3::new(0.0, 1.0, 0.0),
+-///     Quaternion::identity(),
+-///     Stamp::At(point.timestamp),
+-/// )
+-/// .unwrap();
+-///
+-/// // Transform the point from camera frame to base frame
+-/// point.transform(&transform).unwrap();
+-/// assert_eq!(point.frame, "base");
+-/// assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
+-/// ```
+-pub trait Transformable<T = Timestamp>
+-where
+-    T: TimePoint,
+-{
+-    /// Applies a transform to this object, modifying it in place.
+-    ///
+-    /// See the trait-level contract for position, orientation, and metadata updates.
+-    ///
+-    /// # Errors
+-    ///
+-    /// This method returns a `TransformError` if:
+-    /// - The frames of the object and the transform are incompatible.
+-    /// - The timestamps of the object and the transform do not match; static
+-    ///   transforms (`Stamp::Static`) are exempt, being valid for all time.
+-    fn transform(
+-        &mut self,
+-        transform: &Transform<T>,
+-    ) -> Result<(), TransformError>;
+-}
+diff -ru a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -18,9 +18,9 @@
+ //! [`Registry::add_transforms`] inserts a batch all-or-nothing.
+ //!
+ //! Constructors and deserialization validate transforms. Derived results can
+-//! accumulate rotation drift or overflow; see [`Transform::validate`] and
+-//! [`Transformable`] before applying or publishing them. Cross-time results
+-//! have additional restrictions documented on [`Registry::get_transform_at`].
++//! accumulate rotation drift or overflow; see [`Transform::validate`] before
++//! applying or publishing them. Cross-time results have additional
++//! restrictions documented on [`Registry::get_transform_at`].
+ //!
+ //! # Features
+ //!
+@@ -115,7 +115,7 @@
+ pub mod geometry;
+ pub mod time;
+ pub use core::Registry;
+-pub use geometry::{Localized, Transform, Transformable};
++pub use geometry::Transform;
+ 
+ // Compile the README examples in every feature combination.
+ #[cfg(doctest)]
+diff -ru a/src/time/timestamp/mod.rs b/src/time/timestamp/mod.rs
+--- a/src/time/timestamp/mod.rs
++++ b/src/time/timestamp/mod.rs
+@@ -129,7 +129,7 @@
+     /// use transforms::time::Timestamp;
+     ///
+     /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+-    /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
++    /// assert_eq!(timestamp.as_nanos(), 1_000_000_000);
+     /// ```
+     #[must_use]
+     pub const fn from_nanos(nanos: u64) -> Self {
+@@ -151,45 +151,6 @@
+         self.t
+     }
+ 
+-    /// Converts the `Timestamp` to seconds as a floating-point number.
+-    ///
+-    /// `f64` has a 53-bit mantissa, so timestamps up to 2^53 nanoseconds
+-    /// (about 104 days) convert with sub-nanosecond accuracy; beyond that the
+-    /// conversion silently loses precision, which this method refuses to do.
+-    /// Use [`Timestamp::as_seconds_lossy`] (or
+-    /// [`TimePoint::as_seconds_lossy`]) for a best-effort conversion of
+-    /// larger values, such as wall-clock times.
+-    ///
+-    /// # Errors
+-    ///
+-    /// Returns `TimeError::AccuracyLoss` if the timestamp exceeds 2^53
+-    /// nanoseconds.
+-    ///
+-    /// # Examples
+-    ///
+-    /// ```
+-    /// use transforms::time::Timestamp;
+-    ///
+-    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
+-    /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
+-    ///
+-    /// // Beyond 2^53 ns, sub-nanosecond accuracy is unrepresentable.
+-    /// let timestamp = Timestamp::from_nanos(1_000_000_000_000_000_001);
+-    /// assert!(timestamp.as_seconds().is_err());
+-    /// ```
+-    pub fn as_seconds(&self) -> Result<f64, TimeError> {
+-        const NANOSECONDS_PER_SECOND: f64 = 1_000_000_000.0;
+-        /// 2^53: the largest range in which `f64` represents every integer
+-        /// nanosecond count exactly.
+-        const MAX_ACCURATE_NANOS: u64 = 1 << 53;
+-
+-        if self.t > MAX_ACCURATE_NANOS {
+-            return Err(TimeError::AccuracyLoss);
+-        }
+-        #[allow(clippy::cast_precision_loss)]
+-        Ok(self.t as f64 / NANOSECONDS_PER_SECOND)
+-    }
+-
+     /// Converts the `Timestamp` to seconds as a floating-point number,
+     /// accepting precision loss beyond 2^53 nanoseconds.
+     ///
