@@ -1,0 +1,51 @@
+diff --git a/src/core/buffer/mod.rs b/src/core/buffer/mod.rs
+index ba723c9..076f84e 100644
+--- a/src/core/buffer/mod.rs
++++ b/src/core/buffer/mod.rs
+@@ -471,10 +471,11 @@ where
+         (before, after)
+     }
+ 
+-    /// Removes dynamic transforms older than the given timestamp.
++    /// Removes dynamic transforms at or older than the given timestamp.
+     ///
+     /// This function removes all transforms from the buffer that have a
+-    /// timestamp lower than the given timestamp. Static buffers are left
++    /// timestamp lower than or equal to the given timestamp: the sample at the
++    /// cutoff is removed, so the type's maximum drains everything. Static buffers are left
+     /// untouched: a static transform is valid for all time, so cleaning it up
+     /// by timestamp would silently destroy it.
+     pub fn remove_before(
+@@ -487,11 +488,14 @@ where
+             ..
+         } = &mut self.kind
+         {
+-            // Everything at or after the cutoff survives. split_off finds
+-            // the boundary in O(log n); freeing the evicted prefix is
+-            // O(evicted) on top — the same O(log n + evicted) as expiry,
+-            // each entry freed exactly once.
+-            let kept = data.split_off(&timestamp);
++            // Everything after the cutoff survives. split_off finds the
++            // boundary in O(log n) and keeps the sample at the cutoff, which
++            // is then removed by key — no "cutoff + 1", which a generic time
++            // type cannot form and the maximum does not have. Freeing the
++            // evicted prefix is O(evicted) on top — the same
++            // O(log n + evicted) as expiry, each entry freed exactly once.
++            let mut kept = data.split_off(&timestamp);
++            kept.remove(&timestamp);
+             *data = kept;
+             // The expiry reference must not outlive the samples it was
+             // derived from: a stale value would make `max_age` eviction
+diff --git a/src/core/registry/mod.rs b/src/core/registry/mod.rs
+index 9846ae7..657bb47 100644
+--- a/src/core/registry/mod.rs
++++ b/src/core/registry/mod.rs
+@@ -574,7 +574,7 @@ where
+         }
+     }
+ 
+-    /// Removes dynamic samples strictly older than `timestamp`.
++    /// Removes dynamic samples stamped at or before `timestamp`.
+     ///
+     /// Static transforms and frame entries remain. A drained frame keeps its parent
+     /// and kind, and lookups crossing its edge report [`RegistryError::NotFoundAt`]

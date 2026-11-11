@@ -2,7 +2,10 @@
 
 Date: 2026-11-10. Amended 2026-11-11: [Examples in 3.0](#examples-in-30),
 one condition of item 7, one bullet under "Ships in 2.x", decisions 13 to
-15 and two Prototypes rows. The PDF and `report-source.html` carry the
+15 and two Prototypes rows; then
+[item 12](#12-remove_transforms_before-removes-the-sample-at-the-cutoff),
+which the maintainer decided that day, with its effect on item 10's
+recovery text. The PDF and `report-source.html` carry the
 amendment in summary form. Baseline: master `7cc2a65` (released v2.3.0 plus docs-only
 commits). Nothing here is implemented. Everything is a recommendation,
 except [item 10](#10-an-insert-the-window-discards-is-an-error), whose
@@ -29,7 +32,9 @@ dependent study in [`analysis/dependents/`](../dependents/README.md) and the
   lookup results, and makes one existing property test fail in about one
   run in ten.
 - **One item is new:** delete `TransformError::SameFrameMultiplication`
-  (item 11). It is safe only together with item 1.
+  (item 11). It is safe only together with item 1. A twelfth item, the
+  inclusive cleanup cutoff, was decided by the maintainer after the
+  review (2026-11-11).
 - **Item 10 is settled and has an implementation trap.** All ten round 2
   reviewers found it independently: the obvious implementation breaks the
   atomicity of `add_transforms`. Round 1's prototype did not have the bug.
@@ -46,7 +51,8 @@ dependent study in [`analysis/dependents/`](../dependents/README.md) and the
 - **Known compile cost downstream:** one return type, one re-export and
   three test lines in roslibrust_transforms; one match arm in transforms_io
   if the optional rename is taken; nothing in dimos, pelorus or whirl_tf.
-  The real cost is behavioural and is almost all item 10.
+  The real cost is behavioural and is almost all item 10; item 12 adds
+  one more silent row, which no studied dependent reaches.
 - **Four questions are open and are the maintainer's** (three more, on
   the examples, were added on 2026-11-11 as decisions 13 to 15): the Point family's
   removal path, frame fields on insert errors, where rotations are
@@ -90,6 +96,7 @@ affected.
 | 9 | Delete `Timestamp::as_seconds` | loud | Kept |
 | 10 | Expired insert returns `SampleExpired` | silent | Settled; contract added |
 | 11 | Delete `SameFrameMultiplication` | silent | **New** |
+| 12 | `remove_transforms_before` removes the sample at the cutoff | silent | **New**, decided 2026-11-11 after the review |
 
 ### 1. A cross-time result type
 
@@ -479,7 +486,7 @@ a healthy frame. The error does not return the transform.
 | Cause | Route | Notes |
 |---|---|---|
 | One frame's newest stamp is wrong | `remove_frame(frame)`, then re-add a sample the caller kept | Works for every time type and every stamp. Releases the parent and kind pins until the re-add; the rejected sample already has both. Lookups through the removed edge report `Disconnected` or `UnknownFrame` until then; the subtree below stays intact |
-| The clock stepped back (bag loop, sim restart) | `remove_transforms_before(c)` with `c` strictly later than every stored dynamic sample | Drains every dynamic frame, keeps statics and pins. `c` equal to the newest stamp keeps the sample and still empties healthy frames. No such `c` exists at the type's maximum, and `TimePoint` cannot derive one from `newest`; an adapter whose stamps come from ROS `i32` seconds always has one |
+| The clock stepped back (bag loop, sim restart) | `remove_transforms_before(c)` with `c` at or after every stored dynamic sample: the newest stamp the caller tracked | Drains every dynamic frame, keeps statics and pins. The cutoff removes the sample at `c` (item 12), so this works for every time type and at the type's maximum. With `c` taken from a `SampleExpired` payload it drains that frame and removes everything at or before `c` in the others; their later samples stay. In 2.x the cutoff is strict and `c` must be later than every sample |
 | Everything | Replace the `Registry`, or loop `remove_frame` over child names the caller tracked | The registry cannot enumerate frames. A new registry also drops statics. whirl_tf already does the loop |
 
 Two `reparent_frame` calls through a throwaway parent also clear one
@@ -563,6 +570,72 @@ New in round 2.
   edges.
 - No dependent multiplies transforms or names the variant.
 
+### 12. `remove_transforms_before` removes the sample at the cutoff
+
+Decided by the maintainer on 2026-11-11, after the review: the cutoff is
+inclusive, the name stays, and the change is a MIGRATION note. This item
+was not put to the lens or stress agents; one prototype and one text
+inventory back it.
+
+- **Change.** `remove_transforms_before(t)` removes every dynamic sample
+  stamped at or before `t`. Today it removes those strictly before.
+- **What it closes.**
+  - A sample at the time type's maximum can never be removed by this
+    call today. Under `with_max_age` it then anchors expiry, and every
+    later sample is accepted and evicted on arrival. With the inclusive
+    cutoff, three honest samples inserted after a cleanup at `u64::MAX`
+    are stored and served.
+  - `remove_transforms_before(newest)` keeps the newest sample today, so
+    a full clear needs `newest + 1 ns`. That instant does not exist at
+    the maximum and cannot be formed for a generic `TimePoint`.
+  - The dimos report named this hole (`../dependents/dimos.md:561-564`)
+    and counted it toward an on-request clear call (`:568-586`). That
+    argument is gone; D5 (no `clear_history`) is not reopened. That
+    report calls the hole loud ("the restarted stream is rejected"); it
+    is not: the inserts return `Ok` and are evicted, and lookups report
+    `NotFoundAt`.
+- **Implementation.** One added line in `Buffer::remove_before` (and a
+  `mut`): `split_off(&cutoff)` keeps keys at or after the cutoff, and
+  `kept.remove(&cutoff)` then removes the one key equal to it. It needs only `Ord`, so no successor
+  operation and no new bound.
+- **Cost: a silent change.** Code compiles unchanged and removes one more
+  sample. A caller that passes a stamp it means to keep loses it:
+  - with samples at 1, 2 and 4 s and a cutoff of 2 s, lookups at 2 s and
+    3 s turn from `Ok` into `NotFoundAt`;
+  - a cutoff at a frame's only sample drains the frame.
+
+  Three in-repo examples pass a stamp that a frame stores as its
+  newest sample. `no_std_minimal.rs:58` and `no_std_advanced.rs:134`
+  pass the newest stamp in the registry and would drain every dynamic
+  frame. `no_std_full.rs:110` passes 2 s, the only sample of one frame,
+  and would drain that frame; another frame's sample at 3 s survives.
+  None shows a visible sign. No studied
+  dependent calls the method.
+- **Two boundaries, opposite on purpose.** Expiry keeps the sample
+  exactly on its boundary (D1, unchanged). Cleanup removes the sample
+  exactly at its cutoff. Expiry measures back from the newest sample and
+  must keep it; cleanup must be able to remove it. The public rustdoc and
+  the AGENTS.md bullet say "kept" and "removed" and avoid "inclusive"
+  for both. Only the method's first sentence and the AGENTS.md bullet are
+  drafted; a sentence contrasting the cutoff with expiry is still to
+  write. `remove_transforms_before(newest − max_age)` is therefore not a
+  replay of expiry: it removes one sample more.
+- **The name.** "Before" now means "at or before". A rename would make
+  the break loud; the maintainer chose the MIGRATION note instead. The
+  rustdoc's first sentence carries the boundary.
+- **Tests.** Two existing tests fail, both pins of the strict cutoff:
+  `reparent_frame_then_cleanup_keeps_the_new_pin_and_kind`
+  (`src/core/registry/tests.rs:3391`) and the cleanup reference model of
+  the property
+  `dynamic_history_matches_a_reference_map_after_upserts_expiry_and_cleanup`
+  (`tests/properties.rs:729`, `>=` becomes `>`). All nine
+  `v2_compatibility` tests and all 36 doctests pass. No existing test
+  pins the new boundary; three are needed: a cutoff equal to a sample
+  removes it, a sample at the maximum is removable, and a stream
+  restarted after that is stored under `max_age`.
+- **D1 to D6.** None mentions the manual cutoff, and none is
+  contradicted.
+
 ### What 3.0 leaves alone
 
 `Stamp` and its serde tags, the flat `RegistryError`, the strict tree and
@@ -612,14 +685,16 @@ None of these needs a break.
 
 - The 2.4 proposal: reject empty frame names (Part D) and the
   documentation corrections (Part C).
-- Reword 2.4 Part C item 5. It prescribes a cutoff "past every stored
+- Reword 2.4 Part C item 5 (2.x keeps the strict cutoff; item 12 changes
+  it in 3.0 only). It prescribes a cutoff "past every stored
   sample", which has the same holes as round 1's recovery text, and it
   omits the tail of a jump larger than `max_age` (906 inserts all `Ok`, 6
   stored). Corrected sentences are in
-  [`sample-expired-contract.md`](sample-expired-contract.md).
-- The examples work (2.4 Part E), as separate documentation changes and
-  not a release obligation: examples that assert, then optionally four
-  task-named files and an `ingest` example. `Point` stays in the 2.x
+  [`sample-expired-contract.md`](sample-expired-contract.md); the 2.4
+  proposal carries them since its revision 7.
+- The examples work (2.4 Part E), which the maintainer decided on
+  2026-11-11 is part of 2.4: examples that assert, four task-named
+  files, an `ingest` example, and `log` and `env_logger` dropped. `Point` stays in the 2.x
   examples until decision 3 is taken.
 - The removal notice for the Point family (item 7).
 - The `TimePoint` diagnostic attribute (stable since Rust 1.78 from
@@ -652,10 +727,10 @@ four task-named examples (`basic`, `shared_latest`, `cross_time`,
 section is what those four look like on the proposed 3.0, written and run
 against the stacked prototypes.
 
-**Recommendation.** Restructure in 2.x, then port in 3.0. How much of
-Part E ships in 2.x is the 2.4 proposal's D9 to D13: asserts only (E1),
-also the four task-named files (E2), also `ingest` (E3). None of it is a
-2.4 release obligation.
+**Recommendation.** Restructure in 2.x, then port in 3.0. The maintainer
+decided on 2026-11-11 that all of Part E is part of 2.4 (the 2.4
+proposal's D9, D10, D12 and D13): asserts (E1), the four task-named
+files (E2) and `ingest` (E3).
 
 - **For.** The gate hole (no example can fail on a wrong value) closes
   now, and the dependents are on 2.x. That argument supports E1 alone;
@@ -702,8 +777,8 @@ also the four task-named files (E2), also `ingest` (E3). None of it is a
   - `newest` is ahead of the clock: that stored stamp is the bad one.
     `remove_frame`, rebuild the sample from the message and insert again.
   A clock that stepped back is detected by the bridge, not by the error,
-  as in 2.x, and cleared with `remove_transforms_before` at one
-  nanosecond past the newest stored stamp. The two prototypes detect it
+  as in 2.x, and cleared with `remove_transforms_before` at the newest
+  stored stamp (item 12; the 2.4 form passes one nanosecond past it). The two prototypes detect it
   differently, and should be made the same: the 3.0 one compares a clock
   reading carried with each message, the 2.4 one compares each stamp with
   the newest stored one against a threshold. A step smaller than the window raises no
@@ -746,8 +821,8 @@ also the four task-named files (E2), also `ingest` (E3). None of it is a
   every answer; 10 of 10 runs passed). The 2.4 form uses tokio. The two
   should not differ; the choice is 2.4's D13. With threads, `tokio`
   leaves the dev-dependencies.
-- **Length.** The 3.0 set is 841 lines against 576 for 2.4 and 657 today
-  (830 with the 2.4 `shared_latest`). `ingest.rs` is 482 of them. It
+- **Length.** The 3.0 set is 838 lines against 576 for 2.4 and 657 today
+  (829 with the 2.4 `shared_latest`). `ingest.rs` is 479 of them. It
   should be cut before it ships; the fixture and the counters are the
   bulk.
 
@@ -790,7 +865,10 @@ together for the first time
 **Verified.** The stacked library builds in all four feature
 combinations and for `thumbv7em-none-eabihf`. The four examples build,
 pass clippy with `-D warnings` and run with identical output in all four
-combinations. **Not verified:** the gate (the existing tests do not
+combinations. `ingest.rs` was changed afterwards for item 12 and needs
+`inclusive-cutoff.diff` on top of the stack; that combination was re-run
+with the same result. On the stack alone, or on 2.x, its cleanup keeps
+the newest sample and the restarted stream is refused. **Not verified:** the gate (the existing tests do not
 compile on the stack, as expected of library-only diffs), `cargo test`,
 `cargo doc`, the README doctest, stable clippy, MSRV 1.85, `thumbv6m`,
 `thumbv8m.main` and RISC-V. Items 2, 3, 4, 8, 9 and 11 are in the stack
@@ -809,6 +887,10 @@ but no example exercises them.
   - lookups: item 2 (off-band inputs, up to 2e-6 relative per hop; in-band
     inputs byte-identical), item 4 (`Ok(non-finite)` to `Err`), item 5
     (two error classes), item 1 (payload of cross-time errors);
+  - cleanup: `remove_transforms_before(t)` also removes a sample stamped
+    exactly `t`, so a later lookup at `t` on that frame changes from `Ok`
+    to `NotFoundAt`, and a stream restarted after a full cleanup is
+    stored where 2.3 evicted it (item 12);
   - inserts: `Ok` to `SampleExpired`; `Err(NonUnitRotation)` to `Ok` for
     products of band inputs; the text of insert errors if frame fields are
     taken.
@@ -821,7 +903,7 @@ but no example exercises them.
   and `Point` payloads stop decoding.
 - **`tests/v2_compatibility.rs`.** Four tests flip (items 1, 2, 5, 11),
   five stay.
-- **Other tests that flip or go.** Item 2: two unit tests. Item 4: one.
+- **Other tests that flip or go.** Item 12: two. Item 2: two unit tests. Item 4: one.
   Item 10: three. Item 11: three more. Items 7-9: 17 tests deleted, 13
   re-pointed. `cargo test --no-default-features` stops at the first
   failing target; acceptance runs need `--no-fail-fast`.
@@ -829,7 +911,7 @@ but no example exercises them.
   (round 1 counted six), plus the `geometry` line in Architecture and the
   constructor list in Style. Non-negotiables and Non-Goals are untouched.
 - **MIGRATION.** One row per item, tagged loud, silent or wire. Silent:
-  items 2, 4, 5, 10, 11. Add per-adapter recovery recipes for item 10 and
+  items 2, 4, 5, 10, 11, 12. Add per-adapter recovery recipes for item 10 and
   "do not rebuild a `Transform` from the cross-time accessors".
 - **2.x after 3.0.** One sentence in `SECURITY.md` on whether a 2.x line
   is maintained; the `semver` CI job assumes a single line.
@@ -852,9 +934,10 @@ but no example exercises them.
 | 10 | Dev-dependency on `transforms` 2.3 for a differential harness? | Maintainer's call; otherwise outside the crate |
 | 11 | The policy sentence from round 1 (what a minor may change) | Still open; unchanged |
 | 12 | Item 10 | Decided 2026-11-10 (D1-D6) |
-| 13 | Examples in 2.x: asserts only (E1), also the four task-named files (E2), also `ingest` (E3), or wait for 3.0? | E1 now; E2 and E3 are 2.4's D10 and D12. Port whatever ships ([Examples in 3.0](#examples-in-30)) |
+| 13 | Examples in 2.x: asserts only (E1), also the four task-named files (E2), also `ingest` (E3), or wait for 3.0? | Decided 2026-11-11: all three in 2.4. Port them in 3.0 ([Examples in 3.0](#examples-in-30)) |
 | 14 | The 3.0 `ingest` example: show the `remove_frame` recovery, or a guard that refuses stamps ahead of the bridge's clock? | No firm recommendation. The recovery is what the contract documents; the guard is simpler where stamps are on the bridge's clock |
 | 15 | Publish "expiry is the last insert check"? The `remove_frame` recovery and the contract draft rely on it; item 10 keeps the order internal | Open. If not published, the example must not state it |
+| 16 | Item 12: inclusive cutoff for `remove_transforms_before`, name kept | Decided 2026-11-11: inclusive, no rename, a silent MIGRATION row |
 
 ## Changes from round 1
 
@@ -872,7 +955,7 @@ but no example exercises them.
 | `SameFrameMultiplication` | No position; assumed the test stays | Delete, with item 1 |
 | Frame fields on insert errors | Not in 3.0 | Open, leaning yes |
 | `interpolate` oracle | In-test reference | Same; and today's oracle is shown blind to arithmetic mutations |
-| Item 10 recovery | "`remove_transforms_before` past the newest sample"; two `reparent_frame` calls | By cause; `remove_frame` first; strict cutoff with its limits; reparent route kept out of docs; guard against mechanical use |
+| Item 10 recovery | "`remove_transforms_before` past the newest sample"; two `reparent_frame` calls | By cause; `remove_frame` first; strict cutoff with its limits, which item 12 then removes for 3.0; reparent route kept out of docs; guard against mechanical use |
 | Item 10 `newest` | "The frame's newest stored instant" | Can be an unstored batch member |
 | Item 10 prototype | With `clear_history`; changes `Buffer::check` | Without; `check_expiry` beside an unchanged `Buffer::check`. Round 1's was correct on atomicity and order |
 | Item 10 cost | 41 ns against 74 ns for a rejected insert | Not reproduced: 63.6 against 64.3 ns |
@@ -950,4 +1033,5 @@ dead doc links). Round 1's are in [`round1/prototypes/`](round1/prototypes/).
 | [`precedence-only.diff`](prototypes/precedence-only.diff) | Item 5 alone | +41/−66 | 1 |
 | [`deletions.diff`](prototypes/deletions.diff) | Items 7, 8, 9 and 11 | +29/−546 | 4 flip (item 11); the rest are deleted with their subjects |
 | [`stacked-library.diff`](prototypes/stacked-library.diff) | The four recommended diffs applied together, hand-merged (added 2026-11-11) | +416/−793 | `cargo test` does not compile |
-| [`examples/`](prototypes/examples/) | The four examples on the stack: `basic`, `shared_latest`, `cross_time`, `ingest` (added 2026-11-11) | 841 | n/a |
+| [`examples/`](prototypes/examples/) | The four examples on the stack plus the item 12 diff: `basic`, `shared_latest`, `cross_time`, `ingest` (added 2026-11-11) | 838 | n/a |
+| [`inclusive-cutoff.diff`](prototypes/inclusive-cutoff.diff) | Item 12. Applies to `7cc2a65` and, with offsets, on the stack (added 2026-11-11) | +12/−8 | 2, pins of the strict cutoff |

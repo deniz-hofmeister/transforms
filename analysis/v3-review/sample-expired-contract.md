@@ -12,7 +12,7 @@ maintainer's decisions D1-D6; this file only words them.
 |---|---|---|---|---|---|---|---|---|
 | A. `remove_frame(frame)`, then the next insert | yes | yes | released; the next insert pins it | released; the next insert decides it | kept (registry-level) | chains through the removed edge fail (`Disconnected`, or `UnknownFrame` if the parent was named only by it) until the insert; the subtree below stays intact | none for the removal; the re-insert needs the sample (the error does not return it) | removal: no (`false` only for a frame with no edge). Re-insert: any first-insert error; `CycleDetected` only under a descendant, never under the old parent |
 | B. two `reparent_frame` calls (throwaway parent, then back) | yes | yes | ends on the second seed's parent | kept | kept | between the calls the subtree hangs under the throwaway parent (`Disconnected` from the old ancestors); none after | two: a throwaway seed of the frame's kind, and the real sample; plus an unused parent name | `ParentUnchanged`, `CycleDetected` (throwaway is a descendant), `StaticDynamicConflict`, validation. Second seed's stamp is unchecked and becomes `newest` |
-| C. `remove_transforms_before(c)`, `c` strictly later than `newest` | no (no later instant derivable from `newest`) | no | kept | kept | kept | every dynamic frame loses every sample older than `c`; statics untouched | none | cannot fail; `c <= newest` silently keeps the sample (and still empties the other frames) |
+| C. `remove_transforms_before(c)`, `c` at or after `newest` (3.0: the cutoff removes the sample at `c`, REPORT item 12) | yes (`c = newest`) | yes | kept | kept | kept | every dynamic frame loses every sample at or before `c`; their later samples and all statics are untouched | none | cannot fail; `c < newest` silently keeps the sample (and still empties the other frames up to `c`) |
 | D. wait (stream reaches `newest − max_age`) | yes | yes | kept | kept | kept | none | none | not a recovery: `SampleExpired` until then, afterwards lookups interpolate between the stream and the sample ahead until the stream passes it by more than max_age |
 | E. a new `Registry` | yes | yes | all released | all released | as constructed | everything is lost, statics included | all | — |
 
@@ -21,11 +21,12 @@ geometry, `newest` unchanged, error persists); `remove_frame` or double `reparen
 own buffer is untouched, error persists); a newer sample (moves `newest` further); `add_transforms` (same rule).
 One `reparent_frame` to a new permanent parent clears the window but is a real move, not a recovery.
 
-Name first: **A, `remove_frame`**. It is the only route that works for every `T` and every stamp, touches one frame,
-needs no fabricated transform or name, and whose own call cannot fail. Its cost (pins released until the next
+Name first: **A, `remove_frame`**. It is the only route named in the rustdoc that touches one frame; like C it works for every `T` and
+every stamp, needs no fabricated transform or name, and its own call cannot fail. Its cost (pins released until the next
 insert) is bounded by the check order: `SampleExpired` is the last check, so the rejected sample already carries the
-frame's parent and kind. Name C second, as the all-frames form (a clock that stepped back affects every frame), with
-its two limits. Leave B out of the rustdoc: it abuses a call documented as "on a decision to re-parent", needs a
+frame's parent and kind. Name C second, as the all-frames form (a clock that stepped back affects every frame). The
+inclusive cutoff of item 12 removed its two limits (no cutoff for a generic `T`, none at the maximum); its
+remaining cost is its reach: with `c = newest` from one frame's error it also empties every other frame up to `c`. Leave B out of the rustdoc: it abuses a call documented as "on a decision to re-parent", needs a
 fabricated transform, and its second seed is an unchecked poisoning route; keep it in the table above only.
 
 ## Text
@@ -68,12 +69,12 @@ fabricated transform, and its second seed is an unchecked poisoning route; keep 
 /// [`UnknownFrame`](Self::UnknownFrame).
 ///
 /// [`Registry::remove_transforms_before`](crate::Registry::remove_transforms_before)
-/// with a cutoff strictly later than `newest` drains the frame and keeps
-/// its parent and kind, and it removes every older dynamic sample of every
-/// other frame as well. A cutoff equal to `newest` keeps that sample and
-/// the error. No later cutoff exists when `newest` is the time type's
-/// maximum, and [`TimePoint`](crate::time::TimePoint) has no operation that
-/// yields one from `newest`.
+/// with `newest` as the cutoff drains the frame and keeps its parent and
+/// kind, for every time type and every timestamp. It also removes every
+/// dynamic sample at or before `newest` from every other frame. When
+/// `newest` came from an earlier member of a rejected batch, the registry
+/// never held it: draining then removes the frame's older samples and
+/// does not make that batch insertable.
 #[error(
     "sample for {frame} at {} is older than the retention window behind {}",
     .stamp.as_seconds_lossy(),
@@ -98,8 +99,8 @@ SampleExpired {
 ///
 /// An insert removes the frame's samples older than its newest timestamp
 /// minus `max_age`. An insert that is itself older than that boundary
-/// stores nothing and fails with [`RegistryError::SampleExpired`]. The
-/// boundary is inclusive: a sample exactly on it is kept, and
+/// stores nothing and fails with [`RegistryError::SampleExpired`]. A
+/// sample exactly on the boundary is kept, and
 /// `Duration::ZERO` keeps only the newest sample and rejects every older
 /// one. Where the subtraction is not representable in the time type,
 /// nothing is removed and nothing is rejected. Wall-clock time is never
@@ -182,17 +183,24 @@ Add after the second paragraph:
   `Buffer::remove_before` under it) never touches static buffers — a static
   transform is valid for all time — and never releases a frame: a drained
   buffer keeps its pinned parent and its static/dynamic kind, so cleanup cannot
-  re-open a frame for re-parenting or a change of kind. A drained buffer
-  has no newest timestamp, but draining one frame's newest sample needs a
-  cutoff strictly later than it, which applies to every frame and does not
-  exist at the time type's maximum.
+  re-open a frame for re-parenting or a change of kind. Cleanup removes
+  every dynamic sample at or before the cutoff: the sample at the cutoff
+  goes too, so a frame's newest timestamp is always removable, in every
+  time type. A strict cutoff left a sample at the type's maximum
+  unremovable, and under `max_age` it then evicted every later sample on
+  arrival. Expiry is the opposite on purpose: it keeps the sample exactly
+  on its boundary. A drained buffer has no newest timestamp; the cutoff
+  applies to every frame.
   `Registry::remove_frame` is the only release on the cleanup path, and the
-  only way to discard one frame's newest timestamp for every `T`;
-  `Registry::reparent_frame` also releases a pin — by replacing the
+  cleanup-path way to discard one frame's newest timestamp alone;
+  `Registry::reparent_frame` also discards it and releases a pin — by replacing the
   buffer wholesale, never by draining it.
 ```
 
-### (f) 2.4 Part C item 5 — corrected sentences (2.x keeps the silent drop)
+### (f) 2.4 Part C item 5 — corrected sentences (2.x keeps the silent drop and the strict cutoff)
+
+These sentences describe 2.x only. In 3.0 the cutoff removes the sample at it (REPORT item 12), and the
+probe record below is of the unmodified crate.
 
 Replace "A smaller jump keeps both runs, and lookups interpolate across them, as every jump does without
 `max_age`. Whoever owns the clock must detect the jump and call `remove_transforms_before` with a cutoff past

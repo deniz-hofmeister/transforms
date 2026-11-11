@@ -148,12 +148,9 @@ impl Bridge {
         let Some(newest) = self.newest_stored.take() else {
             return;
         };
-        // The cutoff must be strictly later than every stored sample: a
-        // cutoff equal to the newest one keeps it, and its frame then
-        // rejects the restarted stream. One nanosecond later always exists
-        // here, because every stamp came from `i32` seconds.
-        let cutoff = (newest + Duration::from_nanos(1)).unwrap();
-        self.registry.remove_transforms_before(cutoff);
+        // The cutoff removes the sample stamped exactly at it, so the
+        // newest stored stamp drains every dynamic frame.
+        self.registry.remove_transforms_before(newest);
         self.counters.clock_resets += 1;
     }
 

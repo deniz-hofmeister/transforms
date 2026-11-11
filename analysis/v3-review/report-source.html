@@ -69,18 +69,18 @@
 <body>
 
 <h1>transforms v3: review and proposal</h1>
-<p class="meta">Round 2 &nbsp;·&nbsp; 2026-11-10, amended 2026-11-11 (section 7 and its decisions) &nbsp;·&nbsp; Baseline: master <code>7cc2a65</code> (v2.3.0 plus docs-only commits) &nbsp;·&nbsp; Nothing is implemented. Recommendations, not decisions, except item 10, whose semantics the maintainer settled in discussion.</p>
+<p class="meta">Round 2 &nbsp;·&nbsp; 2026-11-10, amended 2026-11-11 (section 7 and its decisions; item 12) &nbsp;·&nbsp; Baseline: master <code>7cc2a65</code> (v2.3.0 plus docs-only commits) &nbsp;·&nbsp; Nothing is implemented. Recommendations, not decisions, except item 10, whose semantics the maintainer settled in discussion, and item 12, which the maintainer decided after the review.</p>
 
 <div class="plain">
   <p class="label">In one paragraph</p>
-  <p class="lede">The whole review was repeated from scratch by reviewers who could not see the first round. It reached the same ten changes, added an eleventh, and reversed one recommendation: reading a transform backwards should keep its safety step. The decisions taken in discussion about rejected late samples (item 10) were treated as fixed, and this round worked out exactly how to build and document them. The proposed 3.0 still adds one public type and one error, and removes more than it adds.</p>
+  <p class="lede">The whole review was repeated from scratch by reviewers who could not see the first round. It reached the same ten changes, added an eleventh, and reversed one recommendation: reading a transform backwards should keep its safety step. The decisions taken in discussion about rejected late samples (item 10) were treated as fixed, and this round worked out exactly how to build and document them. The proposed 3.0 still adds one public type and one error, and removes more than it adds. A twelfth change, decided by the maintainer after the review, makes manual cleanup remove the sample stamped exactly at the cutoff.</p>
 </div>
 
 <ul class="toc">
   <li><span class="n">1</span><a href="#bg">Background in one minute</a></li>
   <li><span class="n">2</span><a href="#method">How the review was done</a></li>
   <li><span class="n">3</span><a href="#glance">The proposed 3.0 at a glance</a></li>
-  <li><span class="n">4</span><a href="#items">The eleven changes in detail</a></li>
+  <li><span class="n">4</span><a href="#items">The twelve changes in detail</a></li>
   <li><span class="n">5</span><a href="#notin">Considered and left out</a></li>
   <li><span class="n">6</span><a href="#twox">What can ship in 2.x</a></li>
   <li><span class="n">7</span><a href="#examples">Examples in 3.0</a></li>
@@ -143,13 +143,14 @@
   <tr><td>9</td><td>Delete <code>Timestamp::as_seconds</code></td><td><span class="tag loud">LOUD</span></td><td>Kept</td><td>No user found</td></tr>
   <tr><td>10</td><td>An insert the history window discards returns <code>SampleExpired</code></td><td><span class="tag silent">SILENT</span></td><td>Settled; contract added</td><td>Every adapter that sets <code>max_age</code></td></tr>
   <tr><td>11</td><td>Delete <code>SameFrameMultiplication</code></td><td><span class="tag silent">SILENT</span></td><td><strong>New</strong></td><td>No user multiplies transforms</td></tr>
+  <tr><td>12</td><td><code>remove_transforms_before</code> removes the sample at the cutoff</td><td><span class="tag silent">SILENT</span></td><td><strong>New</strong>, decided after the review</td><td>No studied user calls it; three in-repo examples lose samples</td></tr>
 </table>
 
 <p><strong>Size.</strong> One new public type and one new error variant. The deletions alone take the public surface from 104 named items to 87. The prototypes together are roughly +420/−680 library lines.</p>
 <p><strong>Left alone.</strong> <code>Stamp</code> and its serde tags, the flat <code>RegistryError</code>, the strict tree and <code>reparent_frame</code>, <code>remove_frame</code>, no extrapolation, <code>libm</code> everywhere, <code>BTreeMap</code> history, <code>latest_common_time</code>, <code>Registry::new</code> and <code>with_max_age</code>, the operators, the Non-Goals, MSRV 1.85 and edition 2024. No re-exported type name, module path or constructor name changes.</p>
 
 <!-- ───────────────────────────────────────────────────────────── -->
-<h2 id="items"><span class="n">4</span>The eleven changes in detail</h2>
+<h2 id="items"><span class="n">4</span>The twelve changes in detail</h2>
 
 <!-- 1 -->
 <h3><span class="n">1</span>A separate type for cross-time answers</h3>
@@ -354,7 +355,7 @@ registry.add_transforms([at(100), at(50)])   <span class="c">// Err(SampleExpire
 <table>
   <tr><th style="width:24%">Cause</th><th style="width:31%">Route</th><th>Notes</th></tr>
   <tr><td>One frame's newest stamp is wrong</td><td><code>remove_frame</code>, then re-add a sample the caller kept</td><td>Works for every time type and stamp. Releases the parent and kind pins until the re-add. The subtree below stays intact.</td></tr>
-  <tr><td>The clock stepped back</td><td><code>remove_transforms_before(c)</code>, <code>c</code> strictly later than every dynamic sample</td><td>Drains every dynamic frame, keeps statics and pins. <code>c</code> equal to the newest stamp keeps the sample. No such <code>c</code> at the type's maximum.</td></tr>
+  <tr><td>The clock stepped back</td><td><code>remove_transforms_before(c)</code>, <code>c</code> at or after every dynamic sample: the newest stamp the caller tracked</td><td>Drains every dynamic frame, keeps statics and pins. The cutoff removes the sample at <code>c</code> (item 12), so it works for every time type and at the maximum. In 2.x the cutoff is strict and <code>c</code> must be later than every sample.</td></tr>
   <tr><td>Everything</td><td>A new <code>Registry</code>, or <code>remove_frame</code> over tracked names</td><td>The registry cannot enumerate frames. A new registry also drops statics.</td></tr>
 </table>
 <p>Round 1 also named two <code>reparent_frame</code> calls. That stays out of the docs: it needs a fabricated transform and its second seed is unchecked.</p>
@@ -387,6 +388,27 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 </ul>
 </div>
 
+<!-- 12 -->
+<h3><span class="n">12</span><code>remove_transforms_before</code> removes the sample at the cutoff</h3>
+<div class="plain">
+  <p class="label">In plain terms</p>
+  <p>Cleanup throws away everything older than a given moment. Today a sample stamped exactly at that moment survives. That leaves one sample nobody can clean up: the one at the latest time the clock can express. If a faulty sensor ever writes it, a registry with a history window then discards every honest sample that follows. From 3.0 the sample at the given moment is removed too. The maintainer decided this after the review; it was not put to the reviewers.</p>
+</div>
+<div class="tech">
+<p class="label">Technically</p>
+<pre><code>registry.remove_transforms_before(t);
+<span class="c">// 2.x: removes dynamic samples stamped before t
+// 3.0: removes dynamic samples stamped at or before t</span></code></pre>
+<ul>
+  <li><strong>Closes.</strong> A sample at the type's maximum is removable, so it can no longer anchor expiry for good. <code>remove_transforms_before(newest)</code> drains a frame; no <code>newest + 1 ns</code>, which does not exist at the maximum and cannot be formed for a generic <code>TimePoint</code>.</li>
+  <li><strong>Implementation.</strong> One added line in <code>Buffer::remove_before</code> (and a <code>mut</code>): <code>split_off(&amp;cutoff)</code>, then remove the key equal to the cutoff. Needs only <code>Ord</code>.</li>
+  <li><strong>Silent cost.</strong> Code compiles unchanged and loses one more sample. With samples at 1, 2 and 4 s and a cutoff of 2 s, lookups at 2 s and 3 s turn from <code>Ok</code> into <code>NotFoundAt</code>. Three in-repo examples pass a frame's newest stamp: two would drain their registry, one a single frame.</li>
+  <li><strong>Two boundaries, opposite on purpose.</strong> Expiry keeps the sample on its boundary (D1, unchanged); cleanup removes the sample at its cutoff. The docs say "kept" and "removed", not "inclusive".</li>
+  <li><strong>Name kept.</strong> "Before" now means "at or before". The maintainer chose a MIGRATION note over a rename.</li>
+  <li><strong>Tests.</strong> Two existing tests pin the strict cutoff and fail. All nine <code>v2_compatibility</code> tests and 36 doctests pass. Three new tests are needed. D1–D6 are not contradicted.</li>
+</ul>
+</div>
+
 <!-- ───────────────────────────────────────────────────────────── -->
 <h2 id="notin"><span class="n">5</span>Considered and left out</h2>
 
@@ -408,7 +430,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 <h2 id="twox"><span class="n">6</span>What can ship in 2.x</h2>
 <ul>
   <li>The 2.4 proposal: empty frame names and the documentation corrections. Reword its Part C item 5, whose recovery advice has the same holes as round 1's.</li>
-  <li>The examples work (2.4 Part E), as separate documentation changes and not a release obligation: examples that assert their results, then optionally four task-named files and an <code>ingest</code> example. <code>Point</code> stays in the 2.x examples until decision 3 is taken.</li>
+  <li>The examples work (2.4 Part E), which the maintainer decided on 2026-11-11 is part of 2.4: examples that assert their results, four task-named files and an <code>ingest</code> example. <code>Point</code> stays in the 2.x examples until decision 3 is taken.</li>
   <li>The removal notice for the Point family, and the <code>TimePoint</code> diagnostic attribute.</li>
   <li>Docs: <code>Display</code> of time-carrying errors is lossy; cross-time errors may name the fixed frame; the <code>latest_common_time</code> example panics on an all-static chain; <code>f64</code> runs in software on every gate target by default.</li>
   <li>Two doc recipes adapters get wrong today: a "latest" lookup, and a checked ROS time conversion.</li>
@@ -426,7 +448,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 
 <div class="tech">
 <p class="label">Technically</p>
-<p><strong>Recommendation.</strong> Restructure in 2.x, then port in 3.0. How much ships in 2.x is the 2.4 proposal's D9 to D13: asserts only (E1), also four task-named files (E2), also <code>ingest</code> (E3). None of it is a 2.4 release obligation.</p>
+<p><strong>Recommendation.</strong> Restructure in 2.x, then port in 3.0. The maintainer decided on 2026-11-11 that all of it is part of 2.4: asserts (E1), four task-named files (E2) and <code>ingest</code> (E3).</p>
 <table>
   <tr><th style="width:15%">Example</th><th style="width:37%">2.4 form</th><th style="width:40%">3.0 form</th><th>Item</th></tr>
   <tr><td><code>basic</code></td><td>Applies through <code>Point::transform</code>; the library checks frame and instant</td><td>Applies by hand in a helper that asserts <code>child()</code> and the stamp. The checks are the caller's own</td><td>7</td></tr>
@@ -437,9 +459,9 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 <ul>
   <li><strong><code>basic</code>.</strong> Its helper must mirror the application recipe that item 7 moves to <code>Transform</code>'s rustdoc. <code>deletions.diff</code> deletes the contract's only home and adds it nowhere.</li>
   <li><strong><code>cross_time</code>.</strong> Apply through the accessors; never rebuild a <code>Transform</code> from them. <code>add_transform(x)</code>, <code>x * y</code> and <code>x.inverse()</code> no longer compile (E0308, E0369, E0599).</li>
-  <li><strong><code>ingest</code>.</strong> <code>SampleExpired</code> is not reset detection. A plausible <code>newest</code> means a late sample: drop it. A <code>newest</code> ahead of the bridge's clock is the bad stamp: <code>remove_frame</code>, rebuild the sample, insert again. A clock step is still detected by the bridge and cleared with <code>remove_transforms_before</code> at one nanosecond past the newest stored stamp.</li>
+  <li><strong><code>ingest</code>.</strong> <code>SampleExpired</code> is not reset detection. A plausible <code>newest</code> means a late sample: drop it. A <code>newest</code> ahead of the bridge's clock is the bad stamp: <code>remove_frame</code>, rebuild the sample, insert again. A clock step is still detected by the bridge and cleared with <code>remove_transforms_before</code> at the newest stored stamp (item 12; the 2.4 form passes one nanosecond past it).</li>
   <li><strong>A visible cost of item 10.</strong> The error does not return the sample, so the recovery converts the message twice.</li>
-  <li><strong>Open.</strong> The recovery relies on expiry being the last insert check, which item 10 keeps internal and the contract draft publishes (decision 15). Recovery or a guard on future stamps (decision 14). The 3.0 set is 841 lines against 576 for 2.4 and 657 today; <code>ingest</code> is 482 and should be cut.</li>
+  <li><strong>Open.</strong> The recovery relies on expiry being the last insert check, which item 10 keeps internal and the contract draft publishes (decision 15). Recovery or a guard on future stamps (decision 14). The 3.0 set is 838 lines against 576 for 2.4 and 657 today; <code>ingest</code> is 479 and should be cut.</li>
 </ul>
 <p><strong>What the stack showed.</strong> The four recommended library diffs were applied together for the first time (<code>stacked-library.diff</code>, 14 files, +416/−793).</p>
 <ul>
@@ -447,7 +469,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <li><code>deletions.diff</code> leaves an empty <code>point/mod.rs</code> and an orphaned <code>point/tests.rs</code>. <code>sample-expired.diff</code> is behind its contract draft (no <code>#[non_exhaustive]</code>, different <code>Display</code> text).</li>
   <li>Only the <code>TransformError::QuaternionError</code> variant goes in item 3; the type stays public.</li>
   <li>Confirmed against 2.3.0: a late insert turns from <code>Ok</code> into <code>SampleExpired</code>; a disconnected pair at an uncovered instant from <code>NotFoundAt</code> into <code>Disconnected</code>; an unknown cross-time target from <code>NotFoundAt</code> into <code>UnknownFrame</code>. On 2.3.0, re-inserting a cross-time result moved a stored pose from x = 1 to x = −4.</li>
-  <li><strong>Verified:</strong> the stacked library builds in all four feature combinations and for <code>thumbv7em</code>; the four examples pass clippy and run in all four. <strong>Not verified:</strong> the gate, <code>cargo test</code> (the existing tests do not compile on library-only diffs), stable clippy, MSRV 1.85, the other bare-metal targets.</li>
+  <li><strong>Verified:</strong> the stacked library builds in all four feature combinations and for <code>thumbv7em</code>; the four examples pass clippy and run in all four (<code>ingest</code> re-run with the item 12 diff on top, which it now needs). <strong>Not verified:</strong> the gate, <code>cargo test</code> (the existing tests do not compile on library-only diffs), stable clippy, MSRV 1.85, the other bare-metal targets.</li>
 </ul>
 </div>
 
@@ -456,11 +478,11 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
 <ul>
   <li><strong>Order.</strong> 2.4, then the 3.0 prototype on a branch through the full gate, then one <code>3.0.0-rc</code> built against transforms_io and roslibrust_transforms, then the release.</li>
   <li><strong>Warrant.</strong> Item 10 cannot ship in a minor, so a 3.0 is a given. It is not urgent.</li>
-  <li><strong>Acceptance.</strong> "3.0 changes no number that is right today", with a listed set of allowed differences: item 2 for off-band inputs, item 4, item 5, cross-time error payloads; for inserts <code>Ok</code> to <code>SampleExpired</code> and <code>Err(NonUnitRotation)</code> to <code>Ok</code> for products of band inputs.</li>
+  <li><strong>Acceptance.</strong> "3.0 changes no number that is right today", with a listed set of allowed differences: item 2 for off-band inputs, item 4, item 5, cross-time error payloads; for inserts <code>Ok</code> to <code>SampleExpired</code> and <code>Err(NonUnitRotation)</code> to <code>Ok</code> for products of band inputs; for cleanup, a sample stamped exactly at the cutoff is removed, so a later lookup at that instant turns from <code>Ok</code> into <code>NotFoundAt</code> (item 12).</li>
   <li><strong>Wire.</strong> Layouts stay frozen; 3.0 reads every 2.x <code>Transform</code> payload. Off-band rotations are normalized on decode; <code>Point</code> payloads stop decoding.</li>
-  <li><strong>Tests.</strong> Four of nine <code>v2_compatibility</code> tests flip. Nine other pinned tests flip; 17 are deleted with their subjects.</li>
+  <li><strong>Tests.</strong> Four of nine <code>v2_compatibility</code> tests flip. Eleven other pinned tests flip (two of them item 12's pins of the strict cutoff); 17 are deleted with their subjects.</li>
   <li><strong>AGENTS.md.</strong> Ten of sixteen invariant bullets change text. Non-negotiables and Non-Goals are untouched.</li>
-  <li><strong>MIGRATION.</strong> One row per item; per-adapter recovery recipes for item 10.</li>
+  <li><strong>MIGRATION.</strong> One row per item, tagged loud, silent or wire (silent: 2, 4, 5, 10, 11, 12); per-adapter recovery recipes for item 10.</li>
 </ul>
 
 <!-- ───────────────────────────────────────────────────────────── -->
@@ -479,9 +501,10 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <tr><td>10</td><td>Dev-dependency on 2.3 for a differential harness?</td><td>Maintainer's call</td></tr>
   <tr><td>11</td><td>Round 1's policy sentence on what a minor may change</td><td>Still open</td></tr>
   <tr><td>12</td><td>Item 10</td><td>Decided (D1–D6)</td></tr>
-  <tr><td>13</td><td>Examples in 2.x: asserts only, also the four task-named files, also <code>ingest</code>, or wait for 3.0?</td><td>Asserts now; the rest is 2.4's D10 and D12. Port whatever ships</td></tr>
+  <tr><td>13</td><td>Examples in 2.x: asserts only, also the four task-named files, also <code>ingest</code>, or wait for 3.0?</td><td>Decided 2026-11-11: all three in 2.4. Port them in 3.0</td></tr>
   <tr><td>14</td><td>3.0 <code>ingest</code>: show the <code>remove_frame</code> recovery, or a guard that refuses stamps ahead of the clock?</td><td>No firm recommendation</td></tr>
   <tr><td>15</td><td>Publish "expiry is the last insert check"?</td><td>Open. If not, the example must not state it</td></tr>
+  <tr><td>16</td><td>Item 12: cleanup removes the sample at the cutoff, name kept</td><td>Decided 2026-11-11: yes, no rename, a silent MIGRATION row</td></tr>
 </table>
 
 <!-- ───────────────────────────────────────────────────────────── -->
@@ -498,7 +521,7 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <tr><td>Point family</td><td>Delete; cost not stated</td><td>Delete; seven silent slips stated</td></tr>
   <tr><td><code>SameFrameMultiplication</code></td><td>No position</td><td>Delete, with item 1</td></tr>
   <tr><td>Frame fields on insert errors</td><td>Not in 3.0</td><td>Open, leaning yes</td></tr>
-  <tr><td>Item 10 recovery</td><td>Drain "past the newest sample"; two reparents</td><td>By cause; <code>remove_frame</code> first; strict cutoff and its limits; guard against mechanical use</td></tr>
+  <tr><td>Item 10 recovery</td><td>Drain "past the newest sample"; two reparents</td><td>By cause; <code>remove_frame</code> first; strict cutoff and its limits, which item 12 removes for 3.0; guard against mechanical use</td></tr>
   <tr><td>Item 10 <code>newest</code></td><td>"Newest stored instant"</td><td>Can be an unstored batch member</td></tr>
   <tr><td>Item 10 cost</td><td>41 against 74 ns</td><td>Not reproduced: 63.6 against 64.3 ns</td></tr>
   <tr><td>Required <code>max_age</code></td><td>"Bounds memory only"</td><td>Wrong; it bounds the gap. Still rejected</td></tr>
@@ -533,7 +556,8 @@ get(a, c) * get(c, c)   <span class="c">// Err(SameFrameMultiplication) today; O
   <tr><td><code>precedence-only.diff</code></td><td>Item 5 alone</td><td class="num">+41/−66</td><td>1</td></tr>
   <tr><td><code>deletions.diff</code></td><td>Items 7, 8, 9, 11</td><td class="num">+29/−546</td><td>4 flip (item 11)</td></tr>
   <tr><td><code>stacked-library.diff</code></td><td>The four recommended diffs together</td><td class="num">+416/−793</td><td><code>cargo test</code> does not compile</td></tr>
-  <tr><td><code>examples/</code></td><td>The four examples on the stack</td><td class="num">841</td><td>n/a</td></tr>
+  <tr><td><code>examples/</code></td><td>The four examples on the stack plus the item 12 diff</td><td class="num">838</td><td>n/a</td></tr>
+  <tr><td><code>inclusive-cutoff.diff</code></td><td>Item 12</td><td class="num">+12/−8</td><td>2, pins of the strict cutoff</td></tr>
 </table>
 
 </body>
