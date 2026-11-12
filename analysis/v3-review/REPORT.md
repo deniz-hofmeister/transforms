@@ -920,6 +920,20 @@ but no example exercises them.
 
 ## Decisions for the maintainer
 
+**Ruled 2026-11-12.** 3.0 work is held until 2.4 has shipped. The open
+decisions below are taken then, decision 15 with them. Until then 2.x
+keeps today's rule: additive minors on demonstrated need. Of
+[Ships in 2.x](#ships-in-2x), these join 2.4, each as its own commit:
+the frozen-bytes serde case with a non-identity rotation; the three
+documentation sentences (lossy `Display` of time-carrying errors,
+`get_transform_at` errors "may" name the fixed frame, software `f64` on
+the gate's embedded targets); the internal deletions (`latest_timestamp`,
+`Buffer.child`, `InsertError::ChildFrameMismatch`), after Part D; and
+the two doc recipes. The Point-family removal notice and the `TimePoint`
+diagnostic attribute do not join 2.4. The record is revision 8 of the
+[2.4 proposal](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer)
+(D17).
+
 | # | Question | Recommendation |
 |---|---|---|
 | 1 | `inverse`: conjugate (a), keep normalizing and delete the variant (b), or status quo (c)? | (b). Changed from round 1 |
