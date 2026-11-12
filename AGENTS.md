@@ -425,6 +425,11 @@ The checklist, in order:
   that version (any `cargo build` after the bump does), bump the version
   pins in the README installation snippets, and update the README's
   "What's new" to lead with the release.
+- Point the README's example links at the release tag, as absolute
+  `https://github.com/deniz-hofmeister/transforms/blob/vX.Y.Z/examples/<name>.rs`
+  URLs: crates.io resolves relative README links against the repository's
+  default branch, so a later rename breaks every published page (verified
+  for 2.3.0 on 2026-11-12).
 - Commit all of it together on master as
   `Finalize the changelog and release notes for vX.Y.Z`, with a body that
   says what the commit changed. Do not push yet. `cargo publish` refuses a
