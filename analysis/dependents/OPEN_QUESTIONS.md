@@ -1,5 +1,24 @@
 # Open questions, trade-offs and considerations
 
+**Status, 2026-11-12.** This file was written against revision 4 of the
+2.4 proposal. The maintainer ruled on the 2.4 questions on 2026-11-12;
+the record is
+[revision 8](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer).
+
+- **Ruled on:** Q1 (D6: the insert boundary), Q2 (D7: unit), Q3 (D8: no
+  property test), Q4 (D2: No) and Q5 (the `Transformable` recipe ships).
+  Q6 to Q10 stand as the proposal has them, and it ships as written.
+  Q17: no notice to the bridge maintainers and no adapter issues for
+  now.
+- **Moved to the [v3 review](../v3-review/REPORT.md):** Q11 and Q12
+  (frame fields on insert errors: its item 6 and decision 5) and Q16
+  (the maximum interpolation gap: open, under "Not in 3.0"). The review
+  supersedes the warrant report's verdict and triggers, which is what
+  Q15 asked about. Its decisions are taken after 2.4 ships.
+- **Not ruled on:** Q13, Q14, Q18 and Q19.
+
+The text below is kept as written.
+
 Date: 2026-11-06. Baseline: master `f9770d2` (released v2.3.0 plus
 docs-only commits).
 
@@ -21,9 +40,9 @@ D3 (the name `transform_positions`) matters only if Q4 is Yes.
 
 | ID | Question | Options | Recommendation | Where argued |
 |---|---|---|---|---|
-| Q1 | 2.4 D6: where is the empty-name check enforced? | (a) Insert boundary: `Buffer::check`, flat `RegistryError::EmptyFrameName`. (b) `Transform::validate`: `TransformError::EmptyFrameName` | (a). The hazard is registry-only, the self-reference rule lives there, decoding is untouched, and the identity clause needs no carve-out | [DESIGN §5a](../v2.4-proposal/DESIGN.md#5a-part-d-reject-empty-frame-names), [§8](../v2.4-proposal/DESIGN.md#8-open-decisions-for-the-maintainer); [T1](#t1-insert-boundary-or-validate-for-empty-names) |
-| Q2 | 2.4 D7: payload of `EmptyFrameName` | (a) Unit. (b) Name the empty side | (a), as `SelfReferentialFrame`. Frame fields for all insert errors wait for the v3 row (Q11). If Q11 drops the row, D7 should say it defers to nothing | [DESIGN §8](../v2.4-proposal/DESIGN.md#8-open-decisions-for-the-maintainer) |
-| Q3 | 2.4 D8: a property test for the rule | (a) None. (b) Map one name of the `f0..f6` alphabet in `tests/properties.rs` to `""` | (a). The check is a string comparison and §7 covers every insert path | [DESIGN §7](../v2.4-proposal/DESIGN.md#7-tests), [§8](../v2.4-proposal/DESIGN.md#8-open-decisions-for-the-maintainer) |
+| Q1 | 2.4 D6: where is the empty-name check enforced? | (a) Insert boundary: `Buffer::check`, flat `RegistryError::EmptyFrameName`. (b) `Transform::validate`: `TransformError::EmptyFrameName` | (a). The hazard is registry-only, the self-reference rule lives there, decoding is untouched, and the identity clause needs no carve-out | [DESIGN §5a](../v2.4-proposal/DESIGN.md#5a-part-d-reject-empty-frame-names), [§8](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer); [T1](#t1-insert-boundary-or-validate-for-empty-names) |
+| Q2 | 2.4 D7: payload of `EmptyFrameName` | (a) Unit. (b) Name the empty side | (a), as `SelfReferentialFrame`. Frame fields for all insert errors wait for the v3 row (Q11). If Q11 drops the row, D7 should say it defers to nothing | [DESIGN §8](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer) |
+| Q3 | 2.4 D8: a property test for the rule | (a) None. (b) Map one name of the `f0..f6` alphabet in `tests/properties.rs` to `""` | (a). The check is a string comparison and §7 covers every insert path | [DESIGN §7](../v2.4-proposal/DESIGN.md#7-tests), [§8](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer) |
 | Q4 | 2.4 D2: grant Part B (`transform_positions`) a scope exception | Yes / No | No for 2.4. No studied dependent uses `Point`, `Transformable` or `Localized`. Revisit on demonstrated need | [DESIGN §4.1](../v2.4-proposal/DESIGN.md#41-scope-decision-required); [README](README.md#transforms-2x-code) |
 | Q5 | If D2 is refused: does Part C item 6 (a `Transformable` recipe) still ship? | (a) Ship the recipe. (b) Drop it too | No recommendation. DESIGN keeps item 6 as the fallback. The revision-4 review notes that the same "strictly necessary" lens may cut it too: no studied dependent uses `Transformable` | [DESIGN §5](../v2.4-proposal/DESIGN.md#5-part-c-documentation-corrections) item 6 |
 | Q6 | The `AGENTS.md` edit for Part D | (a) Add "no frame name is empty" beside "a frame cannot be its own parent" (`AGENTS.md:148`), as a tree rule checked at insert. (b) No edit | (a). Under Q1 (a) no other bullet changes. Under Q1 (b) the validation list and the identity clause also change | [DESIGN §9](../v2.4-proposal/DESIGN.md#9-release-obligations) |
@@ -281,7 +300,7 @@ Flagged as open in earlier runs, closed since. Do not re-open.
   [v3 addendum](../v3-proposals/transforms-v3-addendum-dependents.md).
 - **Is rejecting `""` a break?** No: the maintainer ruled it
   non-breaking on 2026-11-06
-  ([DESIGN D5](../v2.4-proposal/DESIGN.md#8-open-decisions-for-the-maintainer)).
+  ([DESIGN D5](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer)).
 - **Empty names and clock jumps missing from DESIGN.** Added as Part D
   and Part C item 5
   ([DESIGN, revision 4](../v2.4-proposal/DESIGN.md#5a-part-d-reject-empty-frame-names)).
@@ -289,7 +308,7 @@ Flagged as open in earlier runs, closed since. Do not re-open.
   ([REPORT table](../v3-warrant/REPORT.md#what-genuinely-requires-a-break)).
 - **DESIGN D7 said the candidate was "not yet in the ledger table".** It
   now links the row
-  ([DESIGN §8](../v2.4-proposal/DESIGN.md#8-open-decisions-for-the-maintainer)).
+  ([DESIGN §8](../v2.4-proposal/DESIGN.md#8-decisions-for-the-maintainer)).
 - **DESIGN D2 recommended the exception; dimos.md deferred.** D2 now
   recommends No and the README says the two agree
   ([README](README.md#transforms-2x-code)).

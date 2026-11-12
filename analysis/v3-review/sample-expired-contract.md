@@ -1,5 +1,12 @@
 # Item 10: draft contract text for `SampleExpired`
 
+**Note, 2026-11-12: do not implement this draft as written.** Its draft
+rustdoc states "This is the last insert check", and the `remove_frame`
+recovery relies on it, while [`REPORT.md`](REPORT.md) item 10 keeps the
+check order internal. Whether to publish the order is decision 15 of the
+report, which is open and is taken with the other v3 decisions after 2.4
+ships. Until then the sentences that state the order are not settled.
+
 Companion to [`REPORT.md`](REPORT.md), item 10. Draft wording for the
 places that state the contract, written by the contract critic of round 2
 and attacked with probes on the unmodified crate (a public-API emulator of

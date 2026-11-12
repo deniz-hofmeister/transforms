@@ -160,6 +160,18 @@ would produce) a silent wrong answer:
   for kind changes and keep-the-history moves. Chain resolution relies on
   the result — the topology is acyclic at every instant and time-invariant
   for the duration of any query.
+- `Registry::add_transforms` is all-or-nothing. On error the registry is
+  unchanged: nothing from the batch is stored and no sample is evicted. On
+  success it holds what inserting the batch in order with `add_transform`
+  would leave, and the error is the first one that loop would report.
+  Every transform is checked before any is stored — against the stored
+  frames, and against the frames the batch itself creates, which are built
+  aside so later members see their pins and the cycle walk sees their
+  edges. Checking first and storing after is sound only because the first
+  insert fixes a buffer's pins and kind and no later insert changes them:
+  `Buffer::check` must never read the stored samples, or an earlier member
+  of the batch could invalidate a check already passed and the batch would
+  fail half-stored.
 - A lookup must return a transform whose `parent`/`child` match the requested
   frames exactly; a chain that resolves only partway must return an error,
   never a partial result, and that error is decided on the frames before
