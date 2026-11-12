@@ -180,21 +180,19 @@ cannot be connected instead of a numeric overflow. See the
 
 ## Examples
 
-All examples are hosted programs. The `no_std_*` examples disable this
-library's `std` feature; their executable and logging still use `std`.
+Each example asserts its results and runs unchanged with and without the
+library's `std` feature. They are hosted programs; the bare-metal builds
+are checked separately.
 
-| Example | Demonstrates |
+| Example | Task |
 |---|---|
-| [std_minimal](examples/std_minimal.rs) | Point transformation and interpolation |
-| [std_full](examples/std_full.rs) | Tokio readers and a writer sharing an `RwLock` |
-| [std_advanced](examples/std_advanced.rs) | Coordinates expressed between different instants |
-| [no_std_minimal](examples/no_std_minimal.rs) | Insertion and lookup without the library's `std` feature |
-| [no_std_full](examples/no_std_full.rs) | Point transformation, interpolation, and manual cleanup |
-| [no_std_advanced](examples/no_std_advanced.rs) | Cross-time lookup and manual cleanup |
+| [basic](examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result |
+| [shared_latest](examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
+| [cross_time](examples/cross_time.rs) | Coordinates expressed between different instants |
 
 ```sh
-cargo run --example std_full
-cargo run --example no_std_minimal --no-default-features
+cargo run --example basic
+cargo run --example basic --no-default-features
 ```
 
 ## Non-Goals

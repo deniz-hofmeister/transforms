@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repeated the key it is listed under, or a dynamic frame's `latest`,
   which repeated the end of `covered`. `Debug` output is not a stability
   surface.
+- Examples (repository only, not packaged): the six `std_*` and
+  `no_std_*` examples are replaced by the task-named `basic`,
+  `shared_latest` and `cross_time`. Each asserts its results, so a wrong
+  value fails the gate, and each runs unchanged with and without the
+  `std` feature. `shared_latest` uses standard-library threads and
+  `std::sync::RwLock`.
 
 ## [2.3.0] - 2026-10-28
 
