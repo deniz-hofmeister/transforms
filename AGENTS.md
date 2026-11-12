@@ -336,8 +336,8 @@ rustup run nightly tests/test_all.sh
 With a Nix or distro nightly on PATH, run the script directly. It checks builds,
 tests and clippy in both std modes and serde combinations; formatting; rustdoc
 including docs.rs settings; all examples; benchmark smoke tests; and ARM
-bare-metal builds with and without serde. It prints `GATE PASSED` only after
-all checks finish. Never weaken or bypass it.
+bare-metal builds with and without serde. Any compiler warning fails it. It
+prints `GATE PASSED` only after all checks finish. Never weaken or bypass it.
 
 CI runs the same script. Change the gate in the script, and keep its clippy
 feature combinations aligned with CI. CI additionally checks stable clippy,
