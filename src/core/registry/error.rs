@@ -44,6 +44,13 @@ where
     #[error("transform contains non-finite values")]
     NonFiniteValues,
 
+    /// The transform's parent or child frame name is empty. An empty name
+    /// is a missing name, not a frame: two publishers that both left it
+    /// unset would share one fabricated frame, and lookups between their
+    /// unrelated trees would succeed.
+    #[error("frame name is empty")]
+    EmptyFrameName,
+
     /// The transform's parent and child are the same frame.
     #[error("a frame cannot be its own parent")]
     SelfReferentialFrame,
@@ -238,6 +245,7 @@ where
         match error {
             InsertError::Invalid(error) => error.into(),
             InsertError::StaticDynamicConflict => Self::StaticDynamicConflict,
+            InsertError::EmptyFrameName => Self::EmptyFrameName,
             InsertError::SelfReferentialFrame => Self::SelfReferentialFrame,
             InsertError::ReparentingNotSupported(current_parent) => {
                 Self::ReparentingNotSupported { current_parent }

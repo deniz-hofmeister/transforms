@@ -1259,6 +1259,145 @@ mod registry_tests {
     }
 
     #[test]
+    fn add_transform_rejects_an_empty_parent_or_child() {
+        let t = Timestamp::from_nanos(1_000_000_000);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "base", Stamp::At(t), 1.0))
+            .unwrap();
+
+        // Both names empty is reported as the missing name it is, not as a
+        // frame that is its own parent.
+        for (parent, child) in [("", "x"), ("x", ""), ("", "")] {
+            let result = registry.add_transform(translated(parent, child, Stamp::At(t), 1.0));
+            assert!(
+                matches!(result, Err(RegistryError::EmptyFrameName)),
+                "expected EmptyFrameName for ({parent:?}, {child:?}), got {result:?}"
+            );
+        }
+
+        // Neither name entered the tree.
+        for frame in ["", "x"] {
+            let result = registry.get_transform(frame, "map", t);
+            assert!(
+                matches!(&result, Err(RegistryError::UnknownFrame(unknown)) if unknown == frame),
+                "expected UnknownFrame({frame:?}), got {result:?}"
+            );
+        }
+        assert_eq!(
+            registry
+                .get_transform("map", "base", t)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn an_empty_frame_name_cannot_join_unrelated_trees() {
+        // Two publishers that both left the parent name unset. Stored, the
+        // two edges would share a fabricated root named "", and the lookup
+        // between their unrelated trees would answer with x = 2.
+        let mut registry = Registry::<Timestamp>::new();
+        for (child, x) in [("camera", 1.0), ("lidar", 3.0)] {
+            let result = registry.add_transform(translated("", child, Stamp::Static, x));
+            assert!(
+                matches!(result, Err(RegistryError::EmptyFrameName)),
+                "expected EmptyFrameName for {child}, got {result:?}"
+            );
+        }
+
+        let result = registry.get_transform("camera", "lidar", Timestamp::from_nanos(1));
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "camera"),
+            "expected UnknownFrame(camera), got {result:?}"
+        );
+    }
+
+    #[test]
+    fn add_transforms_rejects_a_batch_naming_an_empty_frame() {
+        let t = Timestamp::from_nanos(1);
+        let mut registry = Registry::new();
+        let result = registry.add_transforms([
+            translated("map", "base", Stamp::At(t), 1.0),
+            translated("base", "", Stamp::At(t), 1.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::EmptyFrameName)),
+            "expected EmptyFrameName, got {result:?}"
+        );
+
+        let result = registry.get_transform("map", "base", t);
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "map"),
+            "the batch's valid transform must not be stored, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_parent_is_reported_before_the_pinned_parent_and_kind() {
+        let t = Timestamp::from_nanos(1);
+        let mut registry = Registry::new();
+        registry
+            .add_transform(translated("map", "base", Stamp::At(t), 1.0))
+            .unwrap();
+
+        // Against a stored frame the empty parent also differs from the
+        // pinned one, and the static transform from the pinned kind.
+        for stamp in [Stamp::At(t), Stamp::Static] {
+            let result = registry.add_transform(translated("", "base", stamp, 2.0));
+            assert!(
+                matches!(result, Err(RegistryError::EmptyFrameName)),
+                "expected EmptyFrameName for {stamp:?}, got {result:?}"
+            );
+        }
+
+        // The batch checks a stored frame against its live buffer...
+        let result = registry.add_transforms([translated("", "base", Stamp::At(t), 2.0)]);
+        assert!(
+            matches!(result, Err(RegistryError::EmptyFrameName)),
+            "expected EmptyFrameName for a stored frame, got {result:?}"
+        );
+        // ...and a frame it creates against the buffer built aside.
+        let result = registry.add_transforms([
+            translated("map", "arm", Stamp::At(t), 1.0),
+            translated("", "arm", Stamp::At(t), 2.0),
+        ]);
+        assert!(
+            matches!(result, Err(RegistryError::EmptyFrameName)),
+            "expected EmptyFrameName for a created frame, got {result:?}"
+        );
+        let result = registry.get_transform("map", "arm", t);
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame == "arm"),
+            "the batch's new frame must not be stored, got {result:?}"
+        );
+        assert_eq!(
+            registry
+                .get_transform("map", "base", t)
+                .unwrap()
+                .translation(),
+            Vector3::new(1.0, 0.0, 0.0)
+        );
+
+        // Numeric validation still runs first. The constructors reject
+        // unusable numbers, so building them takes the crate-internal
+        // escape hatch.
+        let non_finite = Transform::unvalidated(
+            alloc::string::String::new(),
+            "base".into(),
+            Vector3::new(f64::NAN, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(t),
+        );
+        let result = registry.add_transform(non_finite);
+        assert!(
+            matches!(result, Err(RegistryError::NonFiniteValues)),
+            "expected NonFiniteValues, got {result:?}"
+        );
+    }
+
+    #[test]
     fn add_transform_rejects_reparenting() {
         let mut registry = Registry::new();
         let t1 = Timestamp::from_nanos(1_000_000_000);
@@ -2078,7 +2217,8 @@ mod registry_tests {
 
         // Identity for a known child frame, a root frame, and an unknown
         // frame alike: a frame relative to itself is always the identity.
-        for frame in ["b", "a", "unknown"] {
+        // The empty name is unknown like any other; no insert stores it.
+        for frame in ["b", "a", "unknown", ""] {
             let result = registry.get_transform(frame, frame, t).unwrap();
             assert_eq!(result.parent(), frame);
             assert_eq!(result.child(), frame);
@@ -3086,6 +3226,19 @@ mod registry_tests {
         assert!(
             matches!(result, Err(RegistryError::SelfReferentialFrame)),
             "a frame cannot be re-parented under itself, got {result:?}"
+        );
+
+        let result = registry.reparent_frame(translated("", "odom", Stamp::At(t2), 9.0));
+        assert!(
+            matches!(result, Err(RegistryError::EmptyFrameName)),
+            "a frame cannot be re-parented under a missing name, got {result:?}"
+        );
+        // An empty child is never stored, so the unknown-frame diagnosis,
+        // which runs before the seed's insert checks, reports it.
+        let result = registry.reparent_frame(translated("map_b", "", Stamp::At(t2), 9.0));
+        assert!(
+            matches!(&result, Err(RegistryError::UnknownFrame(frame)) if frame.is_empty()),
+            "expected UnknownFrame for the empty child, got {result:?}"
         );
 
         // A seed whose numbers are unusable. The constructors reject one, so

@@ -145,7 +145,8 @@ would produce) a silent wrong answer:
   decode errors; do not trade the derive back for an optional encoding.
 - The frame tree is strict: the first insert also pins a child frame's parent
   (`add_transform` never changes it — that fails with
-  `ReparentingNotSupported`), a frame cannot be its own parent, and every
+  `ReparentingNotSupported`), a frame cannot be its own parent, no frame
+  name is empty (`EmptyFrameName`, checked at insert), and every
   edge entering the tree is cycle-checked before it commits, failing with
   `CycleDetected`. Re-parenting is a deliberate act with its own call:
   `Registry::reparent_frame` validates everything — root/unknown split,
