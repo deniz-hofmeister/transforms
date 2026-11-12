@@ -1,11 +1,13 @@
 //! Per-child storage owned by `Registry`.
 //!
-//! Dynamic samples store geometry under timestamp keys; frame names are pinned
-//! once per buffer. Static buffers store one transform. Insertion validates
-//! geometry, frame pins, and kind even for derived transforms; the registry
-//! adds the cycle check whenever an edge enters the map: a first insert, or
-//! `Registry::reparent_frame` replacing a buffer through [`Buffer::empty_like`]
-//! rather than editing a pin. Cleanup preserves the pins and static data.
+//! Dynamic samples store geometry under timestamp keys; the parent frame is
+//! pinned once per buffer, and the child frame is the key `Registry` stores
+//! the buffer under. Static buffers store one transform. Insertion validates
+//! geometry, the parent pin, and kind even for derived transforms; the
+//! registry adds the cycle check whenever an edge enters the map: a first
+//! insert, or `Registry::reparent_frame` replacing a buffer through
+//! [`Buffer::empty_like`] rather than editing a pin. Cleanup preserves the
+//! pin and static data.
 
 use crate::{
     errors::TransformError,
@@ -32,13 +34,14 @@ type NearestTransforms<'a, T> = (Option<(&'a T, &'a Isometry)>, Option<(&'a T, &
 /// build buffers that hold a time series of `Stamp::At` samples. Inserts of
 /// the opposite kind are rejected with `InsertError::StaticDynamicConflict`.
 ///
-/// The first insert pins the buffer's parent and child frames: every later
-/// insert must carry the same pair, so a buffer stores the history of
-/// exactly one parent-child relationship. A differing parent is rejected
-/// with `InsertError::ReparentingNotSupported` — at this level
-/// unconditionally; `Registry::reparent_frame` moves a frame by replacing
-/// its buffer, never by bending this pin — and a transform for a different
-/// child frame with `InsertError::ChildFrameMismatch`.
+/// The first insert pins the buffer's parent frame: every later insert
+/// must carry the same parent. A differing parent is rejected with
+/// `InsertError::ReparentingNotSupported` — at this level unconditionally;
+/// `Registry::reparent_frame` moves a frame by replacing its buffer, never
+/// by bending this pin. The child frame is not stored: `Registry` keys its
+/// buffers by child frame and reaches a buffer only through the child of
+/// the transform in hand, so a buffer holds the history of exactly one
+/// parent-child relationship.
 ///
 /// When constructed with [`Buffer::dynamic_with_max_age`], entries older
 /// than `max_age` relative to the latest inserted timestamp are removed
@@ -49,11 +52,10 @@ where
     T: TimePoint,
 {
     parent: Option<String>,
-    child: Option<String>,
     kind: Kind<T>,
 }
 
-/// Summarizes the buffer instead of dumping it: frames, kind, sample count
+/// Summarizes the buffer instead of dumping it: parent, kind, sample count
 /// and covered range. A dynamic frame can hold thousands of samples, and a
 /// derived `Debug` — reachable through `Registry`'s — printed every one of
 /// them, which made the output useless at exactly the buffer sizes worth
@@ -67,9 +69,7 @@ where
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let mut summary = f.debug_struct("Buffer");
-        summary
-            .field("parent", &self.parent)
-            .field("child", &self.child);
+        summary.field("parent", &self.parent);
         match &self.kind {
             // A static buffer holds at most one transform, and that
             // transform — a mount's pose — is what gets debugged: print it.
@@ -120,8 +120,8 @@ where
     /// One transform valid for all time; `None` until the first insert.
     Static(Option<Transform<T>>),
     /// A time series of samples, keyed by their instant. Each sample is the
-    /// geometry of a transform validated by [`Buffer::insert`]; the frames it
-    /// carried are the buffer's pins, and its stamp is the key.
+    /// geometry of a transform validated by [`Buffer::insert`]; the parent it
+    /// carried is the buffer's pin, and its stamp is the key.
     Dynamic {
         data: BTreeMap<T, Isometry>,
         max_age: Option<Duration>,
@@ -140,7 +140,6 @@ where
     pub fn dynamic() -> Self {
         Self {
             parent: None,
-            child: None,
             kind: Kind::Dynamic {
                 data: BTreeMap::new(),
                 max_age: None,
@@ -157,7 +156,6 @@ where
     pub fn dynamic_with_max_age(max_age: Duration) -> Self {
         Self {
             parent: None,
-            child: None,
             kind: Kind::Dynamic {
                 data: BTreeMap::new(),
                 max_age: Some(max_age),
@@ -174,14 +172,13 @@ where
     pub fn static_edge() -> Self {
         Self {
             parent: None,
-            child: None,
             kind: Kind::Static(None),
         }
     }
 
     /// Creates an empty buffer of this buffer's kind: the same static or
     /// dynamic storage and, for a dynamic buffer, the same `max_age` expiry
-    /// policy — holding no transforms and pinning no frames.
+    /// policy — holding no transforms and pinning no parent.
     ///
     /// This is how [`Registry::reparent_frame`](crate::Registry::reparent_frame)
     /// rebuilds a frame's buffer without re-deciding either property from
@@ -195,7 +192,6 @@ where
     pub fn empty_like(&self) -> Self {
         Self {
             parent: None,
-            child: None,
             // Both sides spelled out in full, no `..`: if `Kind` ever grows
             // a field, this match must fail to compile so the new field gets
             // an explicit carry-or-reset decision — this method's whole
@@ -266,13 +262,9 @@ where
     /// that left it unset would share as one fabricated frame.
     ///
     /// Returns `InsertError::SelfReferentialFrame` if the transform's parent
-    /// and child are the same frame,
+    /// and child are the same frame, and
     /// `InsertError::ReparentingNotSupported` if the buffer's parent frame
-    /// (pinned by the first insert) differs from the transform's parent, and
-    /// `InsertError::ChildFrameMismatch` if the buffer's child frame (pinned
-    /// the same way) differs from the transform's child — accepting a second
-    /// child frame would silently overwrite a static transform or corrupt
-    /// interpolation between dynamic ones.
+    /// (pinned by the first insert) differs from the transform's parent.
     ///
     /// Inserting at a timestamp that is already stored replaces the stored
     /// transform, as does inserting into a static buffer that already holds
@@ -286,11 +278,8 @@ where
 
         // Captured before the transform is moved into storage; applied only
         // after the insert is accepted, so a rejected transform cannot pin
-        // frames for a buffer that never stored it.
-        let pin = self
-            .parent
-            .is_none()
-            .then(|| (transform.parent().into(), transform.child().into()));
+        // a parent for a buffer that never stored it.
+        let pin = self.parent.is_none().then(|| transform.parent().into());
 
         match (&mut self.kind, transform.timestamp()) {
             (Kind::Static(slot), Stamp::Static) => {
@@ -305,9 +294,8 @@ where
             _ => return Err(InsertError::StaticDynamicConflict),
         }
 
-        if let Some((parent, child)) = pin {
+        if let Some(parent) = pin {
             self.parent = Some(parent);
-            self.child = Some(child);
         }
 
         Ok(())
@@ -317,7 +305,7 @@ where
     /// storing anything.
     ///
     /// None of the checks reads the stored samples, and once the first
-    /// insert has pinned the frames, no insert changes the pins or the kind
+    /// insert has pinned the parent, no insert changes the pin or the kind
     /// they compare against. A transform this accepts for a pinned buffer
     /// is therefore accepted by [`Buffer::insert`] for as long as the
     /// buffer exists, whatever is inserted in between — which is what lets
@@ -344,14 +332,6 @@ where
                 return Err(InsertError::ReparentingNotSupported(parent.clone()));
             }
         }
-        if let Some(child) = &self.child {
-            if child != transform.child() {
-                return Err(InsertError::ChildFrameMismatch {
-                    pinned: child.clone(),
-                    found: transform.child().into(),
-                });
-            }
-        }
         match (&self.kind, transform.timestamp()) {
             (Kind::Static(_), Stamp::Static) | (Kind::Dynamic { .. }, Stamp::At(_)) => Ok(()),
             _ => Err(InsertError::StaticDynamicConflict),
@@ -360,8 +340,9 @@ where
 
     /// Retrieves the edge's geometry at the specified timestamp.
     ///
-    /// Only the numbers: the frames are the buffer's pins, and the stamp is
-    /// the requested one, which the caller supplied. A lookup composes these
+    /// Only the numbers: the frames are the buffer's pinned parent and the
+    /// key the caller reached it under, and the stamp is the requested one,
+    /// which the caller supplied. A lookup composes these
     /// along its walk without allocating a frame name per hop.
     ///
     /// # Errors
@@ -378,8 +359,8 @@ where
     /// fail to find data. Static buffers serve any requested timestamp.
     ///
     /// Returns `GetError::Interpolation` if interpolating between the two
-    /// neighboring samples fails. With both frames pinned at insertion and
-    /// every stored sample keyed by its own `Stamp::At` instant, this is
+    /// neighboring samples fails. With the samples stored as bare geometry,
+    /// each keyed by its own `Stamp::At` instant, this is
     /// only reachable through timestamp arithmetic: a span between the
     /// neighboring samples too large to represent as a `Duration`
     /// (`TimeError::DurationOverflow`).

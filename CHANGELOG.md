@@ -50,9 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   all-static chain, and a checked `(i32 seconds, u32 nanoseconds)`
   conversion on `Timestamp::from_nanos` that refuses negative seconds and
   a nanosecond field of a second or more.
-- `Registry`'s `Debug` output no longer prints a dynamic frame's `latest`
-  field, which repeated the end of `covered`. `Debug` output is not a
-  stability surface.
+- `Registry`'s `Debug` output no longer prints a frame's `child`, which
+  repeated the key it is listed under, or a dynamic frame's `latest`,
+  which repeated the end of `covered`. `Debug` output is not a stability
+  surface.
 
 ## [2.3.0] - 2026-10-28
 
