@@ -91,9 +91,8 @@ altitude. To place a proposed capability:
   the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, `libm`
   (all float math, in every feature mode), and the optional, default-off `serde`
   are the entire runtime dependency list. (The `[dev-dependencies]` —
-  `log`/`env_logger` for examples, `tokio` for the async example, `criterion`
-  for benches, `proptest` for property tests, `serde_json` for serde
-  roundtrips, `postcard` for the frozen serde wire-format bytes — are
+  `criterion` for benches, `proptest` for property tests, `serde_json` for
+  serde roundtrips, `postcard` for the frozen serde wire-format bytes — are
   expected and do not contradict this.)
 - `no_std` parity: every change must build and pass tests with
   `--no-default-features`, and build for real bare-metal targets: the gate
@@ -306,8 +305,9 @@ this section is convention, enforced in review — follow it anyway.
 - Errors: `Display` messages are lowercase, single-clause, no trailing period
   (Rust API guideline C-GOOD-ERR). Every variant carries a doc comment. Error
   types live in a private `mod error;` re-exported via `pub use`.
-- Tests: no logging (no `env_logger`, no `debug!` — logging belongs in
-  `examples/`), `assert_eq!`/`assert_ne!` over `assert!(a == b)`, and
+- Tests: no logging (the crate has no logging dependency; examples assert
+  and print with `println!`), `assert_eq!`/`assert_ne!` over
+  `assert!(a == b)`, and
   behavior-descriptive snake_case names. Tests are deterministic: fixed
   `Timestamp::from_nanos` fixtures, never `Timestamp::now()` (one dedicated
   std-only smoke test covers `now()` itself). `Timestamp::zero()` is fine for
