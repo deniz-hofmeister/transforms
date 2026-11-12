@@ -463,7 +463,7 @@ where
     ///
     /// Returns `Stamp::Static` for all-static chains or equal frame names, even
     /// unregistered ones. The caller then chooses an instant. Do not copy the
-    /// example's `.at().unwrap()` for a chain that may be static: match on the
+    /// first example's `.at().unwrap()` for a chain that may be static: match on the
     /// [`Stamp`] and pass your own time in the `Static` arm.
     ///
     /// Use the returned instant with [`Registry::get_transform`]. If the registry
@@ -517,6 +517,60 @@ where
     ///     .get_transform("map", "base", stamp.at().unwrap())
     ///     .unwrap();
     /// assert_eq!(transform.timestamp(), stamp);
+    /// ```
+    ///
+    /// A "latest" lookup asks for the newest instant the chain serves. The wall
+    /// clock is not that instant: it is normally past a dynamic hop's newest
+    /// sample, and the lookup fails.
+    ///
+    /// ```
+    /// use transforms::{
+    ///     Registry,
+    ///     errors::RegistryError,
+    ///     geometry::{Quaternion, Transform, Vector3},
+    ///     time::{Stamp, Timestamp},
+    /// };
+    ///
+    /// fn latest(
+    ///     registry: &Registry,
+    ///     target: &str,
+    ///     source: &str,
+    ///     now: Timestamp,
+    /// ) -> Result<Transform, RegistryError> {
+    ///     let time = match registry.latest_common_time(target, source)? {
+    ///         Stamp::At(newest) => newest,
+    ///         // Every hop is static and serves any instant.
+    ///         Stamp::Static => now,
+    ///     };
+    ///     registry.get_transform(target, source, time)
+    /// }
+    ///
+    /// let sample = Timestamp::from_nanos(7);
+    /// let now = Timestamp::from_nanos(9);
+    /// let mut registry = Registry::new();
+    /// for (parent, child, stamp) in [
+    ///     ("map", "base", Stamp::At(sample)),
+    ///     ("base", "lidar", Stamp::Static),
+    /// ] {
+    ///     registry
+    ///         .add_transform(
+    ///             Transform::new(
+    ///                 parent,
+    ///                 child,
+    ///                 Vector3::zero(),
+    ///                 Quaternion::identity(),
+    ///                 stamp,
+    ///             )
+    ///             .unwrap(),
+    ///         )
+    ///         .unwrap();
+    /// }
+    ///
+    /// assert!(registry.get_transform("map", "lidar", now).is_err());
+    /// let transform = latest(&registry, "map", "lidar", now).unwrap();
+    /// assert_eq!(transform.timestamp(), Stamp::At(sample));
+    /// let transform = latest(&registry, "base", "lidar", now).unwrap();
+    /// assert_eq!(transform.timestamp(), Stamp::At(now));
     /// ```
     pub fn latest_common_time(
         &self,

@@ -45,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact; `Registry::get_transform_at` errors may name the fixed frame;
   and the README states that `f64` arithmetic is software floating point
   on the embedded targets as CI builds them.
+- Add two doc recipes: a "latest" lookup on `Registry::latest_common_time`
+  that looks up at the newest instant the chain serves and handles an
+  all-static chain, and a checked `(i32 seconds, u32 nanoseconds)`
+  conversion on `Timestamp::from_nanos` that refuses negative seconds and
+  a nanosecond field of a second or more.
 
 ## [2.3.0] - 2026-10-28
 

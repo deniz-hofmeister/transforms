@@ -132,6 +132,38 @@ impl Timestamp {
     /// let timestamp = Timestamp::from_nanos(1_000_000_000);
     /// assert_eq!(timestamp.as_seconds().unwrap(), 1.0);
     /// ```
+    ///
+    /// A stamp split into signed seconds and nanoseconds, as ROS 2 messages
+    /// carry it, converts with checks. A negative count has no `Timestamp`:
+    /// casting it would alias a far-future instant, and clamping it to zero
+    /// would invent one. A nanosecond field of a second or more is a
+    /// malformed stamp, refused rather than summed.
+    ///
+    /// ```
+    /// use transforms::time::Timestamp;
+    ///
+    /// fn from_sec_nanosec(
+    ///     sec: i32,
+    ///     nanosec: u32,
+    /// ) -> Option<Timestamp> {
+    ///     if nanosec >= 1_000_000_000 {
+    ///         return None;
+    ///     }
+    ///     u64::try_from(sec)
+    ///         .ok()?
+    ///         .checked_mul(1_000_000_000)?
+    ///         .checked_add(u64::from(nanosec))
+    ///         .map(Timestamp::from_nanos)
+    /// }
+    ///
+    /// assert_eq!(
+    ///     from_sec_nanosec(1, 500),
+    ///     Some(Timestamp::from_nanos(1_000_000_500))
+    /// );
+    /// assert_eq!(from_sec_nanosec(-1, 0), None);
+    /// assert_eq!(from_sec_nanosec(1, 1_000_000_000), None);
+    /// assert!(from_sec_nanosec(i32::MAX, 999_999_999).is_some());
+    /// ```
     #[must_use]
     pub const fn from_nanos(nanos: u64) -> Self {
         Timestamp { t: nanos }
