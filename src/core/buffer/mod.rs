@@ -74,11 +74,7 @@ where
             // A static buffer holds at most one transform, and that
             // transform — a mount's pose — is what gets debugged: print it.
             Kind::Static(slot) => summary.field("kind", &"static").field("transform", slot),
-            Kind::Dynamic {
-                data,
-                latest_timestamp,
-                max_age,
-            } => summary
+            Kind::Dynamic { data, max_age } => summary
                 .field("kind", &"dynamic")
                 .field("samples", &data.len())
                 .field(
@@ -88,7 +84,6 @@ where
                         .zip(data.last_key_value())
                         .map(|((start, _), (end, _))| (start, end)),
                 )
-                .field("latest", latest_timestamp)
                 .field("max_age", max_age),
         };
         summary.finish()
@@ -129,7 +124,6 @@ where
     /// carried are the buffer's pins, and its stamp is the key.
     Dynamic {
         data: BTreeMap<T, Isometry>,
-        latest_timestamp: Option<T>,
         max_age: Option<Duration>,
     },
 }
@@ -149,7 +143,6 @@ where
             child: None,
             kind: Kind::Dynamic {
                 data: BTreeMap::new(),
-                latest_timestamp: None,
                 max_age: None,
             },
         }
@@ -167,7 +160,6 @@ where
             child: None,
             kind: Kind::Dynamic {
                 data: BTreeMap::new(),
-                latest_timestamp: None,
                 max_age: Some(max_age),
             },
         }
@@ -210,13 +202,8 @@ where
             // purpose is preserving the frame's properties.
             kind: match &self.kind {
                 Kind::Static(_) => Kind::Static(None),
-                Kind::Dynamic {
-                    data: _,
-                    latest_timestamp: _,
-                    max_age,
-                } => Kind::Dynamic {
+                Kind::Dynamic { data: _, max_age } => Kind::Dynamic {
                     data: BTreeMap::new(),
-                    latest_timestamp: None,
                     max_age: *max_age,
                 },
             },
@@ -309,20 +296,9 @@ where
             (Kind::Static(slot), Stamp::Static) => {
                 *slot = Some(transform);
             }
-            (
-                Kind::Dynamic {
-                    data,
-                    latest_timestamp,
-                    max_age,
-                },
-                Stamp::At(timestamp),
-            ) => {
-                *latest_timestamp = Some(match *latest_timestamp {
-                    Some(current_latest) if current_latest > timestamp => current_latest,
-                    _ => timestamp,
-                });
+            (Kind::Dynamic { data, max_age }, Stamp::At(timestamp)) => {
                 data.insert(timestamp, transform.isometry());
-                remove_expired(data, *latest_timestamp, *max_age);
+                remove_expired(data, *max_age);
             }
             // Already refused by `check`; repeated rather than assumed, so
             // a broken check fails loudly instead of dropping the transform.
@@ -488,23 +464,13 @@ where
         &mut self,
         timestamp: T,
     ) {
-        if let Kind::Dynamic {
-            data,
-            latest_timestamp,
-            ..
-        } = &mut self.kind
-        {
+        if let Kind::Dynamic { data, .. } = &mut self.kind {
             // Everything at or after the cutoff survives. split_off finds
             // the boundary in O(log n); freeing the evicted prefix is
             // O(evicted) on top — the same O(log n + evicted) as expiry,
             // each entry freed exactly once.
             let kept = data.split_off(&timestamp);
             *data = kept;
-            // The expiry reference must not outlive the samples it was
-            // derived from: a stale value would make `max_age` eviction
-            // measure a restarted stream against the wiped one, silently
-            // evicting every new sample on the insert that added it.
-            *latest_timestamp = data.last_key_value().map(|(&k, _)| k);
         }
     }
 }
@@ -512,6 +478,13 @@ where
 /// Removes expired transforms based on `max_age`: everything older than
 /// `(latest inserted timestamp - max_age)`. Buffers without a configured
 /// `max_age` never expire entries.
+///
+/// The latest inserted timestamp is the map's last key, read here rather
+/// than remembered beside the map: the newest sample is never evicted, so
+/// the two cannot differ, and a reference kept separately could outlive
+/// the samples it was derived from — after a cleanup, `max_age` eviction
+/// would measure a restarted stream against the wiped one, silently
+/// evicting every new sample on the insert that added it.
 ///
 /// Runs on every dynamic insert, so it evicts in order from the front of
 /// the map — O(log n + evicted) — instead of scanning the whole buffer.
@@ -521,13 +494,12 @@ where
 /// behavior — the `checked_sub` failure is deliberately not an error.
 fn remove_expired<T>(
     data: &mut BTreeMap<T, Isometry>,
-    latest_timestamp: Option<T>,
     max_age: Option<Duration>,
 ) where
     T: TimePoint,
 {
-    if let (Some(max_age), Some(latest_timestamp)) = (max_age, latest_timestamp) {
-        if let Ok(threshold) = latest_timestamp.checked_sub(max_age) {
+    if let (Some(max_age), Some((&latest, _))) = (max_age, data.last_key_value()) {
+        if let Ok(threshold) = latest.checked_sub(max_age) {
             while let Some((&oldest, _)) = data.first_key_value() {
                 if oldest >= threshold {
                     break;
