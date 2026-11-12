@@ -7,9 +7,9 @@ body:
       value: >-
         Before proposing, check the README's **Non-Goals** section — it is
         load-bearing. Scaling, skew, affine, non-rigid, and perspective
-        transforms, extrapolation, non-linear interpolation, and tf2 API parity are
-        deliberately out of scope and will not be implemented. Re-parenting
-        support is a known future-feature candidate.
+        transforms, extrapolation, non-linear interpolation, f32 or
+        mixed-precision arithmetic, and tf2 API parity are deliberately out of
+        scope and will not be implemented.
   - type: textarea
     id: use-case
     attributes:
