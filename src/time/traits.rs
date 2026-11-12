@@ -23,6 +23,10 @@ use crate::time::TimeError;
 /// instants yield `Duration::ZERO`. Sample ordering, interpolation, and
 /// eviction all rest on that consistency.
 ///
+/// The crate cannot detect a wrapping hardware counter: `Ord` stays total,
+/// but the stream's order disagrees with it. Widen such a counter to a
+/// monotonic 64-bit count before implementing the trait.
+///
 /// No timestamp value is reserved: staticness is expressed by
 /// [`Stamp::Static`](crate::time::Stamp), not by a sentinel instant, so
 /// every value the clock can produce — including `t = 0` on boot-relative

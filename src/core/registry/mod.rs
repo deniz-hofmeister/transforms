@@ -111,6 +111,9 @@ where
     /// [`Registry::remove_frame`] removes them. Memory use and interpolation
     /// gaps are unbounded. Use [`Registry::with_max_age`] to limit the retained
     /// time window.
+    ///
+    /// Where nothing fixes the time type, as in an all-static setup, write
+    /// `Registry::<Timestamp>::new()`.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -128,6 +131,18 @@ where
     ///
     /// This bounds retained history duration, not sample or frame count.
     /// Available with and without `std`.
+    ///
+    /// The registry does not detect a clock that steps backward. An insert
+    /// older than the frame's newest timestamp minus `max_age` returns `Ok`
+    /// and is evicted at once. A smaller jump keeps both runs, and lookups
+    /// interpolate across them, as every jump does without `max_age`; a larger
+    /// jump does the same from the moment the restarted stream reaches the
+    /// newest timestamp minus `max_age`. Whoever owns the clock must detect
+    /// the jump; to recover, see [`Registry::remove_frame`] and
+    /// [`Registry::remove_transforms_before`].
+    ///
+    /// Where nothing fixes the time type, as in an all-static setup, write
+    /// `Registry::<Timestamp>::with_max_age(max_age)`.
     #[must_use]
     pub fn with_max_age(max_age: Duration) -> Self {
         Self {
@@ -165,7 +180,8 @@ where
     /// On success the registry holds what [`Registry::add_transform`] would
     /// leave inserting the transforms in order. On error it is unchanged:
     /// nothing from the batch is stored and no sample is evicted. The
-    /// iterator is consumed before anything is stored.
+    /// iterator is consumed before anything is stored. A rejected batch stops
+    /// reading at the first rejected transform.
     ///
     /// One rejected transform rejects the whole batch, including the
     /// transforms that are valid on their own; insert one at a time with
@@ -444,7 +460,9 @@ where
     /// not. The answer is symmetric in the frame arguments.
     ///
     /// Returns `Stamp::Static` for all-static chains or equal frame names, even
-    /// unregistered ones. The caller then chooses an instant.
+    /// unregistered ones. The caller then chooses an instant. Do not copy the
+    /// example's `.at().unwrap()` for a chain that may be static: match on the
+    /// [`Stamp`] and pass your own time in the `Static` arm.
     ///
     /// Use the returned instant with [`Registry::get_transform`]. If the registry
     /// is shared, make both calls under one read guard: intervening writes can
@@ -575,14 +593,17 @@ where
         }
     }
 
-    /// Removes dynamic samples strictly older than `timestamp`.
+    /// Removes dynamic samples strictly older than `timestamp`, in every frame.
     ///
     /// Static transforms and frame entries remain. A drained frame keeps its parent
     /// and kind, and lookups crossing its edge report [`RegistryError::NotFoundAt`]
     /// with `covered: None`. A fully drained buffer resets its expiry reference,
-    /// allowing a stream to restart at earlier timestamps.
+    /// allowing a stream to restart at earlier timestamps. The cutoff is strict:
+    /// one equal to a frame's newest sample keeps that sample, and no cutoff
+    /// drains a sample at the time type's maximum.
     ///
-    /// Use [`Registry::remove_frame`] to release a frame and its pins.
+    /// Use [`Registry::remove_frame`] to release a frame and its pins, or to
+    /// discard one frame's samples whatever their timestamps.
     pub fn remove_transforms_before(
         &mut self,
         timestamp: T,
@@ -595,7 +616,10 @@ where
     /// Removes a child's incoming edge and all samples stored on that edge.
     ///
     /// Returns whether the child had an edge. A root known only as a parent has
-    /// no edge to remove. Descendant edges and their samples remain: the removed
+    /// no edge to remove. The frame's newest timestamp, which eviction under
+    /// [`Registry::with_max_age`] measures against, is discarded with the
+    /// samples, for any time type, and the frame's parent and kind are released
+    /// until its next insert. Descendant edges and their samples remain: the removed
     /// child becomes their subtree's root, disconnected from its former ancestors.
     ///
     /// To re-parent a subtree, remove its root's incoming edge and insert one

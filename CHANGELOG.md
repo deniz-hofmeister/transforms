@@ -26,6 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against a known frame, the identity against itself. Constructors,
   `Transform::validate` and deserialization still accept an empty name;
   it cannot be inserted.
+- Correct the rustdoc. The crate docs name `Registry::latest_common_time`
+  as the newest instant a lookup can ask for, and its docs warn against
+  copying the example's `.at().unwrap()` onto a chain that may be static.
+  `Registry::new`, `Registry::with_max_age` and `Transform::static_between`
+  carry the `::<Timestamp>` annotation an all-static setup needs.
+  `TimePoint` and `Registry::with_max_age` state that a clock that wraps
+  or steps backward is not detected; `Registry::remove_frame` and
+  `Registry::remove_transforms_before` state what each recovers.
+  `Transformable` shows checked application to plain positions,
+  `RegistryError::StaticDynamicConflict` what dropping the rejected
+  transform leaves in place, `Timestamp::try_now` no longer claims to be
+  panic-free, and `Registry::add_transforms` that a rejected batch stops
+  reading its iterator at the first rejected transform.
 
 ## [2.3.0] - 2026-10-28
 

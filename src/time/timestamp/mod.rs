@@ -49,7 +49,7 @@ impl Timestamp {
     /// Panics if the system clock reads outside the range `Timestamp` can
     /// represent: before `UNIX_EPOCH` (January 1, 1970), or more than
     /// `u64::MAX` nanoseconds after it (mid-2554). Use
-    /// [`Timestamp::try_now`] for the panic-free variant.
+    /// [`Timestamp::try_now`] to get those readings as errors.
     ///
     /// # Examples
     ///
@@ -73,7 +73,8 @@ impl Timestamp {
     /// Returns a `Timestamp` initialized to the current time, or an error
     /// if the system clock reads outside the representable range.
     ///
-    /// The panic-free counterpart of [`Timestamp::now`].
+    /// Reports as errors the out-of-range readings that make
+    /// [`Timestamp::now`] panic.
     ///
     /// # Errors
     ///

@@ -98,7 +98,9 @@ where
     /// a dynamic frame fails loudly once its stream stops.
     /// [`Registry::remove_frame`](crate::Registry::remove_frame) is the only
     /// way to change it — remove the frame, then re-add it with the other
-    /// kind.
+    /// kind. A caller that logs and drops the rejected transform leaves the
+    /// stored static pose answering every instant; change the kind
+    /// deliberately with `remove_frame`, not from an error handler.
     #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
 
