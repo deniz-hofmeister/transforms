@@ -563,7 +563,7 @@ mod buffer_tests {
     }
 
     #[test]
-    fn frame_pins_survive_the_buffer_being_emptied() {
+    fn parent_pin_survives_the_buffer_being_emptied() {
         let mut buffer = Buffer::dynamic();
         assert_eq!(buffer.parent(), None);
 
@@ -571,68 +571,11 @@ mod buffer_tests {
         buffer.insert(create_transform(t)).unwrap();
         assert_eq!(buffer.parent(), Some("map"));
 
-        // The pins survive the buffer being emptied, matching the documented
+        // The pin survives the buffer being emptied, matching the documented
         // parent behavior: dropping the buffer is the only release.
         buffer.remove_before((t + Duration::from_secs(1)).unwrap());
         assert!(matches!(buffer.get(t), Err(GetError::NoTransformAvailable)));
         assert_eq!(buffer.parent(), Some("map"));
-
-        // The child pin survives too, so a drained buffer still refuses a
-        // transform for another child frame.
-        let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t));
-        let result = buffer.insert(other);
-        assert!(
-            matches!(result, Err(InsertError::ChildFrameMismatch { ref pinned, ref found }) if pinned == "base" && found == "lidar"),
-            "expected ChildFrameMismatch, got {result:?}"
-        );
-    }
-
-    #[test]
-    fn insert_rejects_child_frame_mismatch_static() {
-        let mut buffer = Buffer::static_edge();
-
-        // Static calibration transform for map -> base.
-        let original = create_static_transform();
-        buffer.insert(original.clone()).unwrap();
-
-        // Same parent, different child (a frame-naming bug): without child
-        // pinning this key collision silently overwrote the stored data.
-        let other = frames_transform("map", "lidar", Vector3::new(9.0, 9.0, 9.0), Stamp::Static);
-        let result = buffer.insert(other);
-        assert!(
-            matches!(result, Err(InsertError::ChildFrameMismatch { ref pinned, ref found }) if pinned == "base" && found == "lidar"),
-            "expected ChildFrameMismatch, got {result:?}"
-        );
-
-        // The original static transform must be untouched and retrievable.
-        assert_eq!(
-            buffer.get(Timestamp::from_nanos(1_000_000_000)).unwrap(),
-            original.isometry(),
-            "the pinned child's static transform must survive the rejected insert"
-        );
-    }
-
-    #[test]
-    fn insert_rejects_child_frame_mismatch_dynamic() {
-        let mut buffer = Buffer::dynamic();
-        let t1 = Timestamp::from_nanos(1_000_000_000);
-        let t2 = Timestamp::from_nanos(2_000_000_000);
-        let t3 = Timestamp::from_nanos(3_000_000_000);
-
-        buffer.insert(create_transform(t1)).unwrap();
-        buffer.insert(create_transform(t3)).unwrap();
-
-        // A different child between the stored samples: without child pinning
-        // this insert succeeded and made interpolating lookups fail with
-        // IncompatibleFrames while exact-hit lookups kept working.
-        let other = frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t2));
-        assert!(matches!(
-            buffer.insert(other),
-            Err(InsertError::ChildFrameMismatch { .. })
-        ));
-
-        // Interpolation over the pinned child's samples must keep working.
-        assert_eq!(buffer.get(t2).unwrap(), create_transform(t2).isometry());
     }
 
     #[test]
@@ -746,7 +689,6 @@ mod buffer_tests {
             create_transform(Timestamp::from_nanos(2)),
             create_static_transform(),
             frames_transform("odom", "base", Vector3::zero(), Stamp::At(t)),
-            frames_transform("map", "lidar", Vector3::zero(), Stamp::At(t)),
             frames_transform("base", "base", Vector3::zero(), Stamp::At(t)),
         ] {
             let checked = buffer.check(&candidate);

@@ -254,18 +254,6 @@ where
             InsertError::ReparentingNotSupported(current_parent) => {
                 Self::ReparentingNotSupported { current_parent }
             }
-            // Buffers are keyed by child frame, so the buffer an insert
-            // reaches always stores that transform's own child and this
-            // arm is unreachable through `Registry`. `Buffer` keeps the
-            // check — it is the only place that can make the pin true —
-            // and its violation is reported as the frame incompatibility it
-            // is, rather than mapped onto a registry cause it is not.
-            InsertError::ChildFrameMismatch { pinned, found } => {
-                Self::TransformError(TransformError::IncompatibleFrames {
-                    expected: pinned,
-                    found,
-                })
-            }
         }
     }
 }
