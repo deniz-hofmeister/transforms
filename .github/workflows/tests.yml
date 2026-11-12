@@ -173,18 +173,16 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30
         with:
           toolchain: stable
-      - name: Run example std_minimal
-        run: cargo run --example std_minimal
-      - name: Run example std_full
-        run: cargo run --example std_full
-      - name: Run example std_advanced
-        run: cargo run --example std_advanced
-      - name: Run example no_std_minimal
-        run: cargo run --example no_std_minimal --no-default-features
-      - name: Run example no_std_full
-        run: cargo run --example no_std_full --no-default-features
-      - name: Run example no_std_advanced
-        run: cargo run --example no_std_advanced --no-default-features
+      - name: Run examples (std)
+        run: |
+          for example in basic ingest shared_latest cross_time; do
+            cargo run --example "$example"
+          done
+      - name: Run examples (no_std)
+        run: |
+          for example in basic ingest shared_latest cross_time; do
+            cargo run --example "$example" --no-default-features
+          done
 
   benches:
     name: benches

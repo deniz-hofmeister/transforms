@@ -34,12 +34,12 @@ cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 # The docs.rs configuration (all features, docsrs cfg) must build too.
 RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features
-cargo run --example no_std_minimal --no-default-features
-cargo run --example no_std_full --no-default-features
-cargo run --example no_std_advanced --no-default-features
-cargo run --example std_minimal
-cargo run --example std_full
-cargo run --example std_advanced
+# Every example asserts its results and is feature-agnostic: each runs in
+# both modes, and a wrong value fails here.
+for example in basic ingest shared_latest cross_time; do
+    cargo run --example "$example"
+    cargo run --example "$example" --no-default-features
+done
 cargo bench --no-default-features -- --test
 cargo bench -- --test
 cargo build --no-default-features --target thumbv7em-none-eabihf
