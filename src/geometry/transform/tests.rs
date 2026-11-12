@@ -645,6 +645,31 @@ mod transform_tests {
     }
 
     #[test]
+    fn construction_and_validation_still_accept_an_empty_frame_name() {
+        // An empty name is refused where it would join a frame tree, at
+        // registry insert. A transform is not a tree: building, checking
+        // and decoding one do not resolve a chain.
+        let with_empty_parent = Transform::new(
+            "",
+            "x",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+            Stamp::At(Timestamp::zero()),
+        )
+        .unwrap();
+        assert!(with_empty_parent.validate().is_ok());
+
+        let with_empty_child = Transform::<Timestamp>::static_between(
+            "x",
+            "",
+            Vector3::new(1.0, 0.0, 0.0),
+            Quaternion::identity(),
+        )
+        .unwrap();
+        assert!(with_empty_child.validate().is_ok());
+    }
+
+    #[test]
     fn same_child_multiplication_is_rejected_with_the_frame_named() {
         let t = Timestamp::from_nanos(1_000_000_000);
         let t_a_b = transform_at("a", "b", t);

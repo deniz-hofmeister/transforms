@@ -1,7 +1,9 @@
-# Migrating to 2.3
+# Migrating to 2.4
 
-From 2.0.0, no API migration is required. From 1.x or a 2.0 pre-release,
-apply the changes below. The current API is documented on
+From 2.0.0, one behaviour change applies: since 2.4.0 the registry refuses a
+transform whose parent or child frame name is empty (see "Empty frame names"
+below). Nothing else needs migrating. From 1.x or a 2.0 pre-release, apply
+the changes below. The current API is documented on
 [docs.rs](https://docs.rs/transforms); release history is in
 [CHANGELOG.md](CHANGELOG.md).
 
@@ -36,6 +38,16 @@ apply the changes below. The current API is documented on
   first one `add_transform` would report. It replaces hand-written rollback
   around an `add_transform` loop; keep the loop to store the valid
   transforms of a batch.
+
+### Empty frame names
+
+Since 2.4.0, `add_transform` and `add_transforms` reject a transform whose
+parent or child is `""` with `RegistryError::EmptyFrameName`, as does
+`reparent_frame` for an empty new parent. Earlier releases stored it, so
+publishers that each left a name unset shared one frame named `""`, and
+lookups between their unrelated trees succeeded. Check names where
+transforms are ingested: an unset ROS `frame_id` arrives as `""`.
+Constructors and deserialization still accept `""`.
 
 ## Coming from 1.x
 
@@ -127,7 +139,7 @@ implementation history with no replacement public type.
 | `NotFoundAt { frame, requested, covered, .. }` | A sampled edge cannot serve the request; `covered: None` means it holds no samples |
 | `NoCommonTime { frame, covered, .. }` | Connecting edges have empty or disjoint coverage |
 | `NonUnitRotation`, `NonFiniteValues` | Numeric validation failed |
-| `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | An insert or `reparent_frame` violated a topology or kind constraint |
+| `EmptyFrameName`, `SelfReferentialFrame`, `ReparentingNotSupported`, `CycleDetected`, `StaticDynamicConflict` | An insert or `reparent_frame` violated a topology or kind constraint |
 | `NoParentToReplace(frame)`, `ParentUnchanged(frame)` | `reparent_frame` refused: the frame is a root, or already has that parent |
 | `TransformError(error)` | A geometry or time operation failed |
 

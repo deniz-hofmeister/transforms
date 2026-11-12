@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `RegistryError::EmptyFrameName`: the error an insert reports for a
+  transform whose parent or child frame name is empty.
+
+### Changed
+
+- `Registry::add_transform` and `Registry::add_transforms` reject a
+  transform whose parent or child frame name is `""` with
+  `RegistryError::EmptyFrameName`, and `Registry::reparent_frame` rejects
+  an empty new parent the same way. An empty name is a missing name —
+  ROS 2's unset `frame_id` — and chain resolution treats equal names as
+  one frame, so two publishers that both left it unset shared a
+  fabricated root, and a lookup between their unrelated trees returned
+  `Ok` with a plausible transform. Nothing stores `""` any more, so at
+  lookup it is an unregistered name like any other: `UnknownFrame("")`
+  against a known frame, the identity against itself. Constructors,
+  `Transform::validate` and deserialization still accept an empty name;
+  it cannot be inserted.
+
 ## [2.3.0] - 2026-10-28
 
 ### Added
