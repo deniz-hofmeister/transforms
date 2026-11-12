@@ -5,8 +5,10 @@ one condition of item 7, one bullet under "Ships in 2.x", decisions 13 to
 15 and two Prototypes rows; then
 [item 12](#12-remove_transforms_before-removes-the-sample-at-the-cutoff),
 which the maintainer decided that day, with its effect on item 10's
-recovery text. The PDF and `report-source.html` carry the
-amendment in summary form. Baseline: master `7cc2a65` (released v2.3.0 plus docs-only
+recovery text. This Markdown is the record: the rendered copies (a PDF
+and its HTML source, here and in `round1/`) were removed from the tree
+on 2026-11-12 and remain in git history up to the commit before the
+removal. Baseline: master `7cc2a65` (released v2.3.0 plus docs-only
 commits). Nothing here is implemented. Everything is a recommendation,
 except [item 10](#10-an-insert-the-window-discards-is-an-error), whose
 semantics the maintainer settled in discussion the same day.
