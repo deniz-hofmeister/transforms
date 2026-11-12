@@ -1,5 +1,29 @@
 # Is a v3 warranted? Ergonomics review and verdict
 
+**Status, 2026-11-12: superseded.** The verdict "v3 is not warranted now"
+and the triggers under [Recommendation](#recommendation) are superseded
+by the [v3 review](../v3-review/REPORT.md) (2026-11-10), which makes a
+3.0 a given, after 2.4 and not urgent: its item 10, an insert the
+retention window discards becomes an error, is outside this ledger and
+cannot ship in a minor. Of the ledger rows under
+[What genuinely requires a break](#what-genuinely-requires-a-break), the
+review:
+
+- **adopts** the cross-time result type (its item 1, in a changed shape)
+  and `Disconnected` before `NotFoundAt` (item 5);
+- **rejects** the `Rotation` newtype and the translation bound, and
+  closes their hazards without a new type (items 2 to 4); operators to
+  named methods; `TransformError<T>`; a required `max_age`; and, of the
+  vocabulary row, a split result type and `Point` to `Pose`. It deletes
+  `Point` (item 7), which leaves sealing it moot;
+- **leaves open** frame fields on insert errors (item 6 and decision 5,
+  leaning yes) and the rename of `ReparentingNotSupported` (decision 9,
+  optional);
+- **defers** `f32`, noting that a concrete `f32` module stays additive.
+
+The maintainer ruled on 2026-11-12 that 3.0 work is held until 2.4 has
+shipped. The text below is kept as written.
+
 Analysis date: 2026-10-03. Baseline: master `aa29557` (released v2.2.0 plus
 the AI-disclosure hooks). This report judges the crate's ergonomics and
 intuitiveness, then asks whether a breaking v3 release is warranted now.
