@@ -267,10 +267,13 @@ fn transform_over_system_time_roundtrips() {
 }
 
 /// Golden-bytes pin for non-self-describing formats: in postcard (and
-/// bincode) the struct field ORDER is the wire contract. Reordering any
-/// serde-derived field of Transform, Vector3, Quaternion, or Timestamp
-/// compiles fine and passes every JSON test, but silently corrupts every
-/// postcard/bincode stream — this test is what catches it.
+/// bincode) the struct field ORDER is the wire contract. Reordering the
+/// serde-derived fields of Transform or Vector3, or moving Quaternion's
+/// `w`, compiles fine and passes every JSON test, but silently corrupts
+/// every postcard/bincode stream — this test is what catches it. Its
+/// rotation is the identity, whose `x`, `y` and `z` are all zero: a
+/// reordering among those three is caught by
+/// `transform_with_a_general_rotation_postcard_bytes_are_frozen` instead.
 #[test]
 fn transform_postcard_bytes_are_frozen() {
     let transform: Transform = Transform::new(
@@ -361,6 +364,43 @@ fn static_transform_postcard_bytes_are_frozen() {
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, 0, 0, 0, 0, 0, 0, 0, // 0.0
         0, // Stamp::Static = variant 0
+        3, 109, 97, 112, // "map"
+        9, 98, 97, 115, 101, 95, 108, 105, 110, 107, // "base_link"
+    ];
+    assert_eq!(bytes, expected, "postcard wire format changed");
+
+    let back: Transform = postcard::from_bytes(&bytes).unwrap();
+    assert_eq!(back, transform);
+}
+
+/// The rotation arm of the same pin. The identity's `x`, `y` and `z` are
+/// interchangeable zeros, so the cases above cannot tell them apart; here
+/// all four components differ and none is zero, and any reordering of
+/// `Quaternion`'s fields changes the bytes.
+#[test]
+fn transform_with_a_general_rotation_postcard_bytes_are_frozen() {
+    // (10, 1, 2, 4) / 11 is a unit quaternion: 100 + 1 + 4 + 16 = 121.
+    let transform: Transform = Transform::new(
+        "map",
+        "base_link",
+        Vector3::new(1.5, -2.25, 3.125),
+        Quaternion::from_wxyz(10.0 / 11.0, 1.0 / 11.0, 2.0 / 11.0, 4.0 / 11.0),
+        Stamp::At(Timestamp::from_nanos(1_753_142_400_000_000_000)),
+    )
+    .unwrap();
+
+    let bytes = postcard::to_allocvec(&transform).unwrap();
+
+    let expected: &[u8] = &[
+        0, 0, 0, 0, 0, 0, 248, 63, // 1.5
+        0, 0, 0, 0, 0, 0, 2, 192, // -2.25
+        0, 0, 0, 0, 0, 0, 9, 64, // 3.125
+        23, 93, 116, 209, 69, 23, 237, 63, // w = 10/11
+        70, 23, 93, 116, 209, 69, 183, 63, // x = 1/11
+        70, 23, 93, 116, 209, 69, 199, 63, // y = 2/11
+        70, 23, 93, 116, 209, 69, 215, 63, // z = 4/11
+        1,  // Stamp::At = variant 1
+        128, 128, 180, 197, 150, 183, 154, 170, 24, // timestamp varint
         3, 109, 97, 112, // "map"
         9, 98, 97, 115, 101, 95, 108, 105, 110, 107, // "base_link"
     ];
