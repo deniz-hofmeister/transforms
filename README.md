@@ -187,6 +187,7 @@ are checked separately.
 | Example | Task |
 |---|---|
 | [basic](examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result |
+| [ingest](examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
 | [shared_latest](examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
 | [cross_time](examples/cross_time.rs) | Coordinates expressed between different instants |
 

@@ -36,7 +36,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features
 # Every example asserts its results and is feature-agnostic: each runs in
 # both modes, and a wrong value fails here.
-for example in basic shared_latest cross_time; do
+for example in basic ingest shared_latest cross_time; do
     cargo run --example "$example"
     cargo run --example "$example" --no-default-features
 done

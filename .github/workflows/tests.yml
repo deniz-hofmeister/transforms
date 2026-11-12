@@ -175,12 +175,12 @@ jobs:
           toolchain: stable
       - name: Run examples (std)
         run: |
-          for example in basic shared_latest cross_time; do
+          for example in basic ingest shared_latest cross_time; do
             cargo run --example "$example"
           done
       - name: Run examples (no_std)
         run: |
-          for example in basic shared_latest cross_time; do
+          for example in basic ingest shared_latest cross_time; do
             cargo run --example "$example" --no-default-features
           done
 

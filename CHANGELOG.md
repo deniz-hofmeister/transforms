@@ -59,7 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `shared_latest` and `cross_time`. Each asserts its results, so a wrong
   value fails the gate, and each runs unchanged with and without the
   `std` feature. `shared_latest` uses standard-library threads and
-  `std::sync::RwLock`.
+  `std::sync::RwLock`. A fourth, `ingest`, feeds a registry from a
+  message stream: checked stamp conversion, one decision per insert
+  error, recovery from a clock that steps backward, and lookup errors
+  told apart.
 
 ## [2.3.0] - 2026-10-28
 
