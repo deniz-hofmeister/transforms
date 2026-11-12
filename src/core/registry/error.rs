@@ -12,7 +12,9 @@ use crate::{
 /// Errors from fallible [`Registry`](crate::Registry) operations.
 ///
 /// Lookup payloads retain the registry's time type `T`; conversion to seconds
-/// occurs only in `Display`. Numeric validation failures use the flat
+/// occurs only in `Display`. That conversion is lossy: a request 1 ns outside
+/// the covered range can print as inside it, while the payload is exact, so
+/// compare the payload. Numeric validation failures use the flat
 /// [`NonUnitRotation`](Self::NonUnitRotation) and
 /// [`NonFiniteValues`](Self::NonFiniteValues) variants, including on lookup
 /// return paths. Other geometry and time errors use

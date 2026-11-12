@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transform leaves in place, `Timestamp::try_now` no longer claims to be
   panic-free, and `Registry::add_transforms` that a rejected batch stops
   reading its iterator at the first rejected transform.
+- Document three behaviours where a reader meets them: `Display` of a
+  `RegistryError` renders times in lossy seconds, so a request 1 ns
+  outside the covered range can print as inside it, while the payload is
+  exact; `Registry::get_transform_at` errors may name the fixed frame;
+  and the README states that `f64` arithmetic is software floating point
+  on the embedded targets as CI builds them.
 
 ## [2.3.0] - 2026-10-28
 

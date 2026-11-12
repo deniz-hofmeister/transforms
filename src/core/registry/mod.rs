@@ -397,7 +397,9 @@ where
     /// # Errors
     ///
     /// The same lookup and numeric failures as [`Registry::get_transform`],
-    /// reported for either leg or their composition.
+    /// reported for either leg or their composition. Each leg is a lookup
+    /// against `fixed_frame`, so an error's frame fields may name `fixed_frame`
+    /// rather than the other endpoint.
     ///
     /// # Examples
     ///
