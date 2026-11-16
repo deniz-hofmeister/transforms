@@ -17,6 +17,11 @@ rustc --version | grep -q nightly || {
     exit 1
 }
 
+# Any rustc warning fails the gate (cargo's `build.warnings`). CI's toolchain
+# action exports the same in every job that uses it; setting it here keeps
+# this script, not the workflow, the place where that strictness is defined.
+export CARGO_BUILD_WARNINGS=deny
+
 cargo build --no-default-features
 cargo build
 cargo test --no-default-features
