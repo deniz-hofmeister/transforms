@@ -64,6 +64,25 @@ fn transform_json_roundtrip_is_exact() {
 }
 
 #[test]
+fn transform_naming_an_empty_frame_roundtrips() {
+    // The empty name is refused at registry insert, not at decode: stored
+    // data that names it keeps decoding.
+    let transform = Transform::new(
+        "",
+        "base",
+        Vector3::new(1.0, 2.0, 3.0),
+        Quaternion::identity(),
+        Stamp::At(Timestamp::from_nanos(1_000_000_000)),
+    )
+    .unwrap();
+
+    let json = serde_json::to_string(&transform).unwrap();
+    let deserialized: Transform<Timestamp> = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(deserialized, transform);
+}
+
+#[test]
 fn point_json_roundtrip_is_exact() {
     let point = Point::new(
         Vector3::new(-1.0, 0.5, 2.0),

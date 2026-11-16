@@ -148,6 +148,7 @@ where
     /// - [`RegistryError::NonFiniteValues`] or [`RegistryError::NonUnitRotation`]
     ///   if numeric validation fails.
     /// - [`RegistryError::StaticDynamicConflict`] if the child's kind differs.
+    /// - [`RegistryError::EmptyFrameName`] if the parent or child name is empty.
     /// - [`RegistryError::SelfReferentialFrame`] if parent equals child.
     /// - [`RegistryError::ReparentingNotSupported`] if the child's parent differs.
     ///   [`Registry::reparent_frame`] moves a frame deliberately.
@@ -693,7 +694,8 @@ where
     /// - [`RegistryError::CycleDetected`] if the move would close a cycle. This
     ///   check needs the whole tree, which is why the move is one atomic call.
     /// - The seed's own insertion errors: [`RegistryError::NonUnitRotation`],
-    ///   [`RegistryError::NonFiniteValues`], [`RegistryError::SelfReferentialFrame`],
+    ///   [`RegistryError::NonFiniteValues`], [`RegistryError::EmptyFrameName`]
+    ///   if the new parent's name is empty, [`RegistryError::SelfReferentialFrame`],
     ///   and [`RegistryError::StaticDynamicConflict`] if the seed's kind differs
     ///   from the frame's.
     ///
@@ -774,9 +776,10 @@ where
         }
 
         // The fresh buffer keeps the frame's kind and expiry policy and pins
-        // nothing; the seed's insert runs the numeric, self-reference and
-        // kind checks and pins the new parent. Only after every check has
-        // passed does the single `HashMap::insert` commit the move.
+        // nothing; the seed's insert runs the numeric, empty-name,
+        // self-reference and kind checks and pins the new parent. Only after
+        // every check has passed does the single `HashMap::insert` commit
+        // the move.
         let mut fresh = old.empty_like();
         let child: String = t.child().into();
         fresh.insert(t)?;

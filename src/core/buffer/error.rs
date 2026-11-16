@@ -19,6 +19,9 @@ pub(crate) enum InsertError {
     /// buffer was constructed with.
     StaticDynamicConflict,
 
+    /// The transform's parent or child frame name is empty.
+    EmptyFrameName,
+
     /// The transform's parent and child are the same frame.
     SelfReferentialFrame,
 

@@ -274,6 +274,10 @@ where
     /// (static or dynamic) does not match the buffer's declared kind. Mixing
     /// the two would silently corrupt interpolation.
     ///
+    /// Returns `InsertError::EmptyFrameName` if the transform's parent or
+    /// child frame name is empty — a missing name, which every publisher
+    /// that left it unset would share as one fabricated frame.
+    ///
     /// Returns `InsertError::SelfReferentialFrame` if the transform's parent
     /// and child are the same frame,
     /// `InsertError::ReparentingNotSupported` if the buffer's parent frame
@@ -353,6 +357,9 @@ where
     ) -> Result<(), InsertError> {
         transform.validate().map_err(InsertError::Invalid)?;
 
+        if transform.parent().is_empty() || transform.child().is_empty() {
+            return Err(InsertError::EmptyFrameName);
+        }
         if transform.parent() == transform.child() {
             return Err(InsertError::SelfReferentialFrame);
         }

@@ -109,7 +109,8 @@ Constructors and deserialization reject non-finite transform components and
 non-unit rotations. Derived transforms are not re-validated: composition can
 accumulate rotation drift or overflow. Call `Transform::validate` before
 applying or serializing a derived result when numeric validity is required;
-registry insertion always validates again.
+registry insertion always validates again. Registry insertion also rejects an
+empty frame name.
 
 Geometry equality and `approx` comparisons compare components; opposite
 quaternion signs can represent the same rotation without comparing equal.
