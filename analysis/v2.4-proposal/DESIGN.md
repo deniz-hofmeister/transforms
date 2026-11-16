@@ -1,6 +1,6 @@
 # transforms 2.4: design proposal
 
-Date: 2026-10-03. Draft revision: 7 (2026-11-11). Baseline: master
+Date: 2026-10-03. Revision: 8 (2026-11-12). Baseline: master
 `aa29557` (released v2.2.0) for the §2 probes; master `f9770d2` (released
 v2.3.0 plus docs) for the dependent evidence and Part D; master `698d1b8`
 for Part C item 10 and the f32 gate; master `7cc2a65` for Part E.
@@ -12,9 +12,11 @@ no v3 now, and the reachable value ships additively. The later
 makes a 3.0 a given, after 2.4 and not urgent, and lists what it expects
 2.x to ship ([Ships in 2.x](../v3-review/REPORT.md#ships-in-2x); §6,
 D17). Nothing here is
-implemented. AGENTS.md applies throughout. Parts B and D grow the public
+implemented. AGENTS.md applies throughout. Part D grows the public
 surface, so this document is the maintainer note that AGENTS.md requires.
-It does not authorize implementation, merge, or release.
+Since revision 8 every decision in §8 is ruled on and implementation is
+authorized on feature branches; merge, tag and publish stay with the
+maintainer.
 
 Revision 2 retargeted the proposal from 2.3.0 to 2.4.0: 2.3.0 shipped
 `Registry::add_transforms` alone (`76787c2`). The probes in §2 ran at
@@ -73,23 +75,47 @@ after an audit against the code and the v3 review:
 - §7 gains three Part D tests; §9 gains the Part C changelog line and
   the MIGRATION title.
 
+Revision 8 records the maintainer's rulings of 2026-11-12 on every
+decision that was still open, and edits the sections they change, so the
+document can be implemented from. Earlier text that argues a
+recommendation is kept; where a ruling replaces it, the ruling is stated
+with its date.
+
+- Implementation is authorized on feature branches. Merge, tag and
+  publish stay with the maintainer.
+- D2: No. Part B does not ship; Part C item 6 ships. D3 is moot.
+- D6: the insert boundary. D7: a unit payload. D8: no property test.
+  D11: `Point` stays in the 2.x examples.
+- D13: `shared_latest` uses std threads and `std::sync::RwLock`, so
+  `tokio` leaves the dev-dependencies with `log` and `env_logger` (§5b,
+  E4).
+- D16: the wording is split between `Registry::with_max_age` and the
+  rustdoc of `remove_frame` and `remove_transforms_before` (§5 item 5).
+- D17: four groups of the v3 review's 2.x items join 2.4, two do not
+  (§6).
+- Ruled without a decision ID: the MIGRATION opening, the release
+  scope, the README example links, and one README sentence (§8, §9).
+  Work decided the same day outside the proposal's parts is listed at
+  the end of §6.
+
 ## 1. Summary
 
 | Part | What | Public surface | Status |
 |---|---|---|---|
 | A | A cross-time result type; `get_transform_at` deprecated | — | Moved to the v3 ledger (§3) |
-| B | Checked application of a transform to plain positions | 1 method, if granted | Needs a scope decision; recommended No for 2.4, leaving the Part C item 6 recipe (§4.1, D2) |
-| C | Documentation corrections | none | Proposed |
-| D | Reject empty frame names at insert | 1 variant | Decided 2026-11-06: non-breaking; site open (§5a, D6) |
-| E | Examples that assert, organised by task | none | Decided 2026-11-11: part of 2.4, as three commits (§5b) |
+| B | Checked application of a transform to plain positions | — | Decided 2026-11-12: not in 2.4 (D2). The Part C item 6 recipe ships instead (§4.1) |
+| C | Documentation corrections | none | Decided 2026-11-12: ships, with the v3 review's 2.x items that D17 admits (§5, §6) |
+| D | Reject empty frame names at insert | 1 variant | Decided 2026-11-06: non-breaking. Decided 2026-11-12: at the insert boundary, unit payload (§5a, D6, D7) |
+| E | Examples that assert, organised by task | none | Decided 2026-11-11: part of 2.4, as three commits. Decided 2026-11-12: `shared_latest` on std threads, `tokio` dropped (§5b, D13) |
 
 Everything is additive under SemVer. No signature, trait bound, or public
 path changes. Part D adds one variant to the `#[non_exhaustive]`
 `RegistryError` and declares one behaviour change, which the maintainer
 ruled non-breaking: an insert naming an empty frame returns `Err` where
 2.3.0 returned `Ok`. `cargo semver-checks` should find nothing breaking in
-any of the four feature combinations; the release is a minor whether or
-not Part B ships, because Part D adds a public variant (§9).
+any of the four feature combinations; the release is a minor because
+Part D adds a public variant (§9). Parts C, D and E and the D17 items
+all land on master before 2.4.0 is published (ruled 2026-11-12).
 
 ## 2. Motivation
 
@@ -177,7 +203,8 @@ beside it. It is withdrawn from 2.4:
   dropped.
 - **Outreach, outside the crate.** Ask `roslibrust_transforms` to link
   `get_transform_at`'s application restrictions from its wrapper. This
-  is not a change to this repository.
+  is not a change to this repository. Ruled 2026-11-12: no notice to
+  the bridge maintainers and no issues on the adapters for now.
 
 The design moves to
 [`transforms-v3-addendum-cross-time.md`](../v3-proposals/transforms-v3-addendum-cross-time.md),
@@ -187,6 +214,11 @@ ledger row in the warrant report points there.
 supersedes the addendum's shape and is the current design.
 
 ## 4. Part B: checked application to positions
+
+**Decided 2026-11-12 (D2): No.** Part B does not ship in 2.4, and
+nothing in §4.2 to §4.4 is to be implemented. The recipe of Part C item
+6 ships instead. D3, the method's name, is moot. This section is kept
+as the record of what was considered.
 
 ### 4.1 Scope decision required
 
@@ -223,7 +255,7 @@ The case against:
   `transform_positions` would not reach it.
 
 If the maintainer rejects the exception, Part B reduces to a rustdoc recipe
-on `Transformable` (§5).
+on `Transformable` (§5). The maintainer rejected it on 2026-11-12.
 
 ### 4.2 API
 
@@ -304,6 +336,7 @@ None of these changes behaviour. `Display` text is declared unstable
    `TimePoint` rustdoc: the crate cannot detect a wrapping hardware
    counter. `Ord` stays total, but the stream's order disagrees with it.
    Widen it to a monotonic 64-bit count before implementing the trait.
+   The wording is split across three rustdocs (D16, ruled 2026-11-12).
    Add to the `Registry::with_max_age` rustdoc
    (`src/core/registry/mod.rs:122-130`), which states the eviction rule
    but not its consequence: "The registry does not detect a clock that
@@ -312,18 +345,20 @@ None of these changes behaviour. `Display` text is declared unstable
    keeps both runs, and lookups interpolate across them, as every jump
    does without `max_age`; a larger jump does the same from the moment
    the restarted stream reaches the newest timestamp minus `max_age`.
-   Whoever owns the clock must detect the jump. `remove_frame` discards
-   one frame's samples and its newest timestamp, for any time type, and
-   releases the frame's parent and kind until its next insert.
-   `remove_transforms_before` does it for every frame at once and keeps
-   their pins, with a cutoff strictly later than every stored dynamic
-   sample; a cutoff equal to the newest sample keeps it, and no such
-   cutoff exists for a sample at the time type's maximum." The last
-   sentences are the corrected form from
+   Whoever owns the clock must detect the jump; to recover, see
+   `remove_frame` and `remove_transforms_before`." The recovery facts go
+   on the two methods. `Registry::remove_frame`: it discards one frame's
+   samples and its newest timestamp, for any time type, and releases the
+   frame's parent and kind until its next insert.
+   `Registry::remove_transforms_before` (`mod.rs:577-582`, beside its
+   text on the expiry reset): it does the same for every frame at once
+   and keeps their pins; the cutoff is strict, so a cutoff equal to the
+   newest sample keeps it, and no such cutoff exists for a sample at
+   the time type's maximum. The facts are the corrected form from
    [`sample-expired-contract.md` (f)](../v3-review/sample-expired-contract.md),
-   with its probe record (D16); revision 6 said "a cutoff past every
-   stored sample", which is wrong at the newest stamp. Link
-   `remove_transforms_before`'s text on the expiry reset (`mod.rs:577-582`). The cutoff is
+   with its probe record; revision 6 said "a cutoff past every
+   stored sample", which is wrong at the newest stamp, and revision 7
+   put all of it on `with_max_age`. The cutoff is
    strict in 2.x only; 3.0 makes it remove the sample at the cutoff
    ([v3 item 12](../v3-review/REPORT.md#12-remove_transforms_before-removes-the-sample-at-the-cutoff)), and these sentences change with it. Cause: the newest timestamp
    is a running max, and eviction runs after the insert is accepted
@@ -331,7 +366,8 @@ None of these changes behaviour. `Display` text is declared unstable
    (`../dependents/probes/transforms_io.rs` P6,
    `transforms_io_verify.rs` N3), roslibrust_transforms Z3
    (`roslibrust_transforms.rs` P3a, P3b), dimos Hazard 1.
-6. **If Part B is rejected** (D2's recommendation), extend the
+6. **The recipe on `Transformable`.** Ships: Part B was rejected on
+   2026-11-12 (D2). Extend the
    `Transformable` rustdoc. Its `# Contract` section
    (`src/geometry/transform/traits.rs:47-53`) already gives the position
    formula and the relabel to `tf.parent()`; `# Preconditions` says only
@@ -345,8 +381,8 @@ None of these changes behaviour. `Display` text is declared unstable
    review deletes `Transformable` and moves this recipe to `Transform`'s
    rustdoc
    ([item 7](../v3-review/REPORT.md#7-delete-point-transformable-localized-get_transform_for),
-   first condition). If v3 decision 3 is taken before 2.4, put the
-   recipe on `Transform` and link it from `Transformable`.
+   first condition). The v3 decisions are held until 2.4 has shipped
+   (ruled 2026-11-12), so in 2.4 the recipe goes on `Transformable`.
 7. **Withdrawn in revision 3.** It repointed the cross-time references at
    Part A's method. They stay as they are (§3).
 8. **Dropping a `StaticDynamicConflict` transform.** Add one sentence to
@@ -378,12 +414,21 @@ None of these changes behaviour. `Display` text is declared unstable
     wording
     ([`DISCUSSION.md`](../atomic-batch-insert/DISCUSSION.md), "consumed up
     to the first error"), and the shipped sentence dropped it.
+11. **README: drop the feasibility-report sentence** (ruled 2026-11-12;
+    not rustdoc, but it rides with Part C). Under "Performance and
+    embedded use", remove "The [v2 feasibility report](analysis/v2-feasibility/REPORT.md)
+    records host measurements and reproduction commands."
+    (`README.md:164-165`) and keep "Run `cargo bench` for benchmarks."
+    The report's measurements are the 2.1.3 baseline, and 2.2.0 changed
+    the lookup figures.
 
 ## 5a. Part D: reject empty frame names
 
 Decided: the maintainer ruled on 2026-11-06 that rejecting `""` is
-non-breaking, so it ships in 2.4 (D5). The enforcement site is open (D6).
-References are to `f9770d2`.
+non-breaking, so it ships in 2.4 (D5). The maintainer ruled on
+2026-11-12 that it is enforced at the insert boundary (D6) with a unit
+payload (D7), as described below, and that it gets no property test
+(D8). References are to `f9770d2`.
 
 **Hazard.** Chain resolution treats equal names as one frame
 (`src/core/registry/mod.rs:871-910`). `""` is ROS 2's unset `frame_id`.
@@ -457,7 +502,9 @@ Examples are not public surface and are not in the published package
 (`Cargo.toml:19-26` lists `/src`, the manifest, README, CHANGELOG,
 MIGRATION and LICENSE). Nothing here touches SemVer. The maintainer
 decided on 2026-11-11 that all of Part E is part of 2.4: it lands in the
-repository before the release is cut. References are to `7cc2a65`.
+repository before the release is cut. On 2026-11-12 the maintainer
+ruled that `shared_latest` uses std threads, not tokio (D13), and that
+`Point` stays in the examples (D11). References are to `7cc2a65`.
 
 **What is wrong today.**
 
@@ -497,7 +544,7 @@ decision. The last column is the case for each.
 | E1 | Every example asserts its results, so a wrong value fails the gate | Strong. The gate's example step can fail only on a main-thread panic |
 | E2 | Task-named files that run in both feature modes replace the six | Moderate. A deletion and a clearer index, with no hazard behind it |
 | E3 | A new `ingest` example | Moderate. It rests on the same dependent findings as Part C items 5 and 8. Whether an example changes what adapters do is untested: transforms_io ignored `latest_common_time` with `std_full` available |
-| E4 | Drop `log` and `env_logger` from `[dev-dependencies]` | Follows from E1 and E2 |
+| E4 | Drop `log`, `env_logger` and `tokio` from `[dev-dependencies]` | Follows from E1 and E2, and from D13 for `tokio` |
 
 E2, E3 and E4 are one purpose and one commit each; E1 is met inside E2 and E3 (below). None rides in Part D's commit.
 
@@ -505,8 +552,8 @@ E2, E3 and E4 are one purpose and one commit each; E1 is met inside E2 and E3 (b
 
 Replace every logged outcome with an asserted one: `assert_eq!` for exact
 values, `approx::assert_abs_diff_eq!` for computed ones, and a `match`
-that panics on the unexpected arm for expected errors. The async example
-joins its tasks instead of aborting them. This could be done in the
+that panics on the unexpected arm for expected errors. `shared_latest`
+joins its threads, so a panic in one reaches the exit code. This could be done in the
 existing six files without renaming anything, but with E2 and E3 also
 decided that would add asserts to files the next commit deletes. So E1
 has no commit of its own: the E2 files (`basic`, `shared_latest`,
@@ -520,16 +567,18 @@ maintainer's decision.
 | New file | Replaces | Shows |
 |---|---|---|
 | `basic.rs` | `std_minimal`, `no_std_minimal`, `no_std_full` | Insert, a static edge, an interpolated lookup, checked application through `Point`, the opposite direction, and the no-extrapolation error with its `covered` range |
-| `shared_latest.rs` | `std_full` | A tokio writer and reader on one `RwLock`; `latest_common_time` then `get_transform` under one read guard, with the `Stamp::Static` arm served by a lookup, never `.at().unwrap()` (Part C item 4) |
+| `shared_latest.rs` | `std_full` | A writer thread and a reader thread on one `std::sync::RwLock` (D13); `latest_common_time` then `get_transform` under one read guard, with the `Stamp::Static` arm served by a lookup, never `.at().unwrap()` (Part C item 4) |
 | `cross_time.rs` | `std_advanced`, `no_std_advanced` | `get_transform_at` on the conveyor case, with the warning not to re-insert the result |
 | `ingest.rs` | new (E3) | A message loop |
 
 - **One file, both modes.** Every example uses fixed
   `Timestamp::from_nanos` stamps and no `cfg`-gated `main`, so the same
   file runs with and without the library's `std` feature. No example
-  needs that feature; `shared_latest` needs tokio, a dev-dependency in
-  both modes. The six `[[example]]` blocks with their `required-features`
-  go, and cargo discovers the files.
+  needs that feature; `shared_latest` uses `std::thread` and
+  `std::sync::RwLock` as a hosted program, which every example is in
+  both modes, and needs no dev-dependency (D13). The six `[[example]]`
+  blocks with their `required-features` go, and cargo discovers the
+  files.
 - **Runs.** E2's commit leaves three files and six runs; E3's commit
   adds `ingest` and makes it eight: four examples in two modes. The gate
   is edited in both commits, not weakened, and the CI `examples` job
@@ -549,9 +598,9 @@ maintainer's decision.
   through `Point` after its first lookup. Removing `Point` from the examples would
   pre-empt the v3 decision on it
   ([v3 review, item 7](../v3-review/REPORT.md#7-delete-point-transformable-localized-get_transform_for)).
-  The README's compiled snippet (`README.md:41-72`) also keeps it. If
-  the v3 review's removal notice for the Point family ships in 2.4, it
-  goes in the changelog and README, not in the example.
+  The README's compiled snippet (`README.md:41-72`) also keeps it.
+  Ruled 2026-11-12 (D11): `Point` stays. The v3 review's removal notice
+  for the Point family does not ship in 2.4 (D17).
 - **Names.** `basic` uses the `t_a_b` names and the "camera expressed in
   base (parent base, child camera)" wording of Part C item 1.
 
@@ -568,7 +617,7 @@ What it shows, and the evidence for each:
 | Step | Shown | Evidence |
 |---|---|---|
 | Stamp | `sec < 0` and `nanosec >= 1e9` are refused, never clamped | H6, Z6 (negative seconds); `transforms_io.md:159` (`nanosec >= 1e9` carries into seconds) |
-| Frame names | An empty name is refused through `RegistryError::EmptyFrameName` (under D6's recommended site; the `validate` site would raise it at construction) | Part D; H5, Z1 |
+| Frame names | An empty name is refused through `RegistryError::EmptyFrameName`, at the insert (D6) | Part D; H5, Z1 |
 | Insert | Per-element `add_transform`, so a refused message costs only itself | "Do not steer bridges to `add_transforms`" ([`../dependents/README.md`](../dependents/README.md#do-not)) |
 | Insert errors | One `match`, one stated decision per variant (below) | H3, H4, Z2, Z11; three of four users stringify |
 | Clock jump | The bridge compares each stamp with the newest it stored and clears with `remove_transforms_before` | H7, Z3, dimos Hazard 1; Part C item 5 |
@@ -626,10 +675,15 @@ With asserts and `println!`, nothing uses `log` or `env_logger` (no hits
 in `src`, `tests` or `benches`). Removing them drops 20 packages from
 `Cargo.lock`. It needs two AGENTS.md edits: the dev-dependency list
 (`AGENTS.md:93`) and the Style sentence "logging belongs in `examples/`"
-(`:307-308`), which would then describe examples that do not log. `tokio`
-stays for `shared_latest`; if that example moved to `std::sync::RwLock`
-and threads, as the v3 prototype did for determinism, `tokio` and its
-mention at `AGENTS.md:93` would go too (D13).
+(`:307-308`), which would then describe examples that do not log.
+
+Ruled 2026-11-12 (D13): `shared_latest` uses `std::sync::RwLock` and
+threads, as the v3 prototype did for determinism
+([`shared_latest.rs`](../v3-review/prototypes/examples/shared_latest.rs)),
+so `tokio` leaves `[dev-dependencies]` in the same commit as `log` and
+`env_logger`, and its mention at `AGENTS.md:93` goes with theirs. The
+maintainer signed off the AGENTS.md dev-dependency edit. The package
+count for `Cargo.lock` with `tokio` removed was not measured.
 
 ### Prototype
 
@@ -638,7 +692,8 @@ README, gate and CI edits and the first AGENTS.md edit (`:93`) in
 [`prototypes/examples-manifest-gate-readme.diff`](prototypes/examples-manifest-gate-readme.diff).
 The Style sentence edit and `Cargo.lock` are not in the diff. Written
 against 2.3.0, so `ingest.rs` carries the pre-Part-D `is_empty()` check
-and has no `EmptyFrameName` arm. It is one combined change, E1 to E4
+and has no `EmptyFrameName` arm, and `shared_latest.rs` and the diff
+still use `tokio`, which D13 replaced on 2026-11-12. It is one combined change, E1 to E4
 together. No piece was built alone, and asserts in the six existing
 files (E1 without E2) were not written.
 
@@ -663,7 +718,10 @@ files (E1 without E2) were not written.
   of `ingest` (no implementation exists); `shared_latest` under load (its
   assertions do not depend on timing, and it passed four runs); how
   crates.io resolves the README's relative example links for the already
-  published 2.3.0 page after a rename.
+  published 2.3.0 page after a rename. (Verified 2026-11-12: against
+  the repository's HEAD, so the rename breaks them; see D15 and §9.)
+  The threads form of `shared_latest` on 2.x was not built either; the
+  v3 prototype of it ran on the stacked 3.0 diff.
 
 ### Not proposed
 
@@ -696,7 +754,8 @@ files (E1 without E2) were not written.
   beside the `Result`-returning `+`, without removing the unidiomatic
   operator. The v3 review does not take the idiom fix (operators → named methods)
   into 3.0; it proposes a diagnostic attribute on `TimePoint` for 2.x
-  instead ([Not in 3.0](../v3-review/REPORT.md#not-in-30); D17).
+  instead ([Not in 3.0](../v3-review/REPORT.md#not-in-30)). The
+  attribute is not in 2.4 (D17, ruled 2026-11-12).
 - **A finiteness check at the end of every lookup** (to remove `Ok(inf)` on
   ancestor-ward lookups). It needs inputs around 1e308. It contradicts the
   documented "not re-validated" contract, which is pinned by
@@ -705,7 +764,8 @@ files (E1 without E2) were not written.
   [item 4 of the v3 review](../v3-review/REPORT.md#4-no-lookup-returns-a-non-finite-value),
   which drops the `Rotation` and bound route. Whether it is a 2.x fix
   instead is the maintainer's call (v3 decision 7); without that ruling
-  it is not 2.4 work.
+  it is not 2.4 work. The v3 decisions are held until 2.4 has shipped
+  (ruled 2026-11-12).
 - **Root re-exports, a prelude, an `is_retryable` helper on errors, an
   `unbounded()` alias.** Each is speculative or a second spelling.
 - **An f32 module.** f32 is a Non-Goal (README, crate root, AGENTS.md), so
@@ -732,25 +792,41 @@ files (E1 without E2) were not written.
   The v3 review keeps it open and out of 3.0 as well
   ([Not in 3.0](../v3-review/REPORT.md#not-in-30)).
 - **The v3 review's other 2.x items**
-  ([Ships in 2.x](../v3-review/REPORT.md#ships-in-2x)). Not put to the
-  revision 4 question, and not part of this proposal until the
-  maintainer rules on them (D17): the Point-family removal notice in the
-  changelog and README (v3 decisions 3 and 4); a
-  `#[diagnostic::on_unimplemented]` attribute on `TimePoint`; three doc
-  sentences (`Display` of time-carrying errors is lossy and the payload
-  exact; `get_transform_at` errors may name the fixed frame; `f64` is
-  software on the core classes the gate builds); two doc recipes (a
-  "latest" lookup, a checked ROS time conversion); a frozen-bytes serde
-  case with a non-identity rotation; deleting the `latest_timestamp`
-  field, `Buffer.child` and `InsertError::ChildFrameMismatch`; and, from
-  [Not in 3.0](../v3-review/REPORT.md#not-in-30), wording unbounded
-  interpolation as the default, not a guarantee.
+  ([Ships in 2.x](../v3-review/REPORT.md#ships-in-2x)). None was put to
+  the revision 4 question. The maintainer ruled on them on 2026-11-12
+  (D17).
+
+  Joining 2.4, each as its own commit:
+  - A frozen-bytes serde case with a non-identity rotation.
+  - Three documentation sentences: `Display` of time-carrying errors is
+    lossy and the payload exact; `get_transform_at` errors may name the
+    fixed frame, worded as "may"; `f64` is software on the embedded
+    targets the gate builds.
+  - Internal deletions: the `latest_timestamp` field, `Buffer.child`
+    and `InsertError::ChildFrameMismatch`. Ordered after Part D,
+    because both edit `Buffer::check`.
+  - Two doc recipes: a "latest" lookup, and a checked ROS time
+    conversion.
+
+  Not joining 2.4: the Point-family removal notice in the changelog and
+  README (v3 decisions 3 and 4), and the
+  `#[diagnostic::on_unimplemented]` attribute on `TimePoint`.
+
+  Not ruled on, so not 2.4 work: wording unbounded interpolation as the
+  default, not a guarantee (from
+  [Not in 3.0](../v3-review/REPORT.md#not-in-30)).
+- **Decided 2026-11-12, adjacent to this proposal.** Not parts of it,
+  and each its own change: one SciPy golden interpolation vector with
+  an asymmetric ratio is added to `tests/golden_vectors.rs` (test
+  only); `tests/test_all.sh` adopts `CARGO_BUILD_WARNINGS=deny`; `gate`
+  and `commits` became required status checks on the repository. No
+  notice goes to the bridge maintainers and no issues are filed on the
+  adapters for now (§3).
 
 ## 7. Tests
 
 Every new test below must fail if its feature is removed or broken. Part B
-fixes no bug in an existing method, so it adds no regression test for old
-code. Part D fixes one, so its first five tests fail on 2.3.0, as
+does not ship (D2), so its tests below are not written. Part D fixes a bug, so its first five tests fail on 2.3.0, as
 AGENTS.md requires of a correctness fix. Part A's tests
 moved with it to the v3 addendum.
 
@@ -785,7 +861,7 @@ Part D, in `src/core/registry/tests.rs` with the `translated` helper
   list. It passes on 2.3.0 too; it pins that `""` is not special at
   lookup.
 
-Part B:
+Part B (not shipping, D2; kept for the record):
 
 - A frame mismatch, a time mismatch, and the `Static` exemption, each
   matching `Point::transform` on the same inputs.
@@ -800,7 +876,13 @@ transform tests (`Transform::new("", "x", ..)`, `static_between` and
 `validate` return `Ok`), and, under the `serde` feature, a `serde_json`
 roundtrip of a transform naming `""`, which decodes. Both pass on 2.3.0; they
 fail if the check moves to `Transform::validate`. The existing serde
-suites are otherwise unchanged.
+suites are otherwise unchanged by Part D. No property test is added for
+the rule (D8).
+
+From D17: one frozen-bytes case with a non-identity rotation joins the
+serde wire-format tests, in its own commit. All three frozen rotations
+are `(1, 0, 0, 0)` today, so a reordered quaternion is not caught
+([Ships in 2.x](../v3-review/REPORT.md#ships-in-2x)).
 
 Part E adds no test file. The examples are the check: each asserts its
 results and runs in both feature modes in the gate (§5b). The acceptance
@@ -809,65 +891,108 @@ must make it exit non-zero.
 
 ## 8. Decisions for the maintainer
 
-| ID | Decision | Recommendation |
-|---|---|---|
-| D1 | Deprecate `get_transform_at` with an attribute, or redirect in rustdoc only | Withdrawn in revision 3: no replacement ships in 2.x (§3) |
-| D2 | Grant Part B a scope exception | No for 2.4: no studied dependent shows the need (§4.1). Part C item 6 applies instead. Revisit on a demonstrated need |
-| D3 | Name: `transform_positions` | As proposed. It mirrors `Transformable::transform` |
-| D4 | Ship A without B if D2 is refused | Withdrawn in revision 3: Part A no longer ships in 2.x |
-| D5 | Reject empty frame names in 2.x | Decided by the maintainer 2026-11-06: non-breaking, ships in 2.4 (§5a) |
-| D6 | Enforcement site: the insert boundary (`Buffer::check`, flat `RegistryError::EmptyFrameName`) or `Transform::validate` (`TransformError::EmptyFrameName`) | The insert boundary. The hazard is registry-only, the sibling self-reference rule lives there, and decoding is untouched (§5a). The ruling covers rejection, not the site |
-| D7 | Payload: unit, or name the empty side | Unit, as `SelfReferentialFrame` is. Frame fields on insert errors are a v3 ledger candidate for all of them at once (now a [ledger row](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06), since adding one to a shipped variant is a break. The v3 review reopened the question ([item 6](../v3-review/REPORT.md#6-error-shapes) and its decision 5: leaning yes, child frame only) and asks that this payload be decided with it. Unit in 2.4 keeps both outcomes open, since unit to struct needs the major either way |
-| D8 | A property test for the rule | No: the check is a string comparison and §7 covers every insert branch. If wanted, map one name of the `f0..f6` alphabet in `tests/properties.rs` (`:123-165`) to `""` |
-| D9 | E1: make every example fail on a wrong result | Decided 2026-11-11: yes, in 2.4. Recommended without a commit of its own: the E2 and E3 files are written with asserts (§5b, E1) |
-| D10 | E2: task-named files run in both modes; delete the six; `Timestamp::now()` leaves the examples, and `remove_transforms_before` leaves them until E3 brings it back in `ingest`; edit the gate and the CI job together | Decided 2026-11-11: yes, in 2.4, as its own commit. The gate edit it implies (six runs stay six under new names; E3's commit makes them eight) is not a weakening, and is flagged for explicit sign-off when the change is reviewed |
-| D11 | Remove `Point` from the examples in 2.x | No. `basic` leads with the registry and applies through `Point`. Revisit with the v3 decision on the Point family; a removal notice, if taken, goes in the changelog and README |
-| D12 | E3: the `ingest` example in 2.x | Decided 2026-11-11: yes, in 2.4, last: after Part D and Part C item 5 |
-| D13 | E4: drop `log` and `env_logger`; `tokio` or threads for `shared_latest` | Decided 2026-11-11 for `log` and `env_logger`: dropped in 2.4, with both AGENTS.md edits. `tokio` is still open, the maintainer's call: roslibrust_transforms uses `tokio::sync::RwLock` (the other users' lock types were not checked); threads are deterministic and would remove one more dev-dependency |
-| D14 | Part C item 1 | Superseded: D10 is decided for 2.4 |
-| D15 | Rename `std_full` to `shared_latest` and `std_advanced` to `cross_time` | Decided with D10. The released CHANGELOG entries that name the old files stay as written. The effect on the published 2.3.0 README links is unverified |
-| D16 | Reword Part C item 5's recovery sentence ("a cutoff past every stored sample") | Yes, from [`sample-expired-contract.md` (f)](../v3-review/sample-expired-contract.md): the cutoff is strict and none exists for a sample at the time type's maximum, `remove_frame` is the per-frame route, and a jump larger than `max_age` has a tail. Applied to item 5 in revision 7, because D12 orders `ingest` after it; the maintainer can still veto the wording. The strict cutoff is 2.x only ([v3 item 12](../v3-review/REPORT.md#12-remove_transforms_before-removes-the-sample-at-the-cutoff), decided 2026-11-11) |
-| D17 | Which of the v3 review's "Ships in 2.x" items join 2.4 | Maintainer's call; none is assessed here (§6) |
+Every row is ruled on. The Recommendation column is as revision 7 left
+it; the Ruling column is the maintainer's, dated.
+
+| ID | Decision | Recommendation | Ruling |
+|---|---|---|---|
+| D1 | Deprecate `get_transform_at` with an attribute, or redirect in rustdoc only | Withdrawn in revision 3: no replacement ships in 2.x (§3) | Withdrawn |
+| D2 | Grant Part B a scope exception | No for 2.4: no studied dependent shows the need (§4.1). Part C item 6 applies instead. Revisit on a demonstrated need | 2026-11-12: No. Part B does not ship; Part C item 6 ships |
+| D3 | Name: `transform_positions` | As proposed. It mirrors `Transformable::transform` | Moot after D2 |
+| D4 | Ship A without B if D2 is refused | Withdrawn in revision 3: Part A no longer ships in 2.x | Withdrawn |
+| D5 | Reject empty frame names in 2.x | Decided by the maintainer 2026-11-06: non-breaking, ships in 2.4 (§5a) | 2026-11-06: yes, non-breaking |
+| D6 | Enforcement site: the insert boundary (`Buffer::check`, flat `RegistryError::EmptyFrameName`) or `Transform::validate` (`TransformError::EmptyFrameName`) | The insert boundary. The hazard is registry-only, the sibling self-reference rule lives there, and decoding is untouched (§5a). The ruling covers rejection, not the site | 2026-11-12: the insert boundary |
+| D7 | Payload: unit, or name the empty side | Unit, as `SelfReferentialFrame` is. Frame fields on insert errors are a v3 ledger candidate for all of them at once (now a [ledger row](../v3-proposals/transforms-v3-addendum-dependents.md), 2026-11-06), since adding one to a shipped variant is a break. The v3 review reopened the question ([item 6](../v3-review/REPORT.md#6-error-shapes) and its decision 5: leaning yes, child frame only) and asks that this payload be decided with it. Unit in 2.4 keeps both outcomes open, since unit to struct needs the major either way | 2026-11-12: unit |
+| D8 | A property test for the rule | No: the check is a string comparison and §7 covers every insert branch. If wanted, map one name of the `f0..f6` alphabet in `tests/properties.rs` (`:123-165`) to `""` | 2026-11-12: no property test |
+| D9 | E1: make every example fail on a wrong result | Decided 2026-11-11: yes, in 2.4. Recommended without a commit of its own: the E2 and E3 files are written with asserts (§5b, E1) | 2026-11-11: yes |
+| D10 | E2: task-named files run in both modes; delete the six; `Timestamp::now()` leaves the examples, and `remove_transforms_before` leaves them until E3 brings it back in `ingest`; edit the gate and the CI job together | Decided 2026-11-11: yes, in 2.4, as its own commit. The gate edit it implies (six runs stay six under new names; E3's commit makes them eight) is not a weakening, and is flagged for explicit sign-off when the change is reviewed | 2026-11-11: yes |
+| D11 | Remove `Point` from the examples in 2.x | No. `basic` leads with the registry and applies through `Point`. Revisit with the v3 decision on the Point family; a removal notice, if taken, goes in the changelog and README | 2026-11-12: `Point` stays in the 2.x examples |
+| D12 | E3: the `ingest` example in 2.x | Decided 2026-11-11: yes, in 2.4, last: after Part D and Part C item 5 | 2026-11-11: yes, last |
+| D13 | E4: drop `log` and `env_logger`; `tokio` or threads for `shared_latest` | Decided 2026-11-11 for `log` and `env_logger`: dropped in 2.4, with both AGENTS.md edits. `tokio` is still open, the maintainer's call: roslibrust_transforms uses `tokio::sync::RwLock` (the other users' lock types were not checked); threads are deterministic and would remove one more dev-dependency | 2026-11-11: `log` and `env_logger` dropped. 2026-11-12: `shared_latest` uses std threads and `std::sync::RwLock`, not tokio; `tokio` leaves the dev-dependencies with them, and the AGENTS.md dev-dependency list is edited accordingly (signed off) |
+| D14 | Part C item 1 | Superseded: D10 is decided for 2.4 | Superseded |
+| D15 | Rename `std_full` to `shared_latest` and `std_advanced` to `cross_time` | Decided with D10. The released CHANGELOG entries that name the old files stay as written. The effect on the published 2.3.0 README links is unverified | 2026-11-11: renamed. 2026-11-12: verified that crates.io resolves the README's relative example links against the repository's HEAD (the 2.3.0 page links `blob/HEAD/examples/std_*.rs`), so the rename breaks those links on every published page. Accepted. From 2.4 the README's example links are absolute URLs pinned to the release tag (§9) |
+| D16 | Reword Part C item 5's recovery sentence ("a cutoff past every stored sample") | Yes, from [`sample-expired-contract.md` (f)](../v3-review/sample-expired-contract.md): the cutoff is strict and none exists for a sample at the time type's maximum, `remove_frame` is the per-frame route, and a jump larger than `max_age` has a tail. Applied to item 5 in revision 7, because D12 orders `ingest` after it; the maintainer can still veto the wording. The strict cutoff is 2.x only ([v3 item 12](../v3-review/REPORT.md#12-remove_transforms_before-removes-the-sample-at-the-cutoff), decided 2026-11-11) | 2026-11-12: the wording is split. `with_max_age` keeps the hazard sentences and points at the two methods; the recovery facts move to the rustdoc of `remove_frame` and `remove_transforms_before` (§5 item 5) |
+| D17 | Which of the v3 review's "Ships in 2.x" items join 2.4 | Maintainer's call; none is assessed here (§6) | 2026-11-12: joining, each as its own commit: the frozen-bytes serde case, the three documentation sentences, the internal deletions (after Part D), the two doc recipes. Not joining: the Point-family removal notice and the `TimePoint` diagnostic attribute (§6) |
+
+Also ruled on 2026-11-12, without a decision ID:
+
+- **Implementation.** Authorized on feature branches. Merge, tag and
+  publish stay with the maintainer.
+- **Release scope.** Parts C, D and E and the D17 items all land on
+  master before 2.4.0 is published.
+- **MIGRATION opening.** The text is fixed; it is quoted in §9.
+- **README example links.** Absolute and pinned to the release tag from
+  2.4, with a release-checklist step (§9; resolves D15's "unverified").
+- **README "Performance and embedded use".** The sentence linking the
+  v2 feasibility report is dropped, with Part C (§5 item 11).
 
 ## 9. Release obligations
 
-- Bump the version to 2.4.0 and add a `## [2.4.0]` CHANGELOG section:
+- **Scope and order.** Everything lands on master before 2.4.0 is
+  published: Parts C, D and E and the D17 items (§6). One purpose per
+  commit. The order constraints are: the D17 internal deletions come
+  after Part D, because both edit `Buffer::check`; E3 (`ingest`) comes
+  after Part D and Part C item 5 (§5b); E4 follows E2 and E3. Feature
+  branches do not bump the version; the bump, the changelog date and
+  the tag are release prep, which is the maintainer's.
+- The release bumps the version to 2.4.0. The `## [2.4.0]` CHANGELOG
+  section, filled under `[Unreleased]` as the changes land, carries
   `RegistryError::EmptyFrameName` under Added, the insert rejection and
-  its hazard under Changed. 2.4.0 is a minor release whether or not Part
-  B ships, because Part D adds a public variant.
+  its hazard under Changed. 2.4.0 is a minor release because Part D
+  adds a public variant.
 - Part C: one CHANGELOG line under Changed naming the corrected rustdoc
-  (items 2, 3, 4, 5, 8, 9, 10, and 6 if D2 is refused), as earlier
-  documentation corrections got (2.1.2, 2.1.3). If D2 is granted
-  instead, `Transform::transform_positions` goes under Added, with a
-  `# Errors` section naming the `TransformError` variants
-  `Point::transform` returns, and item 6 is dropped.
+  (items 2, 3, 4, 5, 6, 8, 9, 10), as earlier documentation corrections
+  got (2.1.2, 2.1.3). Item 11 is a README edit and needs no line. The
+  D17 documentation sentences and recipes are rustdoc and join that
+  line or get their own, as they land.
 - Add a MIGRATION note under "Coming from 2.0.0": since 2.4.0,
   `add_transform` and `add_transforms` reject a transform whose parent or
   child is `""` with `RegistryError::EmptyFrameName`, as does
   `reparent_frame` for an empty new parent; check names at ingest (an unset ROS
   `frame_id`); constructors and deserialization still accept `""`. Add the
   variant to the topology row of the 1.x error table (`MIGRATION.md:130`).
-  Retitle the file "# Migrating to 2.4" (`MIGRATION.md:1`), and check
-  its opening sentence, "From 2.0.0, no API migration is required"
-  (`:3`), against the new note: an insert 2.3.0 accepted is now refused.
-  Nothing is deprecated.
+  Retitle the file "# Migrating to 2.4" (`MIGRATION.md:1`). Its opening
+  sentence, "From 2.0.0, no API migration is required" (`:3`), is false
+  once an insert 2.3.0 accepted is refused. The opening becomes (ruled
+  2026-11-12): "From 2.0.0, one behaviour change applies: since 2.4.0
+  the registry refuses a transform whose parent or child frame name is
+  empty (see "Empty frame names" below). Nothing else needs migrating.
+  From 1.x or a 2.0 pre-release, apply the changes below." The note
+  above therefore sits under a heading "Empty frame names". Nothing is
+  deprecated.
 - Part D needs one AGENTS.md edit, flagged to the maintainer: the
   frame-tree invariant gains "no frame name is empty" beside "a frame
   cannot be its own parent" (`AGENTS.md:148`), as a tree rule checked at
-  insert. The identity, flat-error and validation bullets stay true under
-  D6's recommended site; the `validate` site would also edit the
-  validation list and the identity clause. Parts B and C need none.
+  insert. The identity, flat-error and validation bullets stay true at
+  the insert boundary, which is the site ruled on 2026-11-12 (D6). Part
+  C needs none. The D17 internal deletions remove the
+  `latest_timestamp` field and `Buffer.child`; whoever lands them
+  checks the Architecture and invariant bullets that describe the
+  buffer against the result.
 - Part E (decided for 2.4; examples are not packaged, so this is
   repository content): one CHANGELOG line; the
   README "Examples" table and run commands (`README.md:178-195`);
   `tests/test_all.sh:37-42` and `.github/workflows/tests.yml:176-187`,
   edited together, in the E2 and E3 commits; the `[[example]]` blocks (`Cargo.toml:60-88`). E4 also
-  edits `[dev-dependencies]`, `Cargo.lock` and AGENTS.md (`:93`,
-  `:307-308`), flagged to the maintainer. No MIGRATION entry: no API
+  edits `[dev-dependencies]` (`log`, `env_logger` and `tokio` go),
+  `Cargo.lock` and AGENTS.md (`:93`, `:307-308`); the maintainer signed
+  off the dev-dependency list edit on 2026-11-12. No MIGRATION entry: no API
   changes. Analysis documents that name the old files
   (`../v3-proposals/transforms-v3-addendum-cross-time.md:123`,
   `../v3-warrant/REPORT.md:113-114`) or count them
   (`../v2-feasibility/REPORT.md:142`) are historical and stay.
+- README example links (ruled 2026-11-12). crates.io resolves the
+  README's relative example links against the repository's HEAD: the
+  2.3.0 page links `blob/HEAD/examples/std_*.rs`. E2's rename therefore
+  breaks the example links on every already-published page. This is
+  accepted. From 2.4 the README's example links are absolute URLs
+  pinned to the release tag. They are set in the release-prep commit,
+  and the AGENTS.md release checklist gains a matching step (signed
+  off). Until that commit the links on master stay relative and point
+  at the renamed files.
+- The gate. `tests/test_all.sh` adopts `CARGO_BUILD_WARNINGS=deny`
+  (decided 2026-11-12, its own change), and `gate` and `commits` are
+  required status checks, so every pull request above passes both.
 - Run the full gate. Run `cargo semver-checks check-release --baseline-rev v2.3.0`
   and confirm the result matches the declared bump. A variant added to a
   `#[non_exhaustive]` enum is no breaking lint; the `Ok` → `Err`

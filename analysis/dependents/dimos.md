@@ -9,6 +9,16 @@ Subject: [dimos PR #4722](https://github.com/dimensionalOS/dimos/pull/4722),
 which replaces dimos's hand-rolled `tf.rs` with `transforms`, read at PR
 head `92936a7` (unchanged since 2026-10-27). dimos main read at `abf36ce`.
 
+**Refresh, 2026-11-12.** #4722 is active again: it was force-pushed on
+2026-11-09 and its head is now `88e7d0c`, with commits through
+2026-11-10. "Dormant" and "unchanged since 2026-10-27" below no longer
+hold for the PR. What this report read is unchanged:
+`native/rust/dimos-module/src/tf.rs` and
+`native/rust/dimos-module/Cargo.toml` are byte-identical at `88e7d0c`
+and `92936a7` (same blob hashes, by `gh api`), and the pin is still the
+fork `TomCC7/transforms` at rev `5ae9563` with `=2.2.0`. Nothing else
+was re-checked, and the text below is kept as written.
+
 This report was "Lessons from dimos" at `analysis/dimos-lessons/REPORT.md`.
 It asks what the first non-adapter user of the crate teaches about the 2.4
 proposal ([`DESIGN.md`](../v2.4-proposal/DESIGN.md)), the v3 ledger
