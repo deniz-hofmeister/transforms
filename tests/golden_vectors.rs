@@ -46,6 +46,11 @@
 //! R_a = Rotation.from_euler("z", 10, degrees=True)
 //! R_b = Rotation.from_euler("XYZ", [20, 40, 80], degrees=True)
 //! Slerp([0.0, 1.0], Rotation.concatenate([R_a, R_b]))(0.5)
+//!
+//! # 6: a quarter of the way along the same pair (SciPy 1.18.1 / NumPy
+//! # 2.5.2, which reproduce the digits of 5 exactly)
+//! Slerp([0.0, 1.0], Rotation.concatenate([R_a, R_b]))(0.25)
+//! 0.25 * np.array([4.0, -2.0, 6.0])       # lerp from a zero translation
 //! ```
 
 use approx::assert_abs_diff_eq;
@@ -222,12 +227,9 @@ fn a_rotation_about_no_coordinate_axis_places_a_known_point() {
     );
 }
 
-#[test]
-fn an_interpolated_lookup_matches_the_reference_slerp() {
-    // Two samples one second apart, queried halfway between them. The
-    // rotation is SciPy's `Slerp` midpoint of the same pair, so this pins
-    // the interpolation against an outside implementation rather than
-    // against the crate's own slerp.
+/// Two samples of map -> base one second apart, at `T` and `T` + 1 s: `R_a`
+/// at the origin, then `R_b` at (4, -2, 6).
+fn two_samples_one_second_apart() -> Registry {
     let later = Timestamp::from_nanos(2_000_000_000);
     let mut registry = Registry::new();
     registry
@@ -255,6 +257,16 @@ fn an_interpolated_lookup_matches_the_reference_slerp() {
             .unwrap(),
         )
         .unwrap();
+    registry
+}
+
+#[test]
+fn an_interpolated_lookup_matches_the_reference_slerp() {
+    // Two samples one second apart, queried halfway between them. The
+    // rotation is SciPy's `Slerp` midpoint of the same pair, so this pins
+    // the interpolation against an outside implementation rather than
+    // against the crate's own slerp.
+    let registry = two_samples_one_second_apart();
 
     let midpoint = registry
         .get_transform("map", "base", Timestamp::from_nanos(1_500_000_000))
@@ -272,6 +284,36 @@ fn an_interpolated_lookup_matches_the_reference_slerp() {
             0.183_914_608_153_606_66,
             0.082_469_098_191_837_52,
             0.391_786_478_844_298_46
+        ),
+        epsilon = EPSILON
+    );
+}
+
+#[test]
+fn an_off_centre_interpolated_lookup_weights_the_nearer_sample() {
+    // The same pair, queried a quarter of the way in. The midpoint above is
+    // symmetric: weighting the samples the wrong way round — `ratio` and
+    // `1 - ratio` swapped — returns the same pose there. Here it returns
+    // the pose at three quarters, off by 3.0 in the translation's z and by
+    // 0.28 in the rotation's.
+    let registry = two_samples_one_second_apart();
+
+    let quarter = registry
+        .get_transform("map", "base", Timestamp::from_nanos(1_250_000_000))
+        .unwrap();
+
+    assert_abs_diff_eq!(
+        quarter.translation(),
+        Vector3::new(1.0, -0.5, 1.5),
+        epsilon = EPSILON
+    );
+    assert_abs_diff_eq!(
+        quarter.rotation(),
+        Quaternion::from_wxyz(
+            0.964_361_020_365_767_5,
+            0.093_647_992_278_183_17,
+            0.041_992_670_121_166_11,
+            0.243_873_925_620_300_9
         ),
         epsilon = EPSILON
     );
