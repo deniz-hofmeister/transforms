@@ -28,17 +28,6 @@ pub(crate) enum InsertError {
     /// The transform's parent differs from the one pinned by the first
     /// insert; carries the pinned parent.
     ReparentingNotSupported(String),
-
-    /// The transform's child differs from the one pinned by the first
-    /// insert, carrying both. Unreachable through `Registry`, which keys
-    /// its buffers by child frame — this is the check that keeps the pin
-    /// true if that ever stops holding.
-    ChildFrameMismatch {
-        /// The child frame the buffer stores.
-        pinned: String,
-        /// The child frame the rejected transform carries.
-        found: String,
-    },
 }
 
 /// Why a buffer could not serve a requested timestamp.

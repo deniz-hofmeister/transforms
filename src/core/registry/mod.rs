@@ -233,11 +233,11 @@ where
         transforms: impl IntoIterator<Item = Transform<T>>,
     ) -> Result<(), RegistryError<T>> {
         // Nothing is stored until every transform has passed. A frame the
-        // registry holds keeps its pins and kind through any insert, and
+        // registry holds keeps its pin and kind through any insert, and
         // those are all its checks compare against, so its transforms are
         // checked against the live buffer and set aside. A frame the batch
         // creates is built aside through the ordinary insert, so later
-        // members of the batch see its pins, and the cycle walk sees its
+        // members of the batch see its pin, and the cycle walk sees its
         // edge.
         let mut checked = Vec::new();
         let mut created: HashMap<String, Buffer<T>> = HashMap::new();
