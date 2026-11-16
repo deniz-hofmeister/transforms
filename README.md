@@ -158,12 +158,14 @@ samples, frame names, and temporary lookup allocations.
 
 CI builds for Cortex-M4F/M7, Cortex-M0+, Cortex-M33, and RISC-V targets.
 These builds establish compilation, not board latency or memory bounds.
+As built there, `f64` arithmetic is software floating point on all of them;
+it is hardware only on a Cortex-M7 with the double-precision FPU, built with
+`target-cpu=cortex-m7`.
 Measure the intended allocator, board, and workload before setting a budget.
 `libm` is used in both feature modes; tests pin selected interpolation results
 on the test host, without guaranteeing cross-device replay.
 
-The [v2 feasibility report](analysis/v2-feasibility/REPORT.md) records host
-measurements and reproduction commands. Run `cargo bench` for benchmarks.
+Run `cargo bench` for benchmarks.
 
 ## What's new
 

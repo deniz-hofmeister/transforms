@@ -93,6 +93,72 @@ where
 /// assert_eq!(point.frame, "base");
 /// assert_eq!(point.position, Vector3::new(1.0, 1.0, 0.0));
 /// ```
+///
+/// Applying a transform to your own data needs no implementation of this
+/// trait. For plain positions, these are the checks
+/// [`Point`](crate::geometry::Point) performs:
+///
+/// ```
+/// use transforms::{
+///     geometry::{Quaternion, Transform, Vector3},
+///     time::{Stamp, Timestamp},
+/// };
+///
+/// struct Scan {
+///     frame: String,
+///     time: Timestamp,
+///     positions: Vec<Vector3>,
+/// }
+///
+/// fn apply(
+///     tf: &Transform,
+///     scan: &mut Scan,
+/// ) -> Result<(), &'static str> {
+///     if scan.frame != tf.child() {
+///         return Err("the scan is not in the transform's child frame");
+///     }
+///     if tf.timestamp() != Stamp::Static && tf.timestamp() != Stamp::At(scan.time) {
+///         return Err("the transform is for another instant");
+///     }
+///     for position in &mut scan.positions {
+///         *position = tf.rotation().rotate_vector(*position) + tf.translation();
+///     }
+///     scan.frame = tf.parent().into();
+///     Ok(())
+/// }
+///
+/// let time = Timestamp::from_nanos(1);
+/// let mut scan = Scan {
+///     frame: "lidar".into(),
+///     time,
+///     positions: vec![Vector3::new(1.0, 0.0, 0.0)],
+/// };
+/// let tf = Transform::new(
+///     "base",
+///     "lidar",
+///     Vector3::new(0.0, 1.0, 0.0),
+///     Quaternion::identity(),
+///     Stamp::At(time),
+/// )
+/// .unwrap();
+///
+/// apply(&tf, &mut scan).unwrap();
+/// assert_eq!(scan.frame, "base");
+/// assert_eq!(scan.positions, [Vector3::new(1.0, 1.0, 0.0)]);
+/// // The scan has left the transform's child frame: applying twice is refused.
+/// assert!(apply(&tf, &mut scan).is_err());
+///
+/// // So is a scan taken at another instant.
+/// let mut later = Scan {
+///     frame: "lidar".into(),
+///     time: Timestamp::from_nanos(2),
+///     positions: vec![Vector3::zero()],
+/// };
+/// assert_eq!(
+///     apply(&tf, &mut later),
+///     Err("the transform is for another instant")
+/// );
+/// ```
 pub trait Transformable<T = Timestamp>
 where
     T: TimePoint,

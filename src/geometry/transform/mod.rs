@@ -167,6 +167,9 @@ where
     /// any requested time and never expires it. Use this for fixed
     /// relationships like sensor mounts.
     ///
+    /// The arguments carry no timestamp to infer the time type from. Where
+    /// nothing else fixes it, write `Transform::<Timestamp>::static_between(..)`.
+    ///
     /// # Errors
     ///
     /// The same as [`Transform::new`], of which this is the `Stamp::Static`

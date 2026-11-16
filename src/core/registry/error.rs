@@ -12,7 +12,9 @@ use crate::{
 /// Errors from fallible [`Registry`](crate::Registry) operations.
 ///
 /// Lookup payloads retain the registry's time type `T`; conversion to seconds
-/// occurs only in `Display`. Numeric validation failures use the flat
+/// occurs only in `Display`. That conversion is lossy: a request 1 ns outside
+/// the covered range can print as inside it, while the payload is exact, so
+/// compare the payload. Numeric validation failures use the flat
 /// [`NonUnitRotation`](Self::NonUnitRotation) and
 /// [`NonFiniteValues`](Self::NonFiniteValues) variants, including on lookup
 /// return paths. Other geometry and time errors use
@@ -98,7 +100,9 @@ where
     /// a dynamic frame fails loudly once its stream stops.
     /// [`Registry::remove_frame`](crate::Registry::remove_frame) is the only
     /// way to change it — remove the frame, then re-add it with the other
-    /// kind.
+    /// kind. A caller that logs and drops the rejected transform leaves the
+    /// stored static pose answering every instant; change the kind
+    /// deliberately with `remove_frame`, not from an error handler.
     #[error("cannot mix static and dynamic transforms for the same child frame")]
     StaticDynamicConflict,
 
