@@ -1,0 +1,31 @@
+## (c) inverse
+replica check vs crate Registry over 20000 chains: forward bit-equal 20000, backward bit-equal 20000
+property replica (links 2..=5 uniform, |t_i|<=1e5/axis, tolerance 1e-9 absolute), cases = 100000000
+  [2.4: raw products, normalize+conj] fail(>1e-9) 26 = 0.00003% ; rot fails 0; max err 1.281e-9 m; mean err 8.658e-11 m; max err/|t|max 14.97 EPS
+     P(err > thr):  2.5e-10: 4.12781%  5.0e-10: 0.12762%  1.0e-9: 0.00003%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [raw products, conjugate] fail(>1e-9) 46934 = 0.04693% ; rot fails 0; max err 2.270e-9 m; mean err 1.415e-10 m; max err/|t|max 26.79 EPS
+     P(err > thr):  2.5e-10: 16.59565%  5.0e-10: 2.51268%  1.0e-9: 0.04693%  2.0e-9: 0.00001%  4.0e-9: 0.00000%
+  [newton products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 4.657e-10 m; mean err 3.528e-11 m; max err/|t|max 6.70 EPS
+     P(err > thr):  2.5e-10: 0.00628%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton+band8 products, conjugate] fail(>1e-9) 38902 = 0.03890% ; rot fails 0; max err 1.979e-9 m; mean err 1.411e-10 m; max err/|t|max 20.30 EPS
+     P(err > thr):  2.5e-10: 16.54153%  5.0e-10: 2.47270%  1.0e-9: 0.03890%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton products, normalize+conj] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 4.075e-10 m; mean err 3.149e-11 m; max err/|t|max 5.88 EPS
+     P(err > thr):  2.5e-10: 0.00134%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [sqrt products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 6.403e-10 m; mean err 4.936e-11 m; max err/|t|max 7.80 EPS
+     P(err > thr):  2.5e-10: 0.13895%  5.0e-10: 0.00008%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+true error of the backward translation vs exact (f128) inverse of the f64 forward value, 2000000 chains
+  [2.4: raw products, normalize+conj] abs: max 2.977e-10 m rms 4.110e-11 m ; relative to |t|: max 3.58 EPS rms 0.99 EPS
+  [raw products, conjugate] abs: max 1.005e-9 m rms 1.181e-10 m ; relative to |t|: max 12.29 EPS rms 2.65 EPS
+  [newton products, conjugate] abs: max 2.226e-10 m rms 3.078e-11 m ; relative to |t|: max 2.91 EPS rms 0.74 EPS
+  [newton+band8 products, conjugate] abs: max 9.751e-10 m rms 1.176e-10 m ; relative to |t|: max 9.61 EPS rms 2.64 EPS
+  [newton products, normalize+conj] abs: max 3.642e-10 m rms 4.682e-11 m ; relative to |t|: max 3.91 EPS rms 1.13 EPS
+  [sqrt products, conjugate] abs: max 3.637e-10 m rms 4.099e-11 m ; relative to |t|: max 3.76 EPS rms 0.99 EPS
+  single constructed t*t.inverse(), |t_i|<=10, n=100000000: [normalize+conj] max |transl| 1.243e-14, mean 1.986e-15, max rot angle 3.846e-16 rad
+  single constructed t*t.inverse(), |t_i|<=10, n=100000000: [conjugate] max |transl| 1.599e-14, mean 2.398e-15, max rot angle 1.570e-16 rad
+lookup bits changed relative to 2.4 (same chains as the property), cases = 100000000
+  [2.4: raw products, normalize+conj] forward: translation 0.000% rotation 0.000% ; backward: translation 0.000% rotation 0.000%
+  [raw products, conjugate] forward: translation 0.000% rotation 0.000% ; backward: translation 66.181% rotation 66.183%
+  [newton products, conjugate] forward: translation 0.000% rotation 84.206% ; backward: translation 77.303% rotation 78.402%
+  [newton+band8 products, conjugate] forward: translation 0.000% rotation 0.058% ; backward: translation 66.170% rotation 66.173%
+  [newton products, normalize+conj] forward: translation 0.000% rotation 84.206% ; backward: translation 74.302% rotation 75.969%
+  [sqrt products, conjugate] forward: translation 0.000% rotation 73.607% ; backward: translation 48.074% rotation 49.465%

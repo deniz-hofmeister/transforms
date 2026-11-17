@@ -1,0 +1,27 @@
+## (d) crate slerp (transforms::geometry::Quaternion::slerp at the path dependency)
+  identical: slerp([1.0, 0.0, 0.0, 0.0],[1.0, 0.0, 0.0, 0.0],0.3) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  q vs -q (same rotation): slerp([1.0, 0.0, 0.0, 0.0],[-1.0, 0.0, 0.0, 0.0],0.3) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  q vs -q, t=1 (returns self-sign, not other): slerp([0.7071067811865476, 0.7071067811865476, 0.0, 0.0],[-0.7071067811865476, -0.7071067811865476, 0.0, 0.0],1) = [7.071067811865476e-1,7.071067811865476e-1,0e0,0e0] norm-1 = 6.836e-17
+  180 deg apart, dot=+0: slerp([1.0, 0.0, 0.0, 0.0],[0.0, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  180 deg apart, dot=+1e-17: slerp([1.0, 0.0, 0.0, 0.0],[1e-17, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  180 deg apart, dot=-1e-17: slerp([1.0, 0.0, 0.0, 0.0],[-1e-17, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,-7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  dot=1+2e-6 (both norm 1+1e-6, identical): slerp([1.000001, 0.0, 0.0, 0.0],[1.000001, 0.0, 0.0, 0.0],0.5) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  dot=1-2e-6 (both norm 1-1e-6, identical): slerp([0.999999, 0.0, 0.0, 0.0],[0.999999, 0.0, 0.0, 0.0],0.5) = [9.999994999996248e-1,0e0,0e0,0e0] norm-1 = -5.000e-7
+  dot=1-EPS exactly (trig branch, theta=2.1e-8): slerp([1.0, 0.0, 0.0, 0.0],[0.9999999999999998, 0.0, 0.0, 0.0],0.5) = [9.999999999999999e-1,0e0,0e0,0e0] norm-1 = -1.110e-16
+  dot=1-EPS/2 (lerp branch): slerp([1.0, 0.0, 0.0, 0.0],[0.9999999999999999, 0.0, 0.0, 0.0],0.5) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  zero quaternions: slerp([0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],0.5) = [0e0,0e0,0e0,0e0] norm-1 = -1.000e0
+  zero self, unit other: slerp([0.0, 0.0, 0.0, 0.0],[1.0, 0.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,0e0,0e0,0e0] norm-1 = -2.929e-1
+  tiny self, huge other, t=0 (lerp branch norm<EPS): slerp([1e-17, 0.0, 0.0, 0.0],[1e17, 0.0, 0.0, 0.0],0) = [1e-17,0e0,0e0,0e0] norm-1 = -1.000e0
+  t = NaN: slerp([1.0, 0.0, 0.0, 0.0],[0.7071067811865476, 0.7071067811865476, 0.0, 0.0],NaN) = [NaN,NaN,NaN,NaN] norm-1 = NaN
+  t = 2 (clamped): slerp([1.0, 0.0, 0.0, 0.0],[0.7071067811865476, 0.7071067811865476, 0.0, 0.0],2) = [7.071067811865476e-1,7.071067811865476e-1,0e0,0e0] norm-1 = 6.836e-17
+  NaN component: slerp([1.0, 0.0, 0.0, 0.0],[NaN, 0.0, 0.0, 0.0],0.5) = [NaN,NaN,NaN,NaN] norm-1 = NaN
+  inf component: slerp([1.0, 0.0, 0.0, 0.0],[inf, 0.0, 0.0, 0.0],0.5) = [NaN,0e0,0e0,0e0] norm-1 = NaN
+  1e200 components (dot overflows): slerp([1e200, 0.0, 0.0, 0.0],[1e200, 0.0, 0.0, 0.0],0.5) = [0e0,0e0,0e0,0e0] norm-1 = -1.000e0
+  -0.0 component at t=0: slerp([0.7071067811865476, -0.0, 0.7071067811865476, 0.0],[0.0, 1.0, 0.0, 0.0],0) = [7.071067811865476e-1,0e0,7.071067811865476e-1,0e0] norm-1 = 6.836e-17
+  random scan n=100000000 (constructed unit a; b = half near(a) log-uniform angle 1e-9..pi, half random; t uniform [0,1))
+  non-finite results: 0
+  max | |slerp|-1 |: 6.420e-16   after one newton step: 2.792e-16
+  computed dot > 1 (silently clamped): 2.1639% ; |dot| > 1-EPS (lerp branch): 8.1601%
+  slerp(a,a,t) != a bitwise: 41.8119% ; max | |slerp(a,a,t)|-1 | 4.777e-16 ; self-dot>1: 24.120% ; self-dot<=1-EPS (trig branch on identical inputs): 19.434%
+  slerp(a,b,0) != a bitwise: 2.8770% ; slerp(a,b,1) != b bitwise: 26.3226% (of which neither b nor -b: 1.3189%)
+  inputs with norms in 1 +- 1e-6 (2.4 tolerance): max | |slerp|-1 | = 9.999e-7, non-finite 0

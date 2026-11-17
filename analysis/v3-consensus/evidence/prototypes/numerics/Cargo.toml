@@ -1,0 +1,11 @@
+[package]
+name = "proto-numerics"
+version = "0.0.0"
+edition = "2024"
+[dependencies]
+libm = "0.2"
+transforms = { path = "../../../../.." }
+[profile.release]
+opt-level = 3
+debug = false
+[workspace]

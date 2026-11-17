@@ -1,0 +1,44 @@
+## (c) inverse
+replica check vs crate Registry over 20000 chains: forward bit-equal 20000, backward bit-equal 20000
+property replica (links 2..=5 uniform, |t_i|<=1e5/axis, tolerance 1e-9 absolute), cases = 16000000
+  [2.4: raw products, normalize+conj] fail(>1e-9) 6 = 0.00004% ; rot fails 0; max err 1.164e-9 m; mean err 8.657e-11 m; max err/|t|max 13.97 EPS
+     P(err > thr):  2.5e-10: 4.12472%  5.0e-10: 0.12766%  1.0e-9: 0.00004%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [raw products, conjugate] fail(>1e-9) 7474 = 0.04671% ; rot fails 0; max err 1.979e-9 m; mean err 1.414e-10 m; max err/|t|max 25.64 EPS
+     P(err > thr):  2.5e-10: 16.58221%  5.0e-10: 2.51045%  1.0e-9: 0.04671%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 4.075e-10 m; mean err 3.527e-11 m; max err/|t|max 6.16 EPS
+     P(err > thr):  2.5e-10: 0.00619%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton+band8 products, conjugate] fail(>1e-9) 6179 = 0.03862% ; rot fails 0; max err 1.979e-9 m; mean err 1.411e-10 m; max err/|t|max 20.30 EPS
+     P(err > thr):  2.5e-10: 16.52841%  5.0e-10: 2.47019%  1.0e-9: 0.03862%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton products, normalize+conj] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 4.075e-10 m; mean err 3.148e-11 m; max err/|t|max 5.50 EPS
+     P(err > thr):  2.5e-10: 0.00129%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [sqrt products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 5.821e-10 m; mean err 4.935e-11 m; max err/|t|max 7.80 EPS
+     P(err > thr):  2.5e-10: 0.13916%  5.0e-10: 0.00007%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton+band8 products, normalize+conj] fail(>1e-9) 1 = 0.00001% ; rot fails 0; max err 1.048e-9 m; mean err 8.639e-11 m; max err/|t|max 11.70 EPS
+     P(err > thr):  2.5e-10: 4.08274%  5.0e-10: 0.11745%  1.0e-9: 0.00001%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [raw products, conjugate with t/n2] fail(>1e-9) 1 = 0.00001% ; rot fails 0; max err 1.048e-9 m; mean err 7.471e-11 m; max err/|t|max 13.23 EPS
+     P(err > thr):  2.5e-10: 2.81159%  5.0e-10: 0.06987%  1.0e-9: 0.00001%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton+band8 products, conjugate with t/n2] fail(>1e-9) 1 = 0.00001% ; rot fails 0; max err 1.048e-9 m; mean err 7.454e-11 m; max err/|t|max 11.60 EPS
+     P(err > thr):  2.5e-10: 2.77239%  5.0e-10: 0.06250%  1.0e-9: 0.00001%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+true error of the backward translation vs exact (f128) inverse of the f64 forward value, 2000000 chains
+  [2.4: raw products, normalize+conj] abs: max 2.977e-10 m rms 4.110e-11 m ; relative to |t|: max 3.58 EPS rms 0.99 EPS
+  [raw products, conjugate] abs: max 1.005e-9 m rms 1.181e-10 m ; relative to |t|: max 12.29 EPS rms 2.65 EPS
+  [newton products, conjugate] abs: max 2.226e-10 m rms 3.078e-11 m ; relative to |t|: max 2.91 EPS rms 0.74 EPS
+  [newton+band8 products, conjugate] abs: max 9.751e-10 m rms 1.176e-10 m ; relative to |t|: max 9.61 EPS rms 2.64 EPS
+  [newton products, normalize+conj] abs: max 3.642e-10 m rms 4.682e-11 m ; relative to |t|: max 3.91 EPS rms 1.13 EPS
+  [sqrt products, conjugate] abs: max 3.637e-10 m rms 4.099e-11 m ; relative to |t|: max 3.76 EPS rms 0.99 EPS
+  [newton+band8 products, normalize+conj] abs: max 2.977e-10 m rms 4.110e-11 m ; relative to |t|: max 3.58 EPS rms 0.99 EPS
+  [raw products, conjugate with t/n2] abs: max 2.160e-10 m rms 2.747e-11 m ; relative to |t|: max 2.95 EPS rms 0.66 EPS
+  [newton+band8 products, conjugate with t/n2] abs: max 2.160e-10 m rms 2.747e-11 m ; relative to |t|: max 2.95 EPS rms 0.66 EPS
+  single constructed t*t.inverse(), |t_i|<=10, n=16000000: [normalize+conj] max |transl| 1.243e-14, mean 1.986e-15, max rot angle 3.554e-16 rad
+  single constructed t*t.inverse(), |t_i|<=10, n=16000000: [conjugate] max |transl| 1.599e-14, mean 2.397e-15, max rot angle 1.570e-16 rad
+lookup bits changed relative to 2.4 (same chains as the property), cases = 16000000
+  [2.4: raw products, normalize+conj] forward: translation 0.000% rotation 0.000% ; backward: translation 0.000% rotation 0.000%
+  [raw products, conjugate] forward: translation 0.000% rotation 0.000% ; backward: translation 66.179% rotation 66.182%
+  [newton products, conjugate] forward: translation 0.000% rotation 84.203% ; backward: translation 77.299% rotation 78.398%
+  [newton+band8 products, conjugate] forward: translation 0.000% rotation 0.057% ; backward: translation 66.169% rotation 66.172%
+  [newton products, normalize+conj] forward: translation 0.000% rotation 84.203% ; backward: translation 74.295% rotation 75.962%
+  [sqrt products, conjugate] forward: translation 0.000% rotation 73.613% ; backward: translation 48.076% rotation 49.466%
+  [newton+band8 products, normalize+conj] forward: translation 0.000% rotation 0.057% ; backward: translation 0.051% rotation 0.052%
+  [raw products, conjugate with t/n2] forward: translation 0.000% rotation 0.000% ; backward: translation 84.789% rotation 66.182%
+  [newton+band8 products, conjugate with t/n2] forward: translation 0.000% rotation 0.057% ; backward: translation 84.784% rotation 66.172%
+target-x/release/proto-numerics inverse 1.6e7  334.89s user 0.14s system 1072% cpu 31.233 total

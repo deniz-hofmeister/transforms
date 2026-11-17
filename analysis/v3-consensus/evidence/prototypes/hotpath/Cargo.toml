@@ -1,0 +1,24 @@
+[package]
+name = "proto-hotpath"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+libm = { version = "0.2.16", default-features = false }
+hashbrown = "0.17.1"
+transforms = { path = "../../../../.." }
+
+[dev-dependencies]
+criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "hot"
+harness = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+[profile.bench]
+codegen-units = 1
+lto = true

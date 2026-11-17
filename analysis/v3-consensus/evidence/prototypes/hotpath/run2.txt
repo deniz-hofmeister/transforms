@@ -1,0 +1,913 @@
+warning: variable does not need to be mutable
+   --> src/proto.rs:340:13
+    |
+340 |         let mut probe = |id: u32, slot: &mut Option<LookupError>| {
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `proto-hotpath` (lib) generated 1 warning (run `cargo fix --lib -p proto-hotpath` to apply 1 suggestion)
+    Finished `bench` profile [optimized] target(s) in 0.17s
+     Running benches/hot.rs (target/release/build/proto-hotpath/2f50ff71a7fa6a5a/out/hot-2f50ff71a7fa6a5a)
+Benchmarking v2.4/1hop_exact_1k
+Benchmarking v2.4/1hop_exact_1k: Warming up for 300.00 ms
+Benchmarking v2.4/1hop_exact_1k: Collecting 100 samples in estimated 1.5010 s (4.4M iterations)
+Benchmarking v2.4/1hop_exact_1k: Analyzing
+v2.4/1hop_exact_1k      time:   [340.40 ns 349.01 ns 358.58 ns]
+                        change: [−7.8713% −2.5440% +2.0140%] (p = 0.31 > 0.05)
+                        No change in performance detected.
+Found 16 outliers among 100 measurements (16.00%)
+  10 (10.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking v2.4/1hop_interp_1k
+Benchmarking v2.4/1hop_interp_1k: Warming up for 300.00 ms
+Benchmarking v2.4/1hop_interp_1k: Collecting 100 samples in estimated 1.5011 s (2.6M iterations)
+Benchmarking v2.4/1hop_interp_1k: Analyzing
+v2.4/1hop_interp_1k     time:   [614.24 ns 633.81 ns 654.64 ns]
+                        change: [+9.6531% +15.988% +22.781%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 11 outliers among 100 measurements (11.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high severe
+Benchmarking v2.4/4hop_dyn_to_ancestor
+Benchmarking v2.4/4hop_dyn_to_ancestor: Warming up for 300.00 ms
+Benchmarking v2.4/4hop_dyn_to_ancestor: Collecting 100 samples in estimated 1.5061 s (828k iterations)
+Benchmarking v2.4/4hop_dyn_to_ancestor: Analyzing
+v2.4/4hop_dyn_to_ancestor
+                        time:   [1.7524 µs 1.7810 µs 1.8097 µs]
+                        change: [+63.986% +79.599% +101.94%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  9 (9.00%) low severe
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking v2.4/4hop_dyn_to_descendant
+Benchmarking v2.4/4hop_dyn_to_descendant: Warming up for 300.00 ms
+Benchmarking v2.4/4hop_dyn_to_descendant: Collecting 100 samples in estimated 1.5039 s (712k iterations)
+Benchmarking v2.4/4hop_dyn_to_descendant: Analyzing
+v2.4/4hop_dyn_to_descendant
+                        time:   [2.0585 µs 2.1634 µs 2.2980 µs]
+                        change: [+59.697% +69.056% +78.947%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  10 (10.00%) low mild
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+Benchmarking v2.4/robot_map_to_optical
+Benchmarking v2.4/robot_map_to_optical: Warming up for 300.00 ms
+Benchmarking v2.4/robot_map_to_optical: Collecting 100 samples in estimated 1.5017 s (1.0M iterations)
+Benchmarking v2.4/robot_map_to_optical: Analyzing
+v2.4/robot_map_to_optical
+                        time:   [1.4837 µs 1.5374 µs 1.5996 µs]
+                        change: [+40.874% +51.178% +61.553%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 17 outliers among 100 measurements (17.00%)
+  11 (11.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking v2.4/robot_leaf_to_leaf
+Benchmarking v2.4/robot_leaf_to_leaf: Warming up for 300.00 ms
+Benchmarking v2.4/robot_leaf_to_leaf: Collecting 100 samples in estimated 1.5062 s (616k iterations)
+Benchmarking v2.4/robot_leaf_to_leaf: Analyzing
+v2.4/robot_leaf_to_leaf time:   [2.6384 µs 2.6990 µs 2.7655 µs]
+                        change: [+52.592% +73.285% +107.67%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  5 (5.00%) low severe
+  3 (3.00%) low mild
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+Benchmarking v2.4/siblings_under_16deep_dyn
+Benchmarking v2.4/siblings_under_16deep_dyn: Warming up for 300.00 ms
+Benchmarking v2.4/siblings_under_16deep_dyn: Collecting 100 samples in estimated 1.5338 s (111k iterations)
+Benchmarking v2.4/siblings_under_16deep_dyn: Analyzing
+v2.4/siblings_under_16deep_dyn
+                        time:   [13.603 µs 13.876 µs 14.158 µs]
+                        change: [+43.998% +51.306% +59.517%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking v2.4/static_siblings_1k_elim
+Benchmarking v2.4/static_siblings_1k_elim: Warming up for 300.00 ms
+Benchmarking v2.4/static_siblings_1k_elim: Collecting 100 samples in estimated 1.5093 s (2300 iterations)
+Benchmarking v2.4/static_siblings_1k_elim: Analyzing
+v2.4/static_siblings_1k_elim
+                        time:   [653.43 µs 667.11 µs 680.77 µs]
+                        change: [+47.244% +51.420% +55.574%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Benchmarking v2.4/static_climb_1k
+Benchmarking v2.4/static_climb_1k: Warming up for 300.00 ms
+Benchmarking v2.4/static_climb_1k: Collecting 100 samples in estimated 1.5882 s (10k iterations)
+Benchmarking v2.4/static_climb_1k: Analyzing
+v2.4/static_climb_1k    time:   [170.61 µs 176.40 µs 182.63 µs]
+                        change: [+31.028% +49.146% +74.730%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking v2.4/unknown_frame_1k_frames
+Benchmarking v2.4/unknown_frame_1k_frames: Warming up for 300.00 ms
+Benchmarking v2.4/unknown_frame_1k_frames: Collecting 100 samples in estimated 1.9876 s (20k iterations)
+Benchmarking v2.4/unknown_frame_1k_frames: Analyzing
+v2.4/unknown_frame_1k_frames
+                        time:   [93.249 µs 94.676 µs 96.132 µs]
+                        change: [+32.699% +38.534% +45.386%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  8 (8.00%) low severe
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking v2.4/past_newest_1k
+Benchmarking v2.4/past_newest_1k: Warming up for 300.00 ms
+Benchmarking v2.4/past_newest_1k: Collecting 100 samples in estimated 1.5036 s (1.8M iterations)
+Benchmarking v2.4/past_newest_1k: Analyzing
+v2.4/past_newest_1k     time:   [858.31 ns 903.28 ns 963.46 ns]
+                        change: [+34.183% +43.359% +54.043%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  5 (5.00%) high severe
+Benchmarking v2.4/insert_steady_maxage10s_1k
+Benchmarking v2.4/insert_steady_maxage10s_1k: Warming up for 300.00 ms
+Benchmarking v2.4/insert_steady_maxage10s_1k: Collecting 100 samples in estimated 1.5005 s (2.2M iterations)
+Benchmarking v2.4/insert_steady_maxage10s_1k: Analyzing
+v2.4/insert_steady_maxage10s_1k
+                        time:   [425.22 ns 444.89 ns 465.00 ns]
+                        change: [+18.184% +28.256% +38.943%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking proto-btree-hash/1hop_exact_1k
+Benchmarking proto-btree-hash/1hop_exact_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/1hop_exact_1k: Collecting 100 samples in estimated 1.5006 s (6.9M iterations)
+Benchmarking proto-btree-hash/1hop_exact_1k: Analyzing
+proto-btree-hash/1hop_exact_1k
+                        time:   [208.82 ns 212.60 ns 216.45 ns]
+                        change: [+31.512% +44.085% +64.362%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-hash/1hop_interp_1k
+Benchmarking proto-btree-hash/1hop_interp_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/1hop_interp_1k: Collecting 100 samples in estimated 1.5003 s (3.4M iterations)
+Benchmarking proto-btree-hash/1hop_interp_1k: Analyzing
+proto-btree-hash/1hop_interp_1k
+                        time:   [436.06 ns 442.89 ns 449.84 ns]
+                        change: [+30.997% +39.451% +52.097%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  10 (10.00%) low severe
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-hash/4hop_dyn_to_ancestor
+Benchmarking proto-btree-hash/4hop_dyn_to_ancestor: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/4hop_dyn_to_ancestor: Collecting 100 samples in estimated 1.5063 s (899k iterations)
+Benchmarking proto-btree-hash/4hop_dyn_to_ancestor: Analyzing
+proto-btree-hash/4hop_dyn_to_ancestor
+                        time:   [1.6477 µs 1.6786 µs 1.7090 µs]
+                        change: [+42.742% +49.500% +56.772%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  8 (8.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-hash/4hop_dyn_to_descendant
+Benchmarking proto-btree-hash/4hop_dyn_to_descendant: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/4hop_dyn_to_descendant: Collecting 100 samples in estimated 1.5032 s (727k iterations)
+Benchmarking proto-btree-hash/4hop_dyn_to_descendant: Analyzing
+proto-btree-hash/4hop_dyn_to_descendant
+                        time:   [1.9309 µs 1.9783 µs 2.0335 µs]
+                        change: [+46.440% +54.215% +63.718%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking proto-btree-hash/robot_map_to_optical
+Benchmarking proto-btree-hash/robot_map_to_optical: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/robot_map_to_optical: Collecting 100 samples in estimated 1.5033 s (1.1M iterations)
+Benchmarking proto-btree-hash/robot_map_to_optical: Analyzing
+proto-btree-hash/robot_map_to_optical
+                        time:   [1.3312 µs 1.3628 µs 1.3966 µs]
+                        change: [+42.647% +51.344% +60.749%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-hash/robot_leaf_to_leaf
+Benchmarking proto-btree-hash/robot_leaf_to_leaf: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/robot_leaf_to_leaf: Collecting 100 samples in estimated 1.5029 s (2.1M iterations)
+Benchmarking proto-btree-hash/robot_leaf_to_leaf: Analyzing
+proto-btree-hash/robot_leaf_to_leaf
+                        time:   [694.12 ns 726.79 ns 768.25 ns]
+                        change: [+39.527% +49.198% +59.796%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 19 outliers among 100 measurements (19.00%)
+  11 (11.00%) low mild
+  3 (3.00%) high mild
+  5 (5.00%) high severe
+Benchmarking proto-btree-hash/siblings_under_16deep_dyn
+Benchmarking proto-btree-hash/siblings_under_16deep_dyn: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/siblings_under_16deep_dyn: Collecting 100 samples in estimated 1.5022 s (3.0M iterations)
+Benchmarking proto-btree-hash/siblings_under_16deep_dyn: Analyzing
+proto-btree-hash/siblings_under_16deep_dyn
+                        time:   [479.68 ns 487.57 ns 495.52 ns]
+                        change: [+24.364% +32.924% +43.742%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  9 (9.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-hash/static_siblings_1k_elim
+Benchmarking proto-btree-hash/static_siblings_1k_elim: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/static_siblings_1k_elim: Collecting 100 samples in estimated 1.6891 s (10k iterations)
+Benchmarking proto-btree-hash/static_siblings_1k_elim: Analyzing
+proto-btree-hash/static_siblings_1k_elim
+                        time:   [162.08 µs 164.85 µs 167.67 µs]
+                        change: [+14.740% +23.800% +37.063%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  9 (9.00%) low severe
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-hash/static_climb_1k
+Benchmarking proto-btree-hash/static_climb_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/static_climb_1k: Collecting 100 samples in estimated 1.5258 s (25k iterations)
+Benchmarking proto-btree-hash/static_climb_1k: Analyzing
+proto-btree-hash/static_climb_1k
+                        time:   [59.233 µs 60.303 µs 61.454 µs]
+                        change: [+60.254% +68.747% +78.416%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  10 (10.00%) low severe
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-hash/unknown_frame_1k_frames
+Benchmarking proto-btree-hash/unknown_frame_1k_frames: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/unknown_frame_1k_frames: Collecting 100 samples in estimated 1.5003 s (16M iterations)
+Benchmarking proto-btree-hash/unknown_frame_1k_frames: Analyzing
+proto-btree-hash/unknown_frame_1k_frames
+                        time:   [89.625 ns 92.175 ns 95.213 ns]
+                        change: [+76.207% +86.324% +99.151%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-hash/past_newest_1k
+Benchmarking proto-btree-hash/past_newest_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/past_newest_1k: Collecting 100 samples in estimated 1.5007 s (2.4M iterations)
+Benchmarking proto-btree-hash/past_newest_1k: Analyzing
+proto-btree-hash/past_newest_1k
+                        time:   [614.79 ns 630.68 ns 649.28 ns]
+                        change: [+50.312% +61.936% +74.508%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 12 outliers among 100 measurements (12.00%)
+  6 (6.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-hash/insert_steady_maxage10s_1k
+Benchmarking proto-btree-hash/insert_steady_maxage10s_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-hash/insert_steady_maxage10s_1k: Collecting 100 samples in estimated 1.5012 s (3.2M iterations)
+Benchmarking proto-btree-hash/insert_steady_maxage10s_1k: Analyzing
+proto-btree-hash/insert_steady_maxage10s_1k
+                        time:   [377.09 ns 391.06 ns 404.26 ns]
+                        change: [+45.209% +55.381% +65.775%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking proto-btree-btreeidx/1hop_exact_1k
+Benchmarking proto-btree-btreeidx/1hop_exact_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/1hop_exact_1k: Collecting 100 samples in estimated 1.5003 s (9.2M iterations)
+Benchmarking proto-btree-btreeidx/1hop_exact_1k: Analyzing
+proto-btree-btreeidx/1hop_exact_1k
+                        time:   [157.20 ns 165.91 ns 177.87 ns]
+                        change: [+29.151% +39.173% +52.386%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  9 (9.00%) low mild
+  1 (1.00%) high mild
+  6 (6.00%) high severe
+Benchmarking proto-btree-btreeidx/1hop_interp_1k
+Benchmarking proto-btree-btreeidx/1hop_interp_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/1hop_interp_1k: Collecting 100 samples in estimated 1.5022 s (3.4M iterations)
+Benchmarking proto-btree-btreeidx/1hop_interp_1k: Analyzing
+proto-btree-btreeidx/1hop_interp_1k
+                        time:   [428.00 ns 435.50 ns 443.17 ns]
+                        change: [+48.341% +55.588% +63.263%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  1 (1.00%) low severe
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_ancestor
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_ancestor: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_ancestor: Collecting 100 samples in estimated 1.5016 s (894k iterations)
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_ancestor: Analyzing
+proto-btree-btreeidx/4hop_dyn_to_ancestor
+                        time:   [1.6487 µs 1.6768 µs 1.7053 µs]
+                        change: [+46.608% +55.906% +69.107%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  10 (10.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_descendant
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_descendant: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_descendant: Collecting 100 samples in estimated 1.5018 s (773k iterations)
+Benchmarking proto-btree-btreeidx/4hop_dyn_to_descendant: Analyzing
+proto-btree-btreeidx/4hop_dyn_to_descendant
+                        time:   [1.8205 µs 1.8579 µs 1.8965 µs]
+                        change: [+52.708% +63.841% +76.345%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  8 (8.00%) low mild
+  2 (2.00%) high mild
+  5 (5.00%) high severe
+Benchmarking proto-btree-btreeidx/robot_map_to_optical
+Benchmarking proto-btree-btreeidx/robot_map_to_optical: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/robot_map_to_optical: Collecting 100 samples in estimated 1.5068 s (1.1M iterations)
+Benchmarking proto-btree-btreeidx/robot_map_to_optical: Analyzing
+proto-btree-btreeidx/robot_map_to_optical
+                        time:   [1.3507 µs 1.3750 µs 1.3997 µs]
+                        change: [+46.704% +54.545% +62.895%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  9 (9.00%) low severe
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-btreeidx/robot_leaf_to_leaf
+Benchmarking proto-btree-btreeidx/robot_leaf_to_leaf: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/robot_leaf_to_leaf: Collecting 100 samples in estimated 1.5019 s (2.0M iterations)
+Benchmarking proto-btree-btreeidx/robot_leaf_to_leaf: Analyzing
+proto-btree-btreeidx/robot_leaf_to_leaf
+                        time:   [734.58 ns 756.71 ns 782.30 ns]
+                        change: [+61.442% +72.184% +82.639%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 12 outliers among 100 measurements (12.00%)
+  7 (7.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-btreeidx/siblings_under_16deep_dyn
+Benchmarking proto-btree-btreeidx/siblings_under_16deep_dyn: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/siblings_under_16deep_dyn: Collecting 100 samples in estimated 1.5006 s (2.8M iterations)
+Benchmarking proto-btree-btreeidx/siblings_under_16deep_dyn: Analyzing
+proto-btree-btreeidx/siblings_under_16deep_dyn
+                        time:   [529.72 ns 539.46 ns 549.05 ns]
+                        change: [+31.816% +40.346% +48.930%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  10 (10.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-btreeidx/static_siblings_1k_elim
+Benchmarking proto-btree-btreeidx/static_siblings_1k_elim: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/static_siblings_1k_elim: Collecting 100 samples in estimated 1.7300 s (10k iterations)
+Benchmarking proto-btree-btreeidx/static_siblings_1k_elim: Analyzing
+proto-btree-btreeidx/static_siblings_1k_elim
+                        time:   [165.03 µs 169.92 µs 176.09 µs]
+                        change: [+41.020% +51.394% +63.170%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 18 outliers among 100 measurements (18.00%)
+  9 (9.00%) low mild
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking proto-btree-btreeidx/static_climb_1k
+Benchmarking proto-btree-btreeidx/static_climb_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/static_climb_1k: Collecting 100 samples in estimated 1.7052 s (25k iterations)
+Benchmarking proto-btree-btreeidx/static_climb_1k: Analyzing
+proto-btree-btreeidx/static_climb_1k
+                        time:   [60.772 µs 62.167 µs 63.710 µs]
+                        change: [+41.946% +50.586% +59.683%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 17 outliers among 100 measurements (17.00%)
+  3 (3.00%) low severe
+  6 (6.00%) low mild
+  4 (4.00%) high mild
+  4 (4.00%) high severe
+Benchmarking proto-btree-btreeidx/unknown_frame_1k_frames
+Benchmarking proto-btree-btreeidx/unknown_frame_1k_frames: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/unknown_frame_1k_frames: Collecting 100 samples in estimated 1.5009 s (3.0M iterations)
+Benchmarking proto-btree-btreeidx/unknown_frame_1k_frames: Analyzing
+proto-btree-btreeidx/unknown_frame_1k_frames
+                        time:   [493.08 ns 501.84 ns 510.64 ns]
+                        change: [+56.621% +70.108% +89.871%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-btree-btreeidx/past_newest_1k
+Benchmarking proto-btree-btreeidx/past_newest_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/past_newest_1k: Collecting 100 samples in estimated 1.5011 s (2.6M iterations)
+Benchmarking proto-btree-btreeidx/past_newest_1k: Analyzing
+proto-btree-btreeidx/past_newest_1k
+                        time:   [573.10 ns 584.20 ns 596.05 ns]
+                        change: [+52.492% +60.828% +69.552%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  10 (10.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-btree-btreeidx/insert_steady_maxage10s_1k
+Benchmarking proto-btree-btreeidx/insert_steady_maxage10s_1k: Warming up for 300.00 ms
+Benchmarking proto-btree-btreeidx/insert_steady_maxage10s_1k: Collecting 100 samples in estimated 1.5007 s (3.6M iterations)
+Benchmarking proto-btree-btreeidx/insert_steady_maxage10s_1k: Analyzing
+proto-btree-btreeidx/insert_steady_maxage10s_1k
+                        time:   [363.05 ns 373.95 ns 384.55 ns]
+                        change: [+68.470% +81.996% +100.76%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 8 outliers among 100 measurements (8.00%)
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking proto-deque-hash/1hop_exact_1k
+Benchmarking proto-deque-hash/1hop_exact_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/1hop_exact_1k: Collecting 100 samples in estimated 1.5010 s (4.7M iterations)
+Benchmarking proto-deque-hash/1hop_exact_1k: Analyzing
+proto-deque-hash/1hop_exact_1k
+                        time:   [275.44 ns 282.15 ns 289.73 ns]
+                        change: [+67.969% +82.514% +99.039%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  9 (9.00%) low mild
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/1hop_interp_1k
+Benchmarking proto-deque-hash/1hop_interp_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/1hop_interp_1k: Collecting 100 samples in estimated 1.5020 s (2.9M iterations)
+Benchmarking proto-deque-hash/1hop_interp_1k: Analyzing
+proto-deque-hash/1hop_interp_1k
+                        time:   [496.04 ns 510.03 ns 525.98 ns]
+                        change: [+50.987% +62.344% +74.168%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 100 measurements (15.00%)
+  10 (10.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/4hop_dyn_to_ancestor
+Benchmarking proto-deque-hash/4hop_dyn_to_ancestor: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/4hop_dyn_to_ancestor: Collecting 100 samples in estimated 1.5034 s (874k iterations)
+Benchmarking proto-deque-hash/4hop_dyn_to_ancestor: Analyzing
+proto-deque-hash/4hop_dyn_to_ancestor
+                        time:   [1.7105 µs 1.7754 µs 1.8574 µs]
+                        change: [+43.666% +53.108% +63.550%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 18 outliers among 100 measurements (18.00%)
+  10 (10.00%) low mild
+  3 (3.00%) high mild
+  5 (5.00%) high severe
+Benchmarking proto-deque-hash/4hop_dyn_to_descendant
+Benchmarking proto-deque-hash/4hop_dyn_to_descendant: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/4hop_dyn_to_descendant: Collecting 100 samples in estimated 1.5038 s (793k iterations)
+Benchmarking proto-deque-hash/4hop_dyn_to_descendant: Analyzing
+proto-deque-hash/4hop_dyn_to_descendant
+                        time:   [1.8343 µs 1.8619 µs 1.8900 µs]
+                        change: [+62.989% +73.451% +85.351%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 17 outliers among 100 measurements (17.00%)
+  10 (10.00%) low severe
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-deque-hash/robot_map_to_optical
+Benchmarking proto-deque-hash/robot_map_to_optical: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/robot_map_to_optical: Collecting 100 samples in estimated 1.5024 s (1.0M iterations)
+Benchmarking proto-deque-hash/robot_map_to_optical: Analyzing
+proto-deque-hash/robot_map_to_optical
+                        time:   [1.3721 µs 1.3969 µs 1.4220 µs]
+                        change: [+63.829% +73.348% +83.577%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/robot_leaf_to_leaf
+Benchmarking proto-deque-hash/robot_leaf_to_leaf: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/robot_leaf_to_leaf: Collecting 100 samples in estimated 1.5026 s (2.2M iterations)
+Benchmarking proto-deque-hash/robot_leaf_to_leaf: Analyzing
+proto-deque-hash/robot_leaf_to_leaf
+                        time:   [698.58 ns 713.67 ns 730.01 ns]
+                        change: [+63.668% +71.756% +79.895%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  10 (10.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/siblings_under_16deep_dyn
+Benchmarking proto-deque-hash/siblings_under_16deep_dyn: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/siblings_under_16deep_dyn: Collecting 100 samples in estimated 1.5010 s (3.0M iterations)
+Benchmarking proto-deque-hash/siblings_under_16deep_dyn: Analyzing
+proto-deque-hash/siblings_under_16deep_dyn
+                        time:   [491.50 ns 502.06 ns 512.64 ns]
+                        change: [+73.080% +82.762% +92.626%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/static_siblings_1k_elim
+Benchmarking proto-deque-hash/static_siblings_1k_elim: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/static_siblings_1k_elim: Collecting 100 samples in estimated 1.6306 s (10k iterations)
+Benchmarking proto-deque-hash/static_siblings_1k_elim: Analyzing
+proto-deque-hash/static_siblings_1k_elim
+                        time:   [167.16 µs 171.40 µs 176.31 µs]
+                        change: [+74.834% +87.336% +104.64%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  7 (7.00%) low severe
+  1 (1.00%) low mild
+  5 (5.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-deque-hash/static_climb_1k
+Benchmarking proto-deque-hash/static_climb_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/static_climb_1k: Collecting 100 samples in estimated 1.5514 s (25k iterations)
+Benchmarking proto-deque-hash/static_climb_1k: Analyzing
+proto-deque-hash/static_climb_1k
+                        time:   [60.538 µs 61.848 µs 63.234 µs]
+                        change: [+39.866% +48.836% +58.369%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  10 (10.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-hash/unknown_frame_1k_frames
+Benchmarking proto-deque-hash/unknown_frame_1k_frames: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/unknown_frame_1k_frames: Collecting 100 samples in estimated 1.5004 s (17M iterations)
+Benchmarking proto-deque-hash/unknown_frame_1k_frames: Analyzing
+proto-deque-hash/unknown_frame_1k_frames
+                        time:   [87.983 ns 91.196 ns 95.055 ns]
+                        change: [+82.617% +97.137% +117.34%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 19 outliers among 100 measurements (19.00%)
+  10 (10.00%) low mild
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking proto-deque-hash/past_newest_1k
+Benchmarking proto-deque-hash/past_newest_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/past_newest_1k: Collecting 100 samples in estimated 1.5017 s (3.6M iterations)
+Benchmarking proto-deque-hash/past_newest_1k: Analyzing
+proto-deque-hash/past_newest_1k
+                        time:   [395.36 ns 401.74 ns 408.13 ns]
+                        change: [+59.012% +73.309% +95.455%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low severe
+  1 (1.00%) high mild
+  4 (4.00%) high severe
+Benchmarking proto-deque-hash/insert_steady_maxage10s_1k
+Benchmarking proto-deque-hash/insert_steady_maxage10s_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-hash/insert_steady_maxage10s_1k: Collecting 100 samples in estimated 1.5009 s (7.9M iterations)
+Benchmarking proto-deque-hash/insert_steady_maxage10s_1k: Analyzing
+proto-deque-hash/insert_steady_maxage10s_1k
+                        time:   [130.34 ns 135.35 ns 140.41 ns]
+                        change: [+85.942% +100.76% +119.10%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 8 outliers among 100 measurements (8.00%)
+  5 (5.00%) high mild
+  3 (3.00%) high severe
+
+Benchmarking proto-deque-btreeidx/1hop_exact_1k
+Benchmarking proto-deque-btreeidx/1hop_exact_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/1hop_exact_1k: Collecting 100 samples in estimated 1.5001 s (7.0M iterations)
+Benchmarking proto-deque-btreeidx/1hop_exact_1k: Analyzing
+proto-deque-btreeidx/1hop_exact_1k
+                        time:   [215.61 ns 219.60 ns 223.71 ns]
+                        change: [+71.436% +80.292% +87.799%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low mild
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-btreeidx/1hop_interp_1k
+Benchmarking proto-deque-btreeidx/1hop_interp_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/1hop_interp_1k: Collecting 100 samples in estimated 1.5019 s (3.6M iterations)
+Benchmarking proto-deque-btreeidx/1hop_interp_1k: Analyzing
+proto-deque-btreeidx/1hop_interp_1k
+                        time:   [421.07 ns 428.48 ns 436.14 ns]
+                        change: [+63.148% +77.258% +98.664%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  10 (10.00%) low mild
+  2 (2.00%) high mild
+  4 (4.00%) high severe
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_ancestor
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_ancestor: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_ancestor: Collecting 100 samples in estimated 1.5042 s (747k iterations)
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_ancestor: Analyzing
+proto-deque-btreeidx/4hop_dyn_to_ancestor
+                        time:   [1.7117 µs 1.7541 µs 1.8023 µs]
+                        change: [+56.653% +65.898% +75.992%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 20 outliers among 100 measurements (20.00%)
+  11 (11.00%) low mild
+  7 (7.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_descendant
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_descendant: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_descendant: Collecting 100 samples in estimated 1.5008 s (747k iterations)
+Benchmarking proto-deque-btreeidx/4hop_dyn_to_descendant: Analyzing
+proto-deque-btreeidx/4hop_dyn_to_descendant
+                        time:   [1.9606 µs 1.9973 µs 2.0355 µs]
+                        change: [+78.874% +88.867% +99.974%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  10 (10.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-btreeidx/robot_map_to_optical
+Benchmarking proto-deque-btreeidx/robot_map_to_optical: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/robot_map_to_optical: Collecting 100 samples in estimated 1.5024 s (1.1M iterations)
+Benchmarking proto-deque-btreeidx/robot_map_to_optical: Analyzing
+proto-deque-btreeidx/robot_map_to_optical
+                        time:   [1.4373 µs 1.4781 µs 1.5233 µs]
+                        change: [+71.043% +83.069% +95.861%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 19 outliers among 100 measurements (19.00%)
+  1 (1.00%) low severe
+  8 (8.00%) low mild
+  4 (4.00%) high mild
+  6 (6.00%) high severe
+Benchmarking proto-deque-btreeidx/robot_leaf_to_leaf
+Benchmarking proto-deque-btreeidx/robot_leaf_to_leaf: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/robot_leaf_to_leaf: Collecting 100 samples in estimated 1.5033 s (1.8M iterations)
+Benchmarking proto-deque-btreeidx/robot_leaf_to_leaf: Analyzing
+proto-deque-btreeidx/robot_leaf_to_leaf
+                        time:   [752.27 ns 773.88 ns 799.72 ns]
+                        change: [+81.118% +92.546% +105.25%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  8 (8.00%) low mild
+  4 (4.00%) high mild
+  2 (2.00%) high severe
+Benchmarking proto-deque-btreeidx/siblings_under_16deep_dyn
+Benchmarking proto-deque-btreeidx/siblings_under_16deep_dyn: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/siblings_under_16deep_dyn: Collecting 100 samples in estimated 1.5003 s (2.8M iterations)
+Benchmarking proto-deque-btreeidx/siblings_under_16deep_dyn: Analyzing
+proto-deque-btreeidx/siblings_under_16deep_dyn
+                        time:   [531.88 ns 541.19 ns 550.27 ns]
+                        change: [+70.424% +81.243% +93.275%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 17 outliers among 100 measurements (17.00%)
+  9 (9.00%) low mild
+  4 (4.00%) high mild
+  4 (4.00%) high severe
+Benchmarking proto-deque-btreeidx/static_siblings_1k_elim
+Benchmarking proto-deque-btreeidx/static_siblings_1k_elim: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/static_siblings_1k_elim: Collecting 100 samples in estimated 1.6454 s (10k iterations)
+Benchmarking proto-deque-btreeidx/static_siblings_1k_elim: Analyzing
+proto-deque-btreeidx/static_siblings_1k_elim
+                        time:   [161.60 µs 164.50 µs 167.45 µs]
+                        change: [+64.371% +72.693% +79.832%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  9 (9.00%) low severe
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking proto-deque-btreeidx/static_climb_1k
+Benchmarking proto-deque-btreeidx/static_climb_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/static_climb_1k: Collecting 100 samples in estimated 1.5136 s (25k iterations)
+Benchmarking proto-deque-btreeidx/static_climb_1k: Analyzing
+proto-deque-btreeidx/static_climb_1k
+                        time:   [59.870 µs 60.971 µs 62.064 µs]
+                        change: [+41.578% +54.542% +70.033%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 100 measurements (13.00%)
+  8 (8.00%) low severe
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-deque-btreeidx/unknown_frame_1k_frames
+Benchmarking proto-deque-btreeidx/unknown_frame_1k_frames: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/unknown_frame_1k_frames: Collecting 100 samples in estimated 1.5012 s (2.5M iterations)
+Benchmarking proto-deque-btreeidx/unknown_frame_1k_frames: Analyzing
+proto-deque-btreeidx/unknown_frame_1k_frames
+                        time:   [522.94 ns 537.33 ns 555.06 ns]
+                        change: [+77.296% +91.424% +111.80%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 16 outliers among 100 measurements (16.00%)
+  9 (9.00%) low mild
+  4 (4.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-deque-btreeidx/past_newest_1k
+Benchmarking proto-deque-btreeidx/past_newest_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/past_newest_1k: Collecting 100 samples in estimated 1.5007 s (3.9M iterations)
+Benchmarking proto-deque-btreeidx/past_newest_1k: Analyzing
+proto-deque-btreeidx/past_newest_1k
+                        time:   [383.97 ns 389.86 ns 395.86 ns]
+                        change: [+54.802% +64.573% +77.550%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 14 outliers among 100 measurements (14.00%)
+  9 (9.00%) low severe
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  3 (3.00%) high severe
+Benchmarking proto-deque-btreeidx/insert_steady_maxage10s_1k
+Benchmarking proto-deque-btreeidx/insert_steady_maxage10s_1k: Warming up for 300.00 ms
+Benchmarking proto-deque-btreeidx/insert_steady_maxage10s_1k: Collecting 100 samples in estimated 1.5004 s (8.8M iterations)
+Benchmarking proto-deque-btreeidx/insert_steady_maxage10s_1k: Analyzing
+proto-deque-btreeidx/insert_steady_maxage10s_1k
+                        time:   [114.96 ns 121.94 ns 129.50 ns]
+                        change: [+55.591% +71.622% +85.830%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking v2.4/ooo_insert_1k_uniform
+Benchmarking v2.4/ooo_insert_1k_uniform: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_1k_uniform: Collecting 20 samples in estimated 601.26 ms (95k iterations)
+Benchmarking v2.4/ooo_insert_1k_uniform: Analyzing
+v2.4/ooo_insert_1k_uniform
+                        time:   [371.19 ns 492.77 ns 605.95 ns]
+                        change: [−11.281% +40.995% +101.40%] (p = 0.21 > 0.05)
+                        No change in performance detected.
+Found 2 outliers among 20 measurements (10.00%)
+  1 (5.00%) high mild
+  1 (5.00%) high severe
+Benchmarking v2.4/ooo_insert_1k_newest1pct
+Benchmarking v2.4/ooo_insert_1k_newest1pct: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_1k_newest1pct: Collecting 20 samples in estimated 600.29 ms (96k iterations)
+Benchmarking v2.4/ooo_insert_1k_newest1pct: Analyzing
+v2.4/ooo_insert_1k_newest1pct
+                        time:   [367.64 ns 496.72 ns 654.70 ns]
+                        change: [+47.141% +115.19% +199.65%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 20 measurements (5.00%)
+  1 (5.00%) high mild
+Benchmarking v2.4/ooo_insert_10k_uniform
+Benchmarking v2.4/ooo_insert_10k_uniform: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_10k_uniform: Collecting 20 samples in estimated 601.39 ms (44k iterations)
+Benchmarking v2.4/ooo_insert_10k_uniform: Analyzing
+v2.4/ooo_insert_10k_uniform
+                        time:   [340.73 ns 529.80 ns 745.03 ns]
+                        change: [−9.1573% +12.573% +43.553%] (p = 0.42 > 0.05)
+                        No change in performance detected.
+Found 4 outliers among 20 measurements (20.00%)
+  2 (10.00%) high mild
+  2 (10.00%) high severe
+Benchmarking v2.4/ooo_insert_10k_newest1pct
+Benchmarking v2.4/ooo_insert_10k_newest1pct: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_10k_newest1pct: Collecting 20 samples in estimated 600.56 ms (62k iterations)
+Benchmarking v2.4/ooo_insert_10k_newest1pct: Analyzing
+v2.4/ooo_insert_10k_newest1pct
+                        time:   [419.23 ns 689.75 ns 971.77 ns]
+                        change: [+3.2998% +51.628% +99.788%] (p = 0.07 > 0.05)
+                        No change in performance detected.
+Benchmarking v2.4/ooo_insert_60k_uniform
+Benchmarking v2.4/ooo_insert_60k_uniform: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_60k_uniform: Collecting 20 samples in estimated 657.22 ms (100 iterations)
+Benchmarking v2.4/ooo_insert_60k_uniform: Analyzing
+v2.4/ooo_insert_60k_uniform
+                        time:   [544.33 ns 584.81 ns 642.87 ns]
+                        change: [−13.313% −3.6738% +7.7837%] (p = 0.54 > 0.05)
+                        No change in performance detected.
+Found 3 outliers among 20 measurements (15.00%)
+  2 (10.00%) high mild
+  1 (5.00%) high severe
+Benchmarking v2.4/ooo_insert_60k_newest1pct
+Benchmarking v2.4/ooo_insert_60k_newest1pct: Warming up for 200.00 ms
+Benchmarking v2.4/ooo_insert_60k_newest1pct: Collecting 20 samples in estimated 667.99 ms (100 iterations)
+Benchmarking v2.4/ooo_insert_60k_newest1pct: Analyzing
+v2.4/ooo_insert_60k_newest1pct
+                        time:   [295.69 ns 311.71 ns 331.44 ns]
+                        change: [−17.274% −10.916% −2.9982%] (p = 0.01 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 20 measurements (10.00%)
+  1 (5.00%) high mild
+  1 (5.00%) high severe
+
+Benchmarking proto-btree-hash/ooo_insert_1k_uniform
+Benchmarking proto-btree-hash/ooo_insert_1k_uniform: Warming up for 200.00 ms
+Benchmarking proto-btree-hash/ooo_insert_1k_uniform: Collecting 20 samples in estimated 600.23 ms (128k iterations)
+Benchmarking proto-btree-hash/ooo_insert_1k_uniform: Analyzing
+proto-btree-hash/ooo_insert_1k_uniform
+                        time:   [297.76 ns 409.48 ns 513.31 ns]
+                        change: [+4.2931% +49.418% +114.41%] (p = 0.07 > 0.05)
+                        No change in performance detected.
+Found 1 outliers among 20 measurements (5.00%)
+  1 (5.00%) high severe
+Benchmarking proto-btree-hash/ooo_insert_1k_newest1pct
+Benchmarking proto-btree-hash/ooo_insert_1k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-btree-hash/ooo_insert_1k_newest1pct: Collecting 20 samples in estimated 600.36 ms (123k iterations)
+Benchmarking proto-btree-hash/ooo_insert_1k_newest1pct: Analyzing
+proto-btree-hash/ooo_insert_1k_newest1pct
+                        time:   [299.68 ns 441.59 ns 584.21 ns]
+                        change: [−1.4872% +36.924% +83.818%] (p = 0.11 > 0.05)
+                        No change in performance detected.
+Benchmarking proto-btree-hash/ooo_insert_10k_uniform
+Benchmarking proto-btree-hash/ooo_insert_10k_uniform: Warming up for 200.00 ms
+Benchmarking proto-btree-hash/ooo_insert_10k_uniform: Collecting 20 samples in estimated 600.76 ms (82k iterations)
+Benchmarking proto-btree-hash/ooo_insert_10k_uniform: Analyzing
+proto-btree-hash/ooo_insert_10k_uniform
+                        time:   [381.47 ns 780.13 ns 1.2820 µs]
+                        change: [+9.1597% +80.086% +155.63%] (p = 0.03 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 20 measurements (5.00%)
+  1 (5.00%) high severe
+Benchmarking proto-btree-hash/ooo_insert_10k_newest1pct
+Benchmarking proto-btree-hash/ooo_insert_10k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-btree-hash/ooo_insert_10k_newest1pct: Collecting 20 samples in estimated 600.40 ms (79k iterations)
+Benchmarking proto-btree-hash/ooo_insert_10k_newest1pct: Analyzing
+proto-btree-hash/ooo_insert_10k_newest1pct
+                        time:   [274.54 ns 407.07 ns 606.51 ns]
+                        change: [−3.9724% +53.120% +128.00%] (p = 0.13 > 0.05)
+                        No change in performance detected.
+Found 4 outliers among 20 measurements (20.00%)
+  4 (20.00%) high severe
+Benchmarking proto-btree-hash/ooo_insert_60k_uniform
+Benchmarking proto-btree-hash/ooo_insert_60k_uniform: Warming up for 200.00 ms
+
+Warning: Unable to complete 20 samples in 600.0ms. You may wish to increase target time to 698.4ms, enable flat sampling, or reduce sample count to 10.
+Benchmarking proto-btree-hash/ooo_insert_60k_uniform: Collecting 20 samples in estimated 698.42 ms (210 iterations)
+Benchmarking proto-btree-hash/ooo_insert_60k_uniform: Analyzing
+proto-btree-hash/ooo_insert_60k_uniform
+                        time:   [475.66 ns 505.35 ns 558.56 ns]
+                        change: [+22.169% +48.027% +76.979%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Benchmarking proto-btree-hash/ooo_insert_60k_newest1pct
+Benchmarking proto-btree-hash/ooo_insert_60k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-btree-hash/ooo_insert_60k_newest1pct: Collecting 20 samples in estimated 722.73 ms (420 iterations)
+Benchmarking proto-btree-hash/ooo_insert_60k_newest1pct: Analyzing
+proto-btree-hash/ooo_insert_60k_newest1pct
+                        time:   [285.73 ns 318.27 ns 342.12 ns]
+                        change: [−8.5886% +0.9215% +10.824%] (p = 0.86 > 0.05)
+                        No change in performance detected.
+Found 1 outliers among 20 measurements (5.00%)
+  1 (5.00%) high mild
+
+Benchmarking proto-deque-hash/ooo_insert_1k_uniform
+Benchmarking proto-deque-hash/ooo_insert_1k_uniform: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_1k_uniform: Collecting 20 samples in estimated 600.36 ms (172k iterations)
+Benchmarking proto-deque-hash/ooo_insert_1k_uniform: Analyzing
+proto-deque-hash/ooo_insert_1k_uniform
+                        time:   [977.01 ns 1.1137 µs 1.2779 µs]
+                        change: [+59.891% +92.794% +131.15%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 20 measurements (10.00%)
+  1 (5.00%) high mild
+  1 (5.00%) high severe
+Benchmarking proto-deque-hash/ooo_insert_1k_newest1pct
+Benchmarking proto-deque-hash/ooo_insert_1k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_1k_newest1pct: Collecting 20 samples in estimated 600.25 ms (230k iterations)
+Benchmarking proto-deque-hash/ooo_insert_1k_newest1pct: Analyzing
+proto-deque-hash/ooo_insert_1k_newest1pct
+                        time:   [319.57 ns 441.23 ns 591.29 ns]
+                        change: [+10.537% +45.783% +87.736%] (p = 0.03 < 0.05)
+                        Performance has regressed.
+Benchmarking proto-deque-hash/ooo_insert_10k_uniform
+Benchmarking proto-deque-hash/ooo_insert_10k_uniform: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_10k_uniform: Collecting 20 samples in estimated 602.06 ms (36k iterations)
+Benchmarking proto-deque-hash/ooo_insert_10k_uniform: Analyzing
+proto-deque-hash/ooo_insert_10k_uniform
+                        time:   [12.337 µs 12.776 µs 13.265 µs]
+                        change: [+83.130% +96.503% +114.17%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 20 measurements (5.00%)
+  1 (5.00%) high severe
+Benchmarking proto-deque-hash/ooo_insert_10k_newest1pct
+Benchmarking proto-deque-hash/ooo_insert_10k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_10k_newest1pct: Collecting 20 samples in estimated 600.43 ms (159k iterations)
+Benchmarking proto-deque-hash/ooo_insert_10k_newest1pct: Analyzing
+proto-deque-hash/ooo_insert_10k_newest1pct
+                        time:   [973.00 ns 1.0473 µs 1.1393 µs]
+                        change: [+58.497% +105.20% +167.58%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 20 measurements (15.00%)
+  2 (10.00%) low mild
+  1 (5.00%) high severe
+Benchmarking proto-deque-hash/ooo_insert_60k_uniform
+Benchmarking proto-deque-hash/ooo_insert_60k_uniform: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_60k_uniform: Collecting 20 samples in estimated 623.87 ms (1470 iterations)
+Benchmarking proto-deque-hash/ooo_insert_60k_uniform: Analyzing
+proto-deque-hash/ooo_insert_60k_uniform
+                        time:   [123.86 µs 134.55 µs 144.61 µs]
+                        change: [+52.694% +73.944% +95.066%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 20 measurements (10.00%)
+  1 (5.00%) low mild
+  1 (5.00%) high mild
+Benchmarking proto-deque-hash/ooo_insert_60k_newest1pct
+Benchmarking proto-deque-hash/ooo_insert_60k_newest1pct: Warming up for 200.00 ms
+Benchmarking proto-deque-hash/ooo_insert_60k_newest1pct: Collecting 20 samples in estimated 605.47 ms (22k iterations)
+Benchmarking proto-deque-hash/ooo_insert_60k_newest1pct: Analyzing
+proto-deque-hash/ooo_insert_60k_newest1pct
+                        time:   [2.1438 µs 2.9086 µs 3.4792 µs]
+                        change: [−62.404% −44.250% −20.491%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
