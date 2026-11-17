@@ -213,8 +213,11 @@ The following are outside this crate's scope:
 ## AI-Assisted Development
 
 This project uses AI assistance. Since 2.0.0, assisted commits require an
-`Assisted-by: <Agent>:<model>` trailer. The maintainer reviews contributions
-and takes responsibility for the code. See [AGENTS.md](AGENTS.md).
+`Assisted-by: <Agent>:<model>` trailer, and the maintainer reviews changes
+before merging them. Review is not a warranty: the software is provided
+"as is" under the [MIT license](LICENSE), and assessing its fitness for any
+use, safety-related ones included, rests with the user. See
+[AGENTS.md](AGENTS.md).
 
 ## Contributing
 
