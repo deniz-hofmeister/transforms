@@ -392,8 +392,9 @@ when relevant. Documentation drift is a bug.
   commit, or a config. This is assistance, not authorship: an AI agent must
   never add `Signed-off-by:` (only humans can certify the origin of a
   contribution). Harness-added trailers may coexist, but `Assisted-by:` must
-  be present. The human maintainer reviews and takes responsibility for every
-  merged line; see the "AI-Assisted Development" section of the README.
+  be present. The human maintainer reviews assisted changes and decides what
+  is merged; that review is not a warranty (see `LICENSE` and the
+  "AI-Assisted Development" section of the README).
 - The rule is enforced, not requested. Enable the repository's hooks once
   per clone with `git config core.hooksPath .githooks`. `.githooks/commit-msg`
   checks the final message of every commit an AI agent makes (detected from
