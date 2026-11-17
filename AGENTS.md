@@ -420,14 +420,16 @@ when relevant. Documentation drift is a bug.
 
 ## Releasing
 
-Releases are cut by the maintainer. Release prep is one commit made directly
-on master — no prep branch, no pull request. Pushing it bypasses the
-`master` ruleset's pull-request and status-check requirements, so the local
-gate and the CI run on that push are the only checks it gets; both must pass
-before anything is tagged. The release branch is then cut from that commit
-and never receives a commit of its own: the branch head, the tag, the
-published crate, and the GitHub release all name the commit master holds.
-The checklist, in order:
+Releases are cut by the maintainer. Release prep is one commit on a prep
+branch, `docs/vX.Y.Z-release-prep`, cut from master's head and put through a
+pull request, so the `master` ruleset's required checks pass on it before
+master moves. Master then takes that commit by fast-forward — never through
+the merge button, whose three methods each put a commit on master that no
+check ran on: a merge commit, or a squashed or rebased copy under a new
+hash. The release branch is then cut from that commit and never receives a
+commit of its own: the branch head, the tag, the published crate, and the
+GitHub release all name the commit master holds, and that is the commit the
+gate and the pull request's CI passed. The checklist, in order:
 
 - Finalize `CHANGELOG.md`: rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`
   with the release date, add the `[X.Y.Z]` comparison link against the
@@ -442,7 +444,7 @@ The checklist, in order:
   URLs: crates.io resolves relative README links against the repository's
   default branch, so a later rename breaks every published page (verified
   for 2.3.0 on 2026-11-12).
-- Commit all of it together on master as
+- Commit all of it together on the prep branch as
   `Finalize the changelog and release notes for vX.Y.Z`, with a body that
   says what the commit changed. Do not push yet. `cargo publish` refuses a
   dirty tree, so every check below runs on that commit.
@@ -457,9 +459,14 @@ The checklist, in order:
   baseline.
 - `cargo publish --dry-run` and inspect the file list — nothing missing,
   nothing that should not ship.
-- Push master and wait for every CI job on that commit to pass. If a check
-  fails, fix it on master and restart from the gate; never tag a commit CI
-  has not passed.
+- Push the prep branch, open a pull request against master, and wait for
+  every CI job on it to pass. If a check fails, fix it on the prep branch
+  and restart from the gate; if master moves, rebase onto it and restart
+  from the gate likewise.
+- Fast-forward master to the pull request's head:
+  `git push origin docs/vX.Y.Z-release-prep:master`. Wait for the CI run on
+  that push as well — the pull request's jobs ran on GitHub's merge ref,
+  this one runs on the commit itself; never tag a commit CI has not passed.
 - Cut `release/vX.Y.Z` from that commit and push it. Nothing is ever
   committed to it.
 - Tag `vX.Y.Z` on the branch head as an annotated tag whose message is
