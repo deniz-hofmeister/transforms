@@ -3,7 +3,8 @@
 Date: 2026-11-17. Baseline: master `adccbdd` (v2.4.0). No integrated
 v3 implementation exists. This document proposes changes; the prior
 maintainer rulings it keeps or reopens are identified where they apply.
-The maintainer ruled on every open decision on 2026-11-17
+The maintainer ruled on every open decision on 2026-11-17, and
+revised three rulings the same day after a review of their consequences
 ([Rulings](#rulings)); the text below is the ruled design. Those
 rulings settle the design, not a release: implementation has not been
 authorized, and breaking changes still need sign-off per release.
@@ -23,7 +24,9 @@ was input, not a boundary.
 - **Evidence.** Six fact-finding reports (`evidence/map-*.md`), two
   prototypes with measurements, four adversarial critiques of Claude's
   first draft (`evidence/stress-*.md`), and four checks of this document
-  ([`evidence/verify-findings.md`](evidence/verify-findings.md)).
+  ([`evidence/verify-findings.md`](evidence/verify-findings.md)), and
+  a review of the rulings' consequences by Codex and four checkers
+  ([`evidence/rulings-findings.md`](evidence/rulings-findings.md)).
   Sub-agents ran at low effort. Probes ran on one x86-64 laptop
   (i7-12850HX, `powersave` governor, other load); nothing ran on embedded
   hardware.
@@ -35,7 +38,7 @@ was input, not a boundary.
 
 - **The two designers converged on one design**, split on two items
   (M1, M10). The maintainer then ruled on all sixteen decisions and
-  four residual questions. Five rulings depart from the text the
+  five residual questions. Three rulings depart from the text the
   designers agreed, all toward a smaller or stricter core
   ([Rulings](#rulings)).
 - **The round-2 review is sound in its measurements and narrow in its
@@ -49,11 +52,11 @@ was input, not a boundary.
   signed-nanosecond `Timestamp` with no time generics; errors grouped by
   operation family; interned frames and a topology-first resolver inside;
   one feature (`serde`); unconditional `no_std`.
-- **Public surface:** 105 named items in 2.4 against 74 here, counted the
+- **Public surface:** 105 named items in 2.4 against 76 here, counted the
   way [`evidence/map-api.md`](evidence/map-api.md) counts (types,
   functions, constants, enum variants, public fields; trait impls
-  separately). The designers' text had 79; the rulings removed six
-  functions and added one error variant.
+  separately). The designers' text had 79; the rulings removed
+  `from_secs_nanos`, `as_secs_nanos` and `Stamp::at`.
 
 ## The design
 
@@ -121,6 +124,9 @@ impl Timestamp {
     pub const MAX: Self;
     pub const fn from_nanos(nanos: i64) -> Self;
     pub const fn as_nanos(self) -> i64;
+    pub fn checked_add(self, d: Duration) -> Option<Self>;
+    pub fn checked_sub(self, d: Duration) -> Option<Self>;
+    pub fn checked_duration_since(self, earlier: Self) -> Option<Duration>;
 }
 
 pub enum Stamp { Static, At(Timestamp) }
@@ -155,7 +161,6 @@ pub enum TransformError {
     NonFinite,
     NonUnitRotation { norm: f64 },
     EmptyFrameName,
-    SelfTransformNotIdentity { frame: String },
     FrameMismatch { expected: String, found: String },
     StampMismatch { lhs: Timestamp, rhs: Timestamp },
 }
@@ -223,7 +228,8 @@ Contracts the signatures do not show:
 - **Errors per method.** Errors are grouped by operation family; each
   method's rustdoc lists the subset it can return. `Rotation::from_wxyz`
   returns `NonFinite` or `NonUnitRotation`; `Transform::new` returns
-  `NonFinite`, `EmptyFrameName` or `SelfTransformNotIdentity`. `insert` never returns the three
+  `EmptyFrameName` (target checked first, then source) or, after that,
+  `NonFinite`. `insert` never returns the three
   `reparent`-only variants. `latest_common_time` never returns
   `OutOfRange`, `NonFinite` or `NonUnitRotation`; the lookups never
   return `NoCommonTime`.
@@ -231,18 +237,35 @@ Contracts the signatures do not show:
   finite rotation that fails the normalization postcondition reports
   `NonUnitRotation { norm }`. Neither may escape inside a successful
   transform.
-- **Equal names.** `Transform::new` and decoding accept
-  `target == source` only with a zero translation and exactly
-  `Rotation::IDENTITY` (compared with `==`; the equivalent rotation
-  `(−1, 0, 0, 0)` is rejected), else `SelfTransformNotIdentity`. The
-  rule binds construction, not derived values: `a.compose(&b)` with
-  `a.target() == b.source()` yields a self-named result that is the
-  identity only up to rounding, and it is not checked.
+- **Equal names.** `Transform::new` accepts `target == source` with any
+  geometry. Derived self-named values are ordinary: a pose error
+  `est.inverse()?.compose(&truth)?` is a `base`-to-`base` transform that
+  is not the identity. A hand-built `a`-to-`a` transform with an offset
+  is a caller error no check catches; `insert` rejects every self-named
+  transform as `SelfEdge`.
+- **Applying a transform to a point** is done outside, and the
+  `Transform` rustdoc carries the recipe as a doc test that asserts the
+  digits of golden vector 4:
+
+  ```rust
+  let r = tf.rotation().rotate(p);
+  let t = tf.translation();
+  let p_target = Vector3::new(r.x + t.x, r.y + t.y, r.z + t.z);
+  ```
+
+  Nine plausible hand-written variants (rotate after adding, forgotten
+  translation, wrong direction, a typo in the add) all return a finite
+  `Vector3`, and no check in this API sees any of them.
 - **`Rotation::rotate`** is raw numerical application: it checks no
   frame and does not promise a finite output for extreme inputs.
 - **`Transform::new`** allocates both names when given borrowed strings;
   moving in a `String` avoids the copy.
-- **`Timestamp::MAX`** exists as a cleanup cutoff. A dynamic sample
+- **A `Static` answer from `latest_common_time`** means every instant
+  is served; the rustdoc shows the `match` and says any `Timestamp`
+  (for example `Timestamp::from_nanos(0)`) is a valid lookup instant
+  then. A `lookup` result's stamp is always `At`.
+- **`Timestamp::MAX`** exists as a cleanup cutoff, not as a stamp or a
+  lookup instant. A dynamic sample
   inserted at `MAX` anchors bounded retention there: later samples older
   than `MAX - max_age` are rejected until that history is removed.
   Samples inside the window are still accepted, and `unbounded()`
@@ -358,14 +381,28 @@ caller's; the type does not imply Unix time.
   identically; and an inferred obstacle to typed error handling in
   generic adapters. Every ROS `(i32, u32)` stamp with `nanosec < 1e9`
   fits, negative seconds included.
-- **Surface, as ruled.** `from_nanos`, `as_nanos` and `MAX`, nothing
-  else. No seconds-and-nanoseconds conversions and no checked
-  arithmetic: both are exact outside on `as_nanos` with the standard
-  library's integer methods. Internally, ordered differences use
-  `i64::abs_diff`.
+- **Surface, as ruled.** `from_nanos`, `as_nanos`, `MAX`, and three
+  checked operations. No seconds-and-nanoseconds conversions.
+  - `checked_add` and `checked_sub` handle the full signed range and
+    any `Duration`, without narrowing the duration to `i64` early.
+  - `checked_duration_since` returns `None` iff `earlier > self`.
+  - They are in the core because the hand-written forms are
+    wrong-answer generators at ordinary timestamps:
+    `(now - stamp) as u64` reads a stamp 2 ms ahead of the clock as an
+    age of 584 years, bare `abs_diff` loses the direction, and
+    `now + timeout.as_nanos() as i64` with `Duration::MAX` is a deadline
+    1 ns in the past. 2.4 returned an error in each case.
+  - Internally, ordered differences use `i64::abs_diff`, and the expiry
+    cutoff `newest − max_age` is computed exactly; only a result below
+    `i64::MIN` counts as not representable.
+  - `Display` is sign-magnitude decimal seconds, not the floored
+    `(sec, nanosec)` pair: −0.5 s prints `-0.500000000` and splits as
+    `(−1, 500_000_000)`.
 - **The ROS-style conversion is documented, not exported.** The
-  `Timestamp` rustdoc carries this example (compiled and tested for this
-  document against a stand-in type, clean under clippy pedantic):
+  `Timestamp` rustdoc carries this example, followed by assertions so
+  the doc test executes it (−1 ns, −0.5 s, a denormalized `nanosec`,
+  `Timestamp::MAX`). It was compiled and tested for this document
+  against a stand-in type, clean under clippy pedantic:
 
   ```rust
   const NANOS_PER_SEC: i64 = 1_000_000_000;
@@ -443,24 +480,38 @@ Unchanged from 2.4 unless listed.
 - **`remove_frame(child)`** returns `true` iff `child` had an edge to a
   parent, which it removes with its history. A root, a name known only
   as a parent, an unknown name and the empty name return `false`.
-  Children of a removed frame keep their pins.
+  Children of a removed frame keep their pins, and its former
+  parent becomes unknown if no other edge names it.
 - **Lookup diagnosis, one rule for both lookups:** unknown frame on a
   required leg, then disconnected topology, then coverage, then
   numerical failure. Both cross-time legs are resolved before any
   geometry; target leg first within a class. A coverage error names an
   edge on the connecting chain. A numerical failure does not end
   diagnosis before all required coverage is checked.
-- **Unknown and equal names.** Every name in a query must be known to
-  the registry (it has a slot: some stored edge names it as child or
-  parent), else `UnknownFrame`. This is checked before any shortcut and
-  covers the empty name, `fixed`, and `latest_common_time`. A known
-  frame relative to itself at one instant is the identity. Every
-  `lookup` result carries `Stamp::At(at)`, also over an all-static
-  chain.
-- **Cross-time.** Equal endpoint names at different times still resolve
-  both legs. A leg whose endpoint is the fixed frame is the identity.
-  The caller asserts that the fixed frame is stationary between the two
-  times; the registry does not infer it from edge kinds.
+- **Known names.** A name is known iff a stored edge names it as child
+  or parent when the call returns; a drained edge still counts. Every
+  name in a query must be known, else `UnknownFrame`. Names are checked
+  before any leg is formed, in the order target, source, fixed, and the
+  first unknown one is reported. The empty name is never known.
+- **Consequences of that rule, declared.**
+  - An empty registry answers every query with `UnknownFrame`,
+    self-lookups included. A lone frame cannot be made known, because a
+    self-edge is rejected; a one-frame system short-circuits
+    `target == source` itself.
+  - `remove_frame` and `reparent` make a parent unknown when no other
+    edge names it. A removed child stays known while it has children.
+  - A failed insert, batch or `reparent` makes no name known.
+  - 2.4 returned the identity for equal unregistered names; the dimos
+    test asserting that for `("map", "map")` breaks.
+- **Equal names.** In `lookup`, a known frame relative to itself is the
+  identity; in `latest_common_time` it is `Static`. Every `lookup`
+  result carries `Stamp::At(at)`, also over an all-static chain.
+- **Cross-time.** `lookup_across` always resolves both legs to `fixed`,
+  also when the endpoint names and the two times coincide, so a
+  disconnected fixed frame is `Disconnected` there. Only a leg whose
+  endpoint is the fixed frame is the identity. The caller asserts that
+  the fixed frame is stationary between the two times; the registry
+  does not infer it from edge kinds.
 - **`latest_common_time`** returns `Static` when the connecting chain
   has no dynamic hop, including a known frame relative to itself. A dynamic
   hop holding nothing is `NoData`. `NoCommonTime` names a hop whose
@@ -470,13 +521,16 @@ Unchanged from 2.4 unless listed.
   disconnected; in a cross-time lookup that can be an endpoint and the
   fixed frame.
 - **Names.** Empty names are rejected by `Transform::new` and by
-  decoding. A self-named transform is constructible only as the exact
-  identity; `insert` rejects it as `SelfEdge`.
+  decoding. A self-named transform is constructible; `insert` rejects it
+  as `SelfEdge`.
 
 ### Internals
 
 - **Interned frames.** A vector of slots plus a `hashbrown` name index.
-  Every name a stored edge references, roots included, has a slot. Name
+  Every name a stored edge references, roots included, has a slot.
+  Slots are an implementation detail of the known-names rule: a name
+  leaves the index in the same call that removes its last edge
+  reference, whenever the memory is reused. Name
   lookup is expected O(1) in the number of frames. Ids are private: no
   handle, no generation. A slot is reclaimed only when no edge or child
   references it, and reclamation never renumbers a live slot.
@@ -530,16 +584,29 @@ unknown-frame row measures the whole query, not the frame scan alone.
   `Transform`. `Stamp` keeps its explicit tags; a missing or null stamp
   is a decode error.
 - The layout is written out explicitly and frozen by tests, not
-  inherited from declaration order. As ruled (M10): `Transform`'s
-  fields are named `target`, `source`, `translation`, `rotation`,
-  `stamp`, in an order chosen so that the frozen 2.4 postcard fixtures
-  in `tests/serde.rs` fail to decode, with a test pinning that failure.
-  The exact order is fixed against those fixtures at implementation.
-  2.x JSON then fails loudly on the field names. Old postcard fails for
-  the fixtures, not provably for all bytes, so the schema version still
+  inherited from declaration order. As ruled (M10): `Transform` is
+  `target`, `source`, `translation`, `rotation`, `stamp`, in that order;
+  `Stamp`'s variants are `Static`, then `At`.
+- **Why names first.** A leading name consumes the low bytes of 2.4's
+  first float, so every later float is misaligned and the rotation-norm
+  check rejects. In a sweep of all 240 field and variant orders
+  ([`evidence/prototypes/serde-layout-sweep/`](evidence/prototypes/serde-layout-sweep/)),
+  this order decoded 0 of 200,000 sampled 2.4 transforms. That is
+  empirical, not a proof. "The frozen 2.4 fixtures fail" alone is too
+  weak a rule: 238 of 240 orders satisfy it, and 22 of those accept
+  ordinary 2.4 data with wrong frames and stamps (`B`-from-`C` at 65 ns
+  decoded as `A`-from-`B` at −34 ns in Codex's probe).
+- **The pin.** A test asserts that each frozen 2.4 fixture in
+  `tests/serde.rs` fails to decode, alone and followed by trailing
+  bytes, and not merely by running out of input. It is a regression
+  pin, not a schema detector.
+- **JSON.** 2.x documents fail on the missing `target` field. Unknown
+  fields are rejected, so a half-migrated document carrying both
+  `stamp` and `timestamp` is an error.
+- **Not protected.** A standalone `Stamp` or `Timestamp` in 2.x postcard
+  decodes without error at a wrong instant. Decoding with the wrong
+  schema can corrupt frames as well as time, so the schema version
   travels outside the payload.
-- A self-named transform that `compose` derived decodes only if it is
-  the exact identity; such a value does not round-trip otherwise.
 - **The hazard.** A signed timestamp is not safely compatible with 2.x
   postcard data: an old `u64` 1 decodes without error as `i64` −1, and
   with 2.4's field and variant order a whole 2.x `Transform` decodes
@@ -549,20 +616,24 @@ unknown-frame row measures the whole query, not the frame scan alone.
 ### Acceptance
 
 - `tests/golden_vectors.rs` with the same SciPy digits, re-pointed at
-  the new accessors; never regenerated.
+  the new accessors; never regenerated. Vectors 1 and 4 become tests of
+  `rotate` plus the documented recipe; vectors 2 and 3 remain the pins
+  of the translation convention through the crate's own code.
 - A differential harness against 2.4, kept outside the crate, with the
   declared differences listed: `Disconnected` precedence; `Expired`,
   including whole-batch rejection; the inclusive cutoff; normalization
   of off-band rotations; last-bit changes in interpolated, inverted and
-  multi-hop results; `Ok(non-finite)` to `Err`; `UnknownFrame` for a
-  self-lookup of an unregistered name; empty and non-identity self-named
-  transforms rejected at construction.
+  multi-hop results; `Ok(non-finite)` to `Err`; `UnknownFrame` for
+  equal unregistered names in `lookup`, `latest_common_time` and
+  `lookup_across`; the order in which unknown names are reported;
+  empty names rejected at construction.
 - Properties ported from `tests/properties.rs`: the interpolation oracle
   replaced by an in-test reference; the batch property biased to hit the
   running-newest trap; the round-trip property given a magnitude-aware
-  bound in place of its 1e-9 absolute pin; new properties for the slot
-  lifecycle (remove and re-add under a new parent and kind; a failed
-  batch leaves `UnknownFrame` answers unchanged).
+  bound in place of its 1e-9 absolute pin; new properties for the
+  known-names rule (remove and re-add under a new parent and kind; a
+  parent losing its last edge; a failed insert, batch or `reparent`
+  leaves `UnknownFrame` answers unchanged).
 - A frozen serde schema with constructor and decode fixed points.
 - The gate in both serde modes on all current targets; MSRV 1.85.
 
@@ -651,8 +722,11 @@ beyond the batch fallback above. Decision 16 is reopened as M4.
 
 Ruled out on 2026-11-17 under the scope rule, each exact on the public
 API: `Transform::transform_point` (M1), `lookup_latest` (M2),
-`Timestamp::from_secs_nanos` / `as_secs_nanos` (M3), `checked_add` /
-`checked_sub` / `checked_duration_since` (M15), `Stamp::at`.
+`Timestamp::from_secs_nanos` / `as_secs_nanos` (M3), `Stamp::at`.
+
+Residuals recorded, not closed: a self-named transform with
+non-identity geometry is constructible and composes; every hand-written
+point application returns a finite vector.
 
 ## Rulings
 
@@ -662,7 +736,7 @@ all of them.
 
 | # | Question | Ruling | Note |
 |---|---|---|---|
-| M1 | Add `Transform::transform_point` (`R p + t`)? Designers split: Claude yes, Codex no. | **Not added.** | 2.4 ruling D2 stands. Application is `rotation().rotate(p)` plus a component-wise add, outside. The golden vectors reach the convention through `rotate` and the accessors. |
+| M1 | Add `Transform::transform_point` (`R p + t`)? Designers split: Claude yes, Codex no. | **Not added**; confirmed after the review. | 2.4 ruling D2 stands. The `Transform` rustdoc carries the application recipe as a doc test on golden-vector digits. |
 | M2 | Add `lookup_latest`? | **Not added.** | `latest_common_time` then `lookup`, under one guard held by the adapter. |
 | M3 | `Timestamp::from_secs_nanos` / `as_secs_nanos` in the core? | **Neither.** Departs. | A middleware shape, exact outside. The `Timestamp` rustdoc carries a correct ROS-style conversion example (see Time). |
 | M4 | Rename `remove_transforms_before` to `remove_samples_through`? | **Renamed.** | Supersedes the ruling of 2026-11-11 that kept the name. |
@@ -671,22 +745,23 @@ all of them.
 | M7 | `approx` to the dev-dependencies? | **Moved.** | Amends the dependency list in AGENTS.md. |
 | M8 | `Rotation` replaces `Quaternion`; `Vector3` loses its operators? | **Yes, with positional `from_wxyz`.** | Residual accepted: `from_wxyz(q.x, q.y, q.z, q.w)` passes for every unit quaternion (the xyzw identity becomes a half turn). No named-field input. |
 | M9 | Errors by operation family? | **Yes.** | Replaces the flat-`RegistryError` invariant in AGENTS.md. Each enum stays flat. |
-| M10 | Which serde layout? Designers split: Claude new, Codex 2.4's. | **New layout.** | Fields `target`/`source`/`stamp`, ordered so the frozen 2.4 postcard fixtures fail to decode; pinned by a test. |
+| M10 | Which serde layout? Designers split: Claude new, Codex 2.4's. | **New layout, name-first order fixed.** | `target, source, translation, rotation, stamp`; `Static, At`. The first ruling left the order to a fixture test, which the review showed is too weak. |
 | M11 | Flat crate root and shorter method names? | **Both.** | |
 | M12 | Maximum interpolation gap? | **Deferred.** | Not in 3.0; a separate design after it. Still the largest open hazard. |
 | M13 | Empty names rejected at construction and decoding; empty query name is `UnknownFrame`? | **Yes.** | Supersedes 2.4 ruling D6. |
 | M14 | One expired member fails the whole batch? | **Yes.** | All-or-nothing stands; the fallback is documented in `insert_all` and the `ingest` example. |
-| M15 | `checked_add` / `checked_sub` / `checked_duration_since` in the core? | **None.** Departs. | Exact outside on `as_nanos`; the overflow they guard is reachable only near the `i64` limits. |
+| M15 | `checked_add` / `checked_sub` / `checked_duration_since` in the core? | **All three.** Revised. | First ruled none, on the designers' claim that the hand-written forms fail only near the `i64` limits. The review showed they fail at ordinary timestamps (see Time). |
 | M16 | What reports a failed normalization postcondition in a lookup? | **`LookupError::NonUnitRotation { norm }`.** | |
 | R1 | Conveniences `Rotation::IDENTITY`, `Timestamp::MAX`, `Stamp::at`? | **Keep the two constants; cut `Stamp::at`.** Departs. | `Stamp::at` is a two-arm `match`. |
-| R2 | Self-lookup of a name the registry has never seen? | **`UnknownFrame`.** Departs. | The designers kept 2.4's identity. Applied here to every name in every query, `fixed` and `latest_common_time` included; that extension is the designers' reading of the ruling. |
-| R3 | `Transform::new` with equal names and non-identity geometry? | **Rejected.** Departs. | Adds `TransformError::SelfTransformNotIdentity` (name proposed here). Binds construction and decoding, not `compose` results; see the contract and the serde consequence above. |
+| R2 | Self-lookup of a name the registry does not know? | **`UnknownFrame`**; confirmed after the review. Departs. | The designers kept 2.4's identity, and the dependents study had rejected this change. Known is defined by stored edges; the consequences are declared in Registry semantics. |
+| R3 | `Transform::new` with equal names and non-identity geometry? | **Allowed.** Revised. | First ruled rejected. The review showed the rule cannot hold for derived values (a pose error is a legal self-named transform), makes the crate emit bytes its decoder refuses, and rejects near-identity rotations by last-bit rounding. |
 | R4 | `lookup_across` with five positional arguments? | **Accepted as is.** | Residual: swapped times or a moving `fixed` frame return `Ok`. |
+| R5 | `lookup_across` with equal endpoints and times and a disconnected `fixed`? | **`Disconnected`.** | Both legs are always resolved, as in 2.4. |
 
-Open after the rulings, for the maintainer to confirm: the name
-`SelfTransformNotIdentity`; that R2 covers `fixed` and
-`latest_common_time`; and that R3 leaves a `compose`-derived self-named
-transform unchecked.
+Details the designers filled in while applying the rulings, for the
+maintainer to confirm: `Transform::new` reports `EmptyFrameName` before
+`NonFinite`; unknown names are reported in the order target, source,
+fixed; JSON decoding rejects unknown fields.
 
 ## AGENTS.md under this design
 
@@ -699,9 +774,9 @@ transform unchecked.
   panic" goes with `Timestamp::now`.
 - **Invariants that change text:** composition and its errors; the flat
   `RegistryError` bullet (M9); lookup diagnosis (precedence, `NoData`,
-  `OutOfRange`, the `NoCommonTime` payload, empty names, and "a frame
-  relative to itself is the identity" now holding for known frames
-  only);
+  `OutOfRange`, the `NoCommonTime` payload, empty names, the order of
+  reported unknown names, and "a frame relative to itself is the
+  identity" now holding for known frames only);
   `TimestampOutOfRange` (deleted with `interpolate`); error formatting
   through `as_seconds_lossy` (deleted); cleanup (inclusive, renamed);
   "validated where they are built" (the invariant is the type's); the
@@ -719,7 +794,9 @@ transform unchecked.
 - **Invariants that stand unchanged:** exact frames or an error decided
   before geometry; no extrapolation; one inversion per same-time chain
   and a bit-exact direct lookup; `#[non_exhaustive]` errors.
-- **Also changes:** the Style constructor list; the gate and CI feature
+- **Also changes:** the Style constructor list and the Tests bullet's
+  `now()` and `zero()` clauses; "time arithmetic is checked, always"
+  stands; the gate and CI feature
   matrix (two modes); the semver combinations in Releasing (two).
 
 ## Limits
@@ -742,11 +819,14 @@ transform unchecked.
   was reported clean under clippy pedantic on 1.85 and stable in both
   serde modes and built for `thumbv6m-none-eabi`. It predates
   `LookupError::NonUnitRotation`, `Stamp`'s `Eq`/`Hash`,
-  `Registry: Debug` and the `Stamp` variant order, and nothing in it
-  computes.
+  `Registry: Debug` and the `Stamp` variant order; its adapter sketches
+  call `from_secs_nanos`, `as_secs_nanos` and `Stamp::at`, which the
+  rulings removed; and nothing in it computes.
 - The gate ran on nothing here.
-- The rulings were applied after Codex's last review; Codex has not
-  seen the ruled text.
+- Codex reviewed the first set of rulings (round 5). It has not seen
+  the text after the three revisions.
+- The known-names rule and the serde layout were checked against 2.4
+  and against stand-in types; no v3 registry or decoder exists.
 - Erratum to [`evidence/stress-proto-hotpath.md`](evidence/stress-proto-hotpath.md):
   a lookup one step past the newest sample makes 2 allocations in the
   prototype, not 1 (Codex's rerun).
