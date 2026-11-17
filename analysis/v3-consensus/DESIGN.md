@@ -3,7 +3,10 @@
 Date: 2026-11-17. Baseline: master `adccbdd` (v2.4.0). No integrated
 v3 implementation exists. This document proposes changes; the prior
 maintainer rulings it keeps or reopens are identified where they apply.
-Breaking changes require maintainer sign-off.
+The maintainer ruled on every open decision on 2026-11-17
+([Rulings](#rulings)); the text below is the ruled design. Those
+rulings settle the design, not a release: implementation has not been
+authorized, and breaking changes still need sign-off per release.
 
 This is the outcome of a two-designer brainstorm under a new mandate from
 the maintainer: v3 is a re-imagining, full refactors are allowed, and
@@ -30,10 +33,11 @@ was input, not a boundary.
 
 ## Verdict
 
-- **The two designers converged on one design.** Two items remain split
-  (M1, M10). Fourteen more are agreed but change a ruling, a
-  Non-negotiable or a capability, and are the maintainer's
-  ([Decisions](#decisions-for-the-maintainer)).
+- **The two designers converged on one design**, split on two items
+  (M1, M10). The maintainer then ruled on all sixteen decisions and
+  four residual questions. Five rulings depart from the text the
+  designers agreed, all toward a smaller or stricter core
+  ([Rulings](#rulings)).
 - **The round-2 review is sound in its measurements and narrow in its
   frame.** It answers "what is the smallest safe break?" under two rules
   the mandate removes: frozen names, paths and wire bytes, and "3.0
@@ -45,10 +49,11 @@ was input, not a boundary.
   signed-nanosecond `Timestamp` with no time generics; errors grouped by
   operation family; interned frames and a topology-first resolver inside;
   one feature (`serde`); unconditional `no_std`.
-- **Public surface:** 105 named items in 2.4 against 79 here, counted the
+- **Public surface:** 105 named items in 2.4 against 74 here, counted the
   way [`evidence/map-api.md`](evidence/map-api.md) counts (types,
   functions, constants, enum variants, public fields; trait impls
-  separately). 79 includes M3 and M15 and excludes M1 and M2.
+  separately). The designers' text had 79; the rulings removed six
+  functions and added one error variant.
 
 ## The design
 
@@ -116,17 +121,9 @@ impl Timestamp {
     pub const MAX: Self;
     pub const fn from_nanos(nanos: i64) -> Self;
     pub const fn as_nanos(self) -> i64;
-    pub fn from_secs_nanos(secs: i64, nanos: u32) -> Option<Self>;        // M3
-    pub fn as_secs_nanos(self) -> (i64, u32);                             // M3
-    pub fn checked_add(self, d: Duration) -> Option<Self>;                // M15
-    pub fn checked_sub(self, d: Duration) -> Option<Self>;                // M15
-    pub fn checked_duration_since(self, earlier: Self) -> Option<Duration>; // M15
 }
 
 pub enum Stamp { Static, At(Timestamp) }
-impl Stamp {
-    pub const fn at(self) -> Option<Timestamp>;
-}
 
 // ---- the tree ----
 pub struct Registry { /* private */ }
@@ -138,7 +135,7 @@ impl Registry {
     pub fn insert_all(&mut self, transforms: &[Transform]) -> Result<(), BatchError>;
     pub fn reparent(&mut self, seed: &Transform) -> Result<(), InsertError>;
     pub fn remove_frame(&mut self, child: &str) -> bool;
-    pub fn remove_samples_through(&mut self, cutoff: Timestamp);          // M4
+    pub fn remove_samples_through(&mut self, cutoff: Timestamp);
 
     pub fn lookup(&self, target: &str, source: &str, at: Timestamp)
         -> Result<Transform, LookupError>;
@@ -158,6 +155,7 @@ pub enum TransformError {
     NonFinite,
     NonUnitRotation { norm: f64 },
     EmptyFrameName,
+    SelfTransformNotIdentity { frame: String },
     FrameMismatch { expected: String, found: String },
     StampMismatch { lhs: Timestamp, rhs: Timestamp },
 }
@@ -225,7 +223,7 @@ Contracts the signatures do not show:
 - **Errors per method.** Errors are grouped by operation family; each
   method's rustdoc lists the subset it can return. `Rotation::from_wxyz`
   returns `NonFinite` or `NonUnitRotation`; `Transform::new` returns
-  `NonFinite` or `EmptyFrameName`. `insert` never returns the three
+  `NonFinite`, `EmptyFrameName` or `SelfTransformNotIdentity`. `insert` never returns the three
   `reparent`-only variants. `latest_common_time` never returns
   `OutOfRange`, `NonFinite` or `NonUnitRotation`; the lookups never
   return `NoCommonTime`.
@@ -233,6 +231,13 @@ Contracts the signatures do not show:
   finite rotation that fails the normalization postcondition reports
   `NonUnitRotation { norm }`. Neither may escape inside a successful
   transform.
+- **Equal names.** `Transform::new` and decoding accept
+  `target == source` only with a zero translation and exactly
+  `Rotation::IDENTITY` (compared with `==`; the equivalent rotation
+  `(−1, 0, 0, 0)` is rejected), else `SelfTransformNotIdentity`. The
+  rule binds construction, not derived values: `a.compose(&b)` with
+  `a.target() == b.source()` yields a self-named result that is the
+  identity only up to rounding, and it is not checked.
 - **`Rotation::rotate`** is raw numerical application: it checks no
   frame and does not promise a finite output for extreme inputs.
 - **`Transform::new`** allocates both names when given borrowed strings;
@@ -275,7 +280,7 @@ frame.
 Deleted without replacement: `Point`, `Transformable`, `Localized`,
 `get_transform_for`, `Transform::interpolate` (with `StaticInterpolation`
 and `TimestampOutOfRange`), `Transform::validate`, `Vector3::zero`,
-`Vector3`'s arithmetic operators, `Stamp::is_static`,
+`Vector3`'s arithmetic operators, `Stamp::is_static`, `Stamp::at`,
 `UNIT_NORM_TOLERANCE` (the constructor doc states 1e-6), and the
 `errors`, `geometry` and `time` modules.
 
@@ -353,22 +358,52 @@ caller's; the type does not imply Unix time.
   identically; and an inferred obstacle to typed error handling in
   generic adapters. Every ROS `(i32, u32)` stamp with `nanosec < 1e9`
   fits, negative seconds included.
-- **Details that must be specified.**
-  - Ordered differences use `i64::abs_diff`.
-  - `from_secs_nanos` rejects `nanos >= 1_000_000_000` and computes in a
-    wider intermediate (a checked `i64` multiply then add wrongly
-    rejects `i64::MIN`).
-  - `as_secs_nanos` floors: −1 ns is `(−1, 999_999_999)`.
-  - `checked_add` and `checked_sub` handle the full signed range and
-    large `Duration` operands without narrowing early.
-  - `checked_duration_since` returns `None` iff `earlier > self`.
+- **Surface, as ruled.** `from_nanos`, `as_nanos` and `MAX`, nothing
+  else. No seconds-and-nanoseconds conversions and no checked
+  arithmetic: both are exact outside on `as_nanos` with the standard
+  library's integer methods. Internally, ordered differences use
+  `i64::abs_diff`.
+- **The ROS-style conversion is documented, not exported.** The
+  `Timestamp` rustdoc carries this example (compiled and tested for this
+  document against a stand-in type, clean under clippy pedantic):
+
+  ```rust
+  const NANOS_PER_SEC: i64 = 1_000_000_000;
+
+  /// `builtin_interfaces/Time { sec: i32, nanosec: u32 }` to a `Timestamp`.
+  fn from_ros(sec: i32, nanosec: u32) -> Option<Timestamp> {
+      let nanosec = i64::from(nanosec);
+      if nanosec >= NANOS_PER_SEC {
+          return None; // denormalized stamp
+      }
+      // Cannot overflow: |sec| * 1e9 + nanosec < 2.2e18 < i64::MAX.
+      Some(Timestamp::from_nanos(i64::from(sec) * NANOS_PER_SEC + nanosec))
+  }
+
+  /// A `Timestamp` to `(sec, nanosec)`. Euclidean division floors, so the
+  /// nanosecond part is always in `0..1e9`: -1 ns is `(-1, 999_999_999)`.
+  fn to_ros(t: Timestamp) -> Option<(i32, u32)> {
+      let nanos = t.as_nanos();
+      let sec = i32::try_from(nanos.div_euclid(NANOS_PER_SEC)).ok()?;
+      let nanosec = u32::try_from(nanos.rem_euclid(NANOS_PER_SEC)).ok()?;
+      Some((sec, nanosec))
+  }
+  ```
+
+  The trap it documents: `/` and `%` truncate toward zero, so the naive
+  split of −0.5 s followed by a cast gives `(0, 3794967296)`.
 - **Cost, stated.**
   - Clocks finer than 1 ns or beyond ±292 years are out.
-  - Non-decimal ticks lose exactness. Nearest rounding at 32,768 Hz
-    costs up to 0.5 ns per stamp, and quantizing absolute stamps is not
-    the same as quantizing each elapsed duration. Codex's floor example
-    gave ratios `0.49999180797902842` against `0.50000819202097158`; the
-    error depends on the span.
+  - A non-nanosecond clock converts at the boundary. Converting the
+    absolute tick count rounds each stamp independently (at most 0.5 ns
+    at 32,768 Hz), so nothing drifts; the mapping is monotone and
+    injective, so a query at a stored tick still hits the stored sample.
+    Only the interpolation ratio moves, by about 1 ns over the sample
+    span (`0.4999918` for the midpoint of two adjacent ticks). 2.4's
+    generic does not avoid this: `TimePoint::duration_since` returns a
+    nanosecond `Duration` and the ratio is computed from it. The user's
+    conversion must not overflow: `ticks * 1_000_000_000` exceeds `i64`
+    after 3.3 days at 32,768 Hz and needs a split or 128-bit form.
   - Newtype separation of clocks is gone. It was real only across
     different `T`, and no studied user used it.
   - Negative instants become insertable, so an upstream sign bug no
@@ -415,16 +450,19 @@ Unchanged from 2.4 unless listed.
   geometry; target leg first within a class. A coverage error names an
   edge on the connecting chain. A numerical failure does not end
   diagnosis before all required coverage is checked.
-- **Empty and equal names.** An empty query name is `UnknownFrame`,
-  checked before any shortcut. A non-empty frame relative to itself at
-  one instant is the identity, registered or not. Every `lookup` result
-  carries `Stamp::At(at)`, also over an all-static chain.
+- **Unknown and equal names.** Every name in a query must be known to
+  the registry (it has a slot: some stored edge names it as child or
+  parent), else `UnknownFrame`. This is checked before any shortcut and
+  covers the empty name, `fixed`, and `latest_common_time`. A known
+  frame relative to itself at one instant is the identity. Every
+  `lookup` result carries `Stamp::At(at)`, also over an all-static
+  chain.
 - **Cross-time.** Equal endpoint names at different times still resolve
   both legs. A leg whose endpoint is the fixed frame is the identity.
   The caller asserts that the fixed frame is stationary between the two
   times; the registry does not infer it from edge kinds.
 - **`latest_common_time`** returns `Static` when the connecting chain
-  has no dynamic hop, including a frame relative to itself. A dynamic
+  has no dynamic hop, including a known frame relative to itself. A dynamic
   hop holding nothing is `NoData`. `NoCommonTime` names a hop whose
   coverage `earliest..=latest` starts after `latest_possible`, the
   minimum newest stamp of the required dynamic hops.
@@ -432,8 +470,8 @@ Unchanged from 2.4 unless listed.
   disconnected; in a cross-time lookup that can be an endpoint and the
   fixed frame.
 - **Names.** Empty names are rejected by `Transform::new` and by
-  decoding (M13). A self-named transform is constructible (identity,
-  round trips); `insert` rejects it as `SelfEdge`.
+  decoding. A self-named transform is constructible only as the exact
+  identity; `insert` rejects it as `SelfEdge`.
 
 ### Internals
 
@@ -458,11 +496,11 @@ Prototype against 2.4 ([report](evidence/stress-proto-hotpath.md);
 differential run reproduced by both designers): 372,996 successful
 comparisons with maximum component difference 0.0; 27,069 of 27,069
 direct stored-direction lookups bit-identical; zero named-frame
-disagreements among comparable errors. Two difference classes: 73,889
-intended `Disconnected`-precedence differences, and 3,344 same-name
-queries on an unregistered frame, where the prototype returns
-`UnknownFrame` and both 2.4 and this design return the identity. The
-prototype does not implement the design on that case.
+disagreements among comparable errors. Two difference classes, both now
+declared differences from 2.4: 73,889 `Disconnected`-precedence
+differences, and 3,344 same-name queries on an unregistered frame,
+where 2.4 returns the identity and the prototype, like the ruled
+design, returns `UnknownFrame`.
 
 Speed-up over 2.4, adopted variant only (`BTreeMap` history, `hashbrown`
 index), range of three paired runs:
@@ -492,7 +530,16 @@ unknown-frame row measures the whole query, not the frame scan alone.
   `Transform`. `Stamp` keeps its explicit tags; a missing or null stamp
   is a decode error.
 - The layout is written out explicitly and frozen by tests, not
-  inherited from declaration order. Which layout is M10.
+  inherited from declaration order. As ruled (M10): `Transform`'s
+  fields are named `target`, `source`, `translation`, `rotation`,
+  `stamp`, in an order chosen so that the frozen 2.4 postcard fixtures
+  in `tests/serde.rs` fail to decode, with a test pinning that failure.
+  The exact order is fixed against those fixtures at implementation.
+  2.x JSON then fails loudly on the field names. Old postcard fails for
+  the fixtures, not provably for all bytes, so the schema version still
+  travels outside the payload.
+- A self-named transform that `compose` derived decodes only if it is
+  the exact identity; such a value does not round-trip otherwise.
 - **The hazard.** A signed timestamp is not safely compatible with 2.x
   postcard data: an old `u64` 1 decodes without error as `i64` −1, and
   with 2.4's field and variant order a whole 2.x `Transform` decodes
@@ -507,7 +554,9 @@ unknown-frame row measures the whole query, not the frame scan alone.
   declared differences listed: `Disconnected` precedence; `Expired`,
   including whole-batch rejection; the inclusive cutoff; normalization
   of off-band rotations; last-bit changes in interpolated, inverted and
-  multi-hop results; `Ok(non-finite)` to `Err`.
+  multi-hop results; `Ok(non-finite)` to `Err`; `UnknownFrame` for a
+  self-lookup of an unregistered name; empty and non-identity self-named
+  transforms rejected at construction.
 - Properties ported from `tests/properties.rs`: the interpolation oracle
   replaced by an in-test reference; the batch property biased to hit the
   running-newest trap; the round-trip property given a magnitude-aware
@@ -529,7 +578,7 @@ Verdict on each item of [`v3-review/REPORT.md`](../v3-review/REPORT.md):
 | 4 | Lookups never return non-finite | Adopt, extended to `compose` and `inverse`. The review excluded `*` because a fixture that manufactures infinity then fails; that fixture pins the old contract. |
 | 5 | `Disconnected` before `NotFoundAt` | Adopt. |
 | 6 | Error shapes | Adopt, extended: errors by operation family, frame fields on every structural insert error, `BatchError`. Keep exact `lhs` and `rhs` stamps instead of a unit `TimestampMismatch`. |
-| 7 | Delete the Point family | Adopt. Not safety-neutral: a checked application path goes. See M1. |
+| 7 | Delete the Point family | Adopt. Not safety-neutral: a checked application path goes, and M1 ruled against a replacement. |
 | 8 | Delete `Transform::interpolate` | Adopt. |
 | 9 | Delete `Timestamp::as_seconds` | Adopt; `as_seconds_lossy`, `now`, `try_now` and the operators go too. |
 | 10 | `SampleExpired` | Adopt as settled (D1 to D6), spelled `InsertError::Expired` with the same payload. |
@@ -600,39 +649,44 @@ beyond the batch fallback above. Decision 16 is reopened as M4.
 | Euler or axis-angle constructors, a normalizing rotation constructor, math-crate features | Buildable outside. |
 | Removing `thiserror` or `hashbrown` | Private dependencies; no contract gain. |
 
-Two residuals kept from 2.4 and recorded, not closed: a self-lookup
-proves nothing about a frame's existence (`lookup("typo", "typo", t)` is
-the identity); and a self-named transform with non-identity geometry is
-constructible and composes.
+Ruled out on 2026-11-17 under the scope rule, each exact on the public
+API: `Transform::transform_point` (M1), `lookup_latest` (M2),
+`Timestamp::from_secs_nanos` / `as_secs_nanos` (M3), `checked_add` /
+`checked_sub` / `checked_duration_since` (M15), `Stamp::at`.
 
-## Decisions for the maintainer
+## Rulings
 
-Split between the designers:
+Maintainer rulings of 2026-11-17. "Departs" marks a ruling that differs
+from the text the designers agreed; the design above already reflects
+all of them.
 
-| # | Question | Claude | Codex |
+| # | Question | Ruling | Note |
 |---|---|---|---|
-| M1 | Add `Transform::transform_point(&self, p: Vector3) -> Vector3` (`R p + t`)? Reopens the 2.4 ruling D2 of 2026-11-12 (no scope exception for checked application; revisit on demonstrated need). Unlike the rejected `transform_positions` it checks no frame and no stamp. New since D2: `Point` is deleted, which removes the crate's only application path. | Yes. Three of the seven slips the review lists for hand application are hand-math slips. One method pins the convention in code and gives the golden vectors a crate path again. | No under the scope rule: `rotation().rotate(p)` plus a component-wise add is exact outside. Admissible only as a stated exception. |
-| M10 | Which serde layout to freeze? Either way old postcard data is not safely readable and the schema version must travel outside the payload. | (b) Rename the fields to `target`/`source`/`stamp` and order the layout so the frozen 2.4 postcard fixtures fail to decode, pinned by a test. Old JSON then fails loudly; old postcard fails for those fixtures, not provably for all bytes. | (a) Keep 2.4's field names, order and variant indices (`Static = 0`, `At = 1`) with an `i64` stamp. Least churn. JSON timestamp integers inside the new range keep their values, subject to the other new validation rules; larger ones are rejected. Old postcard data can decode silently to wrong instants, so external schema identification stays required. The whole-transform probe confirms this known hazard and does not change the preference. |
+| M1 | Add `Transform::transform_point` (`R p + t`)? Designers split: Claude yes, Codex no. | **Not added.** | 2.4 ruling D2 stands. Application is `rotation().rotate(p)` plus a component-wise add, outside. The golden vectors reach the convention through `rotate` and the accessors. |
+| M2 | Add `lookup_latest`? | **Not added.** | `latest_common_time` then `lookup`, under one guard held by the adapter. |
+| M3 | `Timestamp::from_secs_nanos` / `as_secs_nanos` in the core? | **Neither.** Departs. | A middleware shape, exact outside. The `Timestamp` rustdoc carries a correct ROS-style conversion example (see Time). |
+| M4 | Rename `remove_transforms_before` to `remove_samples_through`? | **Renamed.** | Supersedes the ruling of 2026-11-11 that kept the name. |
+| M5 | Concrete `Timestamp(i64)`; delete `TimePoint` and `SystemTime` support? | **Yes**, as a newtype, not a bare `i64`. | The newtype names the unit at the call site and keeps instants apart from durations and other integers. |
+| M6 | Remove the `std` feature, `now`, `try_now`? | **Removed.** | Unconditional `no_std` + `alloc`. |
+| M7 | `approx` to the dev-dependencies? | **Moved.** | Amends the dependency list in AGENTS.md. |
+| M8 | `Rotation` replaces `Quaternion`; `Vector3` loses its operators? | **Yes, with positional `from_wxyz`.** | Residual accepted: `from_wxyz(q.x, q.y, q.z, q.w)` passes for every unit quaternion (the xyzw identity becomes a half turn). No named-field input. |
+| M9 | Errors by operation family? | **Yes.** | Replaces the flat-`RegistryError` invariant in AGENTS.md. Each enum stays flat. |
+| M10 | Which serde layout? Designers split: Claude new, Codex 2.4's. | **New layout.** | Fields `target`/`source`/`stamp`, ordered so the frozen 2.4 postcard fixtures fail to decode; pinned by a test. |
+| M11 | Flat crate root and shorter method names? | **Both.** | |
+| M12 | Maximum interpolation gap? | **Deferred.** | Not in 3.0; a separate design after it. Still the largest open hazard. |
+| M13 | Empty names rejected at construction and decoding; empty query name is `UnknownFrame`? | **Yes.** | Supersedes 2.4 ruling D6. |
+| M14 | One expired member fails the whole batch? | **Yes.** | All-or-nothing stands; the fallback is documented in `insert_all` and the `ingest` example. |
+| M15 | `checked_add` / `checked_sub` / `checked_duration_since` in the core? | **None.** Departs. | Exact outside on `as_nanos`; the overflow they guard is reachable only near the `i64` limits. |
+| M16 | What reports a failed normalization postcondition in a lookup? | **`LookupError::NonUnitRotation { norm }`.** | |
+| R1 | Conveniences `Rotation::IDENTITY`, `Timestamp::MAX`, `Stamp::at`? | **Keep the two constants; cut `Stamp::at`.** Departs. | `Stamp::at` is a two-arm `match`. |
+| R2 | Self-lookup of a name the registry has never seen? | **`UnknownFrame`.** Departs. | The designers kept 2.4's identity. Applied here to every name in every query, `fixed` and `latest_common_time` included; that extension is the designers' reading of the ruling. |
+| R3 | `Transform::new` with equal names and non-identity geometry? | **Rejected.** Departs. | Adds `TransformError::SelfTransformNotIdentity` (name proposed here). Binds construction and decoding, not `compose` results; see the contract and the serde consequence above. |
+| R4 | `lookup_across` with five positional arguments? | **Accepted as is.** | Residual: swapped times or a moving `fixed` frame return `Ok`. |
 
-Agreed by both, and the maintainer's because each changes a ruling, a
-Non-negotiable or a capability:
-
-| # | Item | Note |
-|---|---|---|
-| M2 | No `lookup_latest` | Both lean no: exact on the public API, and an adapter can hold one guard across two calls. The record of wrong hand-built versions (one of three, for seven releases) is the argument for an exception. |
-| M3 | `Timestamp::from_secs_nanos` and `as_secs_nanos` in the core | Both are exact outside, so this is a scope exception, argued on its own. Outbound: a signed type makes the naive `/ %` with a cast to `u32` wrong (−0.5 s gives `(0, 3794967296)`). Inbound is weaker: the two wrong hand-rolled conversions were written against `u64`, and with `i64` the naive form is correct for every valid ROS stamp. |
-| M4 | Rename `remove_transforms_before` to `remove_samples_through` | Reopens the ruling of 2026-11-11 (inclusive, name kept), which was a 3.0 ruling. Grounds: a boundary change under an unchanged name is a silent break; a rename is a compile error. |
-| M5 | Concrete `Timestamp(i64)`; delete `TimePoint` and `SystemTime` support | Removes a capability. See Time for the cost. |
-| M6 | Remove the `std` feature, `now` and `try_now` | The crate is unconditionally `no_std` + `alloc`. Removing `now` removes a misleading convenience; it does not prevent mixing clocks. |
-| M7 | Move `approx` to the dev-dependencies | Amends the dependency list in AGENTS.md. |
-| M8 | `Rotation` replaces `Quaternion`; `Vector3` loses its operators | A regression in one respect: four positional `f64`, scalar first, replace the `Quaternion { w, x, y, z }` literal both ROS adapters use, and ROS orders the scalar last. `from_wxyz(q.x, q.y, q.z, q.w)` is accepted for every unit quaternion (the xyzw identity becomes a half turn). Accept the residual, or add a named-field input. |
-| M9 | Errors by operation family | Replaces the AGENTS.md invariant that every `Registry` call reports one flat `RegistryError`. Each enum stays flat. |
-| M11 | Flat crate root and the shorter method names | Cosmetic; one pass. |
-| M12 | Interpolation gap limit | Not in 3.0; decide whether to open a design. |
-| M13 | Empty names rejected by `Transform::new` and decoding; `lookup("", "", t)` is `UnknownFrame` | Changes the 2.4 ruling D6 of 2026-11-12 (insert boundary only; `""` against itself is the identity). Grounds: public composition joins on `""` too, so the hazard is not registry-only. 3.0 decoders reject payloads 2.4 accepted. |
-| M14 | Whole-batch rejection on one expired member | A consequence of D2, now stated; confirm it is intended for TF-message batches. |
-| M15 | `Timestamp::checked_add`, `checked_sub`, `checked_duration_since` in the core | Exact outside on `as_nanos`, so a scope exception. Grounds: raw `i64` timestamp subtraction can overflow, and duration arithmetic needs wide intermediates and a checked final range, not an early narrowing of the duration to `i64`. `checked_add` has no demonstrated caller and is the first to cut. |
-| M16 | `LookupError::NonUnitRotation` | A precise diagnostic for a failed runtime normalization postcondition. The rounding argument suggests the failure is unreachable but is not a proof. A broader numerical-failure variant is another possible design; labelling a finite failure `NonFinite` is rejected. |
+Open after the rulings, for the maintainer to confirm: the name
+`SelfTransformNotIdentity`; that R2 covers `fixed` and
+`latest_common_time`; and that R3 leaves a `compose`-derived self-named
+transform unchecked.
 
 ## AGENTS.md under this design
 
@@ -645,7 +699,9 @@ Non-negotiable or a capability:
   panic" goes with `Timestamp::now`.
 - **Invariants that change text:** composition and its errors; the flat
   `RegistryError` bullet (M9); lookup diagnosis (precedence, `NoData`,
-  `OutOfRange`, the `NoCommonTime` payload, empty names);
+  `OutOfRange`, the `NoCommonTime` payload, empty names, and "a frame
+  relative to itself is the identity" now holding for known frames
+  only);
   `TimestampOutOfRange` (deleted with `interpolate`); error formatting
   through `as_seconds_lossy` (deleted); cleanup (inclusive, renamed);
   "validated where they are built" (the invariant is the type's); the
@@ -689,6 +745,8 @@ Non-negotiable or a capability:
   `Registry: Debug` and the `Stamp` variant order, and nothing in it
   computes.
 - The gate ran on nothing here.
+- The rulings were applied after Codex's last review; Codex has not
+  seen the ruled text.
 - Erratum to [`evidence/stress-proto-hotpath.md`](evidence/stress-proto-hotpath.md):
   a lookup one step past the newest sample makes 2 allocations in the
   prototype, not 1 (Codex's rerun).
