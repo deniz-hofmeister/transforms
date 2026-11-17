@@ -21,14 +21,14 @@ Requires Rust 1.85 or later.
 
 ```toml
 [dependencies]
-transforms = "2.3.0"
+transforms = "2.4.0"
 ```
 
 For `no_std`, disable default features and provide a heap allocator:
 
 ```toml
 [dependencies]
-transforms = { version = "2.3.0", default-features = false }
+transforms = { version = "2.4.0", default-features = false }
 ```
 
 | Feature | Default | Effect |
@@ -169,10 +169,14 @@ Run `cargo bench` for benchmarks.
 
 ## What's new
 
-2.3.0 adds `Registry::add_transforms`, which inserts a batch all-or-nothing:
-one rejected transform leaves the registry unchanged. 2.2.0 added
-`Registry::reparent_frame`, atomic re-parenting at the price of the moved
-frame's stored history, with the `NoParentToReplace` and `ParentUnchanged`
+2.4.0 makes the registry refuse a transform whose parent or child frame name
+is empty, with the new `RegistryError::EmptyFrameName`: publishers that each
+left a name unset no longer share one frame named `""`. It also corrects the
+rustdoc and adds recipes for a "latest" lookup and a checked stamp
+conversion. 2.3.0 added `Registry::add_transforms`, which inserts a batch
+all-or-nothing: one rejected transform leaves the registry unchanged. 2.2.0
+added `Registry::reparent_frame`, atomic re-parenting at the price of the
+moved frame's stored history, with the `NoParentToReplace` and `ParentUnchanged`
 error variants; its lookups allocate frame names once per result instead of
 per hop, name a failing edge on the connecting chain, and report why frames
 cannot be connected instead of a numeric overflow. See the
@@ -186,10 +190,10 @@ are checked separately.
 
 | Example | Task |
 |---|---|
-| [basic](examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result |
-| [ingest](examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
-| [shared_latest](examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
-| [cross_time](examples/cross_time.rs) | Coordinates expressed between different instants |
+| [basic](https://github.com/deniz-hofmeister/transforms/blob/v2.4.0/examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result |
+| [ingest](https://github.com/deniz-hofmeister/transforms/blob/v2.4.0/examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
+| [shared_latest](https://github.com/deniz-hofmeister/transforms/blob/v2.4.0/examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
+| [cross_time](https://github.com/deniz-hofmeister/transforms/blob/v2.4.0/examples/cross_time.rs) | Coordinates expressed between different instants |
 
 ```sh
 cargo run --example basic

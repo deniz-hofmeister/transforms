@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-17
+
 ### Added
 
 - `RegistryError::EmptyFrameName`: the error an insert reports for a
@@ -715,7 +717,8 @@ beta.4](https://github.com/deniz-hofmeister/transforms/blob/v2.0.0-beta.4/CHANGE
 - First stable release: `no_std` support, transform chaining, SLERP
   interpolation, `Transformable` trait, automatic buffer cleanup.
 
-[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/deniz-hofmeister/transforms/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.3...v2.2.0
 [2.1.3]: https://github.com/deniz-hofmeister/transforms/compare/v2.1.2...v2.1.3
