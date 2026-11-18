@@ -1,8 +1,14 @@
+# Not named `transforms`: cargo-semver-checks scans every manifest under the
+# repository root and refuses a package name defined twice. The library keeps
+# the name, so the stub and its test still read `use transforms::*`.
 [package]
-name = "transforms"
+name = "proto-api-stub"
 version = "3.0.0"
 edition = "2024"
 rust-version = "1.85"
+
+[lib]
+name = "transforms"
 
 [features]
 serde = ["dep:serde"]
