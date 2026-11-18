@@ -1,0 +1,899 @@
+postcard::from_bytes with 3 trailing bytes (2.4 type): ok=true
+NOT-REJECTING Static,At | translation,rotation,stamp,target,source
+    dyn: OK V3 { target: "map", source: "base_link", t: [1.5, -2.25, 3.125], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(Some(876571200000000000)) } ; static: OK V3 { target: "map", source: "base_link", t: [1.5, -2.25, 3.125], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(None) } ; general: OK V3 { target: "map", source: "base_link", t: [1.5, -2.25, 3.125], r: [0.9090909090909091, 0.09090909090909091, 0.18181818181818182, 0.36363636363636365], stamp: Some(Some(876571200000000000)) }
+NOT-REJECTING Static,At | translation,rotation,stamp,source,target
+    dyn: OK V3 { target: "base_link", source: "map", t: [1.5, -2.25, 3.125], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(Some(876571200000000000)) } ; static: OK V3 { target: "base_link", source: "map", t: [1.5, -2.25, 3.125], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(None) } ; general: OK V3 { target: "base_link", source: "map", t: [1.5, -2.25, 3.125], r: [0.9090909090909091, 0.09090909090909091, 0.18181818181818182, 0.36363636363636365], stamp: Some(Some(876571200000000000)) }
+
+layouts rejecting all 3 Transform fixtures (lenient trailing): 238 of 240
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: source: postcard Hit the end of buffer, expected more data ; general: source: postcard Hit the end of buffer, expected more data] (12 layouts)
+    Static,At | target,stamp,translation,rotation,source
+    Static,At | target,stamp,rotation,translation,source
+    Static,At | stamp,target,translation,rotation,source
+    Static,At | stamp,target,rotation,translation,source
+    At,Static | target,stamp,translation,rotation,source
+    At,Static | target,stamp,rotation,translation,source
+    At,Static | translation,rotation,stamp,source,target
+    At,Static | rotation,translation,stamp,source,target
+    At,Static | stamp,target,translation,rotation,source
+    At,Static | stamp,target,rotation,translation,source
+    At,Static | stamp,translation,rotation,source,target
+    At,Static | stamp,rotation,translation,source,target
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: source: postcard Hit the end of buffer, expected more data ; general: stamp: postcard Serde Deserialization Error] (10 layouts)
+    Static,At | target,translation,stamp,rotation,source
+    Static,At | target,rotation,stamp,translation,source
+    Static,At | translation,stamp,target,rotation,source
+    Static,At | rotation,stamp,target,translation,source
+    At,Static | target,translation,stamp,rotation,source
+    At,Static | target,rotation,stamp,translation,source
+    At,Static | translation,stamp,target,rotation,source
+    At,Static | translation,stamp,rotation,source,target
+    At,Static | rotation,stamp,target,translation,source
+    At,Static | rotation,stamp,translation,source,target
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: source: postcard Hit the end of buffer, expected more data ; general: target: postcard Hit the end of buffer, expected more data] (5 layouts)
+    Static,At | rotation,target,stamp,translation,source
+    Static,At | stamp,translation,target,rotation,source
+    At,Static | rotation,target,stamp,translation,source
+    At,Static | stamp,translation,target,rotation,source
+    At,Static | stamp,rotation,target,translation,source
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: source: postcard Hit the end of buffer, expected more data ; general: target: postcard Tried to parse invalid utf-8] (3 layouts)
+    Static,At | translation,target,stamp,rotation,source
+    Static,At | stamp,rotation,target,translation,source
+    At,Static | translation,target,stamp,rotation,source
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Hit the end of buffer, expected more data] (4 layouts)
+    Static,At | target,translation,rotation,source,stamp
+    Static,At | target,rotation,translation,source,stamp
+    At,Static | target,translation,rotation,source,stamp
+    At,Static | target,rotation,translation,source,stamp
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Hit the end of buffer, expected more data] (2 layouts)
+    Static,At | rotation,target,translation,source,stamp
+    At,Static | rotation,target,translation,source,stamp
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Tried to parse invalid utf-8] (2 layouts)
+    Static,At | translation,target,rotation,source,stamp
+    At,Static | translation,target,rotation,source,stamp
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: validate: non-unit rotation ; general: source: postcard Hit the end of buffer, expected more data] (2 layouts)
+    Static,At | stamp,translation,rotation,source,target
+    Static,At | stamp,rotation,translation,source,target
+
+REASON [dyn: source: postcard Hit the end of buffer, expected more data ; static: validate: non-unit rotation ; general: stamp: postcard Serde Deserialization Error] (2 layouts)
+    Static,At | translation,stamp,rotation,source,target
+    Static,At | rotation,stamp,translation,source,target
+
+REASON [dyn: source: postcard Tried to parse invalid utf-8 ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Tried to parse invalid utf-8] (8 layouts)
+    Static,At | translation,rotation,source,target,stamp
+    Static,At | translation,rotation,source,stamp,target
+    Static,At | rotation,translation,source,target,stamp
+    Static,At | rotation,translation,source,stamp,target
+    At,Static | translation,rotation,source,target,stamp
+    At,Static | translation,rotation,source,stamp,target
+    At,Static | rotation,translation,source,target,stamp
+    At,Static | rotation,translation,source,stamp,target
+
+REASON [dyn: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform? ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Hit the end of buffer, expected more data] (6 layouts)
+    Static,At | target,translation,source,rotation,stamp
+    Static,At | rotation,source,target,translation,stamp
+    Static,At | rotation,source,translation,stamp,target
+    At,Static | target,translation,source,rotation,stamp
+    At,Static | rotation,source,target,translation,stamp
+    At,Static | rotation,source,translation,stamp,target
+
+REASON [dyn: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform? ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Tried to parse invalid utf-8] (6 layouts)
+    Static,At | target,rotation,source,translation,stamp
+    Static,At | translation,source,target,rotation,stamp
+    Static,At | translation,source,rotation,stamp,target
+    At,Static | target,rotation,source,translation,stamp
+    At,Static | translation,source,target,rotation,stamp
+    At,Static | translation,source,rotation,stamp,target
+
+REASON [dyn: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform? ; static: stamp: postcard Serde Deserialization Error ; general: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform?] (16 layouts)
+    Static,At | target,source,translation,rotation,stamp
+    Static,At | target,source,rotation,translation,stamp
+    Static,At | target,translation,rotation,stamp,source
+    Static,At | target,rotation,translation,stamp,source
+    Static,At | source,target,translation,rotation,stamp
+    Static,At | source,target,rotation,translation,stamp
+    Static,At | source,translation,rotation,stamp,target
+    Static,At | source,rotation,translation,stamp,target
+    At,Static | target,source,translation,rotation,stamp
+    At,Static | target,source,rotation,translation,stamp
+    At,Static | target,translation,rotation,stamp,source
+    At,Static | target,rotation,translation,stamp,source
+    At,Static | source,target,translation,rotation,stamp
+    At,Static | source,target,rotation,translation,stamp
+    At,Static | source,translation,rotation,stamp,target
+    At,Static | source,rotation,translation,stamp,target
+
+REASON [dyn: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform? ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Hit the end of buffer, expected more data] (6 layouts)
+    Static,At | source,translation,target,rotation,stamp
+    Static,At | rotation,target,source,translation,stamp
+    Static,At | rotation,target,translation,stamp,source
+    At,Static | source,translation,target,rotation,stamp
+    At,Static | rotation,target,source,translation,stamp
+    At,Static | rotation,target,translation,stamp,source
+
+REASON [dyn: stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform? ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Tried to parse invalid utf-8] (6 layouts)
+    Static,At | source,rotation,target,translation,stamp
+    Static,At | translation,target,source,rotation,stamp
+    Static,At | translation,target,rotation,stamp,source
+    At,Static | source,rotation,target,translation,stamp
+    At,Static | translation,target,source,rotation,stamp
+    At,Static | translation,target,rotation,stamp,source
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Hit the end of buffer, expected more data] (2 layouts)
+    Static,At | rotation,source,translation,target,stamp
+    At,Static | rotation,source,translation,target,stamp
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: source: postcard Tried to parse invalid utf-8] (2 layouts)
+    Static,At | translation,source,rotation,target,stamp
+    At,Static | translation,source,rotation,target,stamp
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Hit the end of buffer, expected more data] (4 layouts)
+    Static,At | source,translation,rotation,target,stamp
+    Static,At | source,rotation,translation,target,stamp
+    At,Static | source,translation,rotation,target,stamp
+    At,Static | source,rotation,translation,target,stamp
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: target: postcard Hit the end of buffer, expected more data ; general: source: postcard Hit the end of buffer, expected more data] (5 layouts)
+    Static,At | rotation,source,stamp,translation,target
+    Static,At | stamp,translation,source,rotation,target
+    At,Static | rotation,source,stamp,translation,target
+    At,Static | stamp,translation,source,rotation,target
+    At,Static | stamp,rotation,source,translation,target
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: target: postcard Hit the end of buffer, expected more data ; general: source: postcard Tried to parse invalid utf-8] (3 layouts)
+    Static,At | translation,source,stamp,rotation,target
+    Static,At | stamp,rotation,source,translation,target
+    At,Static | translation,source,stamp,rotation,target
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: target: postcard Hit the end of buffer, expected more data ; general: stamp: postcard Serde Deserialization Error] (10 layouts)
+    Static,At | source,translation,stamp,rotation,target
+    Static,At | source,rotation,stamp,translation,target
+    Static,At | translation,stamp,source,rotation,target
+    Static,At | rotation,stamp,source,translation,target
+    At,Static | source,translation,stamp,rotation,target
+    At,Static | source,rotation,stamp,translation,target
+    At,Static | translation,stamp,source,rotation,target
+    At,Static | translation,stamp,rotation,target,source
+    At,Static | rotation,stamp,source,translation,target
+    At,Static | rotation,stamp,translation,target,source
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: target: postcard Hit the end of buffer, expected more data ; general: target: postcard Hit the end of buffer, expected more data] (12 layouts)
+    Static,At | source,stamp,translation,rotation,target
+    Static,At | source,stamp,rotation,translation,target
+    Static,At | stamp,source,translation,rotation,target
+    Static,At | stamp,source,rotation,translation,target
+    At,Static | source,stamp,translation,rotation,target
+    At,Static | source,stamp,rotation,translation,target
+    At,Static | translation,rotation,stamp,target,source
+    At,Static | rotation,translation,stamp,target,source
+    At,Static | stamp,source,translation,rotation,target
+    At,Static | stamp,source,rotation,translation,target
+    At,Static | stamp,translation,rotation,target,source
+    At,Static | stamp,rotation,translation,target,source
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: validate: non-unit rotation ; general: stamp: postcard Serde Deserialization Error] (2 layouts)
+    Static,At | translation,stamp,rotation,target,source
+    Static,At | rotation,stamp,translation,target,source
+
+REASON [dyn: target: postcard Hit the end of buffer, expected more data ; static: validate: non-unit rotation ; general: target: postcard Hit the end of buffer, expected more data] (2 layouts)
+    Static,At | stamp,translation,rotation,target,source
+    Static,At | stamp,rotation,translation,target,source
+
+REASON [dyn: target: postcard Tried to parse invalid utf-8 ; static: stamp: postcard Serde Deserialization Error ; general: target: postcard Tried to parse invalid utf-8] (8 layouts)
+    Static,At | translation,rotation,target,source,stamp
+    Static,At | translation,rotation,target,stamp,source
+    Static,At | rotation,translation,target,source,stamp
+    Static,At | rotation,translation,target,stamp,source
+    At,Static | translation,rotation,target,source,stamp
+    At,Static | translation,rotation,target,stamp,source
+    At,Static | rotation,translation,target,source,stamp
+    At,Static | rotation,translation,target,stamp,source
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: source: postcard Hit the end of buffer, expected more data] (17 layouts)
+    Static,At | target,translation,source,stamp,rotation
+    Static,At | target,stamp,translation,source,rotation
+    Static,At | target,stamp,rotation,source,translation
+    Static,At | rotation,source,target,stamp,translation
+    Static,At | rotation,source,stamp,target,translation
+    Static,At | stamp,target,translation,source,rotation
+    Static,At | stamp,target,rotation,source,translation
+    Static,At | stamp,translation,source,target,rotation
+    At,Static | target,translation,source,stamp,rotation
+    At,Static | target,stamp,translation,source,rotation
+    At,Static | target,stamp,rotation,source,translation
+    At,Static | rotation,source,target,stamp,translation
+    At,Static | rotation,source,stamp,target,translation
+    At,Static | stamp,target,translation,source,rotation
+    At,Static | stamp,target,rotation,source,translation
+    At,Static | stamp,translation,source,target,rotation
+    At,Static | stamp,rotation,source,target,translation
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: source: postcard Tried to parse invalid utf-8] (7 layouts)
+    Static,At | target,rotation,source,stamp,translation
+    Static,At | translation,source,target,stamp,rotation
+    Static,At | translation,source,stamp,target,rotation
+    Static,At | stamp,rotation,source,target,translation
+    At,Static | target,rotation,source,stamp,translation
+    At,Static | translation,source,target,stamp,rotation
+    At,Static | translation,source,stamp,target,rotation
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: stamp: postcard Serde Deserialization Error] (24 layouts)
+    Static,At | target,source,translation,stamp,rotation
+    Static,At | target,source,rotation,stamp,translation
+    Static,At | target,translation,stamp,source,rotation
+    Static,At | target,rotation,stamp,source,translation
+    Static,At | source,target,translation,stamp,rotation
+    Static,At | source,target,rotation,stamp,translation
+    Static,At | source,translation,stamp,target,rotation
+    Static,At | source,rotation,stamp,target,translation
+    Static,At | translation,stamp,target,source,rotation
+    Static,At | translation,stamp,source,target,rotation
+    Static,At | rotation,stamp,target,source,translation
+    Static,At | rotation,stamp,source,target,translation
+    At,Static | target,source,translation,stamp,rotation
+    At,Static | target,source,rotation,stamp,translation
+    At,Static | target,translation,stamp,source,rotation
+    At,Static | target,rotation,stamp,source,translation
+    At,Static | source,target,translation,stamp,rotation
+    At,Static | source,target,rotation,stamp,translation
+    At,Static | source,translation,stamp,target,rotation
+    At,Static | source,rotation,stamp,target,translation
+    At,Static | translation,stamp,target,source,rotation
+    At,Static | translation,stamp,source,target,rotation
+    At,Static | rotation,stamp,target,source,translation
+    At,Static | rotation,stamp,source,target,translation
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: target: postcard Hit the end of buffer, expected more data] (17 layouts)
+    Static,At | source,translation,target,stamp,rotation
+    Static,At | source,stamp,translation,target,rotation
+    Static,At | source,stamp,rotation,target,translation
+    Static,At | rotation,target,source,stamp,translation
+    Static,At | rotation,target,stamp,source,translation
+    Static,At | stamp,source,translation,target,rotation
+    Static,At | stamp,source,rotation,target,translation
+    Static,At | stamp,translation,target,source,rotation
+    At,Static | source,translation,target,stamp,rotation
+    At,Static | source,stamp,translation,target,rotation
+    At,Static | source,stamp,rotation,target,translation
+    At,Static | rotation,target,source,stamp,translation
+    At,Static | rotation,target,stamp,source,translation
+    At,Static | stamp,source,translation,target,rotation
+    At,Static | stamp,source,rotation,target,translation
+    At,Static | stamp,translation,target,source,rotation
+    At,Static | stamp,rotation,target,source,translation
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: target: postcard Tried to parse invalid utf-8] (7 layouts)
+    Static,At | source,rotation,target,stamp,translation
+    Static,At | translation,target,source,stamp,rotation
+    Static,At | translation,target,stamp,source,rotation
+    Static,At | stamp,rotation,target,source,translation
+    At,Static | source,rotation,target,stamp,translation
+    At,Static | translation,target,source,stamp,rotation
+    At,Static | translation,target,stamp,source,rotation
+
+REASON [dyn: validate: non-unit rotation ; static: validate: non-unit rotation ; general: validate: non-unit rotation] (26 layouts)
+    Static,At | target,source,stamp,translation,rotation
+    Static,At | target,source,stamp,rotation,translation
+    Static,At | target,stamp,source,translation,rotation
+    Static,At | target,stamp,source,rotation,translation
+    Static,At | source,target,stamp,translation,rotation
+    Static,At | source,target,stamp,rotation,translation
+    Static,At | source,stamp,target,translation,rotation
+    Static,At | source,stamp,target,rotation,translation
+    Static,At | rotation,translation,stamp,target,source
+    Static,At | rotation,translation,stamp,source,target
+    Static,At | stamp,target,source,translation,rotation
+    Static,At | stamp,target,source,rotation,translation
+    Static,At | stamp,source,target,translation,rotation
+    Static,At | stamp,source,target,rotation,translation
+    At,Static | target,source,stamp,translation,rotation
+    At,Static | target,source,stamp,rotation,translation
+    At,Static | target,stamp,source,translation,rotation
+    At,Static | target,stamp,source,rotation,translation
+    At,Static | source,target,stamp,translation,rotation
+    At,Static | source,target,stamp,rotation,translation
+    At,Static | source,stamp,target,translation,rotation
+    At,Static | source,stamp,target,rotation,translation
+    At,Static | stamp,target,source,translation,rotation
+    At,Static | stamp,target,source,rotation,translation
+    At,Static | stamp,source,target,translation,rotation
+    At,Static | stamp,source,target,rotation,translation
+
+cross-check of sequential decode vs 3 derive structs: passed
+
+=== population A random: 100000 valid 2.4 transforms, Ok counts per layout (lenient / strict) ===
+layouts with 0 Ok (lenient): 230; of those also rejecting all fixtures: 230
+histogram lenient Ok-count -> #layouts: {0: 230, 163: 2, 469: 4, 508: 2, 99981: 2}
+  ok=   163 strict_ok=   163 rejects_fixtures=true At,Static | translation,rotation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: -60625.76589706855, y: -85101.25421051728, z: 87379.00438180867 }, rotation: Quaternion { w: 0.43099811798350196, x: -0.648211965984267, y: 0.2972290465328698, z: -0.5529165970981988 }, timestamp: At(Timestamp { t: 6 }), parent: "gp7uj", child: "gbpr7x29dnfk" }
+        -> v3 V3 { target: "\u{5}gp7uj", source: "gbpr7x29dnfk", t: [-60625.76589706855, -85101.25421051728, 87379.00438180867], r: [0.43099811798350196, -0.648211965984267, 0.2972290465328698, -0.5529165970981988], stamp: Some(None) }
+  ok=   163 strict_ok=   163 rejects_fixtures=true At,Static | translation,rotation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: -60625.76589706855, y: -85101.25421051728, z: 87379.00438180867 }, rotation: Quaternion { w: 0.43099811798350196, x: -0.648211965984267, y: 0.2972290465328698, z: -0.5529165970981988 }, timestamp: At(Timestamp { t: 6 }), parent: "gp7uj", child: "gbpr7x29dnfk" }
+        -> v3 V3 { target: "gbpr7x29dnfk", source: "\u{5}gp7uj", t: [-60625.76589706855, -85101.25421051728, 87379.00438180867], r: [0.43099811798350196, -0.648211965984267, 0.2972290465328698, -0.5529165970981988], stamp: Some(None) }
+  ok=   469 strict_ok=     0 rejects_fixtures=true At,Static | translation,rotation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: -1.636720581918322, y: 2.185762861829802, z: -3.171271504229176 }, rotation: Quaternion { w: -0.13006187244213063, x: 0.5503027585942932, y: -0.8203789495267095, z: -0.08502448114402417 }, timestamp: At(Timestamp { t: 63 }), parent: "i3ishomp", child: "d" }
+        -> v3 V3 { target: "?", source: "i3ishomp", t: [-1.636720581918322, 2.185762861829802, -3.171271504229176], r: [-0.13006187244213063, 0.5503027585942932, -0.8203789495267095, -0.08502448114402417], stamp: Some(None) }
+  ok=   469 strict_ok=     0 rejects_fixtures=true At,Static | translation,rotation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: -1.636720581918322, y: 2.185762861829802, z: -3.171271504229176 }, rotation: Quaternion { w: -0.13006187244213063, x: 0.5503027585942932, y: -0.8203789495267095, z: -0.08502448114402417 }, timestamp: At(Timestamp { t: 63 }), parent: "i3ishomp", child: "d" }
+        -> v3 V3 { target: "i3ishomp", source: "?", t: [-1.636720581918322, 2.185762861829802, -3.171271504229176], r: [-0.13006187244213063, 0.5503027585942932, -0.8203789495267095, -0.08502448114402417], stamp: Some(None) }
+  ok=   469 strict_ok=   469 rejects_fixtures=true Static,At | translation,rotation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: -1.636720581918322, y: 2.185762861829802, z: -3.171271504229176 }, rotation: Quaternion { w: -0.13006187244213063, x: 0.5503027585942932, y: -0.8203789495267095, z: -0.08502448114402417 }, timestamp: At(Timestamp { t: 63 }), parent: "i3ishomp", child: "d" }
+        -> v3 V3 { target: "?", source: "i3ishomp", t: [-1.636720581918322, 2.185762861829802, -3.171271504229176], r: [-0.13006187244213063, 0.5503027585942932, -0.8203789495267095, -0.08502448114402417], stamp: Some(Some(50)) }
+  ok=   469 strict_ok=   469 rejects_fixtures=true Static,At | translation,rotation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: -1.636720581918322, y: 2.185762861829802, z: -3.171271504229176 }, rotation: Quaternion { w: -0.13006187244213063, x: 0.5503027585942932, y: -0.8203789495267095, z: -0.08502448114402417 }, timestamp: At(Timestamp { t: 63 }), parent: "i3ishomp", child: "d" }
+        -> v3 V3 { target: "i3ishomp", source: "?", t: [-1.636720581918322, 2.185762861829802, -3.171271504229176], r: [-0.13006187244213063, 0.5503027585942932, -0.8203789495267095, -0.08502448114402417], stamp: Some(Some(50)) }
+  ok=   508 strict_ok=   508 rejects_fixtures=true Static,At | translation,rotation,target,stamp,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 26840.281826814564, y: -19768.72717084514, z: 43064.02327869784 }, rotation: Quaternion { w: -0.6247465966835956, x: -0.4336573964757421, y: 0.6437809628155128, z: -0.08472912327220805 }, timestamp: At(Timestamp { t: 1 }), parent: "u", child: "h47ra" }
+        -> v3 V3 { target: "\u{1}", source: "h47ra", t: [26840.281826814564, -19768.72717084514, 43064.02327869784], r: [-0.6247465966835956, -0.4336573964757421, 0.6437809628155128, -0.08472912327220805], stamp: Some(Some(-59)) }
+  ok=   508 strict_ok=   508 rejects_fixtures=true Static,At | translation,rotation,source,stamp,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 26840.281826814564, y: -19768.72717084514, z: 43064.02327869784 }, rotation: Quaternion { w: -0.6247465966835956, x: -0.4336573964757421, y: 0.6437809628155128, z: -0.08472912327220805 }, timestamp: At(Timestamp { t: 1 }), parent: "u", child: "h47ra" }
+        -> v3 V3 { target: "h47ra", source: "\u{1}", t: [26840.281826814564, -19768.72717084514, 43064.02327869784], r: [-0.6247465966835956, -0.4336573964757421, 0.6437809628155128, -0.08472912327220805], stamp: Some(Some(-59)) }
+  ok= 99981 strict_ok= 99981 rejects_fixtures=false Static,At | translation,rotation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: -4971.406187231712, y: 5307.495516962807, z: -2825.9321753907934 }, rotation: Quaternion { w: 0.37217032063640443, x: -0.9269485522690556, y: -0.02202204140218796, z: 0.042079253512603665 }, timestamp: At(Timestamp { t: 13979954260 }), parent: "pe", child: "8" }
+        -> v3 V3 { target: "pe", source: "8", t: [-4971.406187231712, 5307.495516962807, -2825.9321753907934], r: [0.37217032063640443, -0.9269485522690556, -0.02202204140218796, 0.042079253512603665], stamp: Some(Some(6989977130)) }
+  ok= 99981 strict_ok= 99981 rejects_fixtures=false Static,At | translation,rotation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: -4971.406187231712, y: 5307.495516962807, z: -2825.9321753907934 }, rotation: Quaternion { w: 0.37217032063640443, x: -0.9269485522690556, y: -0.02202204140218796, z: 0.042079253512603665 }, timestamp: At(Timestamp { t: 13979954260 }), parent: "pe", child: "8" }
+        -> v3 V3 { target: "8", source: "pe", t: [-4971.406187231712, 5307.495516962807, -2825.9321753907934], r: [0.37217032063640443, -0.9269485522690556, -0.02202204140218796, 0.042079253512603665], stamp: Some(Some(6989977130)) }
+  ZERO Static,At | target,source,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,source,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,source,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,source,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,source,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,translation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,translation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,stamp,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,stamp,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,source,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,source,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,translation,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,translation,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,rotation,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,rotation,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | source,target,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,target,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,target,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,target,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,target,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,translation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,translation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,stamp,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,stamp,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,target,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,target,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,translation,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,translation,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,rotation,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,rotation,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,target,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,target,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,source,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,source,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,rotation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,rotation,source,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,source,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,source,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,translation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,translation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,stamp,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,stamp,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,target,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,target,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,translation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,translation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,stamp,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,stamp,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,target,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,target,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,source,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,source,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,stamp,target,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,translation,stamp,source,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,target,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,target,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,source,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,source,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,translation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,translation,source,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,source,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,source,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,translation,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,translation,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,rotation,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,rotation,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,target,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,target,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,translation,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,translation,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,rotation,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,rotation,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,target,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,target,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,source,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,source,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,rotation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,rotation,source,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,target,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,target,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,source,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,source,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,translation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,translation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | target,source,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,source,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,source,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,source,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,source,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,translation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,translation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,stamp,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,stamp,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,source,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,source,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,translation,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,translation,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,rotation,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,rotation,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | source,target,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,target,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,target,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,target,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,target,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,translation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,translation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,stamp,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,stamp,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,target,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,target,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,translation,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,translation,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,rotation,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,rotation,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,rotation,target,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,rotation,source,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,target,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,target,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,source,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,source,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,rotation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,rotation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,source,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,source,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,translation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,translation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,stamp,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,stamp,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,target,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,target,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,translation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,translation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,stamp,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,stamp,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,target,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,target,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,source,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,source,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,stamp,target,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,stamp,source,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,target,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,target,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,source,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,source,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,translation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,translation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,source,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,source,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,translation,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,translation,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,rotation,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,rotation,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,target,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,target,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,translation,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,translation,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,rotation,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,rotation,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,target,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,target,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,source,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,source,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,rotation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,rotation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,target,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,target,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,source,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,source,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,translation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,translation,source,target  (rejects_fixtures=true)
+
+=== population B fixture-like: 100000 valid 2.4 transforms, Ok counts per layout (lenient / strict) ===
+layouts with 0 Ok (lenient): 216; of those also rejecting all fixtures: 216
+histogram lenient Ok-count -> #layouts: {0: 216, 3: 2, 63: 4, 72: 2, 116: 2, 333: 2, 553: 2, 2352: 2, 2714: 2, 2735: 4, 91789: 2}
+  ok=     3 strict_ok=     3 rejects_fixtures=true At,Static | rotation,translation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 2 }), parent: "b", child: "camera" }
+        -> v3 V3 { target: "\u{1}b", source: "camera", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(None) }
+  ok=     3 strict_ok=     3 rejects_fixtures=true At,Static | rotation,translation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 2 }), parent: "b", child: "camera" }
+        -> v3 V3 { target: "camera", source: "\u{1}b", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(None) }
+  ok=    63 strict_ok=     0 rejects_fixtures=true At,Static | rotation,translation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 47 }), parent: "laser", child: "b" }
+        -> v3 V3 { target: "/", source: "laser", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(None) }
+  ok=    63 strict_ok=     0 rejects_fixtures=true At,Static | rotation,translation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 47 }), parent: "laser", child: "b" }
+        -> v3 V3 { target: "laser", source: "/", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(None) }
+  ok=    63 strict_ok=    63 rejects_fixtures=true Static,At | rotation,translation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 47 }), parent: "laser", child: "b" }
+        -> v3 V3 { target: "/", source: "laser", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(Some(49)) }
+  ok=    63 strict_ok=    63 rejects_fixtures=true Static,At | rotation,translation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.0, z: 0.5 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.0, y: 0.0, z: 0.7071067811865476 }, timestamp: At(Timestamp { t: 47 }), parent: "laser", child: "b" }
+        -> v3 V3 { target: "laser", source: "/", t: [0.0, 0.0, 0.7071067811865476], r: [0.5, 0.0, 0.5, 0.7071067811865476], stamp: Some(Some(49)) }
+  ok=    72 strict_ok=    72 rejects_fixtures=true Static,At | rotation,translation,target,stamp,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.5, z: 0.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 30 }), parent: "a", child: "camera" }
+        -> v3 V3 { target: "\u{1e}", source: "camera", t: [0.7071067811865476, 0.0, 0.0], r: [0.5, 0.5, 0.0, 0.7071067811865476], stamp: Some(Some(-49)) }
+  ok=    72 strict_ok=    72 rejects_fixtures=true Static,At | rotation,translation,source,stamp,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.5, y: 0.5, z: 0.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 30 }), parent: "a", child: "camera" }
+        -> v3 V3 { target: "camera", source: "\u{1e}", t: [0.7071067811865476, 0.0, 0.0], r: [0.5, 0.5, 0.0, 0.7071067811865476], stamp: Some(Some(-49)) }
+  ok=   116 strict_ok=   116 rejects_fixtures=true At,Static | translation,rotation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 2.0, y: 0.0, z: 0.0 }, rotation: Quaternion { w: 0.5, x: 0.5, y: 0.5, z: 0.5 }, timestamp: At(Timestamp { t: 5 }), parent: "base", child: "laser" }
+        -> v3 V3 { target: "\u{4}base", source: "laser", t: [2.0, 0.0, 0.0], r: [0.5, 0.5, 0.5, 0.5], stamp: Some(None) }
+  ok=   116 strict_ok=   116 rejects_fixtures=true At,Static | translation,rotation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 2.0, y: 0.0, z: 0.0 }, rotation: Quaternion { w: 0.5, x: 0.5, y: 0.5, z: 0.5 }, timestamp: At(Timestamp { t: 5 }), parent: "base", child: "laser" }
+        -> v3 V3 { target: "laser", source: "\u{4}base", t: [2.0, 0.0, 0.0], r: [0.5, 0.5, 0.5, 0.5], stamp: Some(None) }
+  ok=   333 strict_ok=   333 rejects_fixtures=true At,Static | rotation,stamp,translation,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: -1.0, z: 0.0 }, rotation: Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 1.0 }, timestamp: At(Timestamp { t: 123 }), parent: "base", child: "camera" }
+        -> v3 V3 { target: "base", source: "camera", t: [0.0, 0.0, 3.206334828750542e284], r: [0.0, -1.0, 0.0, 0.0], stamp: Some(Some(0)) }
+  ok=   333 strict_ok=   333 rejects_fixtures=true At,Static | rotation,stamp,translation,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: -1.0, z: 0.0 }, rotation: Quaternion { w: 0.0, x: 0.0, y: 0.0, z: 1.0 }, timestamp: At(Timestamp { t: 123 }), parent: "base", child: "camera" }
+        -> v3 V3 { target: "camera", source: "base", t: [0.0, 0.0, 3.206334828750542e284], r: [0.0, -1.0, 0.0, 0.0], stamp: Some(Some(0)) }
+  ok=   553 strict_ok=   553 rejects_fixtures=true Static,At | rotation,stamp,translation,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 1.0, z: 0.0 }, rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }, timestamp: Static, parent: "b", child: "camera" }
+        -> v3 V3 { target: "b", source: "camera", t: [1.7765824089018436e-307, 0.0, 0.0], r: [0.0, 1.0, 0.0, 0.0], stamp: Some(None) }
+  ok=   553 strict_ok=   553 rejects_fixtures=true Static,At | rotation,stamp,translation,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 1.0, z: 0.0 }, rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }, timestamp: Static, parent: "b", child: "camera" }
+        -> v3 V3 { target: "camera", source: "b", t: [1.7765824089018436e-307, 0.0, 0.0], r: [0.0, 1.0, 0.0, 0.0], stamp: Some(None) }
+  ok=  2352 strict_ok=  2352 rejects_fixtures=true Static,At | rotation,translation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 0.0, z: 1.0 }, rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 57000000000 }), parent: "odom", child: "laser" }
+        -> v3 V3 { target: "odom", source: "laser", t: [1.0, 0.0, 0.0], r: [0.0, 0.0, 1.0, 0.0], stamp: Some(Some(28500000000)) }
+  ok=  2352 strict_ok=  2352 rejects_fixtures=true Static,At | rotation,translation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 0.0, z: 1.0 }, rotation: Quaternion { w: 0.0, x: 1.0, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 57000000000 }), parent: "odom", child: "laser" }
+        -> v3 V3 { target: "laser", source: "odom", t: [1.0, 0.0, 0.0], r: [0.0, 0.0, 1.0, 0.0], stamp: Some(Some(28500000000)) }
+  ok=  2714 strict_ok=  2714 rejects_fixtures=true Static,At | translation,rotation,target,stamp,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 3.0, y: 0.25, z: 0.5 }, rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 78 }), parent: "a", child: "map" }
+        -> v3 V3 { target: "N", source: "map", t: [3.0, 0.25, 0.5], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(Some(-49)) }
+  ok=  2714 strict_ok=  2714 rejects_fixtures=true Static,At | translation,rotation,source,stamp,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 3.0, y: 0.25, z: 0.5 }, rotation: Quaternion { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 78 }), parent: "a", child: "map" }
+        -> v3 V3 { target: "map", source: "N", t: [3.0, 0.25, 0.5], r: [1.0, 0.0, 0.0, 0.0], stamp: Some(Some(-49)) }
+  ok=  2735 strict_ok=     0 rejects_fixtures=true At,Static | translation,rotation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 2.0, z: 2.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 11 }), parent: "imu", child: "b" }
+        -> v3 V3 { target: "\u{b}", source: "imu", t: [0.0, 2.0, 2.0], r: [0.7071067811865476, 0.7071067811865476, 0.0, 0.0], stamp: Some(None) }
+  ok=  2735 strict_ok=     0 rejects_fixtures=true At,Static | translation,rotation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 2.0, z: 2.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 11 }), parent: "imu", child: "b" }
+        -> v3 V3 { target: "imu", source: "\u{b}", t: [0.0, 2.0, 2.0], r: [0.7071067811865476, 0.7071067811865476, 0.0, 0.0], stamp: Some(None) }
+  ok=  2735 strict_ok=  2735 rejects_fixtures=true Static,At | translation,rotation,target,source,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 2.0, z: 2.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 11 }), parent: "imu", child: "b" }
+        -> v3 V3 { target: "\u{b}", source: "imu", t: [0.0, 2.0, 2.0], r: [0.7071067811865476, 0.7071067811865476, 0.0, 0.0], stamp: Some(Some(49)) }
+  ok=  2735 strict_ok=  2735 rejects_fixtures=true Static,At | translation,rotation,source,target,stamp
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.0, y: 2.0, z: 2.0 }, rotation: Quaternion { w: 0.7071067811865476, x: 0.7071067811865476, y: 0.0, z: 0.0 }, timestamp: At(Timestamp { t: 11 }), parent: "imu", child: "b" }
+        -> v3 V3 { target: "imu", source: "\u{b}", t: [0.0, 2.0, 2.0], r: [0.7071067811865476, 0.7071067811865476, 0.0, 0.0], stamp: Some(Some(49)) }
+  ok= 91789 strict_ok= 91789 rejects_fixtures=false Static,At | translation,rotation,stamp,target,source
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.25, y: 0.0, z: 0.0 }, rotation: Quaternion { w: 0.5, x: 0.5, y: 0.5, z: 0.5 }, timestamp: At(Timestamp { t: 1753142666649511393 }), parent: "tool0", child: "laser" }
+        -> v3 V3 { target: "tool0", source: "laser", t: [0.25, 0.0, 0.0], r: [0.5, 0.5, 0.5, 0.5], stamp: Some(Some(-876571333324755697)) }
+  ok= 91789 strict_ok= 91789 rejects_fixtures=false Static,At | translation,rotation,stamp,source,target
+      e.g. 2.4 Transform { translation: Vector3 { x: 0.25, y: 0.0, z: 0.0 }, rotation: Quaternion { w: 0.5, x: 0.5, y: 0.5, z: 0.5 }, timestamp: At(Timestamp { t: 1753142666649511393 }), parent: "tool0", child: "laser" }
+        -> v3 V3 { target: "laser", source: "tool0", t: [0.25, 0.0, 0.0], r: [0.5, 0.5, 0.5, 0.5], stamp: Some(Some(-876571333324755697)) }
+  ZERO Static,At | target,source,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,source,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,source,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,source,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,translation,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,source,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,source,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,translation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,translation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,stamp,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,rotation,stamp,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,source,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,source,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,translation,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,translation,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,rotation,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | target,stamp,rotation,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | source,target,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,target,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,target,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,target,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,translation,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,target,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,target,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,translation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,translation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,stamp,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,rotation,stamp,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,target,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,target,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,translation,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,translation,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,rotation,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | source,stamp,rotation,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,target,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,source,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,target,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,target,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,source,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,source,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,rotation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | translation,stamp,rotation,source,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,source,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,source,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,translation,source,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,translation,stamp,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,stamp,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,target,stamp,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,target,translation,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,target,stamp,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,translation,target,stamp  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,translation,stamp,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,stamp,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,source,stamp,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,target,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,target,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,source,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | rotation,stamp,source,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,source,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,source,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,translation,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,translation,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,rotation,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,target,rotation,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,target,translation,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,target,rotation,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,translation,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,translation,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,rotation,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,source,rotation,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,target,source,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,target,rotation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,source,target,rotation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,source,rotation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,rotation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,translation,rotation,source,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,target,source,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,target,translation,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,source,target,translation  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,source,translation,target  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,translation,target,source  (rejects_fixtures=true)
+  ZERO Static,At | stamp,rotation,translation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | target,source,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,source,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,source,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,source,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,translation,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,source,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,source,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,translation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,translation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,stamp,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,rotation,stamp,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,source,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,source,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,translation,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,translation,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,rotation,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | target,stamp,rotation,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | source,target,translation,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,target,translation,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,rotation,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,target,rotation,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,stamp,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,target,stamp,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,translation,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,target,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,target,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,translation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,translation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,stamp,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,rotation,stamp,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,target,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,target,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,translation,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,translation,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,rotation,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | source,stamp,rotation,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,source,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,source,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,rotation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,rotation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,stamp,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,target,stamp,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,target,rotation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,target,stamp,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,rotation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,rotation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,stamp,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,source,stamp,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,rotation,target,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,rotation,source,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,target,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,target,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,source,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,source,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,rotation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | translation,stamp,rotation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,source,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,source,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,translation,source,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,translation,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,stamp,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,target,stamp,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,target,translation,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,target,stamp,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,translation,target,stamp  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,translation,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,stamp,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,source,stamp,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,target,stamp,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,translation,source,stamp,target  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,target,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,target,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,source,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | rotation,stamp,source,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,source,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,source,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,translation,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,translation,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,rotation,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,target,rotation,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,target,translation,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,target,rotation,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,translation,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,translation,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,rotation,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,source,rotation,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,target,source,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,target,rotation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,source,target,rotation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,source,rotation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,rotation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,translation,rotation,source,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,target,source,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,target,translation,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,source,target,translation  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,source,translation,target  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,translation,target,source  (rejects_fixtures=true)
+  ZERO At,Static | stamp,rotation,translation,source,target  (rejects_fixtures=true)
+stream, natural order target,source,translation,rotation,stamp: ok=0
+stream context, population A random: fixture-rejecting layouts with >0 Ok: 8 of 238; total Ok 3220; worst (508, "Static,At | translation,rotation,target,stamp,source")
+stream, natural order target,source,translation,rotation,stamp: ok=0
+stream context, population B fixture-like: fixture-rejecting layouts with >0 Ok: 22 of 238; total Ok 23506; worst (2735, "Static,At | translation,rotation,target,source,stamp")
+natural order, fixture dyn: "stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform?"
+natural order, fixture static: "stamp: postcard Serde Deserialization Error"
+natural order, fixture general: "stamp: postcard Found a varint that didn't terminate. Is the usize too big for this platform?"
+layouts whose rejection of all 3 fixtures is only end-of-buffer: 34; of at least one fixture: 130
+fixture-rejecting layouts that decode a fixture Ok when fixtures are concatenated: 0
+
+standalone 2.4 Stamp::At(1753142400e9) under v3 Stamp{Static,At(i64)}: Ok(At(876571200000000000))
+standalone under reversed variants: Ok(Static)
+standalone 2.4 Stamp::Static under reversed variants: Err(DeserializeUnexpectedEnd)
+Vec<2.4 Transform> len 161 bytes (probe of containers left to per-layout test)
+
+2.4 JSON: {"translation":{"x":1.5,"y":-2.25,"z":3.125},"rotation":{"w":1.0,"x":0.0,"y":0.0,"z":0.0},"timestamp":{"At":1753142400000000000},"parent":"map","child":"base_link"}
+v3 derive (default serde): Err("missing field `target` at line 1 column 164")
+v3 derive (deny_unknown_fields): Err("unknown field `timestamp`, expected one of `target`, `source`, `translation`, `rotation`, `stamp` at line 1 column 101")
+v3 JSON carrying stray 2.4 keys (default): Ok(D2 { target: "map", source: "base", translation: Vec3 { x: 1.0, y: 0.0, z: 0.0 }, rotation: Rot { w: 1.0, x: 0.0, y: 0.0, z: 0.0 }, stamp: Static })
+same, deny_unknown_fields: Err("unknown field `timestamp`, expected one of `target`, `source`, `translation`, `rotation`, `stamp` at line 1 column 145")
+2.4 JSON stamp u64::MAX under i64: Err("invalid value: integer `18446744073709551615`, expected i64 at line 1 column 26")
+v3 JSON under 2.4: Err("missing field `timestamp` at line 1 column 135")
+
+M1 golden vector 4, expected Vector3 { x: 0.312544181470241, y: 0.30034574010536436, z: 0.41542656435573333 }
+  correct  R p + t                                           -> (+0.312544, +0.300346, +0.415427)  |err|=0.0000 finite=true
+  V1 R (p + t)  [add before rotate]                          -> (+0.829581, -1.151406, +0.581858)  |err|=1.5500 finite=true
+  V2 R^-1 p + t [inverse rotation, original translation]     -> (-1.403169, +1.085873, +1.383229)  |err|=2.1207 finite=true
+  V3 R p        [translation forgotten]                      -> (+1.312544, -0.199654, +0.165427)  |err|=1.1456 finite=true
+  V4 R^-1 (p - t) [whole inverse applied: wrong direction]   -> (-0.544710, -0.284995, +1.864019)  |err|=1.7821 finite=true
+  V5 R p - t    [sign]                                       -> (+2.312544, -0.699654, -0.084573)  |err|=2.2913 finite=true
+  V6 p + R t    [rotated the translation]                    -> (-0.182963, -1.651752, +1.516432)  |err|=2.2953 finite=true
+  V7 p + t      [rotation forgotten]                         -> (-0.700000, -0.200000, +1.350000)  |err|=1.4660 finite=true
+  V8 add typo (x+x, y+y, z+y)                                -> (+0.312544, +0.300346, +0.665427)  |err|=0.2500 finite=true
+  V9 xyzw read as wxyz, then R p + t                         -> (-0.158407, +1.496487, -0.047883)  |err|=1.3665 finite=true

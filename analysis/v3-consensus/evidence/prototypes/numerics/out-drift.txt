@@ -1,0 +1,31 @@
+## (a) drift: max over the run of | |q|-1 | (exact |q|^2 via error-free transforms), N=100000000
+const-inc [1e-3 rad about z] none          max||q|-1| = 4.291e-9  final |q|-1 = +4.291e-9
+const-inc [1e-3 rad about z] newton        max||q|-1| = 1.802e-16  final |q|-1 = +1.867e-17
+const-inc [1e-3 rad about z] newton+band8  max||q|-1| = 9.853e-16  final |q|-1 = +2.189e-16
+const-inc [1e-3 rad about z] sqrt          max||q|-1| = 2.413e-16  final |q|-1 = +4.808e-17
+const-inc [1e-3 rad about z] sqrt+band8    max||q|-1| = 9.852e-16  final |q|-1 = +1.152e-16
+const-inc [1 rad about (1,2,3)] none          max||q|-1| = 5.458e-9  final |q|-1 = +5.458e-9
+const-inc [1 rad about (1,2,3)] newton        max||q|-1| = 2.603e-16  final |q|-1 = -8.051e-17
+const-inc [1 rad about (1,2,3)] newton+band8  max||q|-1| = 1.041e-15  final |q|-1 = -2.386e-17
+const-inc [1 rad about (1,2,3)] sqrt          max||q|-1| = 3.034e-16  final |q|-1 = +8.479e-17
+const-inc [1 rad about (1,2,3)] sqrt+band8    max||q|-1| = 1.041e-15  final |q|-1 = +6.028e-16
+const-inc [0.1 rad about (-3,1,2)] none          max||q|-1| = 3.616e-9  final |q|-1 = +3.616e-9
+const-inc [0.1 rad about (-3,1,2)] newton        max||q|-1| = 2.617e-16  final |q|-1 = +2.263e-17
+const-inc [0.1 rad about (-3,1,2)] newton+band8  max||q|-1| = 1.037e-15  final |q|-1 = +6.831e-16
+const-inc [0.1 rad about (-3,1,2)] sqrt          max||q|-1| = 3.118e-16  final |q|-1 = +1.126e-16
+const-inc [0.1 rad about (-3,1,2)] sqrt+band8    max||q|-1| = 1.038e-15  final |q|-1 = +4.584e-16
+const-inc [random unit (seed 7)] none          max||q|-1| = 5.005e-9  final |q|-1 = -5.005e-9
+const-inc [random unit (seed 7)] newton        max||q|-1| = 2.809e-16  final |q|-1 = -2.227e-17
+const-inc [random unit (seed 7)] newton+band8  max||q|-1| = 1.008e-15  final |q|-1 = -8.940e-16
+const-inc [random unit (seed 7)] sqrt          max||q|-1| = 3.343e-16  final |q|-1 = -1.169e-17
+const-inc [random unit (seed 7)] sqrt+band8    max||q|-1| = 1.009e-15  final |q|-1 = -4.860e-16
+random-walk (4 seeds x N) none          max||q|-1| = 1.379e-12
+random-walk (4 seeds x N) newton        max||q|-1| = 2.892e-16
+random-walk (4 seeds x N) newton+band8  max||q|-1| = 1.039e-15
+random-walk (4 seeds x N) sqrt          max||q|-1| = 3.382e-16
+random-walk (4 seeds x N) sqrt+band8    max||q|-1| = 1.037e-15
+single product of constructed (100000000 samples) none          max||q|-1| = 6.476e-16
+single product of constructed (100000000 samples) newton        max||q|-1| = 2.888e-16
+single product of constructed (100000000 samples) newton+band8  max||q|-1| = 6.476e-16
+single product of constructed (100000000 samples) sqrt          max||q|-1| = 3.431e-16
+single product of constructed (100000000 samples) sqrt+band8    max||q|-1| = 6.476e-16

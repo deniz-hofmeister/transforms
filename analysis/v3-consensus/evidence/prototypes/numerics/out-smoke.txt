@@ -1,0 +1,343 @@
+## (f) newton basin: norm map g(n) = n(3-n^2)/2 applied to q = (n,0,0,0)*random unit
+  |q0| = 1e-300                 | |q0|-1 | = 1.000e0; after 1 step 1.000e0 (WORSE) ; COLLAPSED to zero after 1 steps
+  |q0| = 1e-9                   | |q0|-1 | = 1.000e0; after 1 step 1.000e0 (WORSE) ; converged after 56 steps
+  |q0| = 1e-1                   | |q0|-1 | = 9.000e-1; after 1 step 8.505e-1 (better) ; converged after 11 steps
+  |q0| = 5e-1                   | |q0|-1 | = 5.000e-1; after 1 step 3.125e-1 (better) ; converged after 7 steps
+  |q0| = 9e-1                   | |q0|-1 | = 1.000e-1; after 1 step 1.450e-2 (better) ; converged after 5 steps
+  |q0| = 9.99999e-1             | |q0|-1 | = 1.000e-6; after 1 step 1.500e-12 (better) ; converged after 2 steps
+  |q0| = 1.000001e0             | |q0|-1 | = 1.000e-6; after 1 step 1.500e-12 (better) ; converged after 2 steps
+  |q0| = 1.1e0                  | |q0|-1 | = 1.000e-1; after 1 step 1.550e-2 (better) ; converged after 5 steps
+  |q0| = 1.3e0                  | |q0|-1 | = 3.000e-1; after 1 step 1.485e-1 (better) ; converged after 6 steps
+  |q0| = 1.5e0                  | |q0|-1 | = 5.000e-1; after 1 step 4.375e-1 (better) ; converged after 8 steps
+  |q0| = 1.56e0                 | |q0|-1 | = 5.600e-1; after 1 step 5.582e-1 (better) ; converged after 8 steps
+  |q0| = 1.57e0                 | |q0|-1 | = 5.700e-1; after 1 step 5.799e-1 (WORSE) ; converged after 8 steps
+  |q0| = 1.7e0                  | |q0|-1 | = 7.000e-1; after 1 step 9.065e-1 (WORSE) ; converged after 12 steps
+  |q0| = 1.7320508075688772e0   | |q0|-1 | = 7.321e-1; after 1 step 1.000e0 (WORSE) ; COLLAPSED to zero after 1 steps
+  |q0| = 1.8e0                  | |q0|-1 | = 8.000e-1; after 1 step 7.840e-1 (better) ; converged after 10 steps
+  |q0| = 2e0                    | |q0|-1 | = 1.000e0; after 1 step 5.343e-17 (better) ; converged after 1 steps
+  |q0| = 2.2e0                  | |q0|-1 | = 1.200e0; after 1 step 1.024e0 (better) ; converged after 7 steps
+  |q0| = 2.236e0                | |q0|-1 | = 1.236e0; after 1 step 1.236e0 (better) ; converged after 21 steps
+  |q0| = 2.23606797749979e0     | |q0|-1 | = 1.236e0; after 1 step 1.236e0 (WORSE) ; DIVERGED (non-finite) after 26 steps
+  |q0| = 2.2361e0               | |q0|-1 | = 1.236e0; after 1 step 1.236e0 (WORSE) ; DIVERGED (non-finite) after 12 steps
+  |q0| = 2.3e0                  | |q0|-1 | = 1.300e0; after 1 step 1.634e0 (WORSE) ; DIVERGED (non-finite) after 8 steps
+  |q0| = 3e0                    | |q0|-1 | = 2.000e0; after 1 step 8.000e0 (WORSE) ; DIVERGED (non-finite) after 6 steps
+  input | |q|-1 | = 1e-6: max after one step = 1.500e-12 (theory 1.5 e^2 = 1.500e-12)
+  input | |q|-1 | = 1e-7: max after one step = 1.524e-14 (theory 1.5 e^2 = 1.500e-14)
+  input | |q|-1 | = 3e-8: max after one step = 1.623e-15 (theory 1.5 e^2 = 1.350e-15)
+  input | |q|-1 | = 1.5e-8: max after one step = 5.871e-16 (theory 1.5 e^2 = 3.375e-16)
+  input | |q|-1 | = 1e-8: max after one step = 4.014e-16 (theory 1.5 e^2 = 1.500e-16)
+  input | |q|-1 | = 1e-9: max after one step = 2.819e-16 (theory 1.5 e^2 = 1.500e-18)
+  input | |q|-1 | = 1e-12: max after one step = 2.771e-16 (theory 1.5 e^2 = 1.500e-24)
+  input | |q|-1 | = 1e-15: max after one step = 2.715e-16 (theory 1.5 e^2 = 1.500e-30)
+$B basin  0.88s user 0.00s system 99% cpu 0.885 total
+## (e) translation overflow
+  20000000 random chains near f64::MAX: 1852493 had a non-finite intermediate translation; of those, final all-finite: 0, final with any finite component: 387788; non-finite rotation: 0
+  (a*b)*c with x = 1.5e308, 1.5e308, -1.5e308 (true 5e307): left fold [inf, 0.0, 0.0] ; right fold [5e307, 0.0, 0.0]
+  rotate (m,m,m), m=1e308 by 1 rad about (1,1,1): [1.0000000000000002e308, 1e308, 1e308]
+  rotate (m,m,m), m=6e307 by 1 rad about (1,1,1): [5.999999999999998e307, 6e307, 6e307]
+  rotate (m,m,m), m=3e307 by 1 rad about (1,1,1): [2.999999999999999e307, 3e307, 3e307]
+  rotate (m,m,m), m=1e307 by 1 rad about (1,1,1): [1.0000000000000001e307, 1e307, 1.0000000000000001e307]
+  rotate (m,-m,m), m=1.7e308 by 2 rad about (1,2,3): [inf, inf, -inf]
+  rotate (m,-m,m), m=1e308 by 2 rad about (1,2,3): [1.001259652194181e308, 1.3068001375401615e308, -5.382866424248346e307]
+  rotate (m,-m,m), m=6e307 by 2 rad about (1,2,3): [6.007557913165089e307, 7.840800825240968e307, -3.2297198545490083e307]
+  rotate (m,-m,m), m=4.4e307 by 2 rad about (1,2,3): [4.4055424696543987e307, 5.74992060517671e307, -2.3684612266692726e307]
+  public total `*`: t = t*t from |t|=1 reaches inf after 1024 products
+$B overflow  41.94s user 0.08s system 1201% cpu 3.497 total
+## (d) crate slerp (transforms::geometry::Quaternion::slerp at the path dependency)
+  identical: slerp([1.0, 0.0, 0.0, 0.0],[1.0, 0.0, 0.0, 0.0],0.3) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  q vs -q (same rotation): slerp([1.0, 0.0, 0.0, 0.0],[-1.0, 0.0, 0.0, 0.0],0.3) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  q vs -q, t=1 (returns self-sign, not other): slerp([0.7071067811865476, 0.7071067811865476, 0.0, 0.0],[-0.7071067811865476, -0.7071067811865476, 0.0, 0.0],1) = [7.071067811865476e-1,7.071067811865476e-1,0e0,0e0] norm-1 = 6.836e-17
+  180 deg apart, dot=+0: slerp([1.0, 0.0, 0.0, 0.0],[0.0, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  180 deg apart, dot=+1e-17: slerp([1.0, 0.0, 0.0, 0.0],[1e-17, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  180 deg apart, dot=-1e-17: slerp([1.0, 0.0, 0.0, 0.0],[-1e-17, 1.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,-7.071067811865475e-1,0e0,0e0] norm-1 = -8.865e-17
+  dot=1+2e-6 (both norm 1+1e-6, identical): slerp([1.000001, 0.0, 0.0, 0.0],[1.000001, 0.0, 0.0, 0.0],0.5) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  dot=1-2e-6 (both norm 1-1e-6, identical): slerp([0.999999, 0.0, 0.0, 0.0],[0.999999, 0.0, 0.0, 0.0],0.5) = [9.999994999996248e-1,0e0,0e0,0e0] norm-1 = -5.000e-7
+  dot=1-EPS exactly (trig branch, theta=2.1e-8): slerp([1.0, 0.0, 0.0, 0.0],[0.9999999999999998, 0.0, 0.0, 0.0],0.5) = [9.999999999999999e-1,0e0,0e0,0e0] norm-1 = -1.110e-16
+  dot=1-EPS/2 (lerp branch): slerp([1.0, 0.0, 0.0, 0.0],[0.9999999999999999, 0.0, 0.0, 0.0],0.5) = [1e0,0e0,0e0,0e0] norm-1 = 0.000e0
+  zero quaternions: slerp([0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0],0.5) = [0e0,0e0,0e0,0e0] norm-1 = -1.000e0
+  zero self, unit other: slerp([0.0, 0.0, 0.0, 0.0],[1.0, 0.0, 0.0, 0.0],0.5) = [7.071067811865475e-1,0e0,0e0,0e0] norm-1 = -2.929e-1
+  tiny self, huge other, t=0 (lerp branch norm<EPS): slerp([1e-17, 0.0, 0.0, 0.0],[1e17, 0.0, 0.0, 0.0],0) = [1e-17,0e0,0e0,0e0] norm-1 = -1.000e0
+  t = NaN: slerp([1.0, 0.0, 0.0, 0.0],[0.7071067811865476, 0.7071067811865476, 0.0, 0.0],NaN) = [NaN,NaN,NaN,NaN] norm-1 = NaN
+  t = 2 (clamped): slerp([1.0, 0.0, 0.0, 0.0],[0.7071067811865476, 0.7071067811865476, 0.0, 0.0],2) = [7.071067811865476e-1,7.071067811865476e-1,0e0,0e0] norm-1 = 6.836e-17
+  NaN component: slerp([1.0, 0.0, 0.0, 0.0],[NaN, 0.0, 0.0, 0.0],0.5) = [NaN,NaN,NaN,NaN] norm-1 = NaN
+  inf component: slerp([1.0, 0.0, 0.0, 0.0],[inf, 0.0, 0.0, 0.0],0.5) = [NaN,0e0,0e0,0e0] norm-1 = NaN
+  1e200 components (dot overflows): slerp([1e200, 0.0, 0.0, 0.0],[1e200, 0.0, 0.0, 0.0],0.5) = [0e0,0e0,0e0,0e0] norm-1 = -1.000e0
+  -0.0 component at t=0: slerp([0.7071067811865476, -0.0, 0.7071067811865476, 0.0],[0.0, 1.0, 0.0, 0.0],0) = [7.071067811865476e-1,0e0,7.071067811865476e-1,0e0] norm-1 = 6.836e-17
+  random scan n=1000000 (constructed unit a; b = half near(a) log-uniform angle 1e-9..pi, half random; t uniform [0,1))
+  non-finite results: 0
+  max | |slerp|-1 |: 5.011e-16   after one newton step: 2.481e-16
+  computed dot > 1 (silently clamped): 2.1485% ; |dot| > 1-EPS (lerp branch): 8.1826%
+  slerp(a,a,t) != a bitwise: 41.7830% ; max | |slerp(a,a,t)|-1 | 4.587e-16 ; self-dot>1: 24.115% ; self-dot<=1-EPS (trig branch on identical inputs): 19.422%
+  slerp(a,b,0) != a bitwise: 2.8862% ; slerp(a,b,1) != b bitwise: 26.3278% (of which neither b nor -b: 1.3183%)
+  inputs with norms in 1 +- 1e-6 (2.4 tolerance): max | |slerp|-1 | = 9.980e-7, non-finite 0
+$B slerp 1e6  3.34s user 0.02s system 995% cpu 0.337 total
+## (c) inverse
+replica check vs crate Registry over 20000 chains: forward bit-equal 4967, backward bit-equal 4968
+property replica (links 2..=5 uniform, |t_i|<=1e5/axis, tolerance 1e-9 absolute), cases = 1000000
+  [2.4: raw products, normalize+conj] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 8.731e-10 m; mean err 8.651e-11 m; max err/|t|max 13.45 EPS
+     P(err > thr):  2.5e-10: 4.12200%  5.0e-10: 0.13090%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [raw products, conjugate] fail(>1e-9) 467 = 0.04670% ; rot fails 0; max err 1.630e-9 m; mean err 1.413e-10 m; max err/|t|max 25.22 EPS
+     P(err > thr):  2.5e-10: 16.54620%  5.0e-10: 2.51250%  1.0e-9: 0.04670%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 3.492e-10 m; mean err 3.519e-11 m; max err/|t|max 5.35 EPS
+     P(err > thr):  2.5e-10: 0.00590%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton+band8 products, conjugate] fail(>1e-9) 389 = 0.03890% ; rot fails 0; max err 1.572e-9 m; mean err 1.409e-10 m; max err/|t|max 19.17 EPS
+     P(err > thr):  2.5e-10: 16.49340%  5.0e-10: 2.47270%  1.0e-9: 0.03890%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [newton products, normalize+conj] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 2.910e-10 m; mean err 3.146e-11 m; max err/|t|max 4.99 EPS
+     P(err > thr):  2.5e-10: 0.00060%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+  [sqrt products, conjugate] fail(>1e-9) 0 = 0.00000% ; rot fails 0; max err 4.657e-10 m; mean err 4.928e-11 m; max err/|t|max 6.77 EPS
+     P(err > thr):  2.5e-10: 0.13240%  5.0e-10: 0.00000%  1.0e-9: 0.00000%  2.0e-9: 0.00000%  4.0e-9: 0.00000%
+true error of the backward translation vs exact (f128) inverse of the f64 forward value, 2000000 chains
+  [2.4: raw products, normalize+conj] abs: max 2.951e-10 m rms 4.108e-11 m ; relative to |t|: max 3.81 EPS rms 0.99 EPS
+  [raw products, conjugate] abs: max 1.008e-9 m rms 1.178e-10 m ; relative to |t|: max 11.61 EPS rms 2.64 EPS
+  [newton products, conjugate] abs: max 2.600e-10 m rms 3.074e-11 m ; relative to |t|: max 2.91 EPS rms 0.74 EPS
+  [newton+band8 products, conjugate] abs: max 9.108e-10 m rms 1.173e-10 m ; relative to |t|: max 9.94 EPS rms 2.63 EPS
+  [newton products, normalize+conj] abs: max 3.287e-10 m rms 4.685e-11 m ; relative to |t|: max 3.92 EPS rms 1.13 EPS
+  [sqrt products, conjugate] abs: max 3.469e-10 m rms 4.098e-11 m ; relative to |t|: max 3.89 EPS rms 0.99 EPS
+  single constructed t*t.inverse(), |t_i|<=10, n=1000000: [normalize+conj] max |transl| 1.243e-14, mean 1.985e-15, max rot angle 3.331e-16 rad
+  single constructed t*t.inverse(), |t_i|<=10, n=1000000: [conjugate] max |transl| 1.243e-14, mean 2.395e-15, max rot angle 1.570e-16 rad
+$B inverse 1e6  97.63s user 0.12s system 1110% cpu 8.803 total
+## (b) fixed point of reconstruction, n=1600000 per population, 16 threads
+### population: constructed: normalize(random 4-vector, any scale)  (n=1600000)
+  max float-computed |n2-1| = 4 EPS ; max exact ||q|^2-1| = 3.394 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.08e-1 1:1.57e-1 2:3.58e-1 3:3.38e-2 4:4.32e-2 5:7.23e-4 6:2.19e-4 7:6.25e-7 8:6.25e-7
+  rule [always sqrt, x*(1/n)  ] changes      612400 = 38.275000%
+  rule [always sqrt, x/n      ] changes      612400 = 38.275000%
+  rule [band |n2-1|<=0.5EPS   ] changes      361988 = 22.624250%
+  rule [band |n2-1|<=1EPS     ] changes      124734 = 7.795875%
+  rule [band |n2-1|<=2EPS     ] changes        1509 = 0.094312%
+  rule [band |n2-1|<=3EPS     ] changes           2 = 0.000125%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: constructed: normalize(unit*(1+u*1e-6)) [2.4-acceptable inputs]  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.805 EPS
+  hist of float |n2-1| in EPS/2 units: 0:3.90e-1 1:1.52e-1 2:3.65e-1 3:3.84e-2 4:5.31e-2 5:8.41e-4 6:2.47e-4
+  rule [always sqrt, x*(1/n)  ] changes      633157 = 39.572313%
+  rule [always sqrt, x/n      ] changes      633157 = 39.572313%
+  rule [band |n2-1|<=0.5EPS   ] changes      389214 = 24.325875%
+  rule [band |n2-1|<=1EPS     ] changes      148057 = 9.253562%
+  rule [band |n2-1|<=2EPS     ] changes        1742 = 0.108875%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: constructed with x/n division  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.699 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.80e-1 1:1.73e-1 2:3.13e-1 3:1.82e-2 4:1.62e-2 5:1.09e-4 6:2.00e-5
+  rule [always sqrt, x*(1/n)  ] changes      535170 = 33.448125%
+  rule [always sqrt, x/n      ] changes      535170 = 33.448125%
+  rule [band |n2-1|<=0.5EPS   ] changes      258241 = 16.140062%
+  rule [band |n2-1|<=1EPS     ] changes       55185 = 3.449063%
+  rule [band |n2-1|<=2EPS     ] changes         206 = 0.012875%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: constructed via band8 rule from unit*(1+u*1e-6)  (n=1600000)
+  max float-computed |n2-1| = 3.5 EPS ; max exact ||q|^2-1| = 2.896 EPS
+  hist of float |n2-1| in EPS/2 units: 0:3.90e-1 1:1.52e-1 2:3.65e-1 3:3.82e-2 4:5.33e-2 5:8.81e-4 6:2.35e-4 7:6.25e-7
+  rule [always sqrt, x*(1/n)  ] changes      632257 = 39.516062%
+  rule [always sqrt, x/n      ] changes      632257 = 39.516062%
+  rule [band |n2-1|<=0.5EPS   ] changes      388860 = 24.303750%
+  rule [band |n2-1|<=1EPS     ] changes      148170 = 9.260625%
+  rule [band |n2-1|<=2EPS     ] changes        1787 = 0.111687%
+  rule [band |n2-1|<=3EPS     ] changes           1 = 0.000063%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: raw product a*b (no renorm) [2.4 two-hop]  (n=1600000)
+  max float-computed |n2-1| = 5.5 EPS ; max exact ||q|^2-1| = 5.350 EPS
+  hist of float |n2-1| in EPS/2 units: 0:2.83e-1 1:1.17e-1 2:3.51e-1 3:5.91e-2 4:1.51e-1 5:1.42e-2 6:2.16e-2 7:1.48e-3 8:1.97e-3 9:5.31e-5 10:3.44e-5 11:6.25e-7
+  rule [always sqrt, x*(1/n)  ] changes      819606 = 51.225375%
+  rule [always sqrt, x/n      ] changes      819606 = 51.225375%
+  rule [band |n2-1|<=0.5EPS   ] changes      632735 = 39.545938%
+  rule [band |n2-1|<=1EPS     ] changes      399111 = 24.944437%
+  rule [band |n2-1|<=2EPS     ] changes       62948 = 3.934250%
+  rule [band |n2-1|<=3EPS     ] changes        5665 = 0.354063%
+  rule [band |n2-1|<=4EPS     ] changes         141 = 0.008812%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton(a*b)  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.315 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.83e-1 1:2.29e-1 2:2.75e-1 3:8.15e-3 4:4.50e-3 5:3.75e-6 6:8.75e-6
+  rule [always sqrt, x*(1/n)  ] changes      738534 = 46.158375%
+  rule [always sqrt, x/n      ] changes      738534 = 46.158375%
+  rule [band |n2-1|<=0.5EPS   ] changes      372628 = 23.289250%
+  rule [band |n2-1|<=1EPS     ] changes       20267 = 1.266687%
+  rule [band |n2-1|<=2EPS     ] changes          20 = 0.001250%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton_band8(a*b)  (n=1600000)
+  max float-computed |n2-1| = 6 EPS ; max exact ||q|^2-1| = 5.457 EPS
+  hist of float |n2-1| in EPS/2 units: 0:2.84e-1 1:1.17e-1 2:3.50e-1 3:5.88e-2 4:1.52e-1 5:1.43e-2 6:2.13e-2 7:1.47e-3 8:2.04e-3 9:4.62e-5 10:3.31e-5 11:6.25e-7 12:6.25e-7
+  rule [always sqrt, x*(1/n)  ] changes      818409 = 51.150562%
+  rule [always sqrt, x/n      ] changes      818409 = 51.150562%
+  rule [band |n2-1|<=0.5EPS   ] changes      631371 = 39.460687%
+  rule [band |n2-1|<=1EPS     ] changes      399389 = 24.961813%
+  rule [band |n2-1|<=2EPS     ] changes       62700 = 3.918750%
+  rule [band |n2-1|<=3EPS     ] changes        5742 = 0.358875%
+  rule [band |n2-1|<=4EPS     ] changes         129 = 0.008063%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton chain of 5 products  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.514 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.60e-1 1:2.26e-1 2:3.01e-1 3:7.37e-3 4:5.10e-3 5:1.88e-6 6:5.63e-6
+  rule [always sqrt, x*(1/n)  ] changes      767490 = 47.968125%
+  rule [always sqrt, x/n      ] changes      767490 = 47.968125%
+  rule [band |n2-1|<=0.5EPS   ] changes      406090 = 25.380625%
+  rule [band |n2-1|<=1EPS     ] changes       19959 = 1.247437%
+  rule [band |n2-1|<=2EPS     ] changes          12 = 0.000750%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: raw chain of 5 products  (n=1600000)
+  max float-computed |n2-1| = 10 EPS ; max exact ||q|^2-1| = 10.347 EPS
+  hist of float |n2-1| in EPS/2 units: 0:1.61e-1 1:6.92e-2 2:2.47e-1 3:5.60e-2 4:2.10e-1 5:3.64e-2 6:1.05e-1 7:1.89e-2 8:5.82e-2 9:7.92e-3 10:1.83e-2 11:2.65e-3 12:6.52e-3 13:6.66e-4 14:1.27e-3 15:1.34e-4 16:2.71e-4 17:1.75e-5 18:2.63e-5 19:1.88e-6 20:7.50e-6
+  rule [always sqrt, x*(1/n)  ] changes     1110631 = 69.414438%
+  rule [always sqrt, x/n      ] changes     1110631 = 69.414438%
+  rule [band |n2-1|<=0.5EPS   ] changes      999909 = 62.494312%
+  rule [band |n2-1|<=1EPS     ] changes      836203 = 52.262687%
+  rule [band |n2-1|<=2EPS     ] changes      410309 = 25.644313%
+  rule [band |n2-1|<=3EPS     ] changes      183837 = 11.489812%
+  rule [band |n2-1|<=4EPS     ] changes       60469 = 3.779313%
+  rule [band |n2-1|<=6EPS     ] changes        3834 = 0.239625%
+  rule [band |n2-1|<=8EPS     ] changes          85 = 0.005313%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: crate slerp(a, near(a), t) raw  (n=1600000)
+  max float-computed |n2-1| = 5 EPS ; max exact ||q|^2-1| = 4.977 EPS
+  hist of float |n2-1| in EPS/2 units: 0:3.70e-1 1:1.06e-1 2:3.75e-1 3:2.94e-2 4:1.08e-1 5:2.99e-3 6:7.72e-3 7:1.26e-4 8:4.59e-4 9:3.75e-6 10:3.13e-6
+  rule [always sqrt, x*(1/n)  ] changes      576106 = 36.006625%
+  rule [always sqrt, x/n      ] changes      576106 = 36.006625%
+  rule [band |n2-1|<=0.5EPS   ] changes      405793 = 25.362063%
+  rule [band |n2-1|<=1EPS     ] changes      237162 = 14.822625%
+  rule [band |n2-1|<=2EPS     ] changes       18082 = 1.130125%
+  rule [band |n2-1|<=3EPS     ] changes         947 = 0.059187%
+  rule [band |n2-1|<=4EPS     ] changes          11 = 0.000687%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton(crate slerp(a, near(a), t))  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.503 EPS
+  hist of float |n2-1| in EPS/2 units: 0:5.29e-1 1:2.37e-1 2:2.22e-1 3:1.01e-2 4:2.30e-3 5:5.00e-6 6:4.37e-6
+  rule [always sqrt, x*(1/n)  ] changes      710046 = 44.377875%
+  rule [always sqrt, x/n      ] changes      710046 = 44.377875%
+  rule [band |n2-1|<=0.5EPS   ] changes      330739 = 20.671187%
+  rule [band |n2-1|<=1EPS     ] changes       19862 = 1.241375%
+  rule [band |n2-1|<=2EPS     ] changes          15 = 0.000937%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton(crate slerp(a, random b, t))  (n=1600000)
+  max float-computed |n2-1| = 3 EPS ; max exact ||q|^2-1| = 2.298 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.92e-1 1:2.36e-1 2:2.60e-1 3:8.77e-3 4:2.77e-3 5:3.13e-6 6:1.25e-6
+  rule [always sqrt, x*(1/n)  ] changes      752533 = 47.033313%
+  rule [always sqrt, x/n      ] changes      752533 = 47.033313%
+  rule [band |n2-1|<=0.5EPS   ] changes      374876 = 23.429750%
+  rule [band |n2-1|<=1EPS     ] changes       18474 = 1.154625%
+  rule [band |n2-1|<=2EPS     ] changes           7 = 0.000438%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### population: newton(newton(a*b)) i.e. second step  (n=1600000)
+  max float-computed |n2-1| = 2.5 EPS ; max exact ||q|^2-1| = 2.079 EPS
+  hist of float |n2-1| in EPS/2 units: 0:4.96e-1 1:2.53e-1 2:2.42e-1 3:5.82e-3 4:2.56e-3 5:2.50e-6
+  rule [always sqrt, x*(1/n)  ] changes      796009 = 49.750563%
+  rule [always sqrt, x/n      ] changes      796009 = 49.750563%
+  rule [band |n2-1|<=0.5EPS   ] changes      390984 = 24.436500%
+  rule [band |n2-1|<=1EPS     ] changes       13412 = 0.838250%
+  rule [band |n2-1|<=2EPS     ] changes           4 = 0.000250%
+  rule [band |n2-1|<=3EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] changes           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] changes           0 = 0.000000%
+### idempotence R(R(x)) != R(x) on raw unit*(1+u*1e-6) (n=1600000)
+  rule [always sqrt, x*(1/n)  ] not idempotent      632402 = 39.525125%
+  rule [always sqrt, x/n      ] not idempotent      519335 = 32.458438%
+  rule [band |n2-1|<=0.5EPS   ] not idempotent      389354 = 24.334625%
+  rule [band |n2-1|<=1EPS     ] not idempotent      147911 = 9.244438%
+  rule [band |n2-1|<=2EPS     ] not idempotent        1638 = 0.102375%
+  rule [band |n2-1|<=3EPS     ] not idempotent           1 = 0.000063%
+  rule [band |n2-1|<=4EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] not idempotent           0 = 0.000000%
+### idempotence R(R(x)) != R(x) on raw unit*(1+u*1e-12) (n=1600000)
+  rule [always sqrt, x*(1/n)  ] not idempotent      375264 = 23.454000%
+  rule [always sqrt, x/n      ] not idempotent      321373 = 20.085812%
+  rule [band |n2-1|<=0.5EPS   ] not idempotent      238565 = 14.910312%
+  rule [band |n2-1|<=1EPS     ] not idempotent      184019 = 11.501188%
+  rule [band |n2-1|<=2EPS     ] not idempotent        1661 = 0.103813%
+  rule [band |n2-1|<=3EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] not idempotent           0 = 0.000000%
+### idempotence R(R(x)) != R(x) on raw unit*(1+u*4e-15) (n=1600000)
+  rule [always sqrt, x*(1/n)  ] not idempotent      366576 = 22.911000%
+  rule [always sqrt, x/n      ] not idempotent      303755 = 18.984687%
+  rule [band |n2-1|<=0.5EPS   ] not idempotent      228539 = 14.283687%
+  rule [band |n2-1|<=1EPS     ] not idempotent      173877 = 10.867313%
+  rule [band |n2-1|<=2EPS     ] not idempotent        1521 = 0.095062%
+  rule [band |n2-1|<=3EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=4EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=6EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=8EPS     ] not idempotent           0 = 0.000000%
+  rule [band |n2-1|<=16EPS    ] not idempotent           0 = 0.000000%
+### newton specifics over constructed a,b (n=1600000)
+  newton(a*b) != a*b bitwise: 45.3798%
+  exact ||q|^2-1| larger after the step than before: 5.5752%
+  newton(newton(a*b)) != newton(a*b): 6.7574%
+  newton(a*identity) != a: 28.7381%
+  newton_band8(a*identity) != a: 0.0000%
+  newton_band8(a*b) != a*b: 0.0000%
+  newton(a*b) further from unit than the worse operand: 26.1021%
+  newton(a*conj(a)) != identity bitwise (and raw also not): 68.0147%
+$B fixed 1.6e6  87.20s user 0.08s system 913% cpu 9.558 total
+## (a) drift: max over the run of | |q|-1 | (exact |q|^2 via error-free transforms), N=1000000
+const-inc [1e-3 rad about z] none          max||q|-1| = 4.287e-11  final |q|-1 = +4.287e-11
+const-inc [1e-3 rad about z] newton        max||q|-1| = 1.789e-16  final |q|-1 = -7.144e-17
+const-inc [1e-3 rad about z] newton+band8  max||q|-1| = 9.845e-16  final |q|-1 = +5.241e-16
+const-inc [1e-3 rad about z] sqrt          max||q|-1| = 2.406e-16  final |q|-1 = +1.068e-16
+const-inc [1e-3 rad about z] sqrt+band8    max||q|-1| = 9.851e-16  final |q|-1 = +4.872e-16
+const-inc [1 rad about (1,2,3)] none          max||q|-1| = 5.466e-11  final |q|-1 = +5.466e-11
+const-inc [1 rad about (1,2,3)] newton        max||q|-1| = 2.260e-16  final |q|-1 = -7.418e-17
+const-inc [1 rad about (1,2,3)] newton+band8  max||q|-1| = 1.034e-15  final |q|-1 = +1.685e-16
+const-inc [1 rad about (1,2,3)] sqrt          max||q|-1| = 2.959e-16  final |q|-1 = +1.248e-16
+const-inc [1 rad about (1,2,3)] sqrt+band8    max||q|-1| = 1.028e-15  final |q|-1 = +3.698e-17
+const-inc [0.1 rad about (-3,1,2)] none          max||q|-1| = 3.617e-11  final |q|-1 = +3.617e-11
+const-inc [0.1 rad about (-3,1,2)] newton        max||q|-1| = 2.278e-16  final |q|-1 = -2.985e-17
+const-inc [0.1 rad about (-3,1,2)] newton+band8  max||q|-1| = 1.024e-15  final |q|-1 = +8.725e-16
+const-inc [0.1 rad about (-3,1,2)] sqrt          max||q|-1| = 3.061e-16  final |q|-1 = -4.543e-17
+const-inc [0.1 rad about (-3,1,2)] sqrt+band8    max||q|-1| = 1.035e-15  final |q|-1 = +1.418e-16
+const-inc [random unit (seed 7)] none          max||q|-1| = 5.000e-11  final |q|-1 = -5.000e-11
+const-inc [random unit (seed 7)] newton        max||q|-1| = 2.663e-16  final |q|-1 = -7.172e-17
+const-inc [random unit (seed 7)] newton+band8  max||q|-1| = 9.931e-16  final |q|-1 = -8.860e-16
+const-inc [random unit (seed 7)] sqrt          max||q|-1| = 3.159e-16  final |q|-1 = +2.666e-16
+const-inc [random unit (seed 7)] sqrt+band8    max||q|-1| = 9.956e-16  final |q|-1 = -7.355e-16
+random-walk (4 seeds x N) none          max||q|-1| = 1.840e-13
+random-walk (4 seeds x N) newton        max||q|-1| = 2.698e-16
+random-walk (4 seeds x N) newton+band8  max||q|-1| = 1.024e-15
+random-walk (4 seeds x N) sqrt          max||q|-1| = 3.350e-16
+random-walk (4 seeds x N) sqrt+band8    max||q|-1| = 1.024e-15
+single product of constructed (1000000 samples) none          max||q|-1| = 5.632e-16
+single product of constructed (1000000 samples) newton        max||q|-1| = 2.712e-16
+single product of constructed (1000000 samples) newton+band8  max||q|-1| = 5.632e-16
+single product of constructed (1000000 samples) sqrt          max||q|-1| = 3.216e-16
+single product of constructed (1000000 samples) sqrt+band8    max||q|-1| = 5.632e-16
+$B drift 1e6  15.83s user 0.03s system 832% cpu 1.905 total

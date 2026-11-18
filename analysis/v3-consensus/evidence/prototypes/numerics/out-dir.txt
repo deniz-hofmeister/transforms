@@ -1,0 +1,5 @@
+## rotation-direction error after N=3000000 constant-increment products vs f128 reference (angle between rotations, rad)
+  [1e-3 rad about z]  none: 8.573e-14  newton: 1.890e-13  newton+band8: 9.048e-14  sqrt: 1.385e-13  sqrt+band8: 1.112e-13
+  [1 rad about (1,2,3)]  none: 1.023e-12  newton: 5.262e-12  newton+band8: 2.439e-12  sqrt: 3.426e-12  sqrt+band8: 1.137e-12
+  [random unit (seed 7)]  none: 1.839e-13  newton: 1.384e-11  newton+band8: 3.636e-13  sqrt: 8.867e-12  sqrt+band8: 6.960e-13
+target-x/release/proto-numerics dir 3e6  19.72s user 0.00s system 268% cpu 7.344 total

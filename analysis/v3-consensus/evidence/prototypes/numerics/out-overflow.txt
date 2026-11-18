@@ -1,0 +1,12 @@
+## (e) translation overflow
+  20000000 random chains near f64::MAX: 1852493 had a non-finite intermediate translation; of those, final all-finite: 0, final with any finite component: 387788; non-finite rotation: 0
+  (a*b)*c with x = 1.5e308, 1.5e308, -1.5e308 (true 5e307): left fold [inf, 0.0, 0.0] ; right fold [5e307, 0.0, 0.0]
+  rotate (m,m,m), m=1e308 by 1 rad about (1,1,1): [1.0000000000000002e308, 1e308, 1e308]
+  rotate (m,m,m), m=6e307 by 1 rad about (1,1,1): [5.999999999999998e307, 6e307, 6e307]
+  rotate (m,m,m), m=3e307 by 1 rad about (1,1,1): [2.999999999999999e307, 3e307, 3e307]
+  rotate (m,m,m), m=1e307 by 1 rad about (1,1,1): [1.0000000000000001e307, 1e307, 1.0000000000000001e307]
+  rotate (m,-m,m), m=1.7e308 by 2 rad about (1,2,3): [inf, inf, -inf]
+  rotate (m,-m,m), m=1e308 by 2 rad about (1,2,3): [1.001259652194181e308, 1.3068001375401615e308, -5.382866424248346e307]
+  rotate (m,-m,m), m=6e307 by 2 rad about (1,2,3): [6.007557913165089e307, 7.840800825240968e307, -3.2297198545490083e307]
+  rotate (m,-m,m), m=4.4e307 by 2 rad about (1,2,3): [4.4055424696543987e307, 5.74992060517671e307, -2.3684612266692726e307]
+  public total `*`: t = t*t from |t|=1 reaches inf after 1024 products
