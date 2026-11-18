@@ -574,6 +574,30 @@ has no result labels, none of the numerical changes, and no removal,
 re-parenting, batch, cross-time or latest-common-time path. The
 unknown-frame row measures the whole query, not the frame scan alone.
 
+The finished implementation, measured on 2026-11-18
+([report](evidence/bench-v3-orin.md)): the crate's own benchmark suite,
+commit `93cc052` against 2.4.0, on a Jetson AGX Orin, median of three
+paired runs:
+
+| Workload | Speed-up |
+|---|---:|
+| One hop, exact stamp, 1k samples | 1.29x |
+| One hop, interpolated | 1.15x |
+| Four dynamic hops, interpolated, either direction | 1.09x and 1.16x |
+| Robot tree, leaf to leaf | 3.23x |
+| Static climb, 1,000 deep | 1.84x |
+| Unknown frame, 1,000-deep chain | 1,029x (48 µs against 47 ns) |
+| `latest_common_time`, four hops | 4.84x |
+| Failed lookup past the newest sample | 2.52x |
+| Cross-time lookup, 1k samples | 1.28x |
+| Insert into a prewarmed history | 1.14-1.16x |
+
+v3 is faster on every benchmark both suites share. The gains from
+resolving topology first carried over from the prototype; the one-hop and
+static-climb gains are smaller than the prototype's, which had no result
+labels and none of the numerical checks. The siblings workload has no
+benchmark in the 2.4 suite and was not compared.
+
 ### Serde
 
 - On `Vector3`, `Rotation`, `Timestamp`, `Stamp` and `Transform`,
