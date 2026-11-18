@@ -22,39 +22,36 @@ rustc --version | grep -q nightly || {
 # this script, not the workflow, the place where that strictness is defined.
 export CARGO_BUILD_WARNINGS=deny
 
-cargo build --no-default-features
+# The crate has one mode (`no_std` + `alloc`) and one optional feature, so
+# every step runs twice: without `serde` and with it. A lint or a failure
+# that only exists in the serde path has to stop the gate here.
 cargo build
-cargo test --no-default-features
-cargo test --features serde
-cargo test --no-default-features --features serde
+cargo build --features serde
 cargo test
-# All four feature combinations, the same set CI's clippy job runs: a lint
-# that only fires in the serde path has to fail here rather than there, or
-# "a green local gate implies green CI clippy" stops being true.
-cargo clippy --all-targets --no-default-features -- -D warnings
+cargo test --features serde
+# The same two combinations CI's clippy job runs on stable.
 cargo clippy --all-targets -- -D warnings
-cargo clippy --all-targets --no-default-features --features serde -- -D warnings
 cargo clippy --all-targets --features serde -- -D warnings
 cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 # The docs.rs configuration (all features, docsrs cfg) must build too.
 RUSTDOCFLAGS="-D warnings --cfg docsrs" cargo doc --no-deps --all-features
 # Every example asserts its results and is feature-agnostic: each runs in
-# both modes, and a wrong value fails here.
+# both combinations, and a wrong value fails here.
 for example in basic ingest shared_latest cross_time; do
     cargo run --example "$example"
-    cargo run --example "$example" --no-default-features
+    cargo run --example "$example" --features serde
 done
-cargo bench --no-default-features -- --test
 cargo bench -- --test
-cargo build --no-default-features --target thumbv7em-none-eabihf
-cargo build --no-default-features --target thumbv6m-none-eabi
-cargo build --no-default-features --target thumbv8m.main-none-eabihf
+cargo bench --features serde -- --test
+cargo build --target thumbv7em-none-eabihf
+cargo build --target thumbv6m-none-eabi
+cargo build --target thumbv8m.main-none-eabihf
 # serde must stay std-free too: a std leak in the serde path would only
 # surface on hosted runners without these.
-cargo build --no-default-features --features serde --target thumbv7em-none-eabihf
-cargo build --no-default-features --features serde --target thumbv6m-none-eabi
-cargo build --no-default-features --features serde --target thumbv8m.main-none-eabihf
+cargo build --features serde --target thumbv7em-none-eabihf
+cargo build --features serde --target thumbv6m-none-eabi
+cargo build --features serde --target thumbv8m.main-none-eabihf
 
 # Printed only if every step above succeeded; a truncated run can never be
 # mistaken for a pass even when the exit code is swallowed by a pipeline.

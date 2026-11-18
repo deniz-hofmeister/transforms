@@ -86,14 +86,10 @@ jobs:
         with:
           components: clippy
           toolchain: stable
-      - name: Clippy (std)
+      - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
-      - name: Clippy (no_std)
-        run: cargo clippy --all-targets --no-default-features -- -D warnings
-      - name: Clippy (std + serde)
+      - name: Clippy (serde)
         run: cargo clippy --all-targets --features serde -- -D warnings
-      - name: Clippy (no_std + serde)
-        run: cargo clippy --all-targets --no-default-features --features serde -- -D warnings
 
   tests:
     name: tests (${{ matrix.runner }})
@@ -110,10 +106,8 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
-      - name: Run tests (std)
+      - name: Run tests
         run: cargo test
-      - name: Run tests (no_std)
-        run: cargo test --no-default-features
 
   serde:
     name: serde (${{ matrix.runner }})
@@ -127,10 +121,8 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
-      - name: Run tests (std + serde)
+      - name: Run tests (serde)
         run: cargo test --features serde
-      - name: Run tests (no_std + serde)
-        run: cargo test --no-default-features --features serde
 
   doc:
     name: doc
@@ -153,14 +145,10 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: "1.85"
-      - name: Check (std)
+      - name: Check
         run: cargo check --all-targets
-      - name: Check (no_std)
-        run: cargo check --all-targets --no-default-features
-      - name: Check (std + serde)
+      - name: Check (serde)
         run: cargo check --all-targets --features serde
-      - name: Check (no_std + serde)
-        run: cargo check --all-targets --no-default-features --features serde
 
   examples:
     name: examples
@@ -170,15 +158,15 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
-      - name: Run examples (std)
+      - name: Run examples
         run: |
           for example in basic ingest shared_latest cross_time; do
             cargo run --example "$example"
           done
-      - name: Run examples (no_std)
+      - name: Run examples (serde)
         run: |
           for example in basic ingest shared_latest cross_time; do
-            cargo run --example "$example" --no-default-features
+            cargo run --example "$example" --features serde
           done
 
   benches:
@@ -189,10 +177,8 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
-      - name: Bench smoke test (std)
+      - name: Bench smoke test
         run: cargo bench -- --test
-      - name: Bench smoke test (no_std)
-        run: cargo bench --no-default-features -- --test
 
   bare-metal:
     name: bare-metal (${{ matrix.target }})
@@ -219,7 +205,7 @@ jobs:
       - name: Install bare-metal target
         run: rustup target add ${{ matrix.target }}
       - name: Build for ${{ matrix.target }}
-        run: cargo build --no-default-features --target ${{ matrix.target }}
+        run: cargo build --target ${{ matrix.target }}
 
   semver:
     name: semver
@@ -233,14 +219,10 @@ jobs:
         run: cargo install cargo-semver-checks --locked
       # Without an explicit baseline, the tool uses the latest published
       # release from crates.io, so the baseline advances after each release.
-      - name: Check API compatibility (std)
-        run: cargo semver-checks check-release --default-features
-      - name: Check API compatibility (no_std)
+      - name: Check API compatibility
         run: cargo semver-checks check-release --only-explicit-features
-      - name: Check API compatibility (std + serde)
+      - name: Check API compatibility (serde)
         run: cargo semver-checks check-release --all-features
-      - name: Check API compatibility (no_std + serde)
-        run: cargo semver-checks check-release --only-explicit-features --features serde
 
   security:
     name: security

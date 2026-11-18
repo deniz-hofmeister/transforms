@@ -65,50 +65,52 @@ altitude. To place a proposed capability:
 
 ## Architecture in five lines
 
-- `Registry` — public entry point; a `HashMap<String, Buffer>` keyed by **child**
-  frame name, plus chain resolution between arbitrary frames.
-- `Buffer` — crate-private, one per child frame: a `BTreeMap<T, Isometry>`
-  holding dynamic geometry, with the parent pinned once per buffer, the
-  child in the registry's key and timestamps in map keys; a static buffer
-  holds one transform. Only `Registry` reaches it; it is not part of the
-  public API.
-- `geometry` — `Transform` (translation + rotation + timestamp + parent/child
-  frames), `Vector3`, `Quaternion`, and `Point` as the reference implementation
-  of the `Transformable`/`Localized` traits. All transform arithmetic —
+- `Registry` — public entry point. Frame names are interned into slots
+  behind a `hashbrown` name index; a child frame's slot holds its edge (the
+  parent's slot and the edge's history). Ids never leave the registry.
+  Resolution is topology-first: index walks find where two frames' chains
+  meet, and only the edges between are sampled.
+- `History` — crate-private, one per edge: `Static(Isometry)`, one pose
+  outside the time path, or `Dynamic(BTreeMap<Timestamp, Isometry>)`. The
+  kind is structural and fixed by the edge's first transform; the newest
+  stamp is the map's last key, never remembered beside it.
+- `geometry` — `Vector3` (plain numbers), `Rotation` (a unit quaternion by
+  construction), `Transform` (translation + rotation + stamp +
+  target/source frames, always valid) and `CrossTimeTransform` (the result
+  of a lookup between two instants). All transform arithmetic —
   composition, inversion, interpolation — lives once, on the crate-private
-  `Isometry` (translation + rotation); `Transform` checks frames and stamps
-  and delegates, and a lookup composes isometries along its walk with
-  borrowed frame names, materializing one `Transform` for the answer.
-- `time` — the `TimePoint` trait (`Copy + Ord + Debug` plus `duration_since`,
-  `checked_sub`, `as_seconds_lossy` — nothing the core does not call) and the
-  default `Timestamp` (u64 nanoseconds, ~584 years);
-  `std::time::SystemTime` is supported behind the `std` feature.
+  `Isometry`; `Transform` checks frames and stamps and delegates, and a
+  lookup composes isometries along its walk, materializing one labelled
+  result for the answer.
+- `time` — one concrete `Timestamp` (a signed `i64` nanosecond newtype,
+  about ±292 years around a caller-chosen epoch) and `Stamp`
+  (`Static` | `At(Timestamp)`). There is no time generic.
+- The crate root is flat: `geometry`, `registry` and `time` are private
+  modules, and every public item is re-exported from the root.
 
 ## Non-negotiables
 
 - `#![forbid(unsafe_code)]`. No exceptions.
 - No new dependencies without maintainer approval. Middleware independence is
-  the crate's reason to exist; `thiserror`, `approx`, `hashbrown`, `libm`
-  (all float math, in every feature mode), and the optional, default-off `serde`
-  are the entire runtime dependency list. (The `[dev-dependencies]` —
-  `criterion` for benches, `proptest` for property tests, `serde_json` for
-  serde roundtrips, `postcard` for the frozen serde wire-format bytes — are
-  expected and do not contradict this.)
-- `no_std` parity: every change must build and pass tests with
-  `--no-default-features`, and build for real bare-metal targets: the gate
-  builds `thumbv7em-none-eabihf` (Cortex-M4F/M7 — STM32 F4/F7/H7 flight
+  the crate's reason to exist; `thiserror`, `hashbrown`, `libm` (all float
+  math, on every target), and the optional, default-off `serde` are the
+  entire runtime dependency list. (The `[dev-dependencies]` — `approx` for
+  tolerant comparison in tests, `criterion` for benches, `proptest` for
+  property tests, `serde_json` for serde roundtrips, `postcard` for the
+  frozen serde wire-format bytes — are expected and do not contradict this.)
+- One mode, plus `serde`: the crate is unconditionally `#![no_std]` and
+  requires a heap allocator (`alloc`). There is no `std` feature and nothing
+  that reads a clock. Every change must build and pass tests with and
+  without `--features serde`, and build for real bare-metal targets: the
+  gate builds `thumbv7em-none-eabihf` (Cortex-M4F/M7 — STM32 F4/F7/H7 flight
   controllers), `thumbv6m-none-eabi` (Cortex-M0+ — RP2040; soft float, no
   compare-and-swap atomics), and `thumbv8m.main-none-eabihf` (Cortex-M33 —
   RP2350, STM32 H5/U5); CI additionally builds
-  `riscv32imc-unknown-none-elf` (ESP32-C3/C6). `no_std` requires a heap
-  allocator (`alloc`).
-  Features must be additive: the same API exists in both modes; the only
-  feature-gated items are `Timestamp::now()`, `Timestamp::try_now()`, the
-  `SystemTime` time type (`std`), and the serde derives (`serde`,
-  default-off). Additive also means numerically identical: `sqrt`, `sin`, and
-  `acos` go through `libm` in both modes — never `f64`'s std methods — so
-  enabling `std` changes which API exists, never a computed value. Slerp is
-  pinned bit for bit in the tests to keep it that way.
+  `riscv32imc-unknown-none-elf` (ESP32-C3/C6). The only feature-gated items
+  are the serde impls. `sqrt`, `sin`, and `acos` go through `libm` — never
+  `f64`'s std methods — so a computed value does not depend on the target's
+  math library. Slerp is pinned bit for bit in the tests as a regression
+  pin.
 - The README **Non-Goals** section is load-bearing, and the crate root carries
   the same list verbatim — edit both or neither. Rigid-body transforms only:
   no scaling, skew, affine, or perspective transforms, no extrapolation, no
@@ -116,160 +118,235 @@ altitude. To place a proposed capability:
   scalar — every coordinate and rotation is `f64`, on every target. Do
   not implement these even if an issue requests them; redirect to the
   maintainer.
-- Library code must not panic on reachable paths. The only documented panic is
-  `Timestamp::now()` on a system clock outside the representable range (before
-  the Unix epoch, or beyond the u64 nanosecond range in 2554); `try_now`
-  returns those as errors. Time arithmetic is checked, always.
+- Library code must not panic on reachable paths, and the crate has no
+  documented panic. Time arithmetic is checked, always: instants are
+  compared with `Ord`, differenced with `abs_diff` on ordered operands, and
+  moved with `Timestamp::checked_add` / `checked_sub`, which are exact over
+  the whole signed range and for every `Duration`.
 
 ## Correctness invariants
 
 Preserve these; every one of them exists because its violation once produced (or
 would produce) a silent wrong answer:
 
-- A `Transform` with frames `(parent, child)` maps child-frame coordinates into
-  the parent frame.
-- Composition `t_a_b * t_b_c = t_a_c` requires `lhs.child == rhs.parent` —
-  no other pairing composes. Timestamps must be equal unless one operand is
-  static.
-- A child frame's buffer is static **xor** dynamic. The first insert fixes the
+- A `Transform` with frames `(target, source)` maps source-frame coordinates
+  into the target frame: `p_target = R p_source + t`. Inserted into a
+  registry it is the edge whose parent is `target` and whose child is
+  `source`; `parent`/`child` are words for topology calls and their errors
+  only, because a lookup between siblings has no parent-child relation.
+- Validity is the type's, and holds for derived values as much as for built
+  ones. Every `Rotation` is finite with a squared norm within
+  `8 * f64::EPSILON` of 1, measured as `w*w + x*x + y*y + z*z`; every
+  `Isometry`, and so every `Transform` and `CrossTimeTransform`, has a
+  finite translation and a `Rotation`; every `Transform` has non-empty
+  frame names. Every constructor, decoder and operation establishes this or
+  returns an error, so nothing re-validates: there is no `validate`, no
+  unvalidated constructor, and no insert-time numeric check. The one place
+  a rotation is computed is the private `Quaternion::into_rotation` —
+  components inside the band are kept bit for bit, anything else is scaled
+  by `1 / sqrt(n²)` and must then be finite and inside the band.
+  Construction, products and slerp all end in it; a new producer of a
+  rotation that skips it breaks the invariant for everything downstream.
+  The two exceptions preserve the invariant exactly and need no check: the
+  `IDENTITY` constant, and the conjugate, whose squared norm is its
+  operand's bit for bit. The one place an isometry is computed is
+  `Isometry::new`, which checks all three translation components; the
+  `IDENTITY` constant is the exception. `Transform::from_parts` is crate-internal and unchecked: its
+  isometry is already valid and its names are the ones a query was answered
+  for, which the registry knows and are therefore not empty.
+- `Rotation::from_wxyz` rejects non-finite components and a norm further
+  than `1e-6` from 1, then applies the rule above. The band is what makes
+  rebuilding a rotation from its own components a bitwise fixed point — and
+  with it `decode(encode(t)) == t`. Do not replace it with an unconditional
+  renormalization or a Newton step on every product: both change bits of
+  values that were already valid.
+- Numerical failures are errors, never values: `NonFinite` for a non-finite
+  result, `NonUnitRotation { norm }` for a finite rotation that fails the
+  postcondition. Neither may escape inside a successful result. There is no
+  magnitude bound on translations — a bound is not closed under
+  composition.
+- Composition `a.compose(&b)` requires `a.source() == b.target()` — no other
+  pairing composes — and reports `FrameMismatch` otherwise. Two dynamic
+  stamps must then be equal (`StampMismatch`, carrying both exact
+  instants); a static operand adopts the other's stamp. The frame check
+  comes first.
+- Inversion is the conjugate rotation with a corrected translation:
+  `(-1 / n²) * rotate(conjugate(q), t)`. It needs no square root and its
+  only failure is `NonFinite`. Do not divide the quaternion itself by `n²`:
+  that is a different algorithm and leaves the band.
+- Equal frame names are legal on a `Transform`, with any geometry: a pose
+  error `est.inverse()?.compose(&truth)?` is a `base`-to-`base` transform
+  that is not the identity, so "self-named implies identity" cannot be a
+  type invariant and no constructor or decoder enforces it. The registry
+  rejects every self-named transform as `InsertError::SelfEdge`.
+- A child frame's edge is static **xor** dynamic. The first insert fixes the
   kind; a mismatched later insert must fail with
-  `RegistryError::StaticDynamicConflict`. Staticness is `Stamp::Static` on the
+  `InsertError::KindMismatch`. Staticness is `Stamp::Static` on the
   transform — no timestamp value is reserved. `Stamp` is deliberately
-  unordered (`PartialEq`/`Eq` only): `Static` denotes all time, so any
-  ordering would rank an eternal transform against real instants and make
-  `max_by_key(|tf| tf.timestamp)` silently pick the wrong sample. Its serde
-  encoding is explicitly tagged (`{"At": t}` / `"Static"`) for the same
-  reason: under an `Option`-shaped encoding a `null` *and* a dropped
-  `timestamp` field both decode as `Static`, so a producer that lost a stamp
-  minted a transform the registry then served at every instant. Both are
-  decode errors; do not trade the derive back for an optional encoding.
+  unordered (`PartialEq`/`Eq`/`Hash` only): `Static` denotes all time, so
+  any ordering would rank an eternal transform against real instants and
+  make `max_by_key(|tf| tf.stamp())` silently pick the wrong sample. Its
+  serde encoding is explicitly tagged (`"Static"` / `{"At": t}`), variants
+  in that order, for the same reason: under an `Option`-shaped encoding a
+  `null` *and* a dropped `stamp` field both decode as `Static`, so a
+  producer that lost a stamp minted a transform the registry then served at
+  every instant. Both are decode errors; do not trade the derive back for
+  an optional encoding, and do not reorder the variants.
 - The frame tree is strict: the first insert also pins a child frame's parent
-  (`add_transform` never changes it — that fails with
-  `ReparentingNotSupported`), a frame cannot be its own parent, no frame
-  name is empty (`EmptyFrameName`, checked at insert), and every
-  edge entering the tree is cycle-checked before it commits, failing with
-  `CycleDetected`. Re-parenting is a deliberate act with its own call:
-  `Registry::reparent_frame` validates everything — root/unknown split,
-  unchanged parent, cycle, then the seed through the ordinary insert checks
-  — before mutating anything, preserves the frame's static-xor-dynamic kind
-  and `max_age` (via the crate-private `Buffer::empty_like`; a cross-kind
-  seed fails with `StaticDynamicConflict`), and drops the frame's stored
-  history — loudly for a dynamic frame (coverage collapses to the seed),
-  retroactively and silently for a static one (the replaced pose answers
-  every instant, as any static re-publish does).
-  `Registry::remove_frame` plus re-adding remains the route
-  for kind changes and keep-the-history moves. Chain resolution relies on
-  the result — the topology is acyclic at every instant and time-invariant
-  for the duration of any query.
-- `Registry::add_transforms` is all-or-nothing. On error the registry is
-  unchanged: nothing from the batch is stored and no sample is evicted. On
-  success it holds what inserting the batch in order with `add_transform`
-  would leave, and the error is the first one that loop would report.
-  Every transform is checked before any is stored — against the stored
-  frames, and against the frames the batch itself creates, which are built
-  aside so later members see their pins and the cycle walk sees their
-  edges. Checking first and storing after is sound only because the first
-  insert fixes a buffer's pins and kind and no later insert changes them:
-  `Buffer::check` must never read the stored samples, or an earlier member
-  of the batch could invalidate a check already passed and the batch would
-  fail half-stored.
-- A lookup must return a transform whose `parent`/`child` match the requested
-  frames exactly; a chain that resolves only partway must return an error,
-  never a partial result, and that error is decided on the frames before
-  any geometry is composed — a numeric failure on the partial chain must
-  not mask it — `UnknownFrame` for a frame that exists nowhere,
-  `Disconnected` for two known frames no chain connects, and `NotFoundAt`
-  for a known frame that cannot serve the requested time — carrying that
-  frame, the `requested: T` instant, and `covered: Option<(T, T)>`, which
-  separates a gap in data the frame holds (`Some`, the covered range) from a
-  frame holding nothing at all (`None`); a caller must not read the second
-  as a timing problem. Between connected endpoints, that frame is an edge
-  the connecting chain crosses: the walks toward the root can meet a
-  failure above the common ancestor first, and naming it sends the caller
-  to wait for data the lookup never needed. Results always carry the
-  requested timestamp (also over static chains), and a frame relative to
-  itself is the identity.
-  `latest_common_time` diagnoses with the same `UnknownFrame` and
-  `Disconnected`, and refuses with `NoCommonTime` — the same
-  `frame` + `covered: Option<(T, T)>` payload shape, its own meaning:
-  `Some` names a hop whose range starts past the newest instant the rest
-  of the chain serves (disjoint coverage), `None` a hop holding nothing.
-  It must never return an instant some hop cannot serve — min of the
-  dynamic hops' newest samples, guarded by max of their starts, over
-  only the hops the connecting chain crosses.
-- Every fallible `Registry` call reports `RegistryError<T>` and it stays **flat**:
-  one `match` reaches every cause and every payload. `TransformError` is
-  pure geometry and time, and the single `RegistryError::TransformError` arm
-  that wraps it must never carry `NonUnitRotation` or `NonFiniteValues` —
-  `From<TransformError> for RegistryError` canonicalizes those two into
-  their flat variants, so a condition never has two spellings a caller could
-  match one of and miss the other. Lookup payloads stay in the caller's time
-  type `T`; the conversion to seconds happens in `Display`, nowhere else.
-  The buffer's own error types (`InsertError`, `GetError<T>`) are internal
-  and split by operation so that every conversion into `RegistryError` is
-  total — one enum for both would force an unreachable arm on each.
+  (`insert` never changes it — that fails with `ParentMismatch`), a frame
+  cannot be its own parent (`SelfEdge`), and every edge entering the tree is
+  cycle-checked before it commits, failing with `Cycle`. Empty frame names
+  never reach the registry: `Transform::new` and decoding reject them
+  (`TransformError::EmptyFrameName`), and an empty name in a query is an
+  unknown frame. Re-parenting is a deliberate act with its own call:
+  `Registry::reparent` validates everything — unknown/root split
+  (`UnknownFrame`, `NoParent`), unchanged parent, self edge, cycle, kind —
+  before mutating anything, preserves the frame's static-xor-dynamic kind
+  (a cross-kind seed fails with `KindMismatch`), and drops the frame's
+  stored history — loudly for a dynamic frame (coverage collapses to the
+  seed), retroactively and silently for a static one (the replaced pose
+  answers every instant, as any static re-publish does).
+  `Registry::remove_frame` plus re-adding remains the route for kind
+  changes and keep-the-history moves. Chain resolution relies on the
+  result — the topology is acyclic at every instant and time-invariant for
+  the duration of any query. Every structural insert error names its frame,
+  and every `frame` field of `InsertError` is the child.
+- Known names are defined by stored edges and nothing else: a name is known
+  iff a stored edge names it as child or as parent when the call returns. A
+  drained edge still counts. Slots implement that rule and do not get to
+  bend it: a slot is occupied iff its frame has an edge or at least one
+  child edge names it, the name index holds exactly the occupied slots, and
+  `remove_frame` and `reparent` release a slot in the same call that removes
+  its last reference. A removed child stays known while it has children; a
+  parent named by no other edge becomes unknown. A failed insert, batch or
+  `reparent` makes no name known. Reclamation never renumbers an occupied
+  slot. An empty registry therefore answers every query with
+  `UnknownFrame`, equal names included, and a lone frame cannot be made
+  known.
+- `Registry::insert_all` is all-or-nothing. On error the registry is
+  unchanged: nothing from the batch is stored, no sample is evicted and no
+  name becomes known. On success it holds what inserting the batch in order
+  with `insert` would leave, and the error is the first one that loop would
+  report, with its zero-based slice index in `BatchError`. Every transform
+  is checked before any is stored — against the stored frames, and against
+  the pins the batch itself has staged (parent, kind and running newest
+  stamp per child frame), so later members see earlier members' edges, the
+  cycle walk sees them too, and expiry is measured against the stamp the
+  loop would have reached. Checking first and storing after is sound only
+  because a check reads pins and nothing else: `Registry::check` must never
+  read stored samples beyond a frame's newest stamp, or an earlier member of
+  the batch could invalidate a check already passed and the batch would
+  fail half-stored. `insert` is the same check with nothing staged, then the
+  same commit.
+- A lookup must return a transform whose `target`/`source` match the
+  requested frames exactly; a chain that resolves only partway must return
+  an error, never a partial result. Diagnosis has one order for both
+  lookups, decided before any geometry can mask it: an unknown name
+  (`UnknownFrame`, checked on the names in the order target, source, fixed,
+  before any leg is formed), then disconnected topology (`Disconnected`,
+  naming the pair that is actually disconnected — in a cross-time lookup an
+  endpoint and the fixed frame), then coverage, then numerical failure.
+  Coverage is `NoData` for an edge holding nothing and `OutOfRange` —
+  carrying the frame, the requested instant and the covered range — for an
+  edge holding samples elsewhere; they are two variants so that a caller
+  cannot read the first as a timing problem. A coverage error names an edge
+  the connecting chain crosses, the lowest failing one on the target's side,
+  else on the source's: edges above the meeting point are never sampled and
+  never reported. A numerical failure must not end diagnosis before all
+  required coverage is checked — the cold `diagnose` path re-reads the
+  whole chain for coverage first. Results always carry
+  `Stamp::At(requested)` (also over static chains), and a *known* frame
+  relative to itself is the identity.
+- `Registry::lookup_across` always resolves both legs against the fixed
+  frame — also when the endpoint names and the two times coincide — with the
+  target leg first within each diagnosis class; only a leg whose endpoint
+  is the fixed frame is the identity, and then the result is the other
+  leg alone: as resolved when the target is the fixed frame, inverted once
+  when the source is. Its result is a `CrossTimeTransform`, not a
+  `Transform`: it carries both instants and can be neither composed,
+  inserted nor serialized. The fixed frame is the caller's assertion and is
+  not recorded.
+- `latest_common_time` diagnoses with the same `UnknownFrame` and
+  `Disconnected`, returns `Static` when the connecting chain has no dynamic
+  edge (a known frame relative to itself included), reports `NoData` for a
+  dynamic edge holding nothing, and refuses with `NoCommonTime` — naming an
+  edge whose coverage starts after `latest_possible`, the minimum newest
+  stamp of the chain's dynamic edges. It must never return an instant some
+  edge cannot serve — min of the dynamic edges' newest samples, guarded by
+  max of their starts, over only the edges the connecting chain crosses. It
+  evaluates no geometry and never returns `OutOfRange`, `NonFinite` or
+  `NonUnitRotation`; the lookups never return `NoCommonTime`.
+- Errors are grouped by operation family: `TransformError` (building,
+  composing, inverting), `InsertError` with `BatchError` (changing a
+  registry), `LookupError` (querying one). Each enum stays **flat** — one
+  `match` reaches every cause and every payload of that family — and a
+  condition has one spelling per family. Each method's rustdoc lists the
+  subset it can return. Struct variants are `#[non_exhaustive]`. Time
+  payloads are exact `Timestamp`s, formatted by `Timestamp`'s `Display`,
+  which cannot fail; nothing converts a stamp to floating-point seconds.
+  The private `NumericError`, `Gap`, `SampleError`, `Fault` and `Failure`
+  are internal steps toward those enums and every conversion out of them
+  is total.
 - Interpolation happens only between stored samples; there is no
-  extrapolation. A `Registry` lookup that falls outside a frame's covered
-  range fails with `RegistryError::NotFoundAt` carrying
-  `covered: Some(range)` — no registry path produces
-  `TransformError::TimestampOutOfRange`; its only producer is the public
-  `Transform::interpolate`, which no registry path calls. The buffer
-  interpolates on the crate-private `Isometry`, only between the samples
-  that bracket the request, and that path cannot report it.
-- Error formatting goes through `TimePoint::as_seconds_lossy` and cannot fail;
-  a conversion error must never mask the error being reported.
-- Buffer expiry is data-driven: entries older than
-  (latest **inserted** timestamp − `max_age`) are removed on insert (only for
-  buffers built `dynamic_with_max_age`). Wall-clock time is never consulted.
-  Manual cleanup (`Registry::remove_transforms_before`, and the internal
-  `Buffer::remove_before` under it) never touches static buffers — a static
-  transform is valid for all time — and never releases a frame: a drained
-  buffer keeps its pinned parent and its static/dynamic kind, so cleanup cannot
-  re-open a frame for re-parenting or a change of kind.
-  `Registry::remove_frame` is the only release on the cleanup path;
-  `Registry::reparent_frame` also releases a pin — by replacing the
-  buffer wholesale, never by draining it.
-- Transforms are validated where they are built: `Transform::new`,
-  `Transform::static_between` and the `Deserialize` impl all run
-  `Transform::validate`, rejecting non-finite components and rotations whose
-  norm deviates from 1 by more than `geometry::UNIT_NORM_TOLERANCE`. A
-  denormalized rotation would silently corrupt every lookup it takes part in.
-  The fields are private so a built transform cannot be edited back out of
-  that guarantee. The crate-internal `Transform::unvalidated` skips the
-  check, so library code calls it only where the result is valid by other
-  means: assembly validated before it escapes (`Transform::new`, the
-  `Deserialize` impl), and values derived from already-valid transforms or
-  from the exact identity. Every new caller of it must be able to name that
-  source. Tests also use it for deliberately invalid transforms (see Style).
-- Values *derived* from valid transforms — `Mul`, `inverse`, `interpolate`,
-  every registry lookup — are deliberately not re-validated: rotation norms
-  drift a few ulps per composition, so re-checking a long chain would reject
-  legitimate results. `Transform::validate` stays public for transforms of
-  uncontrolled provenance, and `Transformable` documents that as its
-  precondition.
-- Because of the clause above, "a `Transform` is valid by construction" is
-  true of built transforms only, never of derived ones — composing two
-  rotations at the edge of `UNIT_NORM_TOLERANCE` walks past it, and extreme
-  magnitudes overflow a translation to infinity. `Buffer::insert`, under
-  `Registry::add_transform`, therefore runs `Transform::validate` on
-  everything entering storage. That is the last boundary before a value
-  starts answering lookups, and the ordinary "flatten a chain, re-publish it"
-  pattern crosses it with a transform nothing else checked. Do not delete
-  that check as redundant with the constructors; it is not.
-- Rotations are expected to be unit quaternions; `Quaternion::from_wxyz` does
-  not normalize. Anything that inverts a rotation must normalize first (see
-  `Transform::inverse`, which also rejects a non-finite inverted translation).
+  extrapolation. A lookup outside an edge's covered range fails with
+  `LookupError::OutOfRange`. The ratio is computed from integer nanosecond
+  differences (`Timestamp::ratio_between`), never from seconds, and a
+  request at a stored instant returns the stored isometry without
+  interpolating.
+- Buffer expiry is data-driven and has one boundary: the frame's newest
+  stored stamp − `max_age`, computed exactly by `Timestamp::checked_sub`
+  (only under `Registry::with_max_age`). On insert, stored samples older
+  than it are removed, and an insert that is itself older is refused with
+  `InsertError::Expired` and stores nothing — `Ok(())` for a sample its own
+  insert discards is a false return value. A sample on the boundary is
+  kept; where the subtraction is not representable, nothing is removed or
+  refused. Expiry is the last insert check, so the error implies the sample
+  has the frame's parent and kind. `insert_all` measures each member against
+  its frame's running newest stamp, so one expired member rejects the whole
+  batch. The `reparent` seed is exempt — it replaces the history it would
+  be measured against. The error is not clock-reset detection: the sample
+  that moves the newest stamp ahead is accepted, and a backward step
+  smaller than `max_age` is stored silently. Wall-clock time is never
+  consulted.
+- Manual cleanup (`Registry::remove_samples_through`, and
+  `History::remove_through` under it) removes every dynamic sample at or
+  before the cutoff, in every frame: the cutoff is inclusive, so a frame's
+  newest stamp is always removable and `Timestamp::MAX` clears all dynamic
+  history. Expiry is the opposite on purpose: it keeps the sample exactly on
+  its boundary. Cleanup never touches static edges — a static transform is
+  valid for all time — and never releases a frame: a drained edge keeps its
+  pinned parent, its kind and its name, so cleanup cannot re-open a frame
+  for re-parenting or a change of kind, and it keeps no hidden newest
+  stamp. `Registry::remove_frame` is the only release on the cleanup path;
+  `Registry::reparent` also releases a pin — by replacing the edge
+  wholesale, never by draining it.
 - A lookup composes each half of the resolved chain in the direction the walk
-  produced it and inverts at most once — never once per hop. A lookup toward
-  an ancestor (`get_transform("map", "lidar", t)`, the documented direction)
-  therefore inverts nothing, and a single-hop lookup at a stored timestamp
-  returns that stored transform bit for bit. Reintroducing a per-element
-  inversion is both a 2x cost and a loss of that exactness.
-- `==` on geometry types is exact. Use `approx::assert_abs_diff_eq!` for
-  tolerant comparison of computed results; never reintroduce epsilon-based
-  `PartialEq`/`Eq` (it violates the trait contracts).
+  produced it and inverts at most once — never once per hop; a cross-time
+  lookup resolves two such legs. A lookup toward an ancestor
+  (`lookup("map", "lidar", t)`, the documented direction) therefore inverts
+  nothing, and a single-hop lookup at a stored instant returns that stored
+  geometry bit for bit. Reintroducing a per-element inversion is both a 2x
+  cost and a loss of that exactness.
+- `==` on geometry types is exact. Use `approx::assert_abs_diff_eq!` on the
+  `f64` components for tolerant comparison of computed results in tests;
+  never introduce epsilon-based `PartialEq`/`Eq` (it violates the trait
+  contracts), and do not implement `approx` traits on the public types —
+  `approx` is a dev-dependency.
+- The serde layout is written out explicitly and frozen by tests, never
+  inherited from declaration order: `Transform` is `target`, `source`,
+  `translation`, `rotation`, `stamp`; `Rotation` is `w`, `x`, `y`, `z`;
+  `Timestamp` is the bare integer. `Rotation` and `Transform` decode
+  through `from_wxyz` and `Transform::new`; unknown fields are an error.
+  The name-first order makes 2.x postcard data misalign, so that it
+  usually fails the rotation check instead of decoding with wrong frames
+  and stamps; `tests/serde.rs` pins that for the frozen 2.4 fixtures. It is
+  a regression pin, not a schema detector: a 2.x payload whose bytes form
+  a valid transform still decodes. Persisted 2.x data is migrated with the
+  2.x decoder; do not add heuristic dual decoding.
 - All public error enums are `#[non_exhaustive]`; downstream matches need a
   wildcard arm, and new variants may be added in minor releases.
+- No arithmetic operator impls and no `Default` on any public type. Only the
+  functions marked `const` are promised const.
 
 When you fix a correctness bug, ship the regression test that fails on the old
 code in the same commit.
@@ -284,25 +361,21 @@ this section is convention, enforced in review — follow it anyway.
   dependabot ignore rule). `#![warn(missing_docs)]` and
   `#![warn(clippy::pedantic)]` must stay at **zero warnings** in both feature
   modes. Never add a new `#[allow]` to get green; fix the cause or ask. The
-  standing allowances are `clippy::similar_names` in tests (where `t_a_b`-style
-  names are domain-correct), a handful of narrowly-scoped `clippy::cast_*`
-  allows on the numeric conversions in `src/time/timestamp/`, the scoped
-  `clippy::expect_used` allow on `Timestamp::now`'s documented panic, and the
-  per-test `clippy::float_cmp` allows where exactness is the property under
-  test (a reported error payload, a last-write-wins upsert — the compared
-  values are exactly representable) — do not remove them, and do not treat
-  them as precedent.
+  one standing allowance is `clippy::similar_names` in tests (where
+  `t_a_b`-style names are domain-correct), set once at the crate root under
+  `cfg(test)` — do not remove it, and do not treat it as precedent. The
+  tree carries no other `allow`: tests that assert exactness compare bit
+  patterns or whole values, and the one integer-to-float conversion
+  (`Timestamp::ratio_between`) is written without a lossy cast.
 - Construction goes through constructors everywhere — tests, examples, docs:
-  `Transform::new(parent, child, translation, rotation, stamp)` /
-  `Transform::static_between(..)` (both fallible),
-  `Point::new(position, orientation, timestamp, frame)`,
-  `Vector3::new/zero`, `Quaternion::from_wxyz(w, x, y, z)` /
-  `Quaternion::identity()`, `Timestamp::zero()` / `Timestamp::from_nanos()`.
-  `Transform` and `Point` are `#[non_exhaustive]`; `Transform`'s fields are
-  private, and a test that needs a deliberately invalid transform uses the
-  crate-internal `Transform::unvalidated` rather than a struct literal.
-  `Vector3` and `Quaternion` keep their public fields — they are plain
-  numbers with no invariant to protect.
+  `Transform::new(target, source, translation, rotation, stamp)` (fallible),
+  `Vector3::new(x, y, z)`, `Rotation::from_wxyz(w, x, y, z)` (fallible) /
+  `Rotation::IDENTITY`, `Timestamp::from_nanos(n)`,
+  `Registry::with_max_age(d)` / `Registry::unbounded()`. `Transform`,
+  `Rotation` and `CrossTimeTransform` have private fields and no unchecked
+  public constructor; a test cannot build an invalid one, and must not be
+  given a way to. `Vector3` keeps its public fields — it is plain numbers
+  with no invariant to protect.
 - Float literals carry digits on both sides of the dot: `1.0`, never `1.`.
 - Doc comments come first, then attributes (`#[cfg]`, `#[must_use]`,
   `#[inline]`). Constructors get bare `#[must_use]` — except the fallible
@@ -321,15 +394,16 @@ this section is convention, enforced in review — follow it anyway.
   and print with `println!`), `assert_eq!`/`assert_ne!` over
   `assert!(a == b)`, and
   behavior-descriptive snake_case names. Tests are deterministic: fixed
-  `Timestamp::from_nanos` fixtures, never `Timestamp::now()` (one dedicated
-  std-only smoke test covers `now()` itself). `Timestamp::zero()` is fine for
-  any fixture — `t = 0` is an ordinary dynamic instant; static transforms
-  carry `Stamp::Static`. Invariants ideally get a property test in
-  `tests/properties.rs` alongside the example-based ones.
+  `Timestamp::from_nanos` fixtures and nothing that reads a clock.
+  `Timestamp::from_nanos(0)` is fine for any fixture — `t = 0` is an
+  ordinary dynamic instant; static transforms carry `Stamp::Static`.
+  Invariants ideally get a property test in `tests/properties.rs` alongside
+  the example-based ones; the property tests run on one pinned seed, so
+  every gate run exercises the same cases.
 - `tests/golden_vectors.rs` is the one place whose expected values do *not*
   come from this crate: they are literal digits computed with SciPy, and
   they are what would catch a convention flipped consistently — a
-  transposed rotation, a swapped quaternion product, `(parent, child)` read
+  transposed rotation, a swapped quaternion product, `(target, source)` read
   backwards — which every self-referential assertion passes. Never
   regenerate those numbers from the crate's own arithmetic; re-derive them
   from outside, deliberately, or the layer stops existing.
@@ -348,7 +422,7 @@ rustup run nightly tests/test_all.sh
 ```
 
 With a Nix or distro nightly on PATH, run the script directly. It checks builds,
-tests and clippy in both std modes and serde combinations; formatting; rustdoc
+tests and clippy with and without `serde`; formatting; rustdoc
 including docs.rs settings; all examples; benchmark smoke tests; and ARM
 bare-metal builds with and without serde. Any compiler warning fails it. It
 prints `GATE PASSED` only after all checks finish. Never weaken or bypass it.
@@ -356,7 +430,7 @@ prints `GATE PASSED` only after all checks finish. Never weaken or bypass it.
 CI runs the same script. Change the gate in the script, and keep its clippy
 feature combinations aligned with CI. CI additionally checks stable clippy,
 native x86_64/ARM64 tests, Rust 1.85, RISC-V compilation, `cargo audit`, and
-published-API compatibility in all four feature combinations. Stable clippy
+published-API compatibility in both feature combinations. Stable clippy
 is the arbiter when it differs from nightly — a lint can relax on nightly
 before stable follows (`float_cmp` against `f64::INFINITY` did), so a green
 local gate makes green CI likely, not guaranteed; reproduce with
@@ -451,7 +525,7 @@ gate and the pull request's CI passed. The checklist, in order:
   dirty tree, so every check below runs on that commit.
 - Run the full verification gate (`tests/test_all.sh`).
 - Run `cargo semver-checks check-release --baseline-rev <previous tag>` in
-  each of the four feature combinations the `semver` CI job runs, and
+  each of the two feature combinations the `semver` CI job runs, and
   confirm the diff is exactly the changelogged one. Against a baseline the
   release already majors over it enumerates nothing — every breaking lint is
   skipped as permitted, and the run proves only that the tooling works and

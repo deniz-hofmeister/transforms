@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "transforms"
-version = "2.4.0"
+version = "3.0.0"
 dependencies = [
  "approx",
  "criterion",

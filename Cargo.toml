@@ -3,7 +3,7 @@ name = "transforms"
 description = "A transform library to track reference frames and provide transforms between them."
 authors = ["Deniz Hofmeister"]
 license = "MIT"
-version = "2.4.0"
+version = "3.0.0"
 edition = "2024"
 rust-version = "1.85"
 repository = "https://github.com/deniz-hofmeister/transforms"
@@ -26,22 +26,20 @@ include = [
 ]
 
 [features]
-default = ["std"]
-# `serde?/std` unlocks serde's SystemTime impls whenever both features are
-# on, so `Transform<SystemTime>` serializes for downstream std users.
-std = ["serde?/std"]
 serde = ["dep:serde"]
 
 [dependencies]
 thiserror = { version = "2.0.20", default-features = false }
-approx = { version = "0.5.1", default-features = false }
 hashbrown = "0.17.1"
 libm = { version = "0.2.16", default-features = false }
 serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"], optional = true }
 
 [dev-dependencies]
+approx = { version = "0.5.1", default-features = false }
 proptest = "1.11.0"
-serde_json = "1.0.151"
+# `float_roundtrip`: the default parser can read a 17-digit decimal one ulp
+# off, and the serde tests assert `decode(encode(t)) == t` through JSON text.
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 # Held at 0.7: criterion 0.8 declares rust-version 1.86, above this crate's
 # MSRV of 1.85, and its rolling last-three-stables policy can raise that in

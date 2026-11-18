@@ -626,7 +626,12 @@ unknown-frame row measures the whole query, not the frame scan alone.
   multi-hop results; `Ok(non-finite)` to `Err`; `UnknownFrame` for
   equal unregistered names in `lookup`, `latest_common_time` and
   `lookup_across`; the order in which unknown names are reported;
-  empty names rejected at construction.
+  empty names rejected at construction. Two more were found by the
+  harness and declared on 2026-11-18: which leg's failure a cross-time
+  lookup reports when both fail (the target leg first, as "Registry
+  semantics" prescribes), and finite against non-finite results at the
+  overflow edge of `f64`, where the two versions agree once the
+  translations are scaled down.
 - Properties ported from `tests/properties.rs`: the interpolation oracle
   replaced by an in-test reference; the batch property biased to hit the
   running-newest trap; the round-trip property given a magnitude-aware
