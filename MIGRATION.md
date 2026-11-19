@@ -7,7 +7,8 @@ history is in [CHANGELOG.md](CHANGELOG.md).
 
 # Migrating from 2.x to 3.0
 
-Every 2.x program needs changes. Each table row carries a tag:
+Every 2.x program that builds, inserts or looks up a transform needs
+changes. Each table row carries a tag:
 
 - `compile`: the 2.x code stops compiling, and the compiler points at it.
 - `silent`: the 2.x code can compile after the mechanical renames and
@@ -54,7 +55,7 @@ arguments of `Transform::new` and of the lookups keep their positions:
 | compile | `Transform::static_between(parent, child, translation, quaternion)?` | `Transform::new(target, source, translation, rotation, Stamp::Static)?` |
 | compile | `tf.validate()?` on a derived transform | Delete the call. Every `Transform` is valid; an operation that cannot produce one returns an error |
 | compile | `Transform::interpolate(..)` | Removed. Insert the samples into a `Registry` and look up between them |
-| silent | `Transform::new` accepted `""` as a frame name; `add_transform` rejected it with `RegistryError::EmptyFrameName` | `Transform::new` and decoding return `TransformError::EmptyFrameName`. The error moves from the insert call to the constructor, and `insert` cannot report it |
+| silent | `Transform::new` accepted `""` as a frame name; `add_transform` rejected it with `RegistryError::EmptyFrameName` | `Transform::new` returns `TransformError::EmptyFrameName`, and decoding fails on the same check with the decoder's error. The error moves from the insert call to the constructor, and `insert` cannot report it |
 | silent | `Transform::new` reported `NonUnitRotation` for a bad rotation | The rotation is checked earlier, by `Rotation::from_wxyz`. `Transform::new` reports only `EmptyFrameName` and, after it, `NonFinite` for the translation |
 
 ```rust
@@ -80,7 +81,7 @@ let sample = Transform::new(
 |---|---|---|
 | compile | `Quaternion::from_wxyz(w, x, y, z)` (infallible, `const`) | `Rotation::from_wxyz(w, x, y, z)?` returns `Result<Rotation, TransformError>`: `NonFinite` for a NaN or infinite component, `NonUnitRotation { norm, .. }` for a norm further than `1e-6` from 1 |
 | compile | `q.w`, `q.x`, `q.y`, `q.z` (public fields); `Quaternion { w, x, y, z }` literals | `q.w()`, `q.x()`, `q.y()`, `q.z()`; build with `from_wxyz` |
-| compile | `q.normalize()?` before building a transform | Delete it if the input is within `1e-6` of unit length; `from_wxyz` scales it. Normalize further-off input yourself before the call |
+| compile | `q.normalize()?` before building a transform | Delete it if the input is within `1e-6` of unit length; `from_wxyz` scales it where needed. Normalize further-off input yourself before the call |
 | compile | `q.norm()`, `q.conjugate()`, `q1 * q2`, `q1.slerp(q2, f)` | Removed from the public API. Compose and invert through `Transform::compose` and `Transform::inverse`; interpolate through a `Registry` lookup |
 | compile | `geometry::UNIT_NORM_TOLERANCE` | Removed. The tolerance is `1e-6`, documented on `Rotation::from_wxyz` |
 | silent | An accepted rotation was stored as given | `from_wxyz` stores the components bit for bit only when their squared norm is within `8 * f64::EPSILON` of 1. Any other accepted input is scaled to unit length, so `rotation.w()` can differ from the `w` passed in. A unit quaternion that travelled as `f32` is the usual case |
@@ -93,7 +94,7 @@ scalar-last components `(x, y, z, w)` builds a different, valid rotation.
 | Tag | 2.x | 3.0 |
 |---|---|---|
 | compile | `(a * b)?`, consuming both | `a.compose(&b)?`, borrowing both. Chains read `a.compose(&b)?.compose(&c)?` |
-| compile | `TransformError::SameFrameMultiplication` when both operands had the same child | Removed. Such a composition succeeds |
+| compile | `TransformError::SameFrameMultiplication` when both operands had the same child | Removed. A shared child is not an error of its own: `compose` succeeds if `a.source() == b.target()` and reports `FrameMismatch` otherwise |
 | silent | Unequal dynamic stamps were reported before unrelated frames | `FrameMismatch` is checked first, then `StampMismatch`. Operands that fail both report `FrameMismatch` |
 | silent | `a * b` could return `Ok` with an infinite translation or a rotation drifted off unit length | `compose` and `inverse` return `Err(TransformError::NonFinite)` on overflow, and every result's rotation is unit length. Results can differ from 2.x in their last bits |
 
@@ -121,7 +122,7 @@ let p_map = apply(&tf, p_sensor);
 
 | Tag | 2.x | 3.0 |
 |---|---|---|
-| compile | `point.transform(&tf)?` checked that the point's frame was the transform's child and that the stamps matched | Nothing checks this. `apply` returns a finite vector for a point from any frame. Compare `tf.source()` with your point's frame and `tf.stamp()` with its stamp yourself |
+| compile | `point.transform(&tf)?` checked that the point's frame was the transform's child and that the stamps matched | Nothing checks this. `apply` returns an ordinary vector for a point from any frame. Compare `tf.source()` with your point's frame and `tf.stamp()` with its stamp yourself |
 | compile | A `Point` carried an orientation, rotated along with its position | Compose instead: build the pose as a `Transform` from the sensor frame and use `tf.compose(&pose)?`, or keep the orientation outside the crate |
 | compile | `Vector3` operators `+`, `-`, `* f64`, `/ f64` | Removed. Write the components out, as `apply` does, or convert to a linear-algebra crate's vector |
 
@@ -211,7 +212,7 @@ let tf = registry.lookup("map", "lidar", at)?;
 | Tag | 2.x | 3.0 |
 |---|---|---|
 | compile | `Registry::new()`, `Registry::default()` | `Registry::unbounded()`. It keeps every sample until removed; prefer `with_max_age` unless you clean up yourself |
-| compile | `Registry::with_max_age(d)` | Unchanged name. See [Expiry](#expiry) for its new error |
+| silent | `Registry::with_max_age(d)` | Unchanged name. See [Expiry](#expiry) for its new error |
 | compile | `add_transform(tf: Transform) -> Result<(), RegistryError>` | `insert(&Transform) -> Result<(), InsertError>`. The transform is borrowed, so a rejected one stays with you; remove `.clone()` calls made for retries |
 | compile | `add_transforms(impl IntoIterator<Item = Transform>) -> Result<(), RegistryError>` | `insert_all(&[Transform]) -> Result<(), BatchError>`. Collect an iterator into a `Vec` first. `BatchError { index, error }` names the rejected member by its slice index |
 | compile | `reparent_frame(tf) -> Result<(), RegistryError>` | `reparent(&Transform) -> Result<(), InsertError>`; `seed.source()` moves under `seed.target()` |
@@ -232,15 +233,17 @@ match registry.insert_all(&batch) {
 `RegistryError<T>`, `TimeError` and `QuaternionError` are gone. Four types
 replace them, one per operation family:
 
-- `TransformError`: `Rotation::from_wxyz`, `Transform::new`, `compose`,
-  `inverse`, and decoding.
+- `TransformError`: `Rotation::from_wxyz`, `Transform::new`, `compose` and
+  `inverse`. Decoding runs the same checks and reports a failure as the
+  decoder's own error.
 - `InsertError`: `insert` and `reparent`.
 - `BatchError`: `insert_all`. It wraps the `InsertError` and the index.
 - `LookupError`: `lookup`, `lookup_across`, `latest_common_time`.
 
 All three enums are `#[non_exhaustive]`, and so is every variant with
 fields: a pattern needs `..` inside the braces and a wildcard arm, and your
-code cannot construct a variant. Tuple variants became struct variants.
+code cannot construct a variant that has fields. Tuple variants became
+struct variants.
 Time payloads are exact `Timestamp` values.
 
 | Tag | 2.x | 3.0 |
@@ -269,7 +272,7 @@ Time payloads are exact `Timestamp` values.
 | silent | (none: constructors accepted `""`) | `TransformError::EmptyFrameName` |
 | compile | `TransformError::IncompatibleFrames { expected, found }` | `TransformError::FrameMismatch { expected, found, .. }` |
 | compile | `TransformError::TimestampMismatch { lhs: f64, rhs: f64 }` (lossy seconds) | `TransformError::StampMismatch { lhs, rhs, .. }` with `Timestamp` payloads |
-| compile | `TransformError::SameFrameMultiplication { frame }` | Removed; the composition succeeds |
+| compile | `TransformError::SameFrameMultiplication { frame }` | Removed; see [Composing and inverting](#composing-and-inverting) |
 | compile | `TransformError::StaticInterpolation`, `TimestampOutOfRange { .. }` | Removed with `Transform::interpolate` |
 | compile | `TransformError::TimestampError(TimeError)` | Removed |
 | compile | `TransformError::QuaternionError(QuaternionError)` | Removed |
@@ -291,7 +294,9 @@ fn describe(error: &LookupError) -> &'static str {
             "wait for newer data"
         }
         LookupError::OutOfRange { .. } => "older than the retained history",
-        _ => "numerical failure",
+        LookupError::NonFinite | LookupError::NonUnitRotation { .. } => "numerical failure",
+        // `NoCommonTime`, from `latest_common_time` only, and future variants.
+        _ => "another lookup error",
     }
 }
 ```
@@ -325,7 +330,7 @@ coincide.
 
 | Tag | 2.x | 3.0 |
 |---|---|---|
-| silent | `remove_transforms_before(t)` removed samples strictly older than `t` and kept a sample at `t` | `remove_samples_through(cutoff)` removes samples at or before `cutoff`. Porting the call by renaming it removes one more sample per frame than before |
+| silent | `remove_transforms_before(t)` removed samples strictly older than `t` and kept a sample at `t` | `remove_samples_through(cutoff)` removes samples at or before `cutoff`. Porting the call by renaming it also removes a sample stamped exactly at the cutoff, at most one per frame |
 
 To keep the strict behaviour, step the cutoff back by one nanosecond:
 
@@ -393,7 +398,7 @@ The 3.0 layout is new and is not meant to read 2.x data.
 | silent | `Transform` fields in the order `translation`, `rotation`, `timestamp`, `parent`, `child` | `target`, `source`, `translation`, `rotation`, `stamp`, in that order. The order is part of the binary wire contract |
 | silent | Unknown JSON fields in a `Transform`, `Vector3` or `Quaternion` were ignored | `Vector3`, `Rotation` and `Transform` reject unknown fields, so a document carrying both `stamp` and `timestamp` is an error |
 | silent | `Timestamp` was a bare `u64` | A bare `i64` |
-| silent | A decoded rotation was validated and stored as given; an empty frame name decoded | `Rotation` decodes through `from_wxyz` (checked and scaled to unit length), `Transform` through `Transform::new` (empty names rejected). A standalone `Vector3` decodes unchecked |
+| silent | A decoded rotation was validated and stored as given; an empty frame name decoded | `Rotation` decodes through `from_wxyz` (checked, and scaled to unit length where needed), `Transform` through `Transform::new` (empty names rejected). A standalone `Vector3` decodes unchecked |
 | compile | `Point` and `Quaternion` were serializable | `Point` is gone; `Rotation` writes the same `w`, `x`, `y`, `z` fields. `CrossTimeTransform` has no serde support |
 
 `Stamp` keeps its tags: `"Static"` and `{"At": t}`, variant index 0 and 1.
@@ -411,9 +416,9 @@ Migrating persisted data:
   JSON text needs a correctly rounding parser: `serde_json` reads some
   17-digit decimals one ulp off unless its `float_roundtrip` feature is
   on.
-- **A standalone 2.x `Timestamp` or `Stamp` in a binary format decodes
-  without error at a wrong instant.** Postcard writes `u64` as a plain
-  varint and `i64` zigzag-encoded, so a 2.x `1` reads back as `-1` ns and
+- **A standalone 2.x `Timestamp` or `Stamp::At` in a binary format can
+  decode without error at a wrong instant.** Postcard writes `u64` as a
+  plain varint and `i64` zigzag-encoded, so a 2.x `1` reads back as `-1` ns and
   `1_700_000_000_000_000_000` as `850_000_000_000_000_000`. Nothing in the
   payload tells the two apart.
 - Decode persisted 2.x data with the 2.x crate, convert it (names,

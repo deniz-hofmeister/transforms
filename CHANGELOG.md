@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-11-19
 
 3.0 is a breaking redesign of the API, the errors, the time type and the
-serde layout. Every 2.x program needs changes, and some behaviour changes
-without a compile error; those entries are marked **Silent**. See
+serde layout. Every 2.x program that builds, inserts or looks up a
+transform needs changes, and some behaviour changes without a compile
+error; those entries are marked **Silent**. See
 [MIGRATION.md](MIGRATION.md) for the replacement of each item.
 
 ### Added

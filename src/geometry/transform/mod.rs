@@ -37,7 +37,7 @@ use alloc::string::String;
 /// Rotate, then translate. The crate does not do this for you, and the
 /// variants that are easy to write by hand (translating first, dropping the
 /// translation, applying the transform in the wrong direction) all return
-/// an ordinary finite vector that no check can tell from the right one.
+/// an ordinary vector that no check can tell from the right one.
 ///
 /// ```
 /// use transforms::{Rotation, Stamp, Timestamp, Transform, Vector3};
