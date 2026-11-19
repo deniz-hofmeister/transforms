@@ -6,48 +6,47 @@
 //!
 //! [`Registry`] stores a frame tree and resolves transforms between frames,
 //! interpolating translation linearly and rotation with SLERP. A
-//! [`Transform`] maps child-frame coordinates into its parent frame:
-//! `get_transform("map", "sensor", t)` expresses sensor data in map coordinates.
+//! [`Transform`] maps source-frame coordinates into its target frame:
+//! `lookup("map", "sensor", t)` expresses sensor data in map coordinates.
 //!
-//! Use [`Transform::static_between`] for a relationship valid at all times.
-//! Dynamic samples carry [`time::Stamp::At`]; no timestamp value is reserved.
-//! [`Registry::with_max_age`] evicts old samples on insertion, while
-//! [`Registry::new`] retains them until manual removal.
-//! [`Registry::reparent_frame`] moves a child frame under a new parent
-//! atomically, dropping that frame's stored history.
-//! [`Registry::add_transforms`] inserts a batch all-or-nothing.
-//! [`Registry::latest_common_time`] answers "what is the newest instant I
-//! can look up?" between two frames.
+//! A relationship valid at all times carries [`Stamp::Static`]; a sample of
+//! a moving one carries [`Stamp::At`]. No timestamp value is reserved.
+//! [`Registry::with_max_age`] keeps a time window per frame and rejects
+//! samples older than it, while [`Registry::unbounded`] retains every
+//! sample until it is removed. [`Registry::insert_all`] stores a batch all
+//! or nothing, and [`Registry::reparent`] moves a frame under a new parent,
+//! dropping that frame's stored history. [`Registry::latest_common_time`]
+//! answers "what is the newest instant I can look up?" between two frames,
+//! and [`Registry::lookup_across`] relates two frames at two instants.
 //!
-//! Constructors and deserialization validate transforms. Derived results can
-//! accumulate rotation drift or overflow; see [`Transform::validate`] and
-//! [`Transformable`] before applying or publishing them. Cross-time results
-//! have additional restrictions documented on [`Registry::get_transform_at`].
+//! Every [`Rotation`] is a unit quaternion and every [`Transform`] is
+//! finite, whether it was built, decoded, composed, inverted or looked up:
+//! an operation that cannot produce a valid value returns an error. The
+//! crate does not apply a transform to a point; the [`Transform`]
+//! documentation shows how.
 //!
 //! # Features
 //!
-//! - `std` (default): `Timestamp::now()`, `Timestamp::try_now()`,
-//!   and `std::time::SystemTime` support.
-//! - `serde`: serialization and deserialization for geometry and time types.
+//! - `serde`: serialization and deserialization for [`Vector3`],
+//!   [`Rotation`], [`Timestamp`], [`Stamp`] and [`Transform`]. Off by
+//!   default.
 //!
-//! Disabling `std` requires a heap allocator. All coordinates are `f64`, and
-//! `libm` supplies the same arithmetic in both feature modes. Tests pin selected
-//! results on the test host; cross-device bitwise replay is not guaranteed.
+//! The crate is `no_std` and needs a heap allocator. All coordinates are
+//! `f64`, and `libm` supplies the square root and the trigonometry on every
+//! target. Tests pin selected results on the test host; cross-device bitwise
+//! replay is not guaranteed.
 //!
 //! # Reliability
 //!
-//! This crate forbids unsafe code; dependencies must still be sound. Its only
-//! documented panic is `Timestamp::now()` on an unrepresentable system
-//! clock; use `Timestamp::try_now()` to handle that error. Allocation
-//! failure follows the application's allocation error handler.
+//! This crate forbids unsafe code; dependencies must still be sound. It has
+//! no documented panic. Allocation failure follows the application's
+//! allocation error handler.
 //!
-//! [`Registry`] inherits `Send` and `Sync` from its timestamp type. Readers may
-//! hold `RwLock` read guards together; readers can wait for writers.
-//! `HashDoS` resistance and deterministic hash ordering are not guarantees.
+//! [`Registry`] is `Send` and `Sync`. Readers may hold `RwLock` read guards
+//! together; readers can wait for writers. `HashDoS` resistance and
+//! deterministic hash ordering are not guarantees.
 //!
-//! Geometry equality is exact. The `approx` 0.5 comparison traits are part of
-//! the public API and compare numeric components, with exact frame and time
-//! metadata. See [`geometry::Quaternion`] for rotation conventions.
+//! Geometry equality is exact. See [`Rotation`] for rotation conventions.
 //!
 //! # Non-Goals
 //!
@@ -66,31 +65,29 @@
 //! # Examples
 //!
 //! ```
-//! use transforms::{
-//!     Registry,
-//!     geometry::{Quaternion, Transform, Vector3},
-//!     time::Timestamp,
-//! };
+//! use transforms::{Registry, Rotation, Stamp, Timestamp, Transform, Vector3};
 //!
-//! let mut registry: Registry = Registry::new();
+//! let mut registry = Registry::unbounded();
 //! registry
-//!     .add_transform(
-//!         Transform::static_between(
+//!     .insert(
+//!         &Transform::new(
 //!             "base",
 //!             "sensor",
 //!             Vector3::new(1.0, 0.0, 0.0),
-//!             Quaternion::identity(),
+//!             Rotation::IDENTITY,
+//!             Stamp::Static,
 //!         )
 //!         .unwrap(),
 //!     )
 //!     .unwrap();
 //!
 //! let transform = registry
-//!     .get_transform("base", "sensor", Timestamp::zero())
+//!     .lookup("base", "sensor", Timestamp::from_nanos(0))
 //!     .unwrap();
-//! assert_eq!(transform.parent(), "base");
-//! assert_eq!(transform.child(), "sensor");
+//! assert_eq!(transform.target(), "base");
+//! assert_eq!(transform.source(), "sensor");
 //! ```
+#![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -107,19 +104,22 @@
     )
 )]
 #![cfg_attr(test, allow(clippy::similar_names))]
-#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 
 extern crate alloc;
-mod core;
-pub mod errors;
-pub mod geometry;
-pub mod time;
-pub use core::Registry;
-pub use geometry::{Localized, Transform, Transformable};
+#[cfg(test)]
+extern crate std;
 
-// Compile the README examples in every feature combination.
+mod geometry;
+mod registry;
+mod time;
+
+pub use geometry::{CrossTimeTransform, Rotation, Transform, TransformError, Vector3};
+pub use registry::{BatchError, InsertError, LookupError, Registry};
+pub use time::{Stamp, Timestamp};
+
+// Compile the README examples in both feature modes.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 mod readme {}

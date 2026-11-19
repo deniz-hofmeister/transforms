@@ -1,653 +1,358 @@
-//! Rigid-body transforms between coordinate frames, with composition, inversion, and interpolation.
+//! Labelled rigid-body transforms.
 
-use crate::{
-    geometry::{Quaternion, Vector3},
-    time::{Stamp, TimePoint, Timestamp},
-};
+use super::{Isometry, Rotation, TransformError, Vector3};
+use crate::time::Stamp;
 use alloc::string::String;
-use approx::{AbsDiffEq, RelativeEq};
-use core::ops::Mul;
-pub use error::TransformError;
-pub(crate) use isometry::Isometry;
-pub use traits::{Localized, Transformable};
 
-mod error;
-mod isometry;
-mod traits;
-
-/// The accepted deviation of a rotation's norm from 1, applied by
-/// [`Transform::validate`].
+/// Maps `source`-frame coordinates into the `target` frame at a stamp:
+/// `p_target = R * p_source + t`.
 ///
-/// That is the check behind [`Transform::new`],
-/// [`Transform::static_between`], the `Deserialize` impl, and every
-/// [`Registry::add_transform`](crate::Registry::add_transform), so the
-/// tolerance gates every rotation that reaches storage.
+/// Every value is valid: the translation is finite, the rotation is a
+/// [`Rotation`], and neither frame name is empty. [`Transform::new`],
+/// decoding, [`compose`](Self::compose), [`inverse`](Self::inverse) and
+/// every [`Registry`](crate::Registry) lookup establish that or return an
+/// error, so a transform never needs to be validated by its user. The
+/// fields are private; read them through the accessors.
 ///
-/// Loose enough to accept unit quaternions that were stored or
-/// transmitted as `f32` and widened to `f64`, tight enough to reject
-/// genuinely denormalized rotations, which would otherwise corrupt every
-/// lookup they take part in without any error.
-pub const UNIT_NORM_TOLERANCE: f64 = 1e-6;
-
-/// Maps child-frame coordinates into a parent frame at a given stamp.
+/// Inserted into a [`Registry`](crate::Registry), a transform is the edge
+/// whose parent is [`target`](Self::target) and whose child is
+/// [`source`](Self::source).
 ///
-/// Positions are rotated first, then translated. [`Transform::new`] and
-/// [`Transform::static_between`] reject non-finite components and rotations
-/// outside [`UNIT_NORM_TOLERANCE`]. Fields are private; use the accessors to
-/// read components and a constructor to change them.
+/// The two names may be equal. A pose error
+/// `estimate.inverse()?.compose(&truth)?` is an ordinary `base`-to-`base`
+/// transform that is not the identity, and no check tells it from a
+/// hand-built `a`-to-`a` transform with an offset, which is a mistake.
+/// [`Registry::insert`](crate::Registry::insert) rejects every transform
+/// whose names are equal.
 ///
-/// Derived transforms (composition, interpolation, inversion, and registry
-/// lookups) are not re-validated. Rotation norms can drift beyond the tolerance
-/// and translations can overflow. Use [`validate`](Self::validate) when needed;
-/// [`Registry::add_transform`](crate::Registry::add_transform) always validates
-/// before storage.
+/// Equality is exact. With `serde`, a transform encodes as `target`,
+/// `source`, `translation`, `rotation`, `stamp`, in that order, and decodes
+/// through [`Transform::new`] with the same checks; unknown fields are an
+/// error. Decoding an encoded transform returns an equal one under a codec
+/// that preserves every `f64`; JSON text needs a parser that rounds
+/// correctly.
 ///
-/// With `serde`, this type implements `Serialize` and `Deserialize`.
-/// Deserialization validates; serialization writes the components unchanged.
-/// Validate a derived result before publishing it to avoid a decode failure.
+/// # Applying a transform to a point
 ///
-/// [`Registry::get_transform_at`](crate::Registry::get_transform_at) returns
-/// cross-time geometry with only the target stamp. Retain the source instant
-/// and follow that method's application restrictions; numeric validation does
-/// not check temporal provenance.
-///
-/// # Examples
+/// Rotate, then translate. The crate does not do this for you, and the
+/// variants that are easy to write by hand (translating first, dropping the
+/// translation, applying the transform in the wrong direction) all return
+/// an ordinary finite vector that no check can tell from the right one.
 ///
 /// ```
-/// use transforms::{
-///     geometry::{Quaternion, Transform, Vector3},
-///     time::{Stamp, Timestamp},
-/// };
+/// use transforms::{Rotation, Stamp, Timestamp, Transform, Vector3};
 ///
-/// let t_map_base: Transform = Transform::new(
+/// // `sensor` in `map`: rolled, pitched and yawed by 30, 45 and 60 degrees.
+/// let tf = Transform::new(
 ///     "map",
-///     "base",
-///     Vector3::new(1.0, 0.0, 0.0),
-///     Quaternion::identity(),
-///     Stamp::At(Timestamp::zero()),
+///     "sensor",
+///     Vector3::new(-1.0, 0.5, 0.25),
+///     Rotation::from_wxyz(
+///         0.723_317_411_364_711_8,
+///         0.391_903_837_329_119_9,
+///         0.200_562_121_146_575_12,
+///         0.531_975_695_182_166_8,
+///     )
+///     .unwrap(),
+///     Stamp::At(Timestamp::from_nanos(0)),
 /// )
 /// .unwrap();
 ///
-/// assert_eq!(t_map_base.parent(), "map");
-/// assert_eq!(t_map_base.translation(), Vector3::new(1.0, 0.0, 0.0));
+/// // A point measured in `sensor` ...
+/// let p = Vector3::new(0.3, -0.7, 1.1);
+///
+/// // ... expressed in `map`.
+/// let r = tf.rotation().rotate(p);
+/// let t = tf.translation();
+/// let p_target = Vector3::new(r.x + t.x, r.y + t.y, r.z + t.z);
+///
+/// assert!((p_target.x - 0.312_544_181_470_241).abs() < 1e-12);
+/// assert!((p_target.y - 0.300_345_740_105_364_36).abs() < 1e-12);
+/// assert!((p_target.z - 0.415_426_564_355_733_33).abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(
-        try_from = "TransformRepr<T>",
-        bound(deserialize = "T: TimePoint + serde::Deserialize<'de>")
-    )
-)]
-#[non_exhaustive]
-pub struct Transform<T = Timestamp>
-where
-    T: TimePoint,
-{
-    translation: Vector3,
-    rotation: Quaternion,
-    timestamp: Stamp<T>,
-    parent: String,
-    child: String,
+pub struct Transform {
+    target: String,
+    source: String,
+    isometry: Isometry,
+    stamp: Stamp,
 }
 
-impl<T> Transform<T>
-where
-    T: TimePoint,
-{
-    /// Builds a validated transform mapping `child`-frame coordinates into
-    /// the `parent` frame.
+impl Transform {
+    /// Builds a transform that maps `source`-frame coordinates into the
+    /// `target` frame.
     ///
-    /// `timestamp` says when it holds: `Stamp::At(t)` for a dynamic sample,
-    /// `Stamp::Static` for a fixed relationship (see
-    /// [`Transform::static_between`], which is this constructor with
-    /// `Stamp::Static`).
+    /// `stamp` says when it holds: `Stamp::At(t)` for a sample of a moving
+    /// relationship, `Stamp::Static` for a fixed one such as a sensor
+    /// mount. Borrowed names are copied; pass a `String` to move it in.
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::NonFiniteValues` if any component is NaN or
-    /// infinite, and `TransformError::NonUnitRotation` if the rotation's norm
-    /// deviates from 1 by more than [`UNIT_NORM_TOLERANCE`].
+    /// Returns [`TransformError::EmptyFrameName`] if either name is empty,
+    /// and otherwise [`TransformError::NonFinite`] if a translation
+    /// component is NaN or infinite.
     ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{
-    ///     errors::TransformError,
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
+    /// use transforms::{Rotation, Stamp, Timestamp, Transform, TransformError, Vector3};
     ///
-    /// let stamp = Stamp::At(Timestamp::zero());
-    /// let valid: Transform = Transform::new(
-    ///     "map",
-    ///     "base",
-    ///     Vector3::zero(),
-    ///     Quaternion::identity(),
-    ///     stamp,
-    /// )
-    /// .unwrap();
-    /// assert_eq!(valid.child(), "base");
-    ///
-    /// let denormalized = Transform::new(
-    ///     "map",
-    ///     "base",
-    ///     Vector3::zero(),
-    ///     Quaternion::from_wxyz(1.01, 0.0, 0.0, 0.0),
-    ///     stamp,
-    /// );
-    /// assert!(matches!(
-    ///     denormalized,
-    ///     Err(TransformError::NonUnitRotation(_))
-    /// ));
-    /// ```
-    pub fn new(
-        parent: &str,
-        child: &str,
-        translation: Vector3,
-        rotation: Quaternion,
-        timestamp: Stamp<T>,
-    ) -> Result<Self, TransformError> {
-        let transform = Self::unvalidated(
-            parent.into(),
-            child.into(),
-            translation,
-            rotation,
-            timestamp,
-        );
-        transform.validate()?;
-        Ok(transform)
-    }
-
-    /// Builds a validated static transform between two frames: valid for all
-    /// time.
-    ///
-    /// The transform carries `Stamp::Static`, so the registry serves it for
-    /// any requested time and never expires it. Use this for fixed
-    /// relationships like sensor mounts.
-    ///
-    /// The arguments carry no timestamp to infer the time type from. Where
-    /// nothing else fixes it, write `Transform::<Timestamp>::static_between(..)`.
-    ///
-    /// # Errors
-    ///
-    /// The same as [`Transform::new`], of which this is the `Stamp::Static`
-    /// case: `TransformError::NonFiniteValues` for a non-finite component and
-    /// `TransformError::NonUnitRotation` for a rotation outside
-    /// [`UNIT_NORM_TOLERANCE`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::geometry::{Quaternion, Transform, Vector3};
-    ///
-    /// let mount: Transform = Transform::static_between(
+    /// let mount = Transform::new(
     ///     "base",
     ///     "camera",
     ///     Vector3::new(0.1, 0.0, 0.5),
-    ///     Quaternion::identity(),
+    ///     Rotation::IDENTITY,
+    ///     Stamp::Static,
     /// )
     /// .unwrap();
-    /// assert!(mount.timestamp().is_static());
+    /// assert_eq!(mount.target(), "base");
+    /// assert_eq!(mount.source(), "camera");
+    ///
+    /// let unnamed = Transform::new(
+    ///     "base",
+    ///     "",
+    ///     Vector3::new(0.0, 0.0, 0.0),
+    ///     Rotation::IDENTITY,
+    ///     Stamp::At(Timestamp::from_nanos(0)),
+    /// );
+    /// assert_eq!(unnamed, Err(TransformError::EmptyFrameName));
     /// ```
-    pub fn static_between(
-        parent: &str,
-        child: &str,
+    pub fn new(
+        target: impl Into<String>,
+        source: impl Into<String>,
         translation: Vector3,
-        rotation: Quaternion,
+        rotation: Rotation,
+        stamp: Stamp,
     ) -> Result<Self, TransformError> {
-        Self::new(parent, child, translation, rotation, Stamp::Static)
+        let target = target.into();
+        if target.is_empty() {
+            return Err(TransformError::EmptyFrameName);
+        }
+        let source = source.into();
+        if source.is_empty() {
+            return Err(TransformError::EmptyFrameName);
+        }
+        Ok(Self {
+            target,
+            source,
+            isometry: Isometry::new(translation, rotation)?,
+            stamp,
+        })
     }
 
-    /// Assembles components without validation.
+    /// Labels an isometry the registry resolved.
     ///
-    /// For the registry's identity and for values derived from already
-    /// validated transforms — interpolation, inversion, composition — where
-    /// re-validating would reject legitimate norm drift. Every caller must
-    /// be able to name the validated transform its inputs came from.
-    pub(crate) fn unvalidated(
-        parent: String,
-        child: String,
-        translation: Vector3,
-        rotation: Quaternion,
-        timestamp: Stamp<T>,
+    /// The names are the ones a query was answered for, and the registry
+    /// knows no empty name, so the result is valid without a check.
+    pub(crate) fn from_parts(
+        target: String,
+        source: String,
+        isometry: Isometry,
+        stamp: Stamp,
     ) -> Self {
         Self {
-            translation,
-            rotation,
-            timestamp,
-            parent,
-            child,
+            target,
+            source,
+            isometry,
+            stamp,
         }
     }
 
-    /// The translational component: where the child frame's origin sits in
-    /// the parent frame.
+    /// The frame the transform maps coordinates into.
+    #[must_use]
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    /// The frame the transform maps coordinates from.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Where the source frame's origin sits in the target frame.
     #[must_use]
     pub fn translation(&self) -> Vector3 {
-        self.translation
+        self.isometry.translation()
     }
 
-    /// The rotational component: how the child frame is oriented in the
-    /// parent frame.
+    /// How the source frame is oriented in the target frame.
     #[must_use]
-    pub fn rotation(&self) -> Quaternion {
-        self.rotation
+    pub fn rotation(&self) -> Rotation {
+        self.isometry.rotation()
     }
 
-    /// When the transform is valid: at one instant (`Stamp::At`) or for all
-    /// time (`Stamp::Static`).
+    /// When the transform holds: at one instant, or for all time.
     #[must_use]
-    pub fn timestamp(&self) -> Stamp<T> {
-        self.timestamp
+    pub fn stamp(&self) -> Stamp {
+        self.stamp
     }
 
-    /// The target frame; the transform maps child-frame coordinates into
-    /// this frame.
-    #[must_use]
-    pub fn parent(&self) -> &str {
-        &self.parent
-    }
-
-    /// The source frame whose coordinates are mapped into the parent frame.
-    #[must_use]
-    pub fn child(&self) -> &str {
-        &self.child
-    }
-
-    /// The numbers without the frames and stamp, for the arithmetic that
-    /// [`Isometry`] carries out on the transform's behalf.
+    /// The numbers without the frames and stamp.
     pub(crate) fn isometry(&self) -> Isometry {
-        Isometry {
-            translation: self.translation,
-            rotation: self.rotation,
-        }
+        self.isometry
     }
 
-    /// Checks that the transform is usable for composition and lookup.
+    /// Composes two transforms: with `self` mapping `b` into `a` and `rhs`
+    /// mapping `c` into `b`, the result maps `c` into `a`.
     ///
-    /// A valid transform has finite translation and rotation components and a
-    /// rotation whose norm is within [`UNIT_NORM_TOLERANCE`] of `1.0`. The
-    /// constructors run this, so a transform built through them passes;
-    /// results of `*`, [`inverse`](Self::inverse) and
-    /// [`interpolate`](Self::interpolate) are not re-checked, and neither is
-    /// a transform a third-party [`Transformable`] implementation receives
-    /// from elsewhere — call this when that provenance matters.
+    /// Two dynamic operands must hold at the same instant. A static operand
+    /// holds at every instant and takes the other's stamp; two static
+    /// operands give a static result.
     ///
     /// # Errors
     ///
-    /// Returns `TransformError::NonFiniteValues` if any component is NaN or
-    /// infinite, and `TransformError::NonUnitRotation` if the rotation is not
-    /// a unit quaternion within the tolerance.
+    /// Returns [`TransformError::FrameMismatch`] unless
+    /// `self.source() == rhs.target()`, then
+    /// [`TransformError::StampMismatch`] for two dynamic operands at
+    /// different instants. Returns [`TransformError::NonFinite`] if the
+    /// composed translation overflows, and
+    /// [`TransformError::NonUnitRotation`] if the composed rotation cannot
+    /// be brought back to unit length, which no input is known to reach.
     ///
     /// # Examples
     ///
     /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
+    /// use transforms::{Rotation, Stamp, Transform, Vector3};
+    ///
+    /// let edge = |target, source, x| {
+    ///     Transform::new(
+    ///         target,
+    ///         source,
+    ///         Vector3::new(x, 0.0, 0.0),
+    ///         Rotation::IDENTITY,
+    ///         Stamp::Static,
+    ///     )
+    ///     .unwrap()
     /// };
+    /// let map_from_base = edge("map", "base", 1.0);
+    /// let base_from_lidar = edge("base", "lidar", 2.0);
     ///
-    /// let transform: Transform = Transform::new(
-    ///     "a",
-    ///     "b",
-    ///     Vector3::new(1.0, 2.0, 3.0),
-    ///     Quaternion::identity(),
-    ///     Stamp::At(Timestamp::zero()),
-    /// )
-    /// .unwrap();
+    /// let map_from_lidar = map_from_base.compose(&base_from_lidar).unwrap();
+    /// assert_eq!(map_from_lidar.target(), "map");
+    /// assert_eq!(map_from_lidar.source(), "lidar");
+    /// assert_eq!(map_from_lidar.translation(), Vector3::new(3.0, 0.0, 0.0));
     ///
-    /// assert!(transform.validate().is_ok());
-    /// assert!(transform.inverse().unwrap().validate().is_ok());
+    /// // The other order does not chain.
+    /// assert!(base_from_lidar.compose(&map_from_base).is_err());
     /// ```
-    pub fn validate(&self) -> Result<(), TransformError> {
-        let t = self.translation;
-        let q = self.rotation;
-
-        let finite = t.x.is_finite()
-            && t.y.is_finite()
-            && t.z.is_finite()
-            && q.w.is_finite()
-            && q.x.is_finite()
-            && q.y.is_finite()
-            && q.z.is_finite();
-        if !finite {
-            return Err(TransformError::NonFiniteValues);
-        }
-
-        let norm = q.norm();
-        if (norm - 1.0).abs() > UNIT_NORM_TOLERANCE {
-            return Err(TransformError::NonUnitRotation(norm));
-        }
-
-        Ok(())
-    }
-
-    /// Interpolates between two transforms at a given timestamp.
-    ///
-    /// Returns a new `Transform` that is the interpolation between `from` and `to`
-    /// at the specified `timestamp`. If both endpoints share a timestamp, a
-    /// clone of `from` is returned.
-    ///
-    /// # Errors
-    ///
-    /// Returns `TransformError::StaticInterpolation` if either endpoint is
-    /// `Stamp::Static` — a static transform is valid for all time, so it is
-    /// never an interpolation endpoint.
-    ///
-    /// Returns `TransformError::TimestampOutOfRange` if the timestamp is
-    /// outside the range of `from` and `to` (there is no extrapolation),
-    /// `TransformError::TimestampMismatch` if the endpoints are swapped, and
-    /// `TransformError::IncompatibleFrames` if the frames do not match.
-    ///
-    /// Returns `TransformError::TimestampError` if a time span needed for
-    /// the interpolation — between the endpoints, or from `from` to the
-    /// requested timestamp — is too large to represent as a `Duration`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
-    ///
-    /// let from: Transform = Transform::new(
-    ///     "a",
-    ///     "b",
-    ///     Vector3::zero(),
-    ///     Quaternion::identity(),
-    ///     Stamp::At(Timestamp::zero()),
-    /// )
-    /// .unwrap();
-    /// let to: Transform = Transform::new(
-    ///     "a",
-    ///     "b",
-    ///     Vector3::new(2.0, 2.0, 2.0),
-    ///     Quaternion::identity(),
-    ///     Stamp::At(Timestamp::from_nanos(2_000_000_000)),
-    /// )
-    /// .unwrap();
-    /// let timestamp = Timestamp::from_nanos(1_000_000_000);
-    ///
-    /// let interpolated = Transform::interpolate(&from, &to, timestamp).unwrap();
-    ///
-    /// assert_eq!(interpolated.translation(), Vector3::new(1.0, 1.0, 1.0));
-    /// assert_eq!(interpolated.timestamp(), Stamp::At(timestamp));
-    /// ```
-    pub fn interpolate(
-        from: &Transform<T>,
-        to: &Transform<T>,
-        timestamp: T,
-    ) -> Result<Transform<T>, TransformError> {
-        let (Stamp::At(from_time), Stamp::At(to_time)) = (from.timestamp, to.timestamp) else {
-            return Err(TransformError::StaticInterpolation);
-        };
-        if from_time > to_time {
-            return Err(TransformError::TimestampMismatch {
-                lhs: from_time.as_seconds_lossy(),
-                rhs: to_time.as_seconds_lossy(),
+    pub fn compose(
+        &self,
+        rhs: &Self,
+    ) -> Result<Self, TransformError> {
+        if self.source != rhs.target {
+            return Err(TransformError::FrameMismatch {
+                expected: self.source.clone(),
+                found: rhs.target.clone(),
             });
         }
-        if timestamp < from_time || timestamp > to_time {
-            return Err(TransformError::TimestampOutOfRange {
-                requested: timestamp.as_seconds_lossy(),
-                start: from_time.as_seconds_lossy(),
-                end: to_time.as_seconds_lossy(),
-            });
-        }
-        if from.child != to.child || from.parent != to.parent {
-            return Err(TransformError::IncompatibleFrames {
-                expected: alloc::format!("{} -> {}", from.parent, from.child),
-                found: alloc::format!("{} -> {}", to.parent, to.child),
-            });
-        }
-
-        let isometry = from
-            .isometry()
-            .interpolate(to.isometry(), from_time, to_time, timestamp)?;
-        Ok(Self::unvalidated(
-            from.parent.clone(),
-            from.child.clone(),
-            isometry.translation,
-            isometry.rotation,
-            Stamp::At(timestamp),
-        ))
-    }
-
-    /// Computes the inverse of the transform: the same relationship read the
-    /// other way round, with the frames swapped.
-    ///
-    /// The rotation is normalized first — inverting a rotation that has
-    /// drifted off the unit sphere would scale every value the result is
-    /// applied to.
-    ///
-    /// # Errors
-    ///
-    /// Returns `TransformError::QuaternionError` if the rotation cannot be
-    /// normalized, which a transform straight from a constructor cannot reach:
-    /// its norm was checked there. `TransformError::NonFiniteValues` is
-    /// returned if the inverted translation is not finite, and that one is
-    /// reachable from a constructor-built transform too — rotating a
-    /// translation whose components sit near `f64::MAX` overflows it — as well
-    /// as from one composed out of extreme-magnitude operands, which `*` does
-    /// not re-check.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use transforms::{
-    ///     geometry::{Quaternion, Transform, Vector3},
-    ///     time::{Stamp, Timestamp},
-    /// };
-    ///
-    /// let transform: Transform = Transform::new(
-    ///     "a",
-    ///     "b",
-    ///     Vector3::new(1.0, 2.0, 3.0),
-    ///     Quaternion::from_wxyz(0.0, 1.0, 0.0, 0.0),
-    ///     Stamp::At(Timestamp::zero()),
-    /// )
-    /// .unwrap();
-    ///
-    /// let inverse = transform.clone().inverse().unwrap();
-    ///
-    /// // The inverse has the frames swapped ...
-    /// assert_eq!(inverse.parent(), "b");
-    /// assert_eq!(inverse.child(), "a");
-    ///
-    /// // ... and composing the two yields the identity.
-    /// let result = (transform * inverse).unwrap();
-    /// assert_eq!(result.translation(), Vector3::zero());
-    /// assert_eq!(result.rotation(), Quaternion::identity());
-    /// ```
-    pub fn inverse(&self) -> Result<Self, TransformError> {
-        let isometry = self.isometry().inverse()?;
-        Ok(Self::unvalidated(
-            self.child.clone(),
-            self.parent.clone(),
-            isometry.translation,
-            isometry.rotation,
-            self.timestamp,
-        ))
-    }
-}
-
-/// The frame rule of composition, shared by `Transform`'s `*` and the
-/// registry's lookup: `t_a_b * t_b_c` composes only when the left-hand child
-/// is the right-hand parent, and never onto the right-hand child itself.
-///
-/// # Errors
-///
-/// Returns [`TransformError::SameFrameMultiplication`] when the child frames
-/// match, and [`TransformError::IncompatibleFrames`] unless
-/// `lhs_child == rhs_parent`.
-pub(crate) fn ensure_composable(
-    lhs_child: &str,
-    rhs_parent: &str,
-    rhs_child: &str,
-) -> Result<(), TransformError> {
-    if lhs_child == rhs_child {
-        return Err(TransformError::SameFrameMultiplication {
-            frame: rhs_child.into(),
-        });
-    }
-
-    if lhs_child != rhs_parent {
-        return Err(TransformError::IncompatibleFrames {
-            expected: lhs_child.into(),
-            found: rhs_parent.into(),
-        });
-    }
-
-    Ok(())
-}
-
-impl<T> Mul for Transform<T>
-where
-    T: TimePoint,
-{
-    type Output = Result<Transform<T>, TransformError>;
-
-    /// Composes two transforms: `t_a_b * t_b_c` yields `t_a_c`.
-    ///
-    /// The result is not re-validated; see [`Transform::validate`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`TransformError::TimestampMismatch`] for unequal timestamps,
-    /// unless either operand is static; [`TransformError::IncompatibleFrames`]
-    /// unless `self.child() == rhs.parent()`; and
-    /// [`TransformError::SameFrameMultiplication`] when the child frames match.
-    /// The last restriction also rejects a right-hand identity transform.
-    #[inline]
-    fn mul(
-        self,
-        rhs: Transform<T>,
-    ) -> Self::Output {
-        let timestamp = match (self.timestamp, rhs.timestamp) {
-            (Stamp::Static, rhs_stamp) => rhs_stamp,
-            (self_stamp, Stamp::Static) => self_stamp,
-            (Stamp::At(lhs), Stamp::At(rhs_time)) => {
-                if lhs != rhs_time {
-                    return Err(TransformError::TimestampMismatch {
-                        lhs: lhs.as_seconds_lossy(),
-                        rhs: rhs_time.as_seconds_lossy(),
-                    });
+        let stamp = match (self.stamp, rhs.stamp) {
+            (Stamp::Static, stamp) | (stamp, Stamp::Static) => stamp,
+            (Stamp::At(lhs), Stamp::At(rhs)) => {
+                if lhs != rhs {
+                    return Err(TransformError::StampMismatch { lhs, rhs });
                 }
                 Stamp::At(lhs)
             }
         };
+        Ok(Self {
+            target: self.target.clone(),
+            source: rhs.source.clone(),
+            isometry: self.isometry.compose(rhs.isometry)?,
+            stamp,
+        })
+    }
 
-        ensure_composable(&self.child, &rhs.parent, &rhs.child)?;
-
-        let isometry = self.isometry() * rhs.isometry();
-        Ok(Self::unvalidated(
-            self.parent,
-            rhs.child,
-            isometry.translation,
-            isometry.rotation,
-            timestamp,
-        ))
+    /// The same relationship read the other way round: the frames swapped,
+    /// the stamp kept.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransformError::NonFinite`] if the inverted translation
+    /// overflows, which translations near `f64::MAX` reach.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use transforms::{Rotation, Stamp, Transform, Vector3};
+    ///
+    /// let map_from_base = Transform::new(
+    ///     "map",
+    ///     "base",
+    ///     Vector3::new(1.0, 2.0, 3.0),
+    ///     Rotation::IDENTITY,
+    ///     Stamp::Static,
+    /// )
+    /// .unwrap();
+    ///
+    /// let base_from_map = map_from_base.inverse().unwrap();
+    /// assert_eq!(base_from_map.target(), "base");
+    /// assert_eq!(base_from_map.source(), "map");
+    /// assert_eq!(base_from_map.translation(), Vector3::new(-1.0, -2.0, -3.0));
+    /// ```
+    pub fn inverse(&self) -> Result<Self, TransformError> {
+        Ok(Self {
+            target: self.source.clone(),
+            source: self.target.clone(),
+            isometry: self.isometry.inverse()?,
+            stamp: self.stamp,
+        })
     }
 }
 
-/// The field-for-field record serde reads a [`Transform`] from, converted
-/// through [`TryFrom`] so that a deserialized transform runs the same
-/// validation as [`Transform::new`]. Renamed to `Transform` so the wire
-/// format is unchanged.
+#[cfg(feature = "serde")]
+impl serde::Serialize for Transform {
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        // Names first: a 2.x payload leads with a float, whose low bytes a
+        // leading name consumes, so every later float is misaligned and the
+        // rotation check rejects nearly every such decode. Not all: bytes
+        // that happen to form a valid transform still decode.
+        let mut transform = serializer.serialize_struct("Transform", 5)?;
+        transform.serialize_field("target", &self.target)?;
+        transform.serialize_field("source", &self.source)?;
+        transform.serialize_field("translation", &self.isometry.translation())?;
+        transform.serialize_field("rotation", &self.isometry.rotation())?;
+        transform.serialize_field("stamp", &self.stamp)?;
+        transform.end()
+    }
+}
+
+/// The record serde reads a [`Transform`] from: the five fields, in the
+/// order they are written, before [`Transform::new`] has checked them.
 #[cfg(feature = "serde")]
 #[derive(serde::Deserialize)]
-#[serde(rename = "Transform")]
-#[serde(bound(deserialize = "T: TimePoint + serde::Deserialize<'de>"))]
-struct TransformRepr<T>
-where
-    T: TimePoint,
-{
+#[serde(rename = "Transform", deny_unknown_fields)]
+struct TransformRecord {
+    target: String,
+    source: String,
     translation: Vector3,
-    rotation: Quaternion,
-    timestamp: Stamp<T>,
-    parent: String,
-    child: String,
+    rotation: Rotation,
+    stamp: Stamp,
 }
 
 #[cfg(feature = "serde")]
-impl<T> TryFrom<TransformRepr<T>> for Transform<T>
-where
-    T: TimePoint,
-{
-    type Error = TransformError;
-
-    fn try_from(repr: TransformRepr<T>) -> Result<Self, Self::Error> {
-        // The body of `Transform::new`, moving the decoded frame names instead
-        // of re-allocating them: the assembled value is validated before it
-        // escapes, so `unvalidated` never hands out an unchecked transform.
-        let transform = Self::unvalidated(
-            repr.parent,
-            repr.child,
-            repr.translation,
-            repr.rotation,
-            repr.timestamp,
-        );
-        transform.validate()?;
-        Ok(transform)
-    }
-}
-
-impl<T> AbsDiffEq for Transform<T>
-where
-    T: TimePoint,
-{
-    type Epsilon = f64;
-
-    fn default_epsilon() -> Self::Epsilon {
-        f64::EPSILON
-    }
-
-    /// Compares translation and rotation within `epsilon`; frames and
-    /// timestamps must match exactly. Use this (via
-    /// `approx::assert_abs_diff_eq!`) for tolerant comparison of computed
-    /// transforms — `==` is exact IEEE 754 equality with no tolerance
-    /// (`NaN` components never compare equal, and `0.0 == -0.0`), not a
-    /// bit-level comparison.
-    fn abs_diff_eq(
-        &self,
-        other: &Self,
-        epsilon: Self::Epsilon,
-    ) -> bool {
-        self.translation.abs_diff_eq(&other.translation, epsilon)
-            && self.rotation.abs_diff_eq(&other.rotation, epsilon)
-            && self.timestamp == other.timestamp
-            && self.parent == other.parent
-            && self.child == other.child
-    }
-}
-
-impl<T> RelativeEq for Transform<T>
-where
-    T: TimePoint,
-{
-    fn default_max_relative() -> Self::Epsilon {
-        f64::EPSILON
-    }
-
-    /// Compares translation and rotation with relative tolerance; frames and
-    /// timestamps must match exactly.
-    fn relative_eq(
-        &self,
-        other: &Self,
-        epsilon: Self::Epsilon,
-        max_relative: Self::Epsilon,
-    ) -> bool {
-        self.translation
-            .relative_eq(&other.translation, epsilon, max_relative)
-            && self
-                .rotation
-                .relative_eq(&other.rotation, epsilon, max_relative)
-            && self.timestamp == other.timestamp
-            && self.parent == other.parent
-            && self.child == other.child
+impl<'de> serde::Deserialize<'de> for Transform {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let record = TransformRecord::deserialize(deserializer)?;
+        Self::new(
+            record.target,
+            record.source,
+            record.translation,
+            record.rotation,
+            record.stamp,
+        )
+        .map_err(serde::de::Error::custom)
     }
 }
 

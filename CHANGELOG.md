@@ -7,6 +7,270 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+3.0 is a breaking redesign of the API, the errors, the time type and the
+serde layout. Every 2.x program needs changes, and some behaviour changes
+without a compile error; those entries are marked **Silent**. See
+[MIGRATION.md](MIGRATION.md) for the replacement of each item.
+
+### Added
+
+- `Rotation`: a unit quaternion with private components. Every value is
+  finite and has a squared norm within `8 * f64::EPSILON` of 1.
+  `Rotation::from_wxyz(w, x, y, z)` is fallible, `Rotation::IDENTITY` is
+  the identity, `w()`, `x()`, `y()` and `z()` read the components, and
+  `rotate(v)` rotates a `Vector3`.
+- `Transform::compose(&self, &Self)`: composition by reference, returning
+  `Result`.
+- `CrossTimeTransform`: the result of `Registry::lookup_across`, with
+  `target()`, `target_time()`, `source()`, `source_time()`,
+  `translation()` and `rotation()`. It cannot be inserted, composed or
+  serialized.
+- `Timestamp::MAX`, `Timestamp::checked_add(Duration)`,
+  `Timestamp::checked_sub(Duration)` and
+  `Timestamp::checked_duration_since(earlier)`, each returning `Option`.
+  `checked_duration_since` returns `None` iff `earlier` is later than the
+  receiver.
+- `Display` for `Timestamp`: sign-magnitude decimal seconds with nine
+  fractional digits, `-0.500000000` for half a second before the epoch.
+  `Hash` for `Timestamp` and `Stamp`.
+- `InsertError`, `BatchError` and `LookupError`, and the reshaped
+  `TransformError` (see Changed). `BatchError { index, error }` carries the
+  zero-based slice index of the rejected batch member and its
+  `InsertError`, which `source()` also returns.
+- `InsertError::Expired { frame, stamp, newest }`: the error for a dynamic
+  sample older than its frame's retention window (see Changed).
+- `LookupError::NoData { frame }` and
+  `LookupError::OutOfRange { frame, requested, earliest, latest }`,
+  replacing the two shapes of `NotFoundAt`'s `covered: Option`.
+- `Registry::unbounded()`: the explicit constructor for a registry without
+  a retention window.
+- The `Transform` rustdoc carries the recipe for applying a transform to a
+  point, and the `Timestamp` rustdoc a checked conversion to and from a
+  `(i32 seconds, u32 nanoseconds)` stamp, negative seconds included.
+
+### Changed
+
+API, reported by the compiler:
+
+- The crate root is flat. `transforms::geometry`, `transforms::time` and
+  `transforms::errors` no longer exist; every public item is imported from
+  `transforms`.
+- No public type has a time type parameter. `Registry<T>`, `Transform<T>`,
+  `Stamp<T>` and `RegistryError<T>` become `Registry`, `Transform`, `Stamp`
+  and the new error types, all on `Timestamp`.
+- `Timestamp` holds signed `i64` nanoseconds from an epoch the caller
+  chooses, about 292 years either side of it. `from_nanos` takes `i64` and
+  `as_nanos` returns `i64`. Negative instants are ordinary.
+- `Transform::new(target, source, translation, rotation, stamp)` takes a
+  `Rotation`. The frame arguments keep their positions: `target` is what
+  2.x called `parent`, `source` what it called `child`. The accessors are
+  renamed: `parent()` to `target()`, `child()` to `source()`, `timestamp()`
+  to `stamp()`. `rotation()` returns a `Rotation`.
+- `Quaternion` is replaced by `Rotation`: `Quaternion::identity()` becomes
+  `Rotation::IDENTITY`, `rotate_vector` becomes `rotate`, the public
+  fields become the accessors `w()`, `x()`, `y()`, `z()`, and `from_wxyz`
+  returns `Result<Rotation, TransformError>`.
+- `Transform * Transform` is replaced by `a.compose(&b)`, which borrows
+  both operands. `Transform::inverse` keeps its name.
+- `Registry` methods are renamed: `add_transform` to `insert`,
+  `add_transforms` to `insert_all`, `get_transform` to `lookup`,
+  `get_transform_at` to `lookup_across`, `reparent_frame` to `reparent`,
+  `remove_transforms_before` to `remove_samples_through` (with a changed
+  cutoff, below). `remove_frame` and `latest_common_time` keep their names.
+- `Registry::insert` and `Registry::reparent` borrow the transform
+  (`&Transform`), so a rejected one stays with the caller.
+  `Registry::insert_all` takes a slice (`&[Transform]`) instead of an
+  `IntoIterator`.
+- `Registry::lookup_across` returns a `CrossTimeTransform` instead of a
+  `Transform` stamped with the target time.
+- `Registry::latest_common_time` returns `Result<Stamp, LookupError>`.
+- `Registry::new()` and `Default` are replaced by `Registry::unbounded()`.
+  `Registry::with_max_age` keeps its name.
+- Errors are split by operation family. `RegistryError<T>` is replaced by
+  `InsertError` (from `insert`, `reparent`, and inside `BatchError` from
+  `insert_all`) and `LookupError` (from `lookup`, `lookup_across` and
+  `latest_common_time`). `TransformError` covers construction, `compose`
+  and `inverse` only. No error wraps another, except `BatchError`. All
+  variants with a payload are struct variants marked `#[non_exhaustive]`,
+  so patterns need `..`. Time payloads are `Timestamp`, where 2.x
+  `TransformError` carried lossy `f64` seconds. Renamed and reshaped
+  variants:
+  - `RegistryError::SelfReferentialFrame` to
+    `InsertError::SelfEdge { frame }`.
+  - `RegistryError::ReparentingNotSupported { current_parent }` to
+    `InsertError::ParentMismatch { frame, pinned, offered }`.
+  - `RegistryError::CycleDetected` to
+    `InsertError::Cycle { child, parent }`.
+  - `RegistryError::StaticDynamicConflict` to
+    `InsertError::KindMismatch { frame, incoming }`, where `incoming` is
+    the rejected transform's stamp.
+  - `RegistryError::NoParentToReplace(frame)` to
+    `InsertError::NoParent { frame }`.
+  - `RegistryError::ParentUnchanged(frame)` to
+    `InsertError::ParentUnchanged { frame, parent }`.
+  - `RegistryError::UnknownFrame(frame)` to
+    `LookupError::UnknownFrame { frame }` from queries and
+    `InsertError::UnknownFrame { frame }` from `reparent`.
+  - `RegistryError::Disconnected { target_frame, source_frame }` to
+    `LookupError::Disconnected { a, b }`. From `lookup` and
+    `latest_common_time`, `a` is the target and `b` the source. From
+    `lookup_across`, `a` is the endpoint whose leg does not connect and
+    `b` is the fixed frame.
+  - `RegistryError::NotFoundAt { covered: None, .. }` to
+    `LookupError::NoData { frame }`, and `covered: Some((start, end))` to
+    `LookupError::OutOfRange { frame, requested, earliest, latest }`.
+  - `RegistryError::NoCommonTime { covered: None, .. }` to
+    `LookupError::NoData { frame }`, and `covered: Some(..)` to
+    `LookupError::NoCommonTime { frame, earliest, latest, latest_possible }`,
+    where `latest_possible` is the oldest of the newest samples of the
+    chain's dynamic edges.
+  - `NotFoundAt`, `NoCommonTime` and `Disconnected` no longer echo the
+    query's `target_frame` and `source_frame`.
+  - `RegistryError::NonFiniteValues` and `TransformError::NonFiniteValues`
+    to `TransformError::NonFinite` and `LookupError::NonFinite`.
+  - `NonUnitRotation(f64)` to `TransformError::NonUnitRotation { norm }`
+    and `LookupError::NonUnitRotation { norm }`.
+  - `RegistryError::EmptyFrameName` to `TransformError::EmptyFrameName`,
+    reported by `Transform::new` and by decoding.
+  - `TransformError::IncompatibleFrames { expected, found }` to
+    `TransformError::FrameMismatch { expected, found }`.
+  - `TransformError::TimestampMismatch { lhs: f64, rhs: f64 }` to
+    `TransformError::StampMismatch { lhs: Timestamp, rhs: Timestamp }`.
+- Features: `serde` is the only feature, and there is no default feature.
+  The crate is `#![no_std]` with `alloc` in every build.
+- Runtime dependencies are `thiserror`, `hashbrown`, `libm` and the
+  optional `serde`. `approx` is a dev-dependency only.
+
+Behaviour:
+
+- **Silent.** Under `Registry::with_max_age`, an insert of a dynamic sample
+  strictly older than its frame's newest stamp minus `max_age` fails with
+  `InsertError::Expired { frame, stamp, newest }` and stores nothing. 2.x
+  returned `Ok(())` and evicted the sample in the same call. A sample
+  exactly on the boundary is accepted. Where the subtraction is not
+  representable, nothing is rejected. A drained frame and a `reparent` seed
+  have no newest stamp to expire against, and `Registry::unbounded` never
+  reports it. The stored state after an accepted insert is unchanged.
+- **Silent.** One expired member fails the whole `insert_all` batch, so a
+  late sample for one frame rejects fresh samples for every other frame in
+  the same batch. 2.x stored the rest. Each member is measured against its
+  frame's newest stamp at its turn, earlier members of the batch included.
+- **Silent.** `Registry::remove_samples_through(cutoff)` removes every
+  dynamic sample at or before `cutoff`. 2.x `remove_transforms_before`
+  kept the sample at the cutoff. A frame's newest sample is now always
+  removable, and `Timestamp::MAX` clears all dynamic history.
+- **Silent.** A lookup between two known frames that no chain connects
+  reports `LookupError::Disconnected` whatever the frames hold. 2.x could
+  report `NotFoundAt` for an edge met on the way to a root.
+- **Silent.** Lookup causes are diagnosed in one order in `lookup` and
+  `lookup_across`: an unknown name, then disconnected frames, then
+  coverage (`NoData`, `OutOfRange`), then a numerical failure. A coverage
+  failure on any edge of the chain is reported in preference to a
+  numerical failure. In `lookup_across` both legs are checked at each step,
+  the target's leg first.
+- **Silent.** A name is known only while a stored edge names it as child or
+  parent, and every name in a query must be known. `lookup` and
+  `latest_common_time` with two equal names the registry does not know,
+  and `lookup_across` with such names, return `LookupError::UnknownFrame`.
+  2.x returned the identity, respectively `Stamp::Static`. An empty
+  registry answers every query with `UnknownFrame`. `remove_frame` and
+  `reparent` make a parent unknown when no other edge names it.
+- **Silent.** Unknown names are reported in the order target, source,
+  fixed, and the first unknown one is named. 2.x `get_transform_at`
+  resolved the source's leg first and could name the fixed frame or the
+  source before the target.
+- **Silent.** `Transform::new` rejects an empty `target` or `source` with
+  `TransformError::EmptyFrameName`, and decoding rejects it too. 2.x
+  accepted an empty name at construction and decoding and rejected it at
+  insert. `EmptyFrameName` is reported before `NonFinite`. An empty name in
+  a query is `UnknownFrame`.
+- **Silent.** `Rotation::from_wxyz` accepts components whose norm is within
+  `1e-6` of 1, as `Transform::new` did, and scales them to unit length
+  unless their squared norm is already within `8 * f64::EPSILON` of 1, in
+  which case they are stored bit for bit. 2.x stored an accepted rotation
+  as given, so a rotation that travelled as `f32` now reads back with
+  different last digits.
+- **Silent.** Every rotation the crate produces (composition,
+  interpolation, lookup) is held inside that band, and `inverse` uses the
+  conjugate with a corrected translation where 2.x normalized first.
+  The interpolation factor is computed from integer nanosecond differences
+  where 2.x divided seconds. Interpolated, inverted and multi-hop results
+  can therefore differ from 2.x in their last bits. A lookup across one
+  edge toward the parent at a stored instant still returns the stored
+  numbers bit for bit, and a chain is still inverted at most once.
+- **Silent.** No operation returns a transform holding a non-finite
+  value. `compose`, `inverse`, `lookup` and `lookup_across` return
+  `NonFinite` where a translation overflows. (`Rotation::rotate` returns
+  a bare vector and does not check it.) In 2.x a composition and a lookup toward an
+  ancestor could return `Ok` with an infinite translation.
+- **Silent.** `Transform::compose` checks the frames before the stamps:
+  two operands that fail both report `FrameMismatch`. 2.x reported
+  `TimestampMismatch` first. Composition no longer rejects operands that
+  name the same source frame (2.x `SameFrameMultiplication`).
+- **Silent.** `Registry::insert` no longer validates numbers and cannot
+  report a non-unit rotation, a non-finite value or an empty name: a
+  `Transform` cannot hold one.
+- `Transform::new` accepts equal `target` and `source` names with any
+  geometry. `Registry::insert` rejects every such transform with
+  `InsertError::SelfEdge`.
+- Serde (feature `serde`): the layout is new and incompatible with 2.x
+  data. `Transform` encodes as `target`, `source`, `translation`,
+  `rotation`, `stamp`, in that order, where 2.x wrote `translation`,
+  `rotation`, `timestamp`, `parent`, `child`. `Rotation` encodes as
+  `w`, `x`, `y`, `z` and decodes through `Rotation::from_wxyz`;
+  `Transform` decodes through `Transform::new`. `Vector3`, `Rotation` and
+  `Transform` reject unknown fields. `Timestamp` is a bare signed
+  nanosecond count. `Stamp` keeps its explicit tags (`"Static"`,
+  `{"At": t}`; variant index 0 and 1), and a missing or `null` stamp is
+  still a decode error. A 2.x JSON transform fails to decode on its field
+  names. A 2.x postcard transform usually fails to decode, and the frozen
+  2.4 fixtures do, but that is not a guarantee: a 2.x payload whose bytes
+  happen to form a valid 3.0 transform decodes without error, with wrong
+  frames, geometry and stamp. `decode(encode(t)) == t` holds for a codec
+  that preserves every `f64`; JSON text needs a correctly rounding parser
+  (for `serde_json`, its `float_roundtrip` feature). **Hazard:** a standalone 2.x `Timestamp` or `Stamp` in a binary
+  format such as postcard decodes without error at a wrong instant,
+  because an unsigned count is read as a signed one (a 2.x `u64` 1 decodes
+  as -1 ns, and 1.7e18 ns as 8.5e17 ns). Decode persisted 2.x data with the
+  2.x crate and re-encode it; carry a schema version outside the payload.
+- `Registry` lookups resolve the connecting chain on interned frame ids
+  and sample only the edges on it. A successful lookup allocates the two
+  names of its result and nothing else.
+
+### Removed
+
+- `Point`, `Transformable`, `Localized` and
+  `Registry::get_transform_for`. The crate does not apply a transform to a
+  point; the `Transform` rustdoc shows the three lines that do.
+- `Quaternion` with its public fields, `normalize`, `norm`, `conjugate`,
+  `slerp` and `Mul`, and `QuaternionError`. `Rotation` replaces it; slerp
+  and the quaternion product are private.
+- `Transform::static_between` (use `Transform::new` with `Stamp::Static`),
+  `Transform::validate`, `Transform::interpolate`, `impl Mul for Transform`
+  and `geometry::UNIT_NORM_TOLERANCE` (the tolerance is `1e-6`, stated on
+  `Rotation::from_wxyz`).
+- `TransformError::StaticInterpolation`,
+  `TransformError::TimestampOutOfRange`,
+  `TransformError::SameFrameMultiplication`,
+  `TransformError::TimestampError` and `TransformError::QuaternionError`.
+- `RegistryError`, including `RegistryError::TransformError`, and
+  `TimeError`.
+- `Vector3::zero` and the arithmetic operators on `Vector3` (`+`, `-`,
+  `* f64`, `f64 *`, `/ f64`).
+- `Stamp::is_static` and `Stamp::at`. Match on the stamp.
+- `TimePoint` and the time type parameter, the `TimePoint` impl for
+  `std::time::SystemTime`, `Timestamp::now`, `Timestamp::try_now`,
+  `Timestamp::zero`, `Timestamp::as_seconds`,
+  `Timestamp::as_seconds_lossy`, and the `Add<Duration>`, `Sub<Duration>`
+  and `Sub<Timestamp>` operators on `Timestamp`.
+- The `std` feature. The crate has no documented panic left.
+- `Registry::new` and `impl Default for Registry`. No public type
+  implements `Default`.
+- The `approx` trait impls (`AbsDiffEq`, `RelativeEq`) on `Vector3`,
+  `Quaternion`, `Transform` and `Point`. `approx` is no longer part of the
+  public API.
+- The `geometry`, `time` and `errors` modules (see Changed).
+
 ## [2.4.0] - 2026-11-17
 
 ### Added

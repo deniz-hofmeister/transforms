@@ -1,0 +1,13 @@
+[package]
+name = "transforms-differential"
+description = "Differential harness: transforms 2.4.0 against the v3 working tree."
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# An empty workspace table keeps this package out of any parent workspace.
+[workspace]
+
+[dependencies]
+transforms_v2 = { package = "transforms", version = "=2.4.0" }
+transforms = { path = "../../.." }

@@ -1,0 +1,1318 @@
+### v3 round 1
+Benchmarking benchmark/insert_prewarmed_1k
+Benchmarking benchmark/insert_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_1k: Collecting 1000 samples in estimated 5.0947 s (16M iterations)
+Benchmarking benchmark/insert_prewarmed_1k: Analyzing
+benchmark/insert_prewarmed_1k
+                        time:   [171.33 ns 171.38 ns 171.43 ns]
+Found 76 outliers among 1000 measurements (7.60%)
+  12 (1.20%) low severe
+  30 (3.00%) low mild
+  15 (1.50%) high mild
+  19 (1.90%) high severe
+Benchmarking benchmark/insert_prewarmed_60k
+Benchmarking benchmark/insert_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_60k: Collecting 1000 samples in estimated 5.1682 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_60k: Analyzing
+benchmark/insert_prewarmed_60k
+                        time:   [216.64 ns 216.73 ns 216.82 ns]
+Found 64 outliers among 1000 measurements (6.40%)
+  35 (3.50%) high mild
+  29 (2.90%) high severe
+Benchmarking benchmark/insert_prewarmed_100k
+Benchmarking benchmark/insert_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_100k: Collecting 1000 samples in estimated 5.1370 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_100k: Analyzing
+benchmark/insert_prewarmed_100k
+                        time:   [218.36 ns 218.45 ns 218.55 ns]
+Found 94 outliers among 1000 measurements (9.40%)
+  6 (0.60%) low mild
+  42 (4.20%) high mild
+  46 (4.60%) high severe
+
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Collecting 1000 samples in estimated 5.8263 s (1.5M iterations)
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Analyzing
+benchmark/insert_all_8_frames_prewarmed_1k
+                        time:   [1.9497 µs 1.9505 µs 1.9513 µs]
+Found 47 outliers among 1000 measurements (4.70%)
+  1 (0.10%) low mild
+  33 (3.30%) high mild
+  13 (1.30%) high severe
+
+Benchmarking benchmark/reparent
+Benchmarking benchmark/reparent: Warming up for 3.0000 s
+Benchmarking benchmark/reparent: Collecting 1000 samples in estimated 5.0225 s (50M iterations)
+Benchmarking benchmark/reparent: Analyzing
+benchmark/reparent      time:   [102.11 ns 102.13 ns 102.16 ns]
+Found 53 outliers among 1000 measurements (5.30%)
+  1 (0.10%) low severe
+  11 (1.10%) low mild
+  11 (1.10%) high mild
+  30 (3.00%) high severe
+
+Benchmarking benchmark/lookup_1k
+Benchmarking benchmark/lookup_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_1k: Collecting 1000 samples in estimated 5.0632 s (36M iterations)
+Benchmarking benchmark/lookup_1k: Analyzing
+benchmark/lookup_1k     time:   [141.28 ns 141.30 ns 141.33 ns]
+Found 69 outliers among 1000 measurements (6.90%)
+  22 (2.20%) low severe
+  21 (2.10%) low mild
+  15 (1.50%) high mild
+  11 (1.10%) high severe
+
+Benchmarking benchmark/lookup_interpolated_1k
+Benchmarking benchmark/lookup_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_interpolated_1k: Collecting 1000 samples in estimated 5.0789 s (21M iterations)
+Benchmarking benchmark/lookup_interpolated_1k: Analyzing
+benchmark/lookup_interpolated_1k
+                        time:   [247.53 ns 247.55 ns 247.56 ns]
+Found 61 outliers among 1000 measurements (6.10%)
+  8 (0.80%) low mild
+  30 (3.00%) high mild
+  23 (2.30%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.2080 s (8.0M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [650.38 ns 650.65 ns 650.93 ns]
+Found 1 outliers among 1000 measurements (0.10%)
+  1 (0.10%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.1689 s (15M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [344.41 ns 344.43 ns 344.44 ns]
+Found 38 outliers among 1000 measurements (3.80%)
+  9 (0.90%) low mild
+  19 (1.90%) high mild
+  10 (1.00%) high severe
+Benchmarking benchmark/robot_tree_lookup_across
+Benchmarking benchmark/robot_tree_lookup_across: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_lookup_across: Collecting 1000 samples in estimated 5.0013 s (4.5M iterations)
+Benchmarking benchmark/robot_tree_lookup_across: Analyzing
+benchmark/robot_tree_lookup_across
+                        time:   [1.1084 µs 1.1086 µs 1.1088 µs]
+Found 133 outliers among 1000 measurements (13.30%)
+  8 (0.80%) low mild
+  18 (1.80%) high mild
+  107 (10.70%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0937 s (8.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [601.21 ns 601.53 ns 601.85 ns]
+Found 2 outliers among 1000 measurements (0.20%)
+  1 (0.10%) high mild
+  1 (0.10%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.0713 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [780.85 ns 780.93 ns 781.01 ns]
+Found 53 outliers among 1000 measurements (5.30%)
+  1 (0.10%) low mild
+  26 (2.60%) high mild
+  26 (2.60%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.1178 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [785.09 ns 785.15 ns 785.22 ns]
+Found 112 outliers among 1000 measurements (11.20%)
+  8 (0.80%) low mild
+  33 (3.30%) high mild
+  71 (7.10%) high severe
+
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Warming up for 3.0000 s
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Collecting 1000 samples in estimated 5.2394 s (11M iterations)
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Analyzing
+benchmark/siblings_below_16_dynamic_ancestors
+                        time:   [497.77 ns 497.85 ns 497.94 ns]
+Found 61 outliers among 1000 measurements (6.10%)
+  39 (3.90%) high mild
+  22 (2.20%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0013 s (73M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [68.414 ns 68.419 ns 68.424 ns]
+Found 31 outliers among 1000 measurements (3.10%)
+  19 (1.90%) high mild
+  12 (1.20%) high severe
+Benchmarking benchmark/latest_common_time_64hop
+Benchmarking benchmark/latest_common_time_64hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_64hop: Collecting 1000 samples in estimated 5.0321 s (5.5M iterations)
+Benchmarking benchmark/latest_common_time_64hop: Analyzing
+benchmark/latest_common_time_64hop
+                        time:   [895.51 ns 897.07 ns 898.64 ns]
+Found 5 outliers among 1000 measurements (0.50%)
+  1 (0.10%) low mild
+  4 (0.40%) high mild
+
+Benchmarking benchmark/lookup_across_1k
+Benchmarking benchmark/lookup_across_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_across_1k: Collecting 1000 samples in estimated 5.0226 s (19M iterations)
+Benchmarking benchmark/lookup_across_1k: Analyzing
+benchmark/lookup_across_1k
+                        time:   [269.01 ns 269.09 ns 269.17 ns]
+Found 6 outliers among 1000 measurements (0.60%)
+  1 (0.10%) high mild
+  5 (0.50%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0123 s (136k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [37.388 µs 37.391 µs 37.394 µs]
+Found 21 outliers among 1000 measurements (2.10%)
+  6 (0.60%) low mild
+  12 (1.20%) high mild
+  3 (0.30%) high severe
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.0120 s (58k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [86.927 µs 86.934 µs 86.941 µs]
+Found 32 outliers among 1000 measurements (3.20%)
+  4 (0.40%) low mild
+  17 (1.70%) high mild
+  11 (1.10%) high severe
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0348 s (31M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [164.90 ns 164.92 ns 164.95 ns]
+Found 32 outliers among 1000 measurements (3.20%)
+  1 (0.10%) low mild
+  17 (1.70%) high mild
+  14 (1.40%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0024 s (107M iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [46.830 ns 46.877 ns 46.928 ns]
+Found 81 outliers among 1000 measurements (8.10%)
+  55 (5.50%) high mild
+  26 (2.60%) high severe
+
+### v24 round 1
+Benchmarking benchmark/add_transform_prewarmed_1k
+Benchmarking benchmark/add_transform_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_1k: Collecting 1000 samples in estimated 5.0529 s (17M iterations)
+Benchmarking benchmark/add_transform_prewarmed_1k: Analyzing
+benchmark/add_transform_prewarmed_1k
+                        time:   [194.51 ns 194.55 ns 194.58 ns]
+Found 167 outliers among 1000 measurements (16.70%)
+  101 (10.10%) low severe
+  1 (0.10%) low mild
+  7 (0.70%) high mild
+  58 (5.80%) high severe
+Benchmarking benchmark/add_transform_prewarmed_60k
+Benchmarking benchmark/add_transform_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_60k: Collecting 1000 samples in estimated 5.0909 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_60k: Analyzing
+benchmark/add_transform_prewarmed_60k
+                        time:   [251.49 ns 251.67 ns 251.85 ns]
+Found 198 outliers among 1000 measurements (19.80%)
+  113 (11.30%) low severe
+  57 (5.70%) low mild
+  22 (2.20%) high mild
+  6 (0.60%) high severe
+Benchmarking benchmark/add_transform_prewarmed_100k
+Benchmarking benchmark/add_transform_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_100k: Collecting 1000 samples in estimated 5.1779 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_100k: Analyzing
+benchmark/add_transform_prewarmed_100k
+                        time:   [247.37 ns 247.50 ns 247.63 ns]
+Found 183 outliers among 1000 measurements (18.30%)
+  66 (6.60%) low severe
+  65 (6.50%) low mild
+  30 (3.00%) high mild
+  22 (2.20%) high severe
+
+Benchmarking benchmark/get_transform_1k
+Benchmarking benchmark/get_transform_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_1k: Collecting 1000 samples in estimated 5.0889 s (28M iterations)
+Benchmarking benchmark/get_transform_1k: Analyzing
+benchmark/get_transform_1k
+                        time:   [181.53 ns 181.55 ns 181.58 ns]
+Found 45 outliers among 1000 measurements (4.50%)
+  2 (0.20%) low mild
+  23 (2.30%) high mild
+  20 (2.00%) high severe
+
+Benchmarking benchmark/get_transform_interpolated_1k
+Benchmarking benchmark/get_transform_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_interpolated_1k: Collecting 1000 samples in estimated 5.0707 s (18M iterations)
+Benchmarking benchmark/get_transform_interpolated_1k: Analyzing
+benchmark/get_transform_interpolated_1k
+                        time:   [281.24 ns 281.28 ns 281.33 ns]
+Found 58 outliers among 1000 measurements (5.80%)
+  33 (3.30%) high mild
+  25 (2.50%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.3093 s (7.5M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [707.38 ns 707.42 ns 707.45 ns]
+                        change: [+8.5853% +8.6403% +8.6968%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 30 outliers among 1000 measurements (3.00%)
+  2 (0.20%) low mild
+  16 (1.60%) high mild
+  12 (1.20%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.0004 s (4.5M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [1.1103 µs 1.1104 µs 1.1104 µs]
+                        change: [+222.43% +222.56% +222.70%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 32 outliers among 1000 measurements (3.20%)
+  29 (2.90%) high mild
+  3 (0.30%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0786 s (7.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [671.65 ns 671.87 ns 672.09 ns]
+                        change: [+11.612% +11.713% +11.826%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 19 outliers among 1000 measurements (1.90%)
+  2 (0.20%) low mild
+  12 (1.20%) high mild
+  5 (0.50%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.1114 s (6.0M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [851.33 ns 851.38 ns 851.43 ns]
+                        change: [+9.0123% +9.0699% +9.1563%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 33 outliers among 1000 measurements (3.30%)
+  20 (2.00%) high mild
+  13 (1.30%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.0137 s (5.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [911.91 ns 911.96 ns 912.01 ns]
+                        change: [+16.078% +16.134% +16.205%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 27 outliers among 1000 measurements (2.70%)
+  11 (1.10%) low mild
+  10 (1.00%) high mild
+  6 (0.60%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0538 s (16M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [325.94 ns 325.96 ns 325.98 ns]
+                        change: [+376.06% +376.19% +376.35%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 39 outliers among 1000 measurements (3.90%)
+  17 (1.70%) low mild
+  14 (1.40%) high mild
+  8 (0.80%) high severe
+
+Benchmarking benchmark/get_transform_at_1k
+Benchmarking benchmark/get_transform_at_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_at_1k: Collecting 1000 samples in estimated 5.1453 s (15M iterations)
+Benchmarking benchmark/get_transform_at_1k: Analyzing
+benchmark/get_transform_at_1k
+                        time:   [343.02 ns 343.13 ns 343.25 ns]
+Found 62 outliers among 1000 measurements (6.20%)
+  11 (1.10%) low mild
+  15 (1.50%) high mild
+  36 (3.60%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0268 s (76k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [66.311 µs 66.331 µs 66.351 µs]
+                        change: [+77.346% +77.397% +77.447%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 6 outliers among 1000 measurements (0.60%)
+  6 (0.60%) high mild
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.2120 s (21k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [251.55 µs 251.76 µs 251.97 µs]
+                        change: [+189.35% +189.60% +189.83%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 7 outliers among 1000 measurements (0.70%)
+  7 (0.70%) high mild
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0878 s (13M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [406.19 ns 406.34 ns 406.52 ns]
+                        change: [+146.16% +146.38% +146.65%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 44 outliers among 1000 measurements (4.40%)
+  1 (0.10%) low mild
+  20 (2.00%) high mild
+  23 (2.30%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0343 s (112k iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [45.862 µs 45.885 µs 45.909 µs]
+                        change: [+97739% +97825% +97907%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 1000 measurements (0.50%)
+  4 (0.40%) low mild
+  1 (0.10%) high mild
+
+### v3 round 2
+Benchmarking benchmark/insert_prewarmed_1k
+Benchmarking benchmark/insert_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_1k: Collecting 1000 samples in estimated 5.0994 s (16M iterations)
+Benchmarking benchmark/insert_prewarmed_1k: Analyzing
+benchmark/insert_prewarmed_1k
+                        time:   [171.44 ns 171.48 ns 171.52 ns]
+                        change: [−0.1558% −0.0032% +0.1346%] (p = 0.97 > 0.05)
+                        No change in performance detected.
+Found 75 outliers among 1000 measurements (7.50%)
+  8 (0.80%) low severe
+  38 (3.80%) low mild
+  17 (1.70%) high mild
+  12 (1.20%) high severe
+Benchmarking benchmark/insert_prewarmed_60k
+Benchmarking benchmark/insert_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_60k: Collecting 1000 samples in estimated 5.1698 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_60k: Analyzing
+benchmark/insert_prewarmed_60k
+                        time:   [217.07 ns 217.16 ns 217.26 ns]
+                        change: [−0.1129% +0.1470% +0.4115%] (p = 0.28 > 0.05)
+                        No change in performance detected.
+Found 59 outliers among 1000 measurements (5.90%)
+  34 (3.40%) high mild
+  25 (2.50%) high severe
+Benchmarking benchmark/insert_prewarmed_100k
+Benchmarking benchmark/insert_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_100k: Collecting 1000 samples in estimated 5.1376 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_100k: Analyzing
+benchmark/insert_prewarmed_100k
+                        time:   [218.35 ns 218.43 ns 218.51 ns]
+                        change: [−0.1582% +0.0835% +0.3118%] (p = 0.52 > 0.05)
+                        No change in performance detected.
+Found 109 outliers among 1000 measurements (10.90%)
+  16 (1.60%) low mild
+  46 (4.60%) high mild
+  47 (4.70%) high severe
+
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Collecting 1000 samples in estimated 5.7002 s (1.5M iterations)
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Analyzing
+benchmark/insert_all_8_frames_prewarmed_1k
+                        time:   [1.9085 µs 1.9100 µs 1.9115 µs]
+                        change: [−2.1243% −1.9159% −1.7218%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 12 outliers among 1000 measurements (1.20%)
+  7 (0.70%) high mild
+  5 (0.50%) high severe
+
+Benchmarking benchmark/reparent
+Benchmarking benchmark/reparent: Warming up for 3.0000 s
+Benchmarking benchmark/reparent: Collecting 1000 samples in estimated 5.0132 s (50M iterations)
+Benchmarking benchmark/reparent: Analyzing
+benchmark/reparent      time:   [101.84 ns 101.87 ns 101.91 ns]
+                        change: [−0.3082% −0.2703% −0.2332%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 50 outliers among 1000 measurements (5.00%)
+  1 (0.10%) low severe
+  13 (1.30%) low mild
+  9 (0.90%) high mild
+  27 (2.70%) high severe
+
+Benchmarking benchmark/lookup_1k
+Benchmarking benchmark/lookup_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_1k: Collecting 1000 samples in estimated 5.0672 s (36M iterations)
+Benchmarking benchmark/lookup_1k: Analyzing
+benchmark/lookup_1k     time:   [141.09 ns 141.11 ns 141.14 ns]
+                        change: [−0.1769% −0.1133% −0.0518%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 136 outliers among 1000 measurements (13.60%)
+  5 (0.50%) low severe
+  109 (10.90%) low mild
+  13 (1.30%) high mild
+  9 (0.90%) high severe
+
+Benchmarking benchmark/lookup_interpolated_1k
+Benchmarking benchmark/lookup_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_interpolated_1k: Collecting 1000 samples in estimated 5.0803 s (21M iterations)
+Benchmarking benchmark/lookup_interpolated_1k: Analyzing
+benchmark/lookup_interpolated_1k
+                        time:   [247.54 ns 247.57 ns 247.59 ns]
+                        change: [−0.0425% +0.0091% +0.0605%] (p = 0.77 > 0.05)
+                        No change in performance detected.
+Found 22 outliers among 1000 measurements (2.20%)
+  3 (0.30%) low mild
+  11 (1.10%) high mild
+  8 (0.80%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.2017 s (8.0M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [654.29 ns 654.61 ns 654.94 ns]
+                        change: [−7.5525% −7.5002% −7.4445%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 1000 measurements (0.10%)
+  1 (0.10%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.0715 s (15M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [343.82 ns 343.84 ns 343.86 ns]
+                        change: [−69.059% −69.046% −69.035%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 48 outliers among 1000 measurements (4.80%)
+  4 (0.40%) low mild
+  33 (3.30%) high mild
+  11 (1.10%) high severe
+Benchmarking benchmark/robot_tree_lookup_across
+Benchmarking benchmark/robot_tree_lookup_across: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_lookup_across: Collecting 1000 samples in estimated 5.4344 s (5.0M iterations)
+Benchmarking benchmark/robot_tree_lookup_across: Analyzing
+benchmark/robot_tree_lookup_across
+                        time:   [1.0830 µs 1.0832 µs 1.0835 µs]
+                        change: [−2.3430% −2.2937% −2.2369%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 129 outliers among 1000 measurements (12.90%)
+  9 (0.90%) low mild
+  31 (3.10%) high mild
+  89 (8.90%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0974 s (8.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [603.82 ns 604.17 ns 604.52 ns]
+                        change: [−10.197% −10.105% −10.015%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 1000 measurements (0.30%)
+  2 (0.20%) high mild
+  1 (0.10%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.0370 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [781.36 ns 781.45 ns 781.56 ns]
+                        change: [−8.3132% −8.2393% −8.1884%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 116 outliers among 1000 measurements (11.60%)
+  10 (1.00%) low mild
+  29 (2.90%) high mild
+  77 (7.70%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.0606 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [785.55 ns 785.63 ns 785.72 ns]
+                        change: [−13.917% −13.865% −13.816%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 52 outliers among 1000 measurements (5.20%)
+  23 (2.30%) high mild
+  29 (2.90%) high severe
+
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Warming up for 3.0000 s
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Collecting 1000 samples in estimated 5.2249 s (11M iterations)
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Analyzing
+benchmark/siblings_below_16_dynamic_ancestors
+                        time:   [497.92 ns 498.02 ns 498.12 ns]
+                        change: [−0.0310% +0.0297% +0.1136%] (p = 0.48 > 0.05)
+                        No change in performance detected.
+Found 82 outliers among 1000 measurements (8.20%)
+  54 (5.40%) high mild
+  28 (2.80%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0325 s (75M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [67.147 ns 67.152 ns 67.157 ns]
+                        change: [−79.404% −79.396% −79.391%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 59 outliers among 1000 measurements (5.90%)
+  16 (1.60%) low mild
+  26 (2.60%) high mild
+  17 (1.70%) high severe
+Benchmarking benchmark/latest_common_time_64hop
+Benchmarking benchmark/latest_common_time_64hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_64hop: Collecting 1000 samples in estimated 5.3579 s (6.0M iterations)
+Benchmarking benchmark/latest_common_time_64hop: Analyzing
+benchmark/latest_common_time_64hop
+                        time:   [895.38 ns 896.97 ns 898.54 ns]
+                        change: [−0.4666% −0.2837% −0.1000%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 4 outliers among 1000 measurements (0.40%)
+  3 (0.30%) low mild
+  1 (0.10%) high mild
+
+Benchmarking benchmark/lookup_across_1k
+Benchmarking benchmark/lookup_across_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_across_1k: Collecting 1000 samples in estimated 5.0749 s (19M iterations)
+Benchmarking benchmark/lookup_across_1k: Analyzing
+benchmark/lookup_across_1k
+                        time:   [264.99 ns 265.02 ns 265.05 ns]
+                        change: [−1.5938% −1.5173% −1.4343%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 38 outliers among 1000 measurements (3.80%)
+  5 (0.50%) low mild
+  19 (1.90%) high mild
+  14 (1.40%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0244 s (137k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [37.340 µs 37.344 µs 37.347 µs]
+                        change: [−43.719% −43.701% −43.683%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 19 outliers among 1000 measurements (1.90%)
+  14 (1.40%) low mild
+  3 (0.30%) high mild
+  2 (0.20%) high severe
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.0470 s (60k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [84.790 µs 84.797 µs 84.804 µs]
+                        change: [−66.346% −66.318% −66.290%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 22 outliers among 1000 measurements (2.20%)
+  9 (0.90%) high mild
+  13 (1.30%) high severe
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0187 s (31M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [161.58 ns 161.60 ns 161.62 ns]
+                        change: [−60.273% −60.227% −60.182%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 14 outliers among 1000 measurements (1.40%)
+  8 (0.80%) high mild
+  6 (0.60%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0082 s (108M iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [46.784 ns 46.820 ns 46.857 ns]
+                        change: [−99.898% −99.898% −99.898%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 73 outliers among 1000 measurements (7.30%)
+  1 (0.10%) low mild
+  50 (5.00%) high mild
+  22 (2.20%) high severe
+
+### v24 round 2
+Benchmarking benchmark/add_transform_prewarmed_1k
+Benchmarking benchmark/add_transform_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_1k: Collecting 1000 samples in estimated 5.0509 s (17M iterations)
+Benchmarking benchmark/add_transform_prewarmed_1k: Analyzing
+benchmark/add_transform_prewarmed_1k
+                        time:   [195.32 ns 195.37 ns 195.43 ns]
+                        change: [+0.2344% +0.4398% +0.6439%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 187 outliers among 1000 measurements (18.70%)
+  101 (10.10%) low severe
+  1 (0.10%) low mild
+  23 (2.30%) high mild
+  62 (6.20%) high severe
+Benchmarking benchmark/add_transform_prewarmed_60k
+Benchmarking benchmark/add_transform_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_60k: Collecting 1000 samples in estimated 5.1488 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_60k: Analyzing
+benchmark/add_transform_prewarmed_60k
+                        time:   [251.30 ns 251.44 ns 251.57 ns]
+                        change: [−0.1392% +0.1030% +0.3274%] (p = 0.39 > 0.05)
+                        No change in performance detected.
+Found 204 outliers among 1000 measurements (20.40%)
+  129 (12.90%) low severe
+  40 (4.00%) low mild
+  26 (2.60%) high mild
+  9 (0.90%) high severe
+Benchmarking benchmark/add_transform_prewarmed_100k
+Benchmarking benchmark/add_transform_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_100k: Collecting 1000 samples in estimated 5.1726 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_100k: Analyzing
+benchmark/add_transform_prewarmed_100k
+                        time:   [248.17 ns 248.27 ns 248.37 ns]
+                        change: [+0.2071% +0.4796% +0.7744%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 181 outliers among 1000 measurements (18.10%)
+  96 (9.60%) low severe
+  44 (4.40%) low mild
+  11 (1.10%) high mild
+  30 (3.00%) high severe
+
+Benchmarking benchmark/get_transform_1k
+Benchmarking benchmark/get_transform_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_1k: Collecting 1000 samples in estimated 5.0000 s (28M iterations)
+Benchmarking benchmark/get_transform_1k: Analyzing
+benchmark/get_transform_1k
+                        time:   [181.78 ns 181.81 ns 181.83 ns]
+                        change: [+0.0591% +0.1333% +0.1988%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 26 outliers among 1000 measurements (2.60%)
+  10 (1.00%) high mild
+  16 (1.60%) high severe
+
+Benchmarking benchmark/get_transform_interpolated_1k
+Benchmarking benchmark/get_transform_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_interpolated_1k: Collecting 1000 samples in estimated 5.1114 s (18M iterations)
+Benchmarking benchmark/get_transform_interpolated_1k: Analyzing
+benchmark/get_transform_interpolated_1k
+                        time:   [284.67 ns 284.91 ns 285.16 ns]
+                        change: [+1.1891% +1.2846% +1.3832%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 1000 measurements (0.10%)
+  1 (0.10%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.3116 s (7.5M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [707.16 ns 707.19 ns 707.22 ns]
+                        change: [+8.0173% +8.0838% +8.1514%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 66 outliers among 1000 measurements (6.60%)
+  20 (2.00%) low mild
+  21 (2.10%) high mild
+  25 (2.50%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.0121 s (4.5M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [1.1117 µs 1.1117 µs 1.1118 µs]
+                        change: [+223.16% +223.29% +223.44%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 33 outliers among 1000 measurements (3.30%)
+  3 (0.30%) low mild
+  17 (1.70%) high mild
+  13 (1.30%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0619 s (7.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [673.35 ns 673.54 ns 673.73 ns]
+                        change: [+11.396% +11.505% +11.628%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 1000 measurements (1.50%)
+  1 (0.10%) low mild
+  7 (0.70%) high mild
+  7 (0.70%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.1054 s (6.0M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [850.06 ns 850.12 ns 850.18 ns]
+                        change: [+8.7623% +8.8115% +8.8784%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 26 outliers among 1000 measurements (2.60%)
+  2 (0.20%) low mild
+  12 (1.20%) high mild
+  12 (1.20%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.0217 s (5.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [911.49 ns 911.52 ns 911.56 ns]
+                        change: [+15.994% +16.062% +16.150%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 48 outliers among 1000 measurements (4.80%)
+  1 (0.10%) low severe
+  10 (1.00%) low mild
+  20 (2.00%) high mild
+  17 (1.70%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0438 s (16M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [324.83 ns 324.85 ns 324.87 ns]
+                        change: [+383.70% +383.83% +384.00%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 45 outliers among 1000 measurements (4.50%)
+  12 (1.20%) low mild
+  24 (2.40%) high mild
+  9 (0.90%) high severe
+
+Benchmarking benchmark/get_transform_at_1k
+Benchmarking benchmark/get_transform_at_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_at_1k: Collecting 1000 samples in estimated 5.1601 s (15M iterations)
+Benchmarking benchmark/get_transform_at_1k: Analyzing
+benchmark/get_transform_at_1k
+                        time:   [343.65 ns 343.69 ns 343.74 ns]
+                        change: [−0.0418% +0.0874% +0.1920%] (p = 0.16 > 0.05)
+                        No change in performance detected.
+Found 56 outliers among 1000 measurements (5.60%)
+  2 (0.20%) low severe
+  19 (1.90%) low mild
+  16 (1.60%) high mild
+  19 (1.90%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0446 s (74k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [68.807 µs 68.830 µs 68.853 µs]
+                        change: [+84.246% +84.315% +84.373%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 1000 measurements (0.50%)
+  1 (0.10%) low mild
+  4 (0.40%) high mild
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.0851 s (20k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [254.15 µs 254.31 µs 254.46 µs]
+                        change: [+199.71% +199.90% +200.09%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0921 s (13M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [406.64 ns 406.77 ns 406.93 ns]
+                        change: [+151.47% +151.73% +152.00%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 44 outliers among 1000 measurements (4.40%)
+  6 (0.60%) low mild
+  19 (1.90%) high mild
+  19 (1.90%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0387 s (105k iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [48.160 µs 48.182 µs 48.204 µs]
+                        change: [+102634% +102756% +102858%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 1000 measurements (0.20%)
+  2 (0.20%) high mild
+
+### v3 round 3
+Benchmarking benchmark/insert_prewarmed_1k
+Benchmarking benchmark/insert_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_1k: Collecting 1000 samples in estimated 5.0973 s (16M iterations)
+Benchmarking benchmark/insert_prewarmed_1k: Analyzing
+benchmark/insert_prewarmed_1k
+                        time:   [171.41 ns 171.45 ns 171.49 ns]
+                        change: [−0.0961% +0.0301% +0.1668%] (p = 0.68 > 0.05)
+                        No change in performance detected.
+Found 61 outliers among 1000 measurements (6.10%)
+  2 (0.20%) low severe
+  33 (3.30%) low mild
+  13 (1.30%) high mild
+  13 (1.30%) high severe
+Benchmarking benchmark/insert_prewarmed_60k
+Benchmarking benchmark/insert_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_60k: Collecting 1000 samples in estimated 5.0007 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_60k: Analyzing
+benchmark/insert_prewarmed_60k
+                        time:   [216.87 ns 216.96 ns 217.06 ns]
+                        change: [−0.1444% +0.1300% +0.4157%] (p = 0.38 > 0.05)
+                        No change in performance detected.
+Found 64 outliers among 1000 measurements (6.40%)
+  33 (3.30%) high mild
+  31 (3.10%) high severe
+Benchmarking benchmark/insert_prewarmed_100k
+Benchmarking benchmark/insert_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_prewarmed_100k: Collecting 1000 samples in estimated 5.1793 s (13M iterations)
+Benchmarking benchmark/insert_prewarmed_100k: Analyzing
+benchmark/insert_prewarmed_100k
+                        time:   [218.82 ns 218.95 ns 219.09 ns]
+                        change: [−0.1182% +0.1464% +0.4240%] (p = 0.30 > 0.05)
+                        No change in performance detected.
+Found 61 outliers among 1000 measurements (6.10%)
+  26 (2.60%) high mild
+  35 (3.50%) high severe
+
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Collecting 1000 samples in estimated 5.7770 s (1.5M iterations)
+Benchmarking benchmark/insert_all_8_frames_prewarmed_1k: Analyzing
+benchmark/insert_all_8_frames_prewarmed_1k
+                        time:   [1.9539 µs 1.9547 µs 1.9555 µs]
+                        change: [+1.8868% +2.0915% +2.2840%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 51 outliers among 1000 measurements (5.10%)
+  4 (0.40%) low mild
+  30 (3.00%) high mild
+  17 (1.70%) high severe
+
+Benchmarking benchmark/reparent
+Benchmarking benchmark/reparent: Warming up for 3.0000 s
+Benchmarking benchmark/reparent: Collecting 1000 samples in estimated 5.0349 s (50M iterations)
+Benchmarking benchmark/reparent: Analyzing
+benchmark/reparent      time:   [101.52 ns 101.56 ns 101.60 ns]
+                        change: [−0.3518% −0.3127% −0.2728%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 48 outliers among 1000 measurements (4.80%)
+  14 (1.40%) low mild
+  9 (0.90%) high mild
+  25 (2.50%) high severe
+
+Benchmarking benchmark/lookup_1k
+Benchmarking benchmark/lookup_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_1k: Collecting 1000 samples in estimated 5.0454 s (36M iterations)
+Benchmarking benchmark/lookup_1k: Analyzing
+benchmark/lookup_1k     time:   [140.07 ns 140.08 ns 140.09 ns]
+                        change: [−0.8141% −0.7575% −0.7005%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 31 outliers among 1000 measurements (3.10%)
+  3 (0.30%) low mild
+  14 (1.40%) high mild
+  14 (1.40%) high severe
+
+Benchmarking benchmark/lookup_interpolated_1k
+Benchmarking benchmark/lookup_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_interpolated_1k: Collecting 1000 samples in estimated 5.0582 s (21M iterations)
+Benchmarking benchmark/lookup_interpolated_1k: Analyzing
+benchmark/lookup_interpolated_1k
+                        time:   [246.51 ns 246.53 ns 246.55 ns]
+                        change: [−0.4586% −0.4111% −0.3648%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 46 outliers among 1000 measurements (4.60%)
+  1 (0.10%) low mild
+  20 (2.00%) high mild
+  25 (2.50%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.1278 s (8.0M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [637.50 ns 637.74 ns 637.99 ns]
+                        change: [−9.8533% −9.8063% −9.7563%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 1000 measurements (0.50%)
+  4 (0.40%) high mild
+  1 (0.10%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.0649 s (15M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [343.09 ns 343.12 ns 343.15 ns]
+                        change: [−69.142% −69.125% −69.110%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 24 outliers among 1000 measurements (2.40%)
+  1 (0.10%) low mild
+  16 (1.60%) high mild
+  7 (0.70%) high severe
+Benchmarking benchmark/robot_tree_lookup_across
+Benchmarking benchmark/robot_tree_lookup_across: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_lookup_across: Collecting 1000 samples in estimated 5.4225 s (5.0M iterations)
+Benchmarking benchmark/robot_tree_lookup_across: Analyzing
+benchmark/robot_tree_lookup_across
+                        time:   [1.0826 µs 1.0830 µs 1.0833 µs]
+                        change: [−0.1060% −0.0473% +0.0103%] (p = 0.11 > 0.05)
+                        No change in performance detected.
+Found 191 outliers among 1000 measurements (19.10%)
+  2 (0.20%) low mild
+  22 (2.20%) high mild
+  167 (16.70%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0892 s (8.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [599.25 ns 599.40 ns 599.57 ns]
+                        change: [−11.129% −11.037% −10.958%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 32 outliers among 1000 measurements (3.20%)
+  22 (2.20%) high mild
+  10 (1.00%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.0716 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [779.69 ns 779.93 ns 780.18 ns]
+                        change: [−8.2755% −8.2218% −8.1829%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 1000 measurements (0.20%)
+  1 (0.10%) high mild
+  1 (0.10%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.1102 s (6.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [785.31 ns 785.54 ns 785.76 ns]
+                        change: [−13.850% −13.782% −13.728%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 1000 measurements (0.20%)
+  1 (0.10%) high mild
+  1 (0.10%) high severe
+
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Warming up for 3.0000 s
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Collecting 1000 samples in estimated 5.2196 s (11M iterations)
+Benchmarking benchmark/siblings_below_16_dynamic_ancestors: Analyzing
+benchmark/siblings_below_16_dynamic_ancestors
+                        time:   [497.05 ns 497.12 ns 497.19 ns]
+                        change: [−0.2475% −0.1547% −0.0597%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 134 outliers among 1000 measurements (13.40%)
+  58 (5.80%) high mild
+  76 (7.60%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0027 s (75M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [67.053 ns 67.059 ns 67.066 ns]
+                        change: [−79.365% −79.358% −79.352%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 23 outliers among 1000 measurements (2.30%)
+  4 (0.40%) low mild
+  14 (1.40%) high mild
+  5 (0.50%) high severe
+Benchmarking benchmark/latest_common_time_64hop
+Benchmarking benchmark/latest_common_time_64hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_64hop: Collecting 1000 samples in estimated 5.1232 s (6.0M iterations)
+Benchmarking benchmark/latest_common_time_64hop: Analyzing
+benchmark/latest_common_time_64hop
+                        time:   [895.80 ns 897.19 ns 898.58 ns]
+                        change: [−0.0828% +0.0970% +0.2756%] (p = 0.30 > 0.05)
+                        No change in performance detected.
+Found 10 outliers among 1000 measurements (1.00%)
+  6 (0.60%) low mild
+  4 (0.40%) high mild
+
+Benchmarking benchmark/lookup_across_1k
+Benchmarking benchmark/lookup_across_1k: Warming up for 3.0000 s
+Benchmarking benchmark/lookup_across_1k: Collecting 1000 samples in estimated 5.0491 s (19M iterations)
+Benchmarking benchmark/lookup_across_1k: Analyzing
+benchmark/lookup_across_1k
+                        time:   [267.89 ns 267.97 ns 268.05 ns]
+                        change: [+0.9954% +1.0812% +1.1598%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 9 outliers among 1000 measurements (0.90%)
+  3 (0.30%) high mild
+  6 (0.60%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0044 s (134k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [36.605 µs 36.607 µs 36.609 µs]
+                        change: [−46.832% −46.815% −46.797%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 35 outliers among 1000 measurements (3.50%)
+  2 (0.20%) low severe
+  14 (1.40%) low mild
+  14 (1.40%) high mild
+  5 (0.50%) high severe
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.0770 s (60k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [86.913 µs 86.919 µs 86.926 µs]
+                        change: [−65.842% −65.821% −65.800%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 15 outliers among 1000 measurements (1.50%)
+  1 (0.10%) low mild
+  7 (0.70%) high mild
+  7 (0.70%) high severe
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0383 s (31M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [162.19 ns 162.24 ns 162.30 ns]
+                        change: [−60.154% −60.118% −60.089%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 69 outliers among 1000 measurements (6.90%)
+  1 (0.10%) low mild
+  29 (2.90%) high mild
+  39 (3.90%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0144 s (108M iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [46.329 ns 46.365 ns 46.403 ns]
+                        change: [−99.904% −99.904% −99.904%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 156 outliers among 1000 measurements (15.60%)
+  2 (0.20%) low mild
+  95 (9.50%) high mild
+  59 (5.90%) high severe
+
+### v24 round 3
+Benchmarking benchmark/add_transform_prewarmed_1k
+Benchmarking benchmark/add_transform_prewarmed_1k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_1k: Collecting 1000 samples in estimated 5.0543 s (17M iterations)
+Benchmarking benchmark/add_transform_prewarmed_1k: Analyzing
+benchmark/add_transform_prewarmed_1k
+                        time:   [194.77 ns 194.85 ns 194.93 ns]
+                        change: [−0.5169% −0.3192% −0.1073%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 202 outliers among 1000 measurements (20.20%)
+  98 (9.80%) low severe
+  3 (0.30%) low mild
+  36 (3.60%) high mild
+  65 (6.50%) high severe
+Benchmarking benchmark/add_transform_prewarmed_60k
+Benchmarking benchmark/add_transform_prewarmed_60k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_60k: Collecting 1000 samples in estimated 5.1622 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_60k: Analyzing
+benchmark/add_transform_prewarmed_60k
+                        time:   [252.63 ns 252.86 ns 253.09 ns]
+                        change: [+0.2928% +0.5356% +0.7562%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 199 outliers among 1000 measurements (19.90%)
+  39 (3.90%) low severe
+  107 (10.70%) low mild
+  46 (4.60%) high mild
+  7 (0.70%) high severe
+Benchmarking benchmark/add_transform_prewarmed_100k
+Benchmarking benchmark/add_transform_prewarmed_100k: Warming up for 3.0000 s
+Benchmarking benchmark/add_transform_prewarmed_100k: Collecting 1000 samples in estimated 5.1797 s (14M iterations)
+Benchmarking benchmark/add_transform_prewarmed_100k: Analyzing
+benchmark/add_transform_prewarmed_100k
+                        time:   [248.72 ns 248.89 ns 249.07 ns]
+                        change: [−0.0633% +0.2195% +0.5167%] (p = 0.14 > 0.05)
+                        No change in performance detected.
+Found 181 outliers among 1000 measurements (18.10%)
+  28 (2.80%) low severe
+  94 (9.40%) low mild
+  29 (2.90%) high mild
+  30 (3.00%) high severe
+
+Benchmarking benchmark/get_transform_1k
+Benchmarking benchmark/get_transform_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_1k: Collecting 1000 samples in estimated 5.0809 s (28M iterations)
+Benchmarking benchmark/get_transform_1k: Analyzing
+benchmark/get_transform_1k
+                        time:   [184.56 ns 184.60 ns 184.66 ns]
+                        change: [+1.4652% +1.5249% +1.5802%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 40 outliers among 1000 measurements (4.00%)
+  22 (2.20%) high mild
+  18 (1.80%) high severe
+
+Benchmarking benchmark/get_transform_interpolated_1k
+Benchmarking benchmark/get_transform_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_interpolated_1k: Collecting 1000 samples in estimated 5.1393 s (18M iterations)
+Benchmarking benchmark/get_transform_interpolated_1k: Analyzing
+benchmark/get_transform_interpolated_1k
+                        time:   [284.26 ns 284.51 ns 284.75 ns]
+                        change: [−0.2448% −0.1345% −0.0255%] (p = 0.02 < 0.05)
+                        Change within noise threshold.
+Found 1 outliers among 1000 measurements (0.10%)
+  1 (0.10%) high severe
+
+Benchmarking benchmark/robot_tree_map_to_camera_optical
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Collecting 1000 samples in estimated 5.3562 s (7.5M iterations)
+Benchmarking benchmark/robot_tree_map_to_camera_optical: Analyzing
+benchmark/robot_tree_map_to_camera_optical
+                        time:   [712.18 ns 712.23 ns 712.28 ns]
+                        change: [+11.626% +11.688% +11.752%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 15 outliers among 1000 measurements (1.50%)
+  1 (0.10%) low mild
+  8 (0.80%) high mild
+  6 (0.60%) high severe
+Benchmarking benchmark/robot_tree_leaf_to_leaf
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Warming up for 3.0000 s
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Collecting 1000 samples in estimated 5.0609 s (4.5M iterations)
+Benchmarking benchmark/robot_tree_leaf_to_leaf: Analyzing
+benchmark/robot_tree_leaf_to_leaf
+                        time:   [1.1143 µs 1.1144 µs 1.1144 µs]
+                        change: [+224.51% +224.67% +224.87%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 30 outliers among 1000 measurements (3.00%)
+  1 (0.10%) low mild
+  17 (1.70%) high mild
+  12 (1.20%) high severe
+
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Collecting 1000 samples in estimated 5.0757 s (7.5M iterations)
+Benchmarking benchmark/dynamic_chain_3hop_interpolated_1k: Analyzing
+benchmark/dynamic_chain_3hop_interpolated_1k
+                        time:   [675.36 ns 675.56 ns 675.77 ns]
+                        change: [+12.606% +12.706% +12.818%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 34 outliers among 1000 measurements (3.40%)
+  6 (0.60%) low mild
+  22 (2.20%) high mild
+  6 (0.60%) high severe
+
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Collecting 1000 samples in estimated 5.1501 s (6.0M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_ancestor: Analyzing
+benchmark/dynamic_chain_4hop_toward_ancestor
+                        time:   [856.54 ns 856.58 ns 856.63 ns]
+                        change: [+9.7525% +9.8042% +9.8743%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 34 outliers among 1000 measurements (3.40%)
+  4 (0.40%) low mild
+  19 (1.90%) high mild
+  11 (1.10%) high severe
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Warming up for 3.0000 s
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Collecting 1000 samples in estimated 5.0449 s (5.5M iterations)
+Benchmarking benchmark/dynamic_chain_4hop_toward_descendant: Analyzing
+benchmark/dynamic_chain_4hop_toward_descendant
+                        time:   [915.92 ns 915.97 ns 916.02 ns]
+                        change: [+16.472% +16.540% +16.615%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 38 outliers among 1000 measurements (3.80%)
+  17 (1.70%) low mild
+  13 (1.30%) high mild
+  8 (0.80%) high severe
+
+Benchmarking benchmark/latest_common_time_4hop
+Benchmarking benchmark/latest_common_time_4hop: Warming up for 3.0000 s
+Benchmarking benchmark/latest_common_time_4hop: Collecting 1000 samples in estimated 5.0604 s (15M iterations)
+Benchmarking benchmark/latest_common_time_4hop: Analyzing
+benchmark/latest_common_time_4hop
+                        time:   [336.74 ns 336.78 ns 336.83 ns]
+                        change: [+402.08% +402.23% +402.42%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 9 outliers among 1000 measurements (0.90%)
+  6 (0.60%) high mild
+  3 (0.30%) high severe
+
+Benchmarking benchmark/get_transform_at_1k
+Benchmarking benchmark/get_transform_at_1k: Warming up for 3.0000 s
+Benchmarking benchmark/get_transform_at_1k: Collecting 1000 samples in estimated 5.1550 s (15M iterations)
+Benchmarking benchmark/get_transform_at_1k: Analyzing
+benchmark/get_transform_at_1k
+                        time:   [343.45 ns 343.50 ns 343.55 ns]
+                        change: [−0.1212% −0.0384% +0.0506%] (p = 0.42 > 0.05)
+                        No change in performance detected.
+Found 43 outliers among 1000 measurements (4.30%)
+  17 (1.70%) low mild
+  13 (1.30%) high mild
+  13 (1.30%) high severe
+
+Benchmarking benchmark/tree_climb_1k
+Benchmarking benchmark/tree_climb_1k: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k: Collecting 1000 samples in estimated 5.0310 s (72k iterations)
+Benchmarking benchmark/tree_climb_1k: Analyzing
+benchmark/tree_climb_1k time:   [69.072 µs 69.101 µs 69.130 µs]
+                        change: [+88.672% +88.763% +88.841%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+
+Benchmarking benchmark/tree_climb_1k_common_parent_elim
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Warming up for 3.0000 s
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Collecting 1000 samples in estimated 5.1071 s (21k iterations)
+Benchmarking benchmark/tree_climb_1k_common_parent_elim: Analyzing
+benchmark/tree_climb_1k_common_parent_elim
+                        time:   [251.06 µs 251.18 µs 251.30 µs]
+                        change: [+188.86% +188.98% +189.13%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 22 outliers among 1000 measurements (2.20%)
+  7 (0.70%) low severe
+  9 (0.90%) low mild
+  6 (0.60%) high mild
+
+Benchmarking benchmark/not_found_past_newest_1k
+Benchmarking benchmark/not_found_past_newest_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_past_newest_1k: Collecting 1000 samples in estimated 5.0962 s (13M iterations)
+Benchmarking benchmark/not_found_past_newest_1k: Analyzing
+benchmark/not_found_past_newest_1k
+                        time:   [410.24 ns 410.41 ns 410.61 ns]
+                        change: [+152.72% +152.91% +153.16%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 34 outliers among 1000 measurements (3.40%)
+  4 (0.40%) low mild
+  12 (1.20%) high mild
+  18 (1.80%) high severe
+
+Benchmarking benchmark/not_found_unknown_frame_1k
+Benchmarking benchmark/not_found_unknown_frame_1k: Warming up for 3.0000 s
+Benchmarking benchmark/not_found_unknown_frame_1k: Collecting 1000 samples in estimated 5.0382 s (101k iterations)
+Benchmarking benchmark/not_found_unknown_frame_1k: Analyzing
+benchmark/not_found_unknown_frame_1k
+                        time:   [50.584 µs 50.606 µs 50.628 µs]
+                        change: [+108892% +108986% +109079%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 9 outliers among 1000 measurements (0.90%)
+  7 (0.70%) low mild
+  2 (0.20%) high mild
+
+### done
