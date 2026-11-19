@@ -2,13 +2,12 @@
 
 The first part covers 2.x to 3.0. The second part, "Migrating to 2.4", is
 the earlier guide for 1.x and 2.0 users and uses 2.x names throughout. The
-current API is documented on [docs.rs](https://docs.rs/transforms); release
+3.0 API is documented on [docs.rs](https://docs.rs/transforms/3.0.0); release
 history is in [CHANGELOG.md](CHANGELOG.md).
 
 # Migrating from 2.x to 3.0
 
-3.0 is not released yet; this guide describes it as it stands. Every 2.x
-program needs changes. Each table row carries a tag:
+Every 2.x program needs changes. Each table row carries a tag:
 
 - `compile`: the 2.x code stops compiling, and the compiler points at it.
 - `silent`: the 2.x code can compile after the mechanical renames and
@@ -177,7 +176,7 @@ Both return `None` for an instant outside the `i64` nanosecond range.
 
 For a ROS `builtin_interfaces/Time { sec: i32, nanosec: u32 }`, copy the
 `from_ros` and `to_ros` functions from the
-[`Timestamp` documentation](https://docs.rs/transforms/latest/transforms/struct.Timestamp.html#converting-a-seconds-nanoseconds-stamp).
+[`Timestamp` documentation](https://docs.rs/transforms/3.0.0/transforms/struct.Timestamp.html#converting-a-seconds-nanoseconds-stamp).
 They accept negative seconds, reject a `nanosec` of a second or more, and
 split with Euclidean division. The 2.4 recipe refused negative seconds;
 replace it.
@@ -622,7 +621,7 @@ comparisons do not account for opposite signs representing the same rotation.
   `get_transform_at` retains only the target time. For differing instants,
   keep both times and apply geometry explicitly; do not use ordinary
   `Transformable` application, composition, or reinsertion. See its
-  [contract](https://docs.rs/transforms/latest/transforms/struct.Registry.html#method.get_transform_at).
+  [contract](https://docs.rs/transforms/2.4.0/transforms/struct.Registry.html#method.get_transform_at).
 - Lookups and `Transform::interpolate` do not extrapolate. `Quaternion::slerp`
   clamps its factor to `[0, 1]`. Interpolation spans any retained sample gap.
 - Derived transforms are not re-validated. An ancestor-directed lookup can

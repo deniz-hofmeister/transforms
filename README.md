@@ -12,25 +12,17 @@ computer vision. It provides familiar frame trees, timestamped buffers,
 transform chaining, and interpolation, with a Rust API and no middleware
 dependency. It forbids unsafe code and is `no_std` with `alloc`.
 
-[API reference](https://docs.rs/transforms) · [Migration guide](MIGRATION.md) ·
+[API reference](https://docs.rs/transforms/3.0.0) · [Migration guide](MIGRATION.md) ·
 [Changelog](CHANGELOG.md)
-
-> **This README describes 3.0, which is not released.** The version on
-> crates.io is 2.4, with a different API: its documentation is on
-> [docs.rs](https://docs.rs/transforms/2.4.0), and the code below does not
-> compile against it.
 
 ## Installation
 
-Requires Rust 1.85 or later. The published release:
+Requires Rust 1.85 or later.
 
 ```toml
 [dependencies]
-transforms = "2.4.0"
+transforms = "3.0.0"
 ```
-
-Until 3.0 is published, the API this README describes is available only
-from a checkout of this repository.
 
 The crate is always `no_std` and needs a heap allocator (`alloc`). There is
 no `std` feature and nothing to disable for embedded targets. Its runtime
@@ -74,7 +66,7 @@ The crate does not apply a transform to a point. The last three lines are
 the whole recipe: rotate, then add the translation. Translating first,
 dropping the translation and applying the transform in the wrong direction
 all return an ordinary finite vector that no check can tell from the right
-one. See [Transform](https://docs.rs/transforms/latest/transforms/struct.Transform.html#applying-a-transform-to-a-point).
+one. See [Transform](https://docs.rs/transforms/3.0.0/transforms/struct.Transform.html#applying-a-transform-to-a-point).
 
 ## Conventions and usage
 
@@ -86,7 +78,7 @@ one. See [Transform](https://docs.rs/transforms/latest/transforms/struct.Transfo
   units and frame axes; the crate does not assign them. `Rotation` is a unit
   quaternion in `(w, x, y, z)` order. `Rotation::from_wxyz` accepts a norm
   within `1e-6` of 1 and scales the components to unit length. See
-  [Rotation](https://docs.rs/transforms/latest/transforms/struct.Rotation.html).
+  [Rotation](https://docs.rs/transforms/3.0.0/transforms/struct.Rotation.html).
 - `Timestamp` is a signed 64-bit nanosecond count from an epoch the caller
   chooses. Zero and negative instants are ordinary. The crate reads no
   clock.
@@ -115,7 +107,7 @@ one. See [Transform](https://docs.rs/transforms/latest/transforms/struct.Transfo
   and returns a `CrossTimeTransform`, which carries both instants and
   cannot be inserted or composed. The caller asserts that the fixed frame
   is stationary between the two instants. See its
-  [contract](https://docs.rs/transforms/latest/transforms/struct.Registry.html#method.lookup_across).
+  [contract](https://docs.rs/transforms/3.0.0/transforms/struct.Registry.html#method.lookup_across).
 - A name is known to the registry while a stored edge names it as child or
   parent. Every name in a query must be known, also when target and source
   are equal: an empty registry answers every query with
@@ -131,7 +123,7 @@ signs describe the same rotation without comparing equal. The crate's types
 implement no `approx` traits; compare components in tests. Error variants
 and payloads are stable; `Display` and `Debug` text are not.
 
-See [Registry](https://docs.rs/transforms/latest/transforms/struct.Registry.html)
+See [Registry](https://docs.rs/transforms/3.0.0/transforms/struct.Registry.html)
 for lookup errors, removal semantics, and concurrency.
 
 ## Relationship with ROS2 tf2
@@ -185,8 +177,8 @@ Run `cargo bench` for benchmarks.
 
 ## What's new
 
-3.0 is the upcoming major version. It is not released, and this README
-describes it. It breaks the 2.x API and wire format throughout:
+3.0.0 changes the public API and the serde wire format. When migrating from
+2.x, update the following:
 
 - The crate root is flat, and the names are shorter: `insert`, `insert_all`,
   `lookup`, `lookup_across`, `reparent`, `remove_samples_through`.
@@ -214,10 +206,10 @@ builds are checked separately.
 
 | Example | Task |
 |---|---|
-| [basic](examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result to a point |
-| [ingest](examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
-| [shared_latest](examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
-| [cross_time](examples/cross_time.rs) | Coordinates expressed between different instants |
+| [basic](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result to a point |
+| [ingest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
+| [shared_latest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
+| [cross_time](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/cross_time.rs) | Coordinates expressed between different instants |
 
 ```sh
 cargo run --example basic
