@@ -1,236 +1,231 @@
 # transforms
 
-**Where was the camera in the map when it took this image?** `transforms`
-keeps a history of how coordinate frames move relative to each other and
-answers that question for any two connected frames, at any instant its data
-covers. It follows the frame tree, interpolates between samples, and returns
-an error rather than extrapolate. For robotics and computer vision in Rust:
-`no_std`, no unsafe code, and no ROS or other middleware.
-
-[![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
-[![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
-[![tests](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
-[![no_std](https://img.shields.io/badge/no__std-compatible-brightgreen.svg)](https://docs.rust-embedded.org/book/)
-
-[API reference](https://docs.rs/transforms/3.0.0) · [Examples](#examples) ·
-[Coming from tf2](#coming-from-ros2-tf2) · [Migration guide](MIGRATION.md) ·
-[Changelog](CHANGELOG.md)
-
-This README describes 3.0. For 2.4, see the
-[v2.4.0 source code and README](https://github.com/deniz-hofmeister/transforms/tree/v2.4.0).
-
-## Quick start
-
-A robot base drives through a map and carries a lidar. Where was the lidar
-in the map at a given moment?
+Find the position and orientation of one coordinate frame relative to
+another, at the instant a measurement was taken.
 
 ```text
-map ──(moving)──> base ──(fixed mount)──> lidar
+map
+└── base        drives from x = 0 m at 0 s to x = 1 m at 2 s
+    └── camera  fixed 0.25 m above the base, axes aligned
 ```
 
-```rust
-use transforms::{Registry, Rotation, Stamp, Timestamp, Transform, Vector3};
+The camera takes a picture at 1 s, halfway between the two base samples.
+`lookup("map", "camera", exposure)` combines the interpolated base pose
+with the fixed mount and returns the camera's pose in map coordinates. Its
+origin is at **(0.5, 0, 0.25) m**.
 
-let mut registry = Registry::unbounded();
+`transforms` stores the timestamped poses you supply and answers such
+lookups between any two connected frames, interpolating translation
+linearly and rotation by slerp. Where the stored samples do not cover the
+requested instant, the lookup returns an error; nothing is extrapolated.
+If you use ROS2, this is the job of the tf2 buffer; here there is no ROS,
+no middleware and no clock underneath.
 
-// The lidar is mounted 0.5 above the base: static, valid for all time.
-registry.insert(&Transform::new(
-    "base", "lidar",
-    Vector3::new(0.0, 0.0, 0.5),
-    Rotation::IDENTITY,
-    Stamp::Static,
-).unwrap()).unwrap();
+Rigid-body transforms only, in `f64`. `no_std`, needs a heap allocator, no
+unsafe code.
 
-// The base drives along the map's x axis: one pose per second.
-for (seconds, x) in [(1, 0.0), (2, 1.0)] {
-    registry.insert(&Transform::new(
-        "map", "base",
-        Vector3::new(x, 0.0, 0.0),
-        Rotation::IDENTITY,
-        Stamp::At(Timestamp::from_nanos(seconds * 1_000_000_000)),
-    ).unwrap()).unwrap();
-}
+[API reference](https://docs.rs/transforms/3.0.0) · [Examples](#examples) ·
+[Coming from tf2](#coming-from-ros2-tf2) ·
+[Embedded use](#embedded-use-and-performance) ·
+[Using 2.4?](https://github.com/deniz-hofmeister/transforms/tree/v2.4.0)
 
-// The lidar in the map at t = 1.5 s: two hops, one of them interpolated.
-let at = Timestamp::from_nanos(1_500_000_000);
-let map_from_lidar = registry.lookup("map", "lidar", at).unwrap();
-assert_eq!(map_from_lidar.translation(), Vector3::new(0.5, 0.0, 0.5));
+[![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
+[![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms/3.0.0)
+[![tests](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/deniz-hofmeister/transforms/actions/workflows/tests.yml)
 
-// A point the lidar measured 2.0 ahead of itself, expressed in the map:
-// rotate, then add the translation.
-let p = Vector3::new(2.0, 0.0, 0.0);
-let r = map_from_lidar.rotation().rotate(p);
-let t = map_from_lidar.translation();
-let p_map = Vector3::new(r.x + t.x, r.y + t.y, r.z + t.z);
-assert_eq!(p_map, Vector3::new(2.5, 0.0, 0.5));
-```
-
-`lookup("map", "lidar", at)` maps lidar coordinates into map coordinates:
-target first, source second. The crate does not apply a transform to a
-point for you. Rotate, then add the translation, as above; a wrong order or
-a wrong direction still returns plausible numbers. See
-[Transform](https://docs.rs/transforms/3.0.0/transforms/struct.Transform.html#applying-a-transform-to-a-point).
-
-Add it to your `Cargo.toml`:
+## Try it
 
 ```toml
 [dependencies]
 transforms = "3.0.0"
 ```
 
-Requires Rust 1.85 or later. The optional `serde` feature, off by default,
-adds serialization and deserialization for `Vector3`, `Rotation`,
-`Timestamp`, `Stamp` and `Transform`.
+```rust
+use transforms::{LookupError, Registry, Rotation, Stamp, Timestamp, Transform, Vector3};
 
-## What you get
+let mut frames = Registry::unbounded();
 
-- **A frame tree with history.** Fixed mounts and moving frames live in one
-  tree. A lookup chains the edges between two frames and interpolates
-  between stored samples: translation linearly, rotation by slerp.
-- **Errors instead of guesses.** Nothing is extrapolated. A lookup outside
-  the stored data fails and names the frame and the range it covers. Every
-  `Transform` the crate returns has a finite translation and a unit
-  rotation, so no result needs validating.
-- **No middleware and no clock.** No ROS2, DDS or async runtime. Time is
-  the stamps you insert; the crate never reads a clock.
-- **Built for embedded.** Always `no_std` with `alloc`, and three runtime
-  dependencies besides the optional `serde`. CI builds for Cortex-M and
-  RISC-V targets.
+// The camera mount is static: one pose, valid at every instant.
+let mount = Transform::new(
+    "base", "camera",
+    Vector3::new(0.0, 0.0, 0.25),
+    Rotation::IDENTITY,
+    Stamp::Static,
+).unwrap();
+frames.insert(&mount).unwrap();
+
+// The base is dynamic: one timestamped sample at 0 s and one at 2 s.
+for (nanos, x) in [(0, 0.0), (2_000_000_000, 1.0)] {
+    let pose = Transform::new(
+        "map", "base",
+        Vector3::new(x, 0.0, 0.0),
+        Rotation::IDENTITY,
+        Stamp::At(Timestamp::from_nanos(nanos)),
+    ).unwrap();
+    frames.insert(&pose).unwrap();
+}
+
+// The camera in the map at the exposure, 1 s.
+let exposure = Timestamp::from_nanos(1_000_000_000);
+let camera = frames.lookup("map", "camera", exposure).unwrap();
+assert_eq!(camera.translation(), Vector3::new(0.5, 0.0, 0.25));
+
+// The newest base sample is at 2 s. A lookup at 3 s is out of range.
+let late = Timestamp::from_nanos(3_000_000_000);
+let error = frames.lookup("map", "camera", late).unwrap_err();
+assert!(matches!(error, LookupError::OutOfRange { .. }));
+```
+
+`lookup("map", "camera", t)` returns the transform that maps camera
+coordinates into map coordinates: the frame you want coordinates in comes
+first, the frame they are in now comes second.
+
+Requires Rust 1.85 or later. The optional `serde` feature adds
+serialization and deserialization for `Vector3`, `Rotation`, `Timestamp`,
+`Stamp` and `Transform`.
+
+## What to know first
+
+- **Direction.** `Transform::new(target, source, ...)` describes the same
+  mapping as a lookup: source coordinates into target coordinates. When you
+  insert a transform, its target becomes the parent and its source the
+  child. You can query any two frames of the same tree, siblings included.
+- **Points.** The crate returns the transform and leaves applying it to
+  you: rotate the point, then add the translation. The point must be
+  expressed in the source frame at the lookup time. Reversing the mapping
+  or translating before rotating can give a plausible, wrong result. See
+  the [recipe](https://docs.rs/transforms/3.0.0/transforms/struct.Transform.html#applying-a-transform-to-a-point).
+- **Quaternions.** `Rotation::from_wxyz(w, x, y, z)` is scalar first. A
+  quaternion passed in `(x, y, z, w)` order can pass validation and give
+  the wrong orientation.
+- **Time.** A `Timestamp` is signed nanoseconds from an epoch you choose;
+  express every timestamp in a registry on the same time base. The crate
+  never reads a clock. Zero is an ordinary instant, not "latest":
+  `latest_common_time` reports the newest instant covered by every dynamic
+  edge on the path, or `Stamp::Static` if the path has none.
+- **Coverage.** A lookup interpolates between stored samples, across a gap
+  of any length, and never beyond the first or the last. Every dynamic
+  edge on the path between the two frames must cover the requested instant;
+  static edges serve every instant.
+- **Inserts.** A frame's first insert as a child fixes its parent and
+  whether it is static or dynamic, and an insert that would change either
+  fails. A new pose at a stored timestamp replaces the old one. To change a
+  parent, call `reparent`, which replaces that frame's history.
+- **Retention.** `Registry::unbounded()` never evicts by age.
+  `Registry::with_max_age(d)` keeps a window of `d` behind each dynamic
+  frame's newest sample and rejects an insert older than that. The window
+  bounds the time span, not the number of samples or frames.
+
+The [API reference](https://docs.rs/transforms/3.0.0/transforms/struct.Registry.html)
+has the contract of every call, including batch inserts (`insert_all`),
+lookups between two different instants (`lookup_across`), removal, and
+sharing a registry between threads.
 
 ## Examples
 
-Each example is a hosted program that asserts its results.
-
 | Example | Task |
 |---|---|
-| [basic](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/basic.rs) | Insert, look up across a static and an interpolated edge, apply the result to a point through a rotated frame |
-| [ingest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/ingest.rs) | Feed a registry from a message stream: checked stamps, a decision per insert error, clock-jump recovery, lookup errors told apart |
-| [shared_latest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/shared_latest.rs) | A writer and a reader thread sharing an `RwLock`; look up the newest servable instant |
+| [basic](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/basic.rs) | Look up a camera pose across a static and an interpolated edge and apply it to a point through a rotated frame; compose and invert |
+| [ingest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/ingest.rs) | Feed a registry from a stream of ROS-style messages: convert stamps and quaternion order, handle rejected samples and a clock jump |
+| [shared_latest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/shared_latest.rs) | Share a registry between a writer and a reader thread and look up the newest covered instant |
 | [cross_time](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/cross_time.rs) | Express an earlier observation in a later camera frame |
 
-From a checkout of the repository:
+Each one asserts its results. From a checkout of the repository, run one
+with `cargo run --example basic`.
 
-```sh
-cargo run --example basic
-```
+## Correctness
 
-## Conventions
-
-- **Direction.** `Transform::new(target, source, ...)` maps source
-  coordinates into target. Inserted into a registry, the target is the
-  parent and the source is the child. A successful
-  `lookup(target, source, at)` returns that mapping between any two
-  connected frames.
-- **Static or timestamped.** `Stamp::Static` is a relationship valid for
-  all time, such as a fixed sensor mount. `Stamp::At(t)` is one sample of a
-  moving one. A child frame has one parent and one kind, both set by its
-  first insert. Cycles are rejected, and an insert at a stored instant
-  replaces that sample.
-- **Time.** `Timestamp` is a signed 64-bit nanosecond count from an epoch
-  you choose. Zero and negative instants are ordinary. Interpolation spans
-  any gap between two stored samples and never reaches beyond them.
-- **Numbers.** Coordinates and rotation components are `f64`. Keep distance
-  units and frame axes consistent; the crate does not assign them.
-  `Rotation` is a unit quaternion in `(w, x, y, z)` order, and
-  `Rotation::from_wxyz` accepts a norm within `1e-6` of 1. Equality is
-  exact: `q` and `-q` describe the same rotation and do not compare equal.
-- **Errors.** Match on error variants and their fields, with a wildcard
-  arm. `Display` and `Debug` text may change.
-
-## Beyond a lookup
-
-| To | Use |
-|---|---|
-| Keep a time window of history | `Registry::with_max_age`: a window behind each frame's newest stored stamp, never wall-clock time. An older insert fails with `InsertError::Expired`. It bounds the time span, not the number of samples or frames |
-| Keep everything | `Registry::unbounded`, with `remove_samples_through` to remove history by hand |
-| Store a batch all-or-nothing | `Registry::insert_all`: one rejected member leaves the registry unchanged, and the error carries its index |
-| Find the newest instant a chain can serve | `Registry::latest_common_time`: look up at `t` for `Stamp::At(t)`; `Stamp::Static` means every instant is served |
-| Relate two frames at two different instants | `Registry::lookup_across`, through a fixed frame you assert is stationary between them. See its [contract](https://docs.rs/transforms/3.0.0/transforms/struct.Registry.html#method.lookup_across) |
-| Move a frame under a new parent | `Registry::reparent`: replaces that frame's history with the transform you pass; its descendants keep theirs |
-| Remove a frame, or change its kind | `Registry::remove_frame` discards the frame's edge and every sample on it; insert again afterwards |
-
-See [Registry](https://docs.rs/transforms/3.0.0/transforms/struct.Registry.html)
-for lookup errors, removal semantics, and sharing a registry between
-threads, and [Rotation](https://docs.rs/transforms/3.0.0/transforms/struct.Rotation.html)
-for rotation conventions.
+- **Every transform is well formed.** Every `Rotation` is a unit
+  quaternion, to within rounding, and every `Transform` has a finite
+  translation and non-empty frame names, whether it was built, decoded,
+  composed, inverted or looked up. An operation that cannot produce such a
+  value returns an error.
+- **Typed errors.** Building a transform, inserting into a registry and
+  looking up each return a `Result` with an error specific to the
+  operation. The crate has no documented panic.
+- **Checked against an outside reference.** The tests assert poses against
+  reference values computed with SciPy. Tests that only compare the crate
+  with itself cannot see a convention that is flipped consistently.
 
 ## Coming from ROS2 tf2
 
-The model is the one [tf2](https://github.com/ros2/geometry2/blob/rolling/tf2/README.md)
-uses: a tree of buffered frame relationships with static transforms and
+The model is [tf2](https://github.com/ros2/geometry2/blob/rolling/tf2/README.md)'s:
+a tree of buffered frame relationships with static transforms and
 interpolation, queried target first, source second. This crate is a Rust
-implementation, not a binding to tf2, and does not aim for API parity. It
-supplies local computation and storage; transport, synchronization and
-waiting belong to your application.
+implementation, not a binding, and does not aim for API parity.
 
-| Aspect | ROS2 tf2 / tf2_ros | transforms |
+| | ROS2 tf2 / tf2_ros | transforms |
 |---|---|---|
-| API | C++ and Python APIs | Rust types and `Result` |
-| Lookup | `lookupTransform(target, source, time)` | `lookup(target, source, at)` |
-| Latest data | A zero lookup time requests the latest transform | Zero is an ordinary instant; use `latest_common_time` |
-| Retention | 10-second default cache; a sample older than the window is rejected | `unbounded` retains indefinitely; `with_max_age` sets the window and rejects older samples |
-| Communication | `tf2_ros` broadcasts and listens through ROS2 | No ROS2, DDS, or other transport dependency |
-| Waiting | ROS2 buffer supports waiting for transforms | Synchronous queries; caller supplies waiting |
-| Embedded use | ROS2 integration uses a hosted runtime | `no_std + alloc`, with `f64` geometry |
-| Re-parenting | Parent stored per sample; a dynamic frame's parent can change between samples without an error | One parent per frame; explicit `reparent` replaces that frame's history |
+| Latest data | A zero lookup time requests the latest transform | Zero is an ordinary instant; ask `latest_common_time` |
+| Transport and waiting | `tf2_ros` listens, broadcasts and can wait for a transform | None: queries are synchronous, and your application supplies transport and waiting |
+| Parent of a frame | Dynamic samples can name different parents; tf2 does not interpolate across such a change | Fixed by the first insert; `reparent` is explicit and replaces that frame's history |
+| Dynamic history | 10-second cache by default | No age limit, or the window you set with `with_max_age` |
 
-The tf2 column follows its [cache](https://github.com/ros2/geometry2/blob/rolling/tf2/src/cache.cpp)
-and [buffer core](https://github.com/ros2/geometry2/blob/rolling/tf2/src/buffer_core.cpp).
-For ROS integration in Rust, see
-[roslibrust_transforms](https://docs.rs/roslibrust_transforms) and
-[transforms_io](https://docs.rs/transforms_io). Their releases at the time
-of 3.0.0 (0.26.0 and 0.9.0) depend on `transforms` 2.x.
+The tf2 column follows
+[buffer_core.hpp](https://github.com/ros2/geometry2/blob/rolling/tf2/include/tf2/buffer_core.hpp)
+(zero time, default cache),
+[cache.cpp](https://github.com/ros2/geometry2/blob/rolling/tf2/src/cache.cpp)
+(parents) and `tf2_ros`'s
+[buffer.hpp](https://github.com/ros2/geometry2/blob/rolling/tf2_ros/include/tf2_ros/buffer.hpp)
+(waiting). To feed a registry from ROS-style messages, start from the
+[ingest](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/examples/ingest.rs)
+example.
+
+## When something else fits better
+
+- **A ROS2 node that listens to or broadcasts TF.** Use `tf2_ros`, or in
+  Rust [tf2_rs](https://github.com/olingo99/tf2_rs), which wraps tf2's
+  `BufferCore` and integrates with `rclrs`.
+  [roslibrust_transforms](https://docs.rs/roslibrust_transforms/0.26.0)
+  0.26.0 and [transforms_io](https://docs.rs/transforms_io/0.9.0) 0.9.0 add
+  transport on top of this crate; both require `transforms` 2.x.
+- **Coordinate systems known at compile time, or geodetic coordinates.**
+  [sguaba](https://github.com/helsing-ai/sguaba) types each coordinate by
+  its coordinate system. Here, frames are names resolved at run time.
+- **One rigid transform and its math, with no tree and no history.**
+  nalgebra's [`Isometry3`](https://docs.rs/nalgebra/latest/nalgebra/geometry/type.Isometry3.html)
+  is enough.
 
 ## Embedded use and performance
 
 The crate is always `no_std` and needs a heap allocator (`alloc`). There is
-no `std` feature and nothing to disable for embedded targets. Its runtime
-dependencies are `thiserror`, `hashbrown`, `libm`, and the optional `serde`.
+no `std` feature and nothing to disable for embedded targets. Its direct
+runtime dependencies are `thiserror`, `hashbrown`, `libm`, and the optional
+`serde`.
 
-CI builds for Cortex-M4F/M7, Cortex-M0+, Cortex-M33, and RISC-V targets.
-These builds establish compilation, not board latency or memory bounds. As
-built there, `f64` arithmetic is software floating point on all of them; a
-Cortex-M7 with the double-precision FPU, built with `target-cpu=cortex-m7`,
-uses hardware. `libm` supplies the square root and the trigonometry on
-every target; tests pin selected interpolation results on the test host,
-without guaranteeing cross-device replay.
+CI builds for `thumbv7em-none-eabihf` (Cortex-M4F/M7), `thumbv6m-none-eabi`
+(Cortex-M0+), `thumbv8m.main-none-eabihf` (Cortex-M33) and
+`riscv32imc-unknown-none-elf`. These builds establish compilation, not
+latency or memory use on a board. With those targets' default settings,
+`f64` arithmetic uses software routines.
 
-A lookup walks the frame tree to the common ancestor of the two frames and
-samples only the edges on the path between them. Sampling a dynamic edge is
-O(log n) in its stored samples. A successful lookup allocates the two frame
-names of its result; an error allocates the names it reports. The heap must
-hold the retained samples, the frame names, and those results. Measure the
-intended allocator, board, and workload before setting a budget; from a
-checkout, `cargo bench` runs the benchmarks.
+A registry uses the heap for its frame entries, frame names and dynamic
+samples. A successful lookup allocates only the two frame names of its
+result.
+
+Host benchmark, on a Jetson AGX Orin, as medians of three criterion runs: a
+lookup across one edge holding 1,000 samples took 141 ns at a stored
+instant and 248 ns interpolated, and `lookup("map", "camera_optical", t)`
+across four edges, three of them interpolated, took 651 ns. These are not
+latency bounds and not microcontroller figures; the
+[benchmark record](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/analysis/v3-consensus/evidence/bench-v3-orin.md)
+has the setup.
 
 ## What's new
 
-3.0.0 changes the public API and the serde wire format. When migrating from
-2.x, update the following:
+3.0.0 redesigns the API and is not a drop-in upgrade from 2.x. Everything
+is at the crate root, `Rotation` replaces `Quaternion`, `Timestamp` is one
+signed nanosecond count, errors are split by operation, and the serde wire
+format changed.
 
-- The crate root is flat, and the names are shorter: `insert`, `insert_all`,
-  `lookup`, `lookup_across`, `reparent`, `remove_samples_through`.
-- `Rotation` replaces `Quaternion` and is always a unit quaternion.
-  `Transform` is always finite, and `a.compose(&b)` replaces `a * b`.
-- `Timestamp` is one concrete type of signed nanoseconds. `TimePoint`, the
-  `SystemTime` support, the `std` feature and `Timestamp::now` are gone.
-- Errors are split by operation: `TransformError`, `InsertError`,
-  `BatchError` and `LookupError`.
-- `Point`, `Transformable` and `Localized` are removed; a transform is
-  applied to a point with the recipe in the quick start.
-- Several behaviours change without a compile error: a sample older than
-  the retention window is rejected with `InsertError::Expired`, the cleanup
-  cutoff is inclusive, and a query for a name the registry does not know is
-  `UnknownFrame` also when both names are equal.
-- Persisted 2.x data is not read reliably: 3.0 rejects it or, in a binary
-  format, can decode it with a different meaning. Decode it with a 2.x
-  release and convert.
+- Some behaviour changes without a compile error. Read the rows tagged
+  `silent` in the
+  [migration guide](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/MIGRATION.md).
+- Decode saved 2.x data with a 2.x release, then convert it. Some 2.x
+  binary records decode in 3.0 without an error and with the wrong value.
 
-The [migration guide](MIGRATION.md) lists every change with its
-replacement, and the [changelog](CHANGELOG.md) has the full account and the
-earlier releases.
+The [changelog](https://github.com/deniz-hofmeister/transforms/blob/v3.0.0/CHANGELOG.md)
+has the details.
 
 ## Non-Goals
 

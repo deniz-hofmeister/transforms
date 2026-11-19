@@ -178,8 +178,8 @@ impl Rotation {
     /// components can differ from the given ones in their last digits.
     ///
     /// The order is positional and not checked: the scalar-last components
-    /// of a unit quaternion are a unit quaternion too, and describe a
-    /// different rotation.
+    /// of a unit quaternion are a unit quaternion too, and generally
+    /// describe a different rotation.
     ///
     /// # Errors
     ///
