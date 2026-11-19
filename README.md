@@ -1,5 +1,9 @@
 # Transforms
 
+> [!WARNING]
+> This README describes v3. If you use v2.4, see the
+> [v2.4.0 source code and README](https://github.com/deniz-hofmeister/transforms/tree/v2.4.0).
+
 [![Crates.io](https://img.shields.io/crates/v/transforms.svg)](https://crates.io/crates/transforms)
 [![Documentation](https://docs.rs/transforms/badge.svg)](https://docs.rs/transforms)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
